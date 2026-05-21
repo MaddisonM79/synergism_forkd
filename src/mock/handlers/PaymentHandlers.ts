@@ -1,7 +1,8 @@
 import { http, type HttpHandler, HttpResponse } from 'msw'
+import { apiBaseUrl } from '../../Config'
 
 export const paymentHandlers: HttpHandler[] = [
-  http.get(/https:\/\/synergism.cc\/stripe(?:\/test)\/products/, async () => {
+  http.get(new RegExp(`^${apiBaseUrl.replace(/[.*+?^${}()|[\\]\\\\]/g, '\\\\$&')}/stripe(?:/test)/products$`), async () => {
     return HttpResponse.json([
       {
         'id': 'omega-monthly-sub',
@@ -114,10 +115,10 @@ export const paymentHandlers: HttpHandler[] = [
       }
     ])
   }),
-  http.post('https://synergism.cc/paypal/orders/create', () => {
+  http.post(`${apiBaseUrl}/paypal/orders/create`, () => {
     return HttpResponse.json({ error: 'You did not agree to the TOS.' })
   }),
-  http.get('https://synergism.cc/merch/products', () => {
+  http.get(`${apiBaseUrl}/merch/products`, () => {
     return HttpResponse.json([
       {
         'id': '46411175-be96-46ee-97be-eaaa3e81c7fd',

@@ -1,6 +1,6 @@
 import { type FUNDING_SOURCE, loadScript } from '@paypal/paypal-js'
 import i18next from 'i18next'
-import { isSynergismCC, platform, prod } from '../Config'
+import { apiBaseUrl, isCanonicalHost, platform, prod } from '../Config'
 import { Alert, Notification } from '../UpdateHTML'
 import { assert, memoize } from '../Utility'
 import { products, subscriptionProducts } from './CartTab'
@@ -73,10 +73,10 @@ const initializeCheckoutTab = memoize(() => {
 
     if (e.target === checkoutStripe) {
       url = !prod
-        ? 'https://synergism.cc/stripe/test/create-checkout-session'
-        : 'https://synergism.cc/stripe/create-checkout-session'
+        ? `${apiBaseUrl}/stripe/test/create-checkout-session`
+        : `${apiBaseUrl}/stripe/create-checkout-session`
     } else if (e.target === checkoutNowPayments) {
-      url = 'https://synergism.cc/now-payments/checkout'
+      url = `${apiBaseUrl}/now-payments/checkout`
     } else {
       Notification('You clicked on something that I don\'t know.')
       reset()
@@ -97,7 +97,7 @@ const initializeCheckoutTab = memoize(() => {
       .catch((err: Error) => {
         console.error(`Error checking out (${url})`, err)
 
-        if (isSynergismCC) {
+        if (isCanonicalHost) {
           Alert(i18next.t('pseudoCoins.error.checkoutGeneric', { error: err.message }))
         } else {
           Alert(i18next.t('pseudoCoins.error.checkoutNotSynergismCC'))
@@ -266,7 +266,7 @@ async function initializePayPal_OneTime (selector: string | HTMLElement) {
       }
 
       fd.set('tosAgree', radioTOSAgree.checked ? 'on' : 'off')
-      const url = 'https://synergism.cc/paypal/orders/create'
+      const url = `${apiBaseUrl}/paypal/orders/create`
 
       const response = await fetch(url, {
         method: 'POST',
@@ -289,7 +289,7 @@ async function initializePayPal_OneTime (selector: string | HTMLElement) {
 
     async onApprove (data, actions) {
       try {
-        const url = `https://synergism.cc/paypal/orders/${data.orderID}/capture`
+        const url = `${apiBaseUrl}/paypal/orders/${data.orderID}/capture`
 
         const response = await fetch(url, { method: 'POST' })
         const orderData = await response.json()
@@ -352,7 +352,7 @@ async function initializePayPal_OneTime (selector: string | HTMLElement) {
         message.push(`${key}: ${value}`)
       }
 
-      if (isSynergismCC) {
+      if (isCanonicalHost) {
         Notification(i18next.t('pseudoCoins.error.paypalGeneric', { error: message.join(', ') }))
       } else {
         Notification(i18next.t('pseudoCoins.error.paypalNotSynergismCC'))

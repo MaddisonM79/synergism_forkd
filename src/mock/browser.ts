@@ -1,5 +1,6 @@
 import { delay, http, HttpResponse } from 'msw'
 import { setupWorker } from 'msw/browser'
+import { apiBaseUrl } from '../Config'
 import { cloudSaveHandlers } from './handlers/CloudSaveHandlers'
 import { messageHandlers } from './handlers/MessageHandlers'
 import { paymentHandlers } from './handlers/PaymentHandlers'
@@ -7,19 +8,19 @@ import { subscriptionHandlers } from './handlers/SubscriptionHandlers'
 import { consumeHandlers } from './websocket'
 
 const GETHandlers = [
-  http.get('https://synergism.cc/api/v1/quark-bonus', async () => {
+  http.get(`${apiBaseUrl}/api/v1/quark-bonus`, async () => {
     await delay(Math.random() * (2000 - 100) + 100)
 
     return HttpResponse.json({
       bonus: 105.3
     })
   }),
-  http.get('https://synergism.cc/stripe/coins', () => {
+  http.get(`${apiBaseUrl}/stripe/coins`, () => {
     return HttpResponse.json({
       coins: 49001
     })
   }),
-  http.get('https://synergism.cc/consumables/list', () => {
+  http.get(`${apiBaseUrl}/consumables/list`, () => {
     return HttpResponse.json([
       {
         name: 'Happy Hour Bell',
@@ -116,7 +117,7 @@ const GETHandlers = [
       }
     ])
   }),
-  http.get('https://synergism.cc/stripe/upgrades', () => {
+  http.get(`${apiBaseUrl}/stripe/upgrades`, () => {
     return HttpResponse.json({
       coins: 49000,
       upgrades: [
@@ -737,7 +738,7 @@ const GETHandlers = [
       tier: 0
     })
   }),
-  http.get('https://synergism.cc/stripe/test/upgrades', () => {
+  http.get(`${apiBaseUrl}/stripe/test/upgrades`, () => {
     return HttpResponse.json({
       coins: 49000,
       upgrades: [
@@ -1361,7 +1362,7 @@ const GETHandlers = [
 ]
 
 const PUTHandlers = [
-  http.put('https://synergism.cc/stripe/buy-upgrade/:id', async ({ params }) => {
+  http.put(`${apiBaseUrl}/stripe/buy-upgrade/:id`, async ({ params }) => {
     const { id } = params
 
     // TODO: Mock buying beyond level 1
@@ -1373,7 +1374,7 @@ const PUTHandlers = [
 ]
 
 export const worker = setupWorker(
-  http.get('https://synergism.cc/api/v1/users/me', () => {
+  http.get(`${apiBaseUrl}/api/v1/users/me`, () => {
     return HttpResponse.json({
       globalBonus: 50,
       member: {

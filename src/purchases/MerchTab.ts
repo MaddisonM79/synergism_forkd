@@ -1,3 +1,4 @@
+import { apiBaseUrl } from '../Config'
 import { memoize } from '../Utility'
 
 interface Merch {
@@ -50,7 +51,7 @@ const tab = document.querySelector<HTMLElement>('#pseudoCoins > #merchContainer'
 
 const initializeMerchSubtab = memoize(() => {
   ;(async () => {
-    const response = await fetch('https://synergism.cc/merch/products')
+    const response = await fetch(`${apiBaseUrl}/merch/products`)
     const merch = await response.json() as Merch[]
 
     for (let i = 0; i < merch.length; i++) {

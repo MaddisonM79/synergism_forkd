@@ -20,7 +20,7 @@
       style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
       font-src 'self' https://fonts.gstatic.com;
       img-src 'self' data:;
-      connect-src 'self' https://synergism.cc wss://synergism.cc https://challenges.cloudflare.com;
+      connect-src 'self' {{API_BASE_URL}} {{WS_BASE_URL}} https://challenges.cloudflare.com;
       frame-src https://challenges.cloudflare.com;
       worker-src 'self' blob:;
       object-src 'none';
@@ -39,7 +39,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Inconsolata:wght@200..900&display=swap" rel="stylesheet">
 
     <link rel="icon" href="favicon.ico" type="image/x-icon" sizes="16x16">
-    <link rel="canonical" href="https://synergism.cc/">
+    <link rel="canonical" href="https://{{CANONICAL_HOST}}/">
 
     <link rel="stylesheet" href="Synergism.css">
     <title>Synergism</title>
@@ -3258,7 +3258,7 @@
                 <button id="open-forgotpassword">Forgot Password</button>
               </div>
               <div id="register">
-                <form action="https://synergism.cc/register" data-steam-action="https://synergism.cc/login/direct/steam/register" method="POST">
+                <form action="{{API_BASE_URL}}/register" data-steam-action="{{API_BASE_URL}}/login/direct/steam/register" method="POST">
                   <label for="email">Email Address</label>
                   <input type="text" id="email" name="email" placeholder="you@gmail.com">
                   <label for="password">Password</label>
@@ -3270,7 +3270,7 @@
                 </form>
               </div>
               <div id="login">
-                <form action="https://synergism.cc/signin" data-steam-action="https://synergism.cc/login/direct/steam" method="POST">
+                <form action="{{API_BASE_URL}}/signin" data-steam-action="{{API_BASE_URL}}/login/direct/steam" method="POST">
                   <label for="email-si">Email Address</label>
                   <input type="text" id="email-si" name="email" placeholder="you@gmail.com">
                   <label for="password-si">Password</label>
@@ -3280,7 +3280,7 @@
                 </form>
               </div>
               <div id="forgotpassword">
-                <form action="https://synergism.cc/forgot-password" data-steam-action="https://synergism.cc/forgot-password/direct/steam" method="POST">
+                <form action="{{API_BASE_URL}}/forgot-password" data-steam-action="{{API_BASE_URL}}/forgot-password/direct/steam" method="POST">
                   <label for="email-fp">Email Address</label>
                   <input type="text" id="email-fp" name="email" placeholder="you@gmail.com">
                   <div class="turnstile" data-sitekey="0x4AAAAAAA4kwOTMEdx48IMm"></div>
@@ -3290,11 +3290,11 @@
               </div>
 
               <a
-                href="https://synergism.cc/login?with=discord"
+                href="{{API_BASE_URL}}/login?with=discord"
                 style="display:inline-block;border: 2px solid #5865F2; height: 25px; width: 20%; margin-bottom:5px;"
               >Login with Discord</a>
               <a
-                href="https://synergism.cc/login?with=patreon"
+                href="{{API_BASE_URL}}/login?with=patreon"
                 style="display:inline-block;border: 2px solid #ff5900; height: 25px; width: 20%;"
               >Login with Patreon</a>
             </div>

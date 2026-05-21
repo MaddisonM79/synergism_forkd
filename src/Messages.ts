@@ -1,4 +1,5 @@
 import { DOMCacheGetOrSet } from './Cache/DOM'
+import { apiBaseUrl } from './Config'
 
 export interface Message {
   id: number
@@ -32,7 +33,7 @@ let unreadMessages: Message[] = []
 
 export const fetchUnreadMessages = async (): Promise<Message[]> => {
   try {
-    const response = await fetch('https://synergism.cc/messages/unread', {
+    const response = await fetch(`${apiBaseUrl}/messages/unread`, {
       credentials: 'include'
     })
 
@@ -58,7 +59,7 @@ export const fetchUnreadMessages = async (): Promise<Message[]> => {
 
 const markMessageAsRead = async (messageId: number): Promise<boolean> => {
   try {
-    const response = await fetch(`https://synergism.cc/messages/${messageId}/mark-read`, {
+    const response = await fetch(`${apiBaseUrl}/messages/${messageId}/mark-read`, {
       method: 'POST',
       credentials: 'include'
     })

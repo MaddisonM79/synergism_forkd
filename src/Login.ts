@@ -5,7 +5,7 @@ import i18next from 'i18next'
 import { z } from 'zod'
 import { DOMCacheGetOrSet } from './Cache/DOM'
 import { calculateAmbrosiaGenerationSpeed, calculateOffline, calculateRedAmbrosiaGenerationSpeed } from './Calculate'
-import { isSynergismCC, platform } from './Config'
+import { apiBaseUrl, isCanonicalHost, platform, wsBaseUrl } from './Config'
 import { updateGlobalsIsEvent } from './Event'
 import { addTimers, automaticTools } from './Helper'
 import { exportData, importSynergism, saveFilename } from './ImportExport'
@@ -294,7 +294,7 @@ async function fetchMeRoute () {
     { status: 401 }
   )
 
-  return await fetch('https://synergism.cc/api/v1/users/me', { credentials: 'same-origin' }).catch(() => fallback)
+  return await fetch(`${apiBaseUrl}/api/v1/users/me`, { credentials: 'same-origin' }).catch(() => fallback)
 }
 
 export async function handleLogin () {
@@ -318,7 +318,7 @@ export async function handleLogin () {
     loggedIn = hasAccount(account)
     subscription = sub
 
-    if (!isSynergismCC && platform === 'browser') {
+    if (!isCanonicalHost && platform === 'browser') {
       subtabElement.innerHTML = i18next.t('account.loginNotAvailable')
     } else if (hasAccount(account)) {
       if (account.member == null || Object.keys(account.member).length === 0) {
@@ -517,7 +517,7 @@ export async function handleLogin () {
                   return
                 }
 
-                const directLoginResponse = await fetch(`https://synergism.cc/login/link-direct/${unlinked.name}`, {
+                const directLoginResponse = await fetch(`${apiBaseUrl}/login/link-direct/${unlinked.name}`, {
                   method: 'POST',
                   headers: {
                     'Content-Type': 'application/json'
@@ -536,14 +536,14 @@ export async function handleLogin () {
               }
             } else {
               if (platform === 'steam') {
-                const res = await fetch('https://synergism.cc/login/link-token', { credentials: 'include' })
+                const res = await fetch(`${apiBaseUrl}/login/link-token`, { credentials: 'include' })
                 const { token } = await res.json()
                 window.open(
-                  `https://synergism.cc/login?with=${unlinked.name}&link=true&platform=steam&link_token=${token}`,
+                  `${apiBaseUrl}/login?with=${unlinked.name}&link=true&platform=steam&link_token=${token}`,
                   '_blank'
                 )
               } else {
-                window.open(`https://synergism.cc/login?with=${unlinked.name}&link=true`, '_blank')
+                window.open(`${apiBaseUrl}/login?with=${unlinked.name}&link=true`, '_blank')
               }
             }
           })
@@ -577,7 +577,7 @@ export async function handleLogin () {
       })
 
       if (platform === 'steam') {
-        for (const link of subtabElement.querySelectorAll<HTMLAnchorElement>('a[href*="synergism.cc/login?with="]')) {
+        for (const link of subtabElement.querySelectorAll<HTMLAnchorElement>('a[href*="/login?with="]')) {
           const url = new URL(link.href)
           url.searchParams.set('platform', 'steam')
           link.href = url.toString()
@@ -624,7 +624,7 @@ function resetWebSocket () {
 function handleWebSocket () {
   assert(!ws || ws.readyState === WebSocket.CLOSED, 'WebSocket has been set and is not closed')
 
-  ws = new WebSocket('wss://synergism.cc/consumables/connect')
+  ws = new WebSocket(`${wsBaseUrl}/consumables/connect`)
 
   ws.addEventListener('close', () => {
     const delay = exponentialBackoff[++tries]
@@ -785,7 +785,7 @@ export function sendToWebsocket (message: string) {
 }
 
 async function logout () {
-  await fetch('https://synergism.cc/api/v1/users/logout')
+  await fetch(`${apiBaseUrl}/api/v1/users/logout`)
 
   if (platform === 'steam') {
     const { clearAuthCookie } = await import('./steam/steam')

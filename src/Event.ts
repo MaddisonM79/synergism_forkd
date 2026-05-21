@@ -1,4 +1,5 @@
 import { DOMCacheGetOrSet } from './Cache/DOM'
+import { apiBaseUrl } from './Config'
 import { allDurableConsumables, type PseudoCoinConsumableNames } from './Login'
 import { getGQUpgradeEffect } from './singularity'
 import { getTimePinnedToLoadDate, player } from './Synergism'
@@ -53,7 +54,7 @@ export const eventCheck = async () => {
     return
   }
 
-  const response = await fetch('https://synergism.cc/events/get')
+  const response = await fetch(`${apiBaseUrl}/events/get`)
 
   if (!response.ok) {
     throw new Error('God fucking dammit')

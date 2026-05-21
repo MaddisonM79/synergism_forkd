@@ -1,4 +1,4 @@
-import { prod } from '../Config'
+import { apiBaseUrl, prod } from '../Config'
 import { changeSubTab, getActiveSubTab, Tabs } from '../Tabs'
 import { assert, createDeferredPromise, type DeferredPromise, memoize, retry } from '../Utility'
 import { setEmptyProductMap } from './CartUtil'
@@ -69,7 +69,7 @@ export class CartTab {
 
     CartTab.#productsFetch = createDeferredPromise()
 
-    const url = !prod ? 'https://synergism.cc/stripe/test/products' : 'https://synergism.cc/stripe/products'
+    const url = !prod ? `${apiBaseUrl}/stripe/test/products` : `${apiBaseUrl}/stripe/products`
 
     // TODO: move this fetch to the products page.
     fetch(url)
@@ -96,7 +96,7 @@ export class CartTab {
 
     CartTab.#upgradesFetch = createDeferredPromise()
 
-    const url = 'https://synergism.cc/stripe/upgrades'
+    const url = `${apiBaseUrl}/stripe/upgrades`
 
     // TODO: move this fetch to the products page.
     retry(5, async () => {
