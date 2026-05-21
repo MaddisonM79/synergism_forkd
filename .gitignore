@@ -13,4 +13,7 @@ Pictures/TransparentPics/Thumbs.db
 
 **/.DS_Store
 release
+Kong.zip
+targetdir/
+dist/dist/
 !electron/**/*.js
