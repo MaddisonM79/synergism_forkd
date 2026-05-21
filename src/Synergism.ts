@@ -2139,20 +2139,14 @@ const FormatList = [
   "Ce",
 ];
 
-// Bad browsers (like Safari) only recently implemented this.
-const supportsFormatToParts = typeof Intl.NumberFormat.prototype.formatToParts === 'function'
-
-// In some browsers, this will return an empty-1 length array (?), causing a "TypeError: Cannot read property 'value' of undefined"
-// if we destructure it... To reproduce: ` const [ { value } ] = []; `
-// https://discord.com/channels/677271830838640680/730669616870981674/830218436201283584
-const IntlFormatter = !supportsFormatToParts
-  ? null
-  : Intl.NumberFormat()
-    .formatToParts(1000.1)
-    .filter((part) => part.type === 'decimal' || part.type === 'group')
+// Some locales may return fewer than 2 parts; the destructure below
+// falls back to en-US separators in that case.
+const IntlFormatter = Intl.NumberFormat()
+  .formatToParts(1000.1)
+  .filter((part) => part.type === 'decimal' || part.type === 'group')
 
 // gets the system number delimiter and decimal values, defaults to en-US
-const [{ value: group }, { value: dec }] = IntlFormatter?.length !== 2
+const [{ value: group }, { value: dec }] = IntlFormatter.length !== 2
   ? [{ value: ',' }, { value: '.' }]
   : IntlFormatter
 
