@@ -22,12 +22,15 @@
   },
   "devDependencies": {
     "@types/cloudflare-turnstile": "^0.2.2",
+    "@types/jsdom": "^28.0.3",
     "@types/lz-string": "^1.5.0",
     "@types/mime-types": "^3.0.1",
     "concurrently": "^9.2.1",
     "dprint": "^0.54.0",
+    "fast-check": "^3.23.2",
     "htmlhint": "^1.9.2",
     "husky": "^9.1.7",
+    "jsdom": "^25.0.1",
     "msw": "^2.14.6",
     "oxlint": "^1.66.0",
     "oxlint-tsgolint": "^0.23.0",
@@ -36,6 +39,7 @@
     "typescript": "^5.9.3",
     "vite": "^8.0.14",
     "vite-plugin-static-copy": "^3.4.0",
+    "vitest": "^3.2.4",
     "wrangler": "^4.0.0"
   },
   "scripts": {
@@ -55,6 +59,8 @@
     "watch:esbuild": "vite build --watch",
     "check:tsc": "npx -p typescript tsc",
     "watch:tsc": "npx -p typescript tsc --watch",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "prepare": "husky",
     "cloudflare:build": "vite build && npm run cloudflare:stage",
     "cloudflare:stage": "node scripts/stage.mjs",
