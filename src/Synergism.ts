@@ -17,7 +17,7 @@ import {
   tickChallengeSweep
 } from './Challenges'
 import { btoa } from './Utility'
-import { blankGlobals, Globals as G } from './Variables'
+import { freshBlankGlobals, Globals as G } from './Variables'
 
 import {
   achievementPoints,
@@ -990,24 +990,11 @@ export const player: Player = {
   corruptions: {
     next: new CorruptionLoadout(corruptionsSchema.parse({})),
     used: new CorruptionLoadout(corruptionsSchema.parse({})),
-    saves: new CorruptionSaves({
-      'Loadout 1': corruptionsSchema.parse({}),
-      'Loadout 2': corruptionsSchema.parse({}),
-      'Loadout 3': corruptionsSchema.parse({}),
-      'Loadout 4': corruptionsSchema.parse({}),
-      'Loadout 5': corruptionsSchema.parse({}),
-      'Loadout 6': corruptionsSchema.parse({}),
-      'Loadout 7': corruptionsSchema.parse({}),
-      'Loadout 8': corruptionsSchema.parse({}),
-      'Loadout 9': corruptionsSchema.parse({}),
-      'Loadout 10': corruptionsSchema.parse({}),
-      'Loadout 11': corruptionsSchema.parse({}),
-      'Loadout 12': corruptionsSchema.parse({}),
-      'Loadout 13': corruptionsSchema.parse({}),
-      'Loadout 14': corruptionsSchema.parse({}),
-      'Loadout 15': corruptionsSchema.parse({}),
-      'Loadout 16': corruptionsSchema.parse({})
-    }),
+    saves: new CorruptionSaves(
+      Object.fromEntries(
+        Array.from({ length: 16 }, (_, i) => [`Loadout ${i + 1}`, corruptionsSchema.parse({})])
+      )
+    ),
     showStats: true
   },
 
@@ -1341,7 +1328,7 @@ const loadSynergy = () => {
     data.exporttest = false
   }
 
-  Object.assign(G, { ...blankGlobals })
+  Object.assign(G, freshBlankGlobals())
 
   if (data) {
     if ((data.exporttest === false || data.exporttest === 'NO!') && !testing) {
