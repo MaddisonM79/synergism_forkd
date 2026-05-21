@@ -104,17 +104,16 @@ export const allDurableConsumables: Record<PseudoCoinConsumableNames, Consumable
   }
 }
 
-const messageSchema = z.preprocess(
-  (data, ctx) => {
-    if (typeof data === 'string') {
-      try {
-        return JSON.parse(data)
-      } catch {}
+const messageSchema = z.string()
+  .transform((data, ctx) => {
+    try {
+      return JSON.parse(data)
+    } catch {
+      ctx.addIssue({ code: 'custom', message: 'Invalid message received.' })
+      return z.NEVER
     }
-
-    ctx.addIssue({ code: 'custom', message: 'Invalid message received.' })
-  },
-  z.union([
+  })
+  .pipe(z.union([
     /** Received after the user connects to the websocket */
     z.object({ type: z.literal('join') }),
     z.object({ type: z.literal('error'), message: z.string() }),
@@ -1243,7 +1242,7 @@ function handleCloudSaves () {
           if (response.ok) {
             Alert(i18next.t('account.deletedSave', { name: save.name }))
           } else {
-            console.log(response)
+            console.error('[deleteSave] non-ok response:', response)
             Alert(i18next.t('account.notDeleted'))
 
             if (save.actionButtons) {
