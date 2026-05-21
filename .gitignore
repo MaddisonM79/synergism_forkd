@@ -1,6 +1,7 @@
 node_modules/
 *.js
 !scripts/*.js
+!mockServiceWorker.js
 dist
 !.eslintrc.js
 .idea

@@ -103,7 +103,8 @@
   "msw": {
     "workerDirectory": [
       "build",
-      "dist"
+      "dist",
+      ""
     ]
   }
 }
