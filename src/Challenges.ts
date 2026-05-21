@@ -543,6 +543,9 @@ const calculateChallengeRequirementMultiplier = (
         requirementMultiplier *= Math.pow(1000, completions)
       }
       return requirementMultiplier
+    default: {
+      throw new Error(`Unhandled challenge type: ${type satisfies never}`)
+    }
   }
 }
 
@@ -566,6 +569,9 @@ export const CalcECC = (type: 'transcend' | 'reincarnation' | 'ascension', compl
       effective += Math.min(10, completions)
       effective += 1 / 2 * (Math.max(10, completions) - 10)
       return effective
+    default: {
+      throw new Error(`Unhandled challenge type: ${type satisfies never}`)
+    }
   }
 }
 
@@ -682,6 +688,9 @@ function sweepTransitionFunc (
       } else {
         return { kind: 'initial_wait' }
       }
+    default: {
+      throw new Error(`Unhandled SweepState kind: ${(state as { kind: string }).kind}`)
+    }
   }
 }
 

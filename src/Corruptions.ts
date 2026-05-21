@@ -234,6 +234,9 @@ export class CorruptionLoadout {
       case 'viscosity': {
         return this.#viscosityEffect()
       }
+      default: {
+        throw new Error(`Unhandled corruption: ${corr satisfies never}`)
+      }
     }
   }
 

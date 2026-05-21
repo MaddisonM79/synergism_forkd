@@ -945,7 +945,8 @@ export const generateEventHandlers = () => {
         }
 
         if (getOwnedLotus() < 1) {
-          return Alert(i18next.t('pseudoCoins.lotus.noLotus'))
+          void Alert(i18next.t('pseudoCoins.lotus.noLotus'))
+          return
         }
 
         sendToWebsocket(

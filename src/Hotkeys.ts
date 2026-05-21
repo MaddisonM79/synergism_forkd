@@ -156,15 +156,18 @@ const makeSlot = (key: string, descr: string) => {
     const toSet = newKey.toUpperCase()
 
     if (newKey.length === 0) {
-      return void Alert('You didn\'t enter anything, canceled!')
+      void Alert('You didn\'t enter anything, canceled!')
+      return
     }
 
     if (!isNaN(Number(newKey))) {
-      return void Alert('Number keys are currently unavailable!')
+      void Alert('Number keys are currently unavailable!')
+      return
     }
 
     if (hotkeys.has(toSet) || oldKey === toSet) {
-      return void Alert('That key is already binded to an action, use another key instead!')
+      void Alert('That key is already binded to an action, use another key instead!')
+      return
     } else if (hotkeys.has(oldKey)) {
       const old = hotkeys.get(oldKey)!
 
@@ -178,7 +181,8 @@ const makeSlot = (key: string, descr: string) => {
 
       enableHotkeys()
     } else {
-      return void Alert(`No hotkey is triggered by ${oldKey}!`)
+      void Alert(`No hotkey is triggered by ${oldKey}!`)
+      return
     }
   })
 

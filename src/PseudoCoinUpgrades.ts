@@ -200,6 +200,9 @@ export const displayPCoinEffect = (name: PseudoCoinUpgradeNames, level: number) 
       )
     case 'RED_LUCK_BUFF':
       return String(i18next.t('pseudoCoins.upgradeEffects.RED_LUCK_BUFF', { amount: 20 * level }))
+    default: {
+      throw new Error(`Unhandled PseudoCoinUpgradeNames: ${name}`)
+    }
   }
 }
 
@@ -285,5 +288,8 @@ export const showCostAndEffect = (name: PseudoCoinUpgradeNames) => {
         cost: 'Cost: 100/150/200/250/300 PseudoCoins',
         effect: 'Effect: 20/40/60/80/100 Red Luck'
       }
+    default: {
+      throw new Error(`Unhandled PseudoCoinUpgradeNames: ${name}`)
+    }
   }
 }

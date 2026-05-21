@@ -1345,7 +1345,8 @@ const loadSynergy = () => {
 
   if (data) {
     if ((data.exporttest === false || data.exporttest === 'NO!') && !testing) {
-      return Alert(i18next.t('testing.saveInLive2'))
+      void Alert(i18next.t('testing.saveInLive2'))
+      return
     }
 
     // size before loading
@@ -5045,13 +5046,15 @@ export const reloadShit = (ignoreOfflineProgress = false) => {
 
     if (isLZString) {
       if (!decompress) {
-        return Alert(i18next.t('save.loadFailed'))
+        void Alert(i18next.t('save.loadFailed'))
+        return
       }
 
       const saveString = btoa(decompress)
 
       if (saveString === null) {
-        return Alert(i18next.t('save.loadFailed'))
+        void Alert(i18next.t('save.loadFailed'))
+        return
       }
 
       localStorage.clear()
