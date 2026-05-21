@@ -931,7 +931,7 @@ export const generateEventHandlers = () => {
     updateOnlySacrificeMaxRebornELOToggle(player.ants.toggles.onlySacrificeMaxRebornELO)
   })
 
-  document.getElementById('use-lotus')?.addEventListener('click', () => {
+  DOMCacheGetOrSet('use-lotus').addEventListener('click', () => {
     const timeNow = Date.now()
     const lotusTime = getLotusTimeExpiresAt()
     let extraHTML = ''
@@ -1634,7 +1634,7 @@ TODO: Fix this entire tab it's utter shit
   document.querySelector('#consumableEvents > .consumableButton')?.addEventListener('click', visitConsumableTab)
   document.querySelector('#lotusButtons > .consumableButton')?.addEventListener('click', visitConsumableTab)
 
-  document.getElementById('apply-tips')?.addEventListener('click', () => {
+  DOMCacheGetOrSet('apply-tips').addEventListener('click', () => {
     Prompt(i18next.t('pseudoCoins.consumables.applyTipsPrompt', { tips: getTips() }))
       .then((amount) => {
         const n = Number(amount)
@@ -1689,11 +1689,11 @@ TODO: Fix this entire tab it's utter shit
     }
   })
 
-  document.getElementById('patchnotes')?.addEventListener(
+  DOMCacheGetOrSet('patchnotes').addEventListener(
     'click',
     openIframeOverlay.bind(null, 'https://changelog.synergism.cc/latest')
   )
-  document.getElementById('tosLink')?.addEventListener(
+  DOMCacheGetOrSet('tosLink').addEventListener(
     'click',
     openIframeOverlay.bind(null, 'https://synergism.cc/terms-of-service')
   )
