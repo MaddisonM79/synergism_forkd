@@ -142,7 +142,19 @@ import {
   updateAutoChallenge,
   updateRuneBlessingBuyAmount
 } from './Toggles'
-import type { OneToFive, Player, resetNames, ZeroToFour } from './types/Synergism'
+import type { Player, resetNames } from './types/Synergism'
+import {
+  ascendBuildingKeys,
+  buildingCostKeys,
+  buildingOrdinalNames,
+  buildingOwnedKeys,
+  buildingResources,
+  digitToOneToFive,
+  ordinalsOneToFive,
+  particleCostKeys,
+  particleOriginalCosts,
+  particleOwnedKeys
+} from './Buildings'
 import {
   Alert,
   buttoncolorchange,
@@ -263,8 +275,6 @@ const buyAmountTypes = [
   'offering',
   'tesseract'
 ] as const
-const buildingResources = ['Coin', 'Diamonds', 'Mythos'] as const
-const particleOriginalCosts = [1, 1e2, 1e4, 1e8, 1e16]
 
 export const player: Player = {
   firstPlayed: new Date().toISOString(),
@@ -3377,22 +3387,20 @@ export const resourceGain = (dt: number): void => {
     )
   }*/
 
-  for (let i = 1; i <= 5; i++) {
-    G.ascendBuildingProduction[G.ordinals[(5 - i) as ZeroToFour]] = player[
-      `ascendBuilding${(6 - i) as OneToFive}` as const
-    ].generated
-      .add(player[`ascendBuilding${(6 - i) as OneToFive}` as const].owned)
+  for (let j = 4; j >= 0; j--) {
+    const buildingKey = ascendBuildingKeys[j]
+    const ordinalName = buildingOrdinalNames[j]
+    G.ascendBuildingProduction[ordinalName] = player[buildingKey].generated
+      .add(player[buildingKey].owned)
       // 4.1.0: Removing this from player, also because I want to make the multiplier 0.05 instead of 0.01 anyway
-      // .times(player[`ascendBuilding${i as OneToFive}` as const].multiplier)
+      // .times(player[buildingKey].multiplier)
       .times(0.05)
       .times(G.globalConstantMult)
 
-    if (i !== 5) {
-      const fiveMinusI = (5 - i) as 1 | 2 | 3 | 4
-      player[`ascendBuilding${fiveMinusI}` as const].generated = player[
-        `ascendBuilding${fiveMinusI}` as const
-      ].generated.add(
-        G.ascendBuildingProduction[G.ordinals[fiveMinusI]].times(dt)
+    if (j !== 0) {
+      const prevKey = ascendBuildingKeys[j - 1]
+      player[prevKey].generated = player[prevKey].generated.add(
+        G.ascendBuildingProduction[ordinalName].times(dt)
       )
     }
   }
@@ -4341,9 +4349,9 @@ export const updateAll = (): void => {
     && player.resetToggleModes.ascension === AutoAscensionModes.amount
   ) {
     const ownedBuildings: TesseractBuildings = [null, null, null, null, null]
-    for (let i = 1; i <= 5; i++) {
-      if (player.autoTesseracts[i]) {
-        ownedBuildings[i - 1] = player[`ascendBuilding${i as OneToFive}` as const].owned
+    for (let idx = 0; idx < 5; idx++) {
+      if (player.autoTesseracts[ordinalsOneToFive[idx]]) {
+        ownedBuildings[idx] = player[ascendBuildingKeys[idx]].owned
       }
     }
     const budget = Number(player.wowTesseracts) - player.tesseractAutoBuyerAmount
@@ -4353,11 +4361,11 @@ export const updateAll = (): void => {
     )
     // Prioritise buying buildings from highest tier to lowest,
     // in case there are any off-by-ones or floating point errors.
-    for (let i = 5; i >= 1; i--) {
-      const buyFrom = ownedBuildings[i - 1]
-      const buyTo = buyToBuildings[i - 1]
+    for (let idx = 4; idx >= 0; idx--) {
+      const buyFrom = ownedBuildings[idx]
+      const buyTo = buyToBuildings[idx]
       if (buyFrom !== null && buyTo !== null && buyTo !== buyFrom) {
-        buyTesseractBuilding(i as OneToFive, buyTo - buyFrom)
+        buyTesseractBuilding(ordinalsOneToFive[idx], buyTo - buyFrom)
       }
     }
   }
@@ -4566,21 +4574,21 @@ export const updateAll = (): void => {
     G.prevReductionValue = reductionValue
     for (let res = 0; res < buildingResources.length; ++res) {
       const resource = buildingResources[res]
+      const costKeys = buildingCostKeys[resource]
+      const ownedKeys = buildingOwnedKeys[resource]
       for (let ord = 0; ord < 5; ++ord) {
-        const num = G.ordinals[ord as ZeroToFour]
-        player[`${num}Cost${resource}` as const] = getCost(
-          (ord + 1) as OneToFive,
+        player[costKeys[ord]] = getCost(
+          ordinalsOneToFive[ord],
           resource,
-          player[`${num}Owned${resource}` as const] + 1,
+          player[ownedKeys[ord]] + 1,
           reductionValue
         )
       }
     }
 
     for (let i = 0; i <= 4; i++) {
-      const num = G.ordinals[i as ZeroToFour]
-      const buyTo = player[`${num}OwnedParticles` as const] + 1
-      player[`${num}CostParticles` as const] = new Decimal(
+      const buyTo = player[particleOwnedKeys[i]] + 1
+      player[particleCostKeys[i]] = new Decimal(
         Decimal.pow(2, buyTo - 1).times(
           Decimal.pow(
             1.001,
@@ -4913,7 +4921,7 @@ export const synergismHotkeys = (event: KeyboardEvent, key: string): void => {
     case '3':
     case '4':
     case '5': {
-      const num = Number(key) as OneToFive
+      const num = digitToOneToFive[key]
 
       if (G.currentTab === Tabs.Buildings) {
         if (type === 'Particles') {
