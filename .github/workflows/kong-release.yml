@@ -8,6 +8,11 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      # actions/attest-build-provenance signs an attestation via Sigstore
+      # (id-token: write) and uploads it to the GitHub attestations API
+      # (attestations: write).
+      id-token: write
+      attestations: write
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -38,6 +43,10 @@ jobs:
         run: |
           echo "VERSION=$(jq -r '.version' package.json)" >> $GITHUB_OUTPUT
         id: version
+      - name: Attest Kong.zip
+        uses: actions/attest-build-provenance@977bb373ede98d70efdf65b84cb5f73e068dcc2a # v3
+        with:
+          subject-path: 'Kong.zip'
       - name: Create release
         uses: softprops/action-gh-release@b4309332981a82ec1c5618f44dd2e27cc8bfbfda # v3.0.0
         with:
