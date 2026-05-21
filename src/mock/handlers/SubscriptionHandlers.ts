@@ -1,4 +1,5 @@
 import { http, type HttpHandler, HttpResponse } from 'msw'
+import { apiBaseUrl } from '../../Config'
 import { getSubMetadata, setSubMetadata } from '../../Login'
 import { subscriptionProducts } from '../../purchases/CartTab'
 
@@ -8,7 +9,7 @@ function getSubscriptionTier (productId: string): number | null {
 }
 
 export const subscriptionHandlers: HttpHandler[] = [
-  http.post('https://synergism.cc/paypal/subscriptions/create', async ({ request }) => {
+  http.post(`${apiBaseUrl}/paypal/subscriptions/create`, async ({ request }) => {
     const url = new URL(request.url)
     const productId = url.searchParams.get('product')
     if (!productId) {
@@ -38,7 +39,7 @@ export const subscriptionHandlers: HttpHandler[] = [
   }),
 
   // Revise subscription
-  http.post('https://synergism.cc/paypal/subscriptions/revise', async ({ request }) => {
+  http.post(`${apiBaseUrl}/paypal/subscriptions/revise`, async ({ request }) => {
     // Extract product ID from URL query parameter (?product=...)
     const url = new URL(request.url)
     const productId = url.searchParams.get('product')
@@ -72,7 +73,7 @@ export const subscriptionHandlers: HttpHandler[] = [
     })
   }),
 
-  http.post('https://synergism.cc/paypal/subscriptions/cancel', async () => {
+  http.post(`${apiBaseUrl}/paypal/subscriptions/cancel`, async () => {
     const currentSub = getSubMetadata()
 
     if (currentSub === null) {

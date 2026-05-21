@@ -1,6 +1,6 @@
 import i18next, { type Resource } from 'i18next'
 import { DOMCacheGetOrSet } from './Cache/DOM'
-import { prod } from './Config'
+import { apiBaseUrl, prod } from './Config'
 import ColorTextPlugin from './Plugins/ColorText'
 import StatSymbolsPlugin from './Plugins/StatSymbols'
 import { Confirm } from './UpdateHTML'
@@ -25,7 +25,7 @@ export const init = async (): Promise<void> => {
   const language = localStorage.getItem('language') ?? 'en'
 
   const response = await fetch(`./translations/${language}.json`)
-    .catch(() => fetch(`https://synergism.cc/translations/${language}.json`))
+    .catch(() => fetch(`${apiBaseUrl}/translations/${language}.json`))
   const file = await response.json() as Resource
 
   languageCache.set(language, { translation: file })
@@ -34,7 +34,7 @@ export const init = async (): Promise<void> => {
   if (language !== 'en') {
     // We always need to load English, to use as a fallback
     const englishResponse = await fetch('./translations/en.json')
-      .catch(() => fetch('https://synergism.cc/translations/en.json'))
+      .catch(() => fetch(`${apiBaseUrl}/translations/en.json`))
     const englishTranslations = await englishResponse.json() as Resource
 
     languageCache.set('en', { translation: englishTranslations })

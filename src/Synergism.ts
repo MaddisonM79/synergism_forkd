@@ -183,7 +183,7 @@ import {
   updateMaxTokens,
   updateTokens
 } from './Campaign'
-import { dev, lastUpdated, platform, prod, testing, ticksPerSecond, version } from './Config'
+import { canonicalHost, dev, lastUpdated, platform, prod, testing, ticksPerSecond, version } from './Config'
 import { WowCubes, WowHypercubes, WowPlatonicCubes, WowTesseracts } from './CubeExperimental'
 import { eventCheck } from './Event'
 import { autobuyAnts } from './Features/Ants'
@@ -5218,12 +5218,12 @@ window.addEventListener('load', async () => {
       },
       // Default is 'warn', which logs and then passes the request through to
       // the real network — so any unmocked endpoint silently hits the live
-      // synergism.cc server during local dev (polluting prod analytics, risking
-      // accidental state-changing calls, tripping rate limits). Hard-fail on
-      // synergism.cc; let third-party calls (fonts, Turnstile) pass through.
+      // backend during local dev (polluting prod analytics, risking accidental
+      // state-changing calls, tripping rate limits). Hard-fail on the
+      // canonical host; let third-party calls (fonts, Turnstile) pass through.
       onUnhandledRequest: (request) => {
-        if (new URL(request.url).hostname === 'synergism.cc') {
-          throw new Error(`Unmocked synergism.cc call: ${request.method} ${request.url}`)
+        if (new URL(request.url).hostname === canonicalHost) {
+          throw new Error(`Unmocked ${canonicalHost} call: ${request.method} ${request.url}`)
         }
       }
     })

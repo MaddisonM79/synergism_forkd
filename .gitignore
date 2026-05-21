@@ -18,3 +18,14 @@ targetdir/
 build/
 dist/dist/
 !electron/**/*.js
+
+# Local env files — .env.example is committed; everything else is private.
+.env
+.env.local
+.env.*.local
+.env.development
+.env.production
+.env.preview
+
+# wrangler local state
+.wrangler/

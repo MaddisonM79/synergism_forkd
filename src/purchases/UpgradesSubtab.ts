@@ -1,6 +1,7 @@
 import i18next from 'i18next'
 import { z } from 'zod'
 import { DOMCacheGetOrSet } from '../Cache/DOM'
+import { apiBaseUrl } from '../Config'
 import {
   displayPCoinEffect,
   type PseudoCoinUpgradeNames,
@@ -106,7 +107,7 @@ async function purchaseUpgrade (upgrades: Map<number, UpgradesList>) {
     return
   }
 
-  const response = await fetch(`https://synergism.cc/stripe/buy-upgrade/${activeUpgrade.upgradeId}`, {
+  const response = await fetch(`${apiBaseUrl}/stripe/buy-upgrade/${activeUpgrade.upgradeId}`, {
     method: 'PUT'
   })
   const json = await response.json()
@@ -206,7 +207,7 @@ export const clearUpgradeSubtab = () => {
 }
 
 export const updatePseudoCoins = async () => {
-  const response = await fetch('https://synergism.cc/stripe/coins')
+  const response = await fetch(`${apiBaseUrl}/stripe/coins`)
   const coins = await response.json() as CoinsResponse
 
   tab.querySelector('#pseudoCoinAmounts > #currentCoinBalance')!.innerHTML = i18next.t('pseudoCoins.coinCount', {

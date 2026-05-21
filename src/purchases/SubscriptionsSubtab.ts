@@ -1,6 +1,6 @@
 import { type FUNDING_SOURCE, loadScript } from '@paypal/paypal-js'
 import i18next from 'i18next'
-import { isSynergismCC, platform, prod } from '../Config'
+import { apiBaseUrl, isCanonicalHost, platform, prod } from '../Config'
 import { getSubMetadata, type SubscriptionMetadata, type SubscriptionProvider } from '../Login'
 import { Alert, Confirm, Notification } from '../UpdateHTML'
 import { assert, memoize } from '../Utility'
@@ -16,16 +16,16 @@ type RouteLinks = Record<Actions, string>
 
 const prodRouteLinks: Record<'stripe' | 'paypal' | 'steam', RouteLinks> = {
   stripe: {
-    manage: 'https://synergism.cc/stripe/manage-subscription',
-    upgrade: 'https://synergism.cc/stripe/subscription/upgrade',
-    downgrade: 'https://synergism.cc/stripe/subscription/downgrade',
-    cancel: 'https://synergism.cc/stripe/subscription/cancel'
+    manage: `${apiBaseUrl}/stripe/manage-subscription`,
+    upgrade: `${apiBaseUrl}/stripe/subscription/upgrade`,
+    downgrade: `${apiBaseUrl}/stripe/subscription/downgrade`,
+    cancel: `${apiBaseUrl}/stripe/subscription/cancel`
   },
   paypal: {
     manage: 'https://www.paypal.com/myaccount/autopay/',
-    upgrade: 'https://synergism.cc/paypal/subscriptions/revise',
-    downgrade: 'https://synergism.cc/paypal/subscriptions/revise',
-    cancel: 'https://synergism.cc/paypal/subscriptions/cancel'
+    upgrade: `${apiBaseUrl}/paypal/subscriptions/revise`,
+    downgrade: `${apiBaseUrl}/paypal/subscriptions/revise`,
+    cancel: `${apiBaseUrl}/paypal/subscriptions/cancel`
   },
   steam: {
     manage: 'https://store.steampowered.com/account/',
@@ -37,16 +37,16 @@ const prodRouteLinks: Record<'stripe' | 'paypal' | 'steam', RouteLinks> = {
 
 const devRouteLinks: typeof prodRouteLinks = {
   stripe: {
-    manage: 'https://synergism.cc/stripe/test/manage-subscription',
-    upgrade: 'https://synergism.cc/stripe/test/subscription/upgrade',
-    downgrade: 'https://synergism.cc/stripe/test/subscription/downgrade',
-    cancel: 'https://synergism.cc/stripe/test/subscription/cancel'
+    manage: `${apiBaseUrl}/stripe/test/manage-subscription`,
+    upgrade: `${apiBaseUrl}/stripe/test/subscription/upgrade`,
+    downgrade: `${apiBaseUrl}/stripe/test/subscription/downgrade`,
+    cancel: `${apiBaseUrl}/stripe/test/subscription/cancel`
   },
   paypal: {
     manage: 'https://www.paypal.com/myaccount/autopay/',
-    upgrade: 'https://synergism.cc/paypal/subscriptions/revise',
-    downgrade: 'https://synergism.cc/paypal/subscriptions/revise',
-    cancel: 'https://synergism.cc/paypal/subscriptions/cancel'
+    upgrade: `${apiBaseUrl}/paypal/subscriptions/revise`,
+    downgrade: `${apiBaseUrl}/paypal/subscriptions/revise`,
+    cancel: `${apiBaseUrl}/paypal/subscriptions/cancel`
   },
   steam: prodRouteLinks.steam
 }
@@ -450,7 +450,7 @@ export const initializePayPal_Subscription = async () => {
       },
 
       async createSubscription () {
-        const response = await fetch(`https://synergism.cc/paypal/subscriptions/create?product=${id}`, {
+        const response = await fetch(`${apiBaseUrl}/paypal/subscriptions/create?product=${id}`, {
           method: 'POST'
         })
         const json = await response.json()
@@ -472,7 +472,7 @@ export const initializePayPal_Subscription = async () => {
           message.push(`${key}: ${value}`)
         }
 
-        if (isSynergismCC) {
+        if (isCanonicalHost) {
           Notification(i18next.t('pseudoCoins.error.paypalGeneric', { error: message.join(', ') }))
         } else {
           Notification(i18next.t('pseudoCoins.error.paypalNotSynergismCC'))

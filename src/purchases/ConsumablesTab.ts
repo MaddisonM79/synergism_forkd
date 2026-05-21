@@ -1,5 +1,6 @@
 import i18next from 'i18next'
 import { DOMCacheGetOrSet } from '../Cache/DOM'
+import { apiBaseUrl } from '../Config'
 import { getOwnedLotus, getUsedLotus, sendToWebsocket } from '../Login'
 import { format } from '../Synergism'
 import { Alert, Confirm } from '../UpdateHTML'
@@ -19,7 +20,7 @@ type TimeSkipCategories = 'GLOBAL' | 'ASCENSION' | 'AMBROSIA'
 const tab = document.querySelector<HTMLElement>('#pseudoCoins > #consumablesSection')!
 
 const initializeConsumablesTab = memoize(() => {
-  fetch('https://synergism.cc/consumables/list')
+  fetch(`${apiBaseUrl}/consumables/list`)
     .then((r) => r.json())
     .then((consumables: ConsumableListItems[]) => {
       // Thank you Gemini for the number test

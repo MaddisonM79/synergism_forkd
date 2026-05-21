@@ -2,6 +2,7 @@ import i18next from 'i18next'
 import { awardUngroupedAchievement } from './Achievements'
 import { DOMCacheGetOrSet } from './Cache/DOM'
 import { type AutoChallengeStates, getChallengeConditions, resetChallengeSweep } from './Challenges'
+import { apiBaseUrl } from './Config'
 import { corruptionDisplay, corruptionLoadoutTableUpdate, type Corruptions } from './Corruptions'
 import { renderCaptcha } from './Login'
 import { initializeMessages } from './Messages'
@@ -538,7 +539,7 @@ export const setActiveSettingScreen = async (subtab: string) => {
     }
 
     try {
-      const r = await fetch('https://synergism.cc/contributors')
+      const r = await fetch(`${apiBaseUrl}/contributors`)
       const j = await r.json() as ChadContributor
 
       for (const contributor of j.contributors) {

@@ -1,4 +1,5 @@
 import { delay, http, type HttpHandler, HttpResponse } from 'msw'
+import { apiBaseUrl } from '../../Config'
 import type { Message } from '../../Messages'
 
 // Mock messages data - includes different types and priority levels for testing
@@ -80,7 +81,7 @@ const readMessageIds = new Set<number>()
 
 export const messageHandlers: HttpHandler[] = [
   // GET /messages/unread - Fetch unread messages
-  http.get('https://synergism.cc/messages/unread', async () => {
+  http.get(`${apiBaseUrl}/messages/unread`, async () => {
     await delay(500) // Simulate network delay
 
     // Filter out read messages and inactive messages
@@ -95,7 +96,7 @@ export const messageHandlers: HttpHandler[] = [
   }),
 
   // POST /messages/:id/mark-read - Mark a message as read
-  http.post('https://synergism.cc/messages/:id/mark-read', async ({ params }) => {
+  http.post(`${apiBaseUrl}/messages/:id/mark-read`, async ({ params }) => {
     await delay(300) // Simulate network delay
 
     const messageId = Number.parseInt(params.id as string)

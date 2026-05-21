@@ -1,8 +1,9 @@
 import { ws } from 'msw'
+import { wsBaseUrl } from '../Config'
 import { messages, messageSchema } from './util/messages'
 import { sleep } from './util/util'
 
-const consumable = ws.link('wss://synergism.cc/consumables/connect')
+const consumable = ws.link(`${wsBaseUrl}/consumables/connect`)
 let tips = 1000
 const lotus: {
   inventory: number

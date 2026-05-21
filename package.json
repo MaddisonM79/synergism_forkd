@@ -39,14 +39,16 @@
     "msw": "^2.14.6",
     "oxlint": "^1.66.0",
     "oxlint-tsgolint": "^0.23.0",
+    "cross-env": "^10.0.0",
     "shx": "^0.4.0",
     "stylelint": "^14.8.2",
     "stylelint-config-standard": "^25.0.0",
-    "typescript": "^5.9.3"
+    "typescript": "^5.9.3",
+    "wrangler": "^4.0.0"
   },
   "scripts": {
-    "live-server": "npx live-server --port=3000 -q",
-    "dev": "concurrently \"npm run watch:esbuild\" \"npm run live-server\"",
+    "dev": "npm run cloudflare:stage && node --run msw:init && concurrently \"npm run watch:esbuild\" \"npm run dev:serve\"",
+    "dev:serve": "npx wrangler pages dev build --port 3000",
     "lint": "oxlint",
     "lint:fix": "oxlint --fix",
     "fmt": "npx dprint fmt",
@@ -54,19 +56,19 @@
     "csslint": "npx stylelint Synergism.css",
     "csslint:fix": "npx stylelint Synergism.css --fix",
     "htmllint": "npx htmlhint index.html",
-    "build:esbuild": "npx esbuild src/Synergism.ts --bundle --minify --target=\"es2020\" --outfile=\"./dist/out.js\" --define:PROD=true",
-    "watch:esbuild": "node --run msw:init && npx esbuild src/Synergism.ts --bundle --minify --target=\"es2020\" --outfile=\"./dist/out.js\" --watch --sourcemap --define:PROD=false --define:DEV=true",
+    "build:esbuild": "node scripts/build.mjs",
+    "watch:esbuild": "node scripts/build.mjs --watch",
     "check:tsc": "npx -p typescript tsc",
     "watch:tsc": "npx -p typescript tsc --watch",
     "prepare": "husky install",
-    "cloudflare:build": "npm run build:esbuild && npm run cloudflare:stage",
-    "cloudflare:stage": "shx rm -rf build && shx mkdir -p build/dist && shx cp -r Pictures translations build/ && shx cp dist/out.js build/dist/ && shx cp index.html Synergism.css favicon.ico _headers build/",
-    "msw:init": "npx -y msw init . --save",
+    "cloudflare:build": "npm run cloudflare:stage && npm run build:esbuild",
+    "cloudflare:stage": "node scripts/stage.mjs",
+    "msw:init": "npx -y msw init build --save",
     "check-circular": "madge --circular src/",
     "electron:cp": "shx rm -rf ./dist && shx mkdir dist && shx cp -r Pictures dist/ && shx cp -r translations dist/ && shx cp index.html Synergism.css favicon.ico dist/",
-    "electron:build:assets": "npm run electron:cp && npm run build:esbuild -- --define:PLATFORM=\\\"steam\\\" --outfile=\"./dist/dist/out.js\"",
-    "electron:watch": "npx esbuild src/Synergism.ts --bundle --target=\"es2020\" --outfile=\"./dist/dist/out.js\" --watch --sourcemap --define:PROD=false --define:DEV=true --define:PLATFORM=\\\"steam\\\"",
-    "electron:dev": "npm run electron:cp && npm run build:esbuild -- --define:PLATFORM=\\\"steam\\\" --outfile=\"./dist/dist/out.js\" && npx -y msw init dist --save && electron electron/main.ts",
+    "electron:build:assets": "npm run electron:cp && cross-env PLATFORM=steam node scripts/build.mjs",
+    "electron:watch": "cross-env PLATFORM=steam NODE_ENV=development node scripts/build.mjs --watch",
+    "electron:dev": "npm run electron:cp && cross-env PLATFORM=steam node scripts/build.mjs && npx -y msw init dist --save && electron electron/main.ts",
     "electron:build": "npm run electron:build:assets && electron-builder --win --mac --linux",
     "electron:build:win": "npm run electron:build:assets && electron-builder --win",
     "electron:build:mac": "npm run electron:build:assets && electron-builder --mac",
@@ -92,8 +94,7 @@
   "homepage": "https://github.com/Pseudo-Corp/SynergismOfficial#readme",
   "msw": {
     "workerDirectory": [
-      ".",
-      "",
+      "build",
       "dist"
     ]
   }
