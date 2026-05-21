@@ -4,7 +4,7 @@
 
 Before running any of the commands below, make sure you have installed:
 
-- NodeJS >= 24.0.0 — https://nodejs.org/en/
+- NodeJS >= 22.21.0 — https://nodejs.org/en/
 - git — https://git-scm.com/downloads
 
 ## Recommended

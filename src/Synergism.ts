@@ -1309,19 +1309,19 @@ async function syncToSteamCloud (saveData: string) {
   const saveFileName = `synergism_${steamId}.txt`
 
   const exists = await cloudFileExists(saveFileName)
-  console.log('[SteamCloud] cloudFileExists:', exists)
+  if (dev) console.log('[SteamCloud] cloudFileExists:', exists)
 
   if (exists) {
     const cloudSave = await cloudReadFile(saveFileName)
-    console.log('[SteamCloud] cloudReadFile returned:', cloudSave ? `string(${cloudSave.length})` : cloudSave)
+    if (dev) console.log('[SteamCloud] cloudReadFile returned:', cloudSave ? `string(${cloudSave.length})` : cloudSave)
 
     if (cloudSave) {
       try {
         const parsed = playerUpdateVarSchema.parse(JSON.parse(atob(cloudSave)))
         const cloudPoints = computeAchievementPoints(parsed.achievements, parsed.progressiveAchievements)
-        console.log('[SteamCloud] achievementPoints:', achievementPoints, 'cloudPoints:', cloudPoints)
+        if (dev) console.log('[SteamCloud] achievementPoints:', achievementPoints, 'cloudPoints:', cloudPoints)
         if (achievementPoints < cloudPoints) {
-          console.log('[SteamCloud] skipping upload, cloud has higher points')
+          if (dev) console.log('[SteamCloud] skipping upload, cloud has higher points')
           return
         }
       } catch (e) {
@@ -1331,7 +1331,7 @@ async function syncToSteamCloud (saveData: string) {
   }
 
   const writeResult = await cloudWriteFile(saveFileName, saveData)
-  console.log('[SteamCloud] cloudWriteFile result:', writeResult)
+  if (dev) console.log('[SteamCloud] cloudWriteFile result:', writeResult)
 }
 
 const loadSynergy = () => {
@@ -1375,15 +1375,6 @@ const loadSynergy = () => {
 
     if (data.offerpromo24used !== undefined) {
       player.codes.set(25, false)
-    }
-
-    // sets all non-existent codes to default value false
-    if (player.codes.size < size) {
-      for (let i = player.codes.size + 1; i <= size; i++) {
-        if (!player.codes.has(i)) {
-          player.codes.set(i, false)
-        }
-      }
     }
 
     // sets all non-existent codes to default value false
@@ -2213,12 +2204,12 @@ export const format = (
   longExponent = false
 ): string => {
   if (input == null) {
-    return '0 [null]'
+    return '0'
   }
 
   // NaN check
   if (input !== input) {
-    return '0 [NaN]'
+    return '0'
   }
 
   const inputType = typeof input
@@ -2428,7 +2419,7 @@ export const format = (
     return `e${power.toExponential(2)}`
   }
 
-  return '0 [und.]'
+  return '0'
 }
 
 export const formatTimeShort = (
