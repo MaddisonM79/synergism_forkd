@@ -118,8 +118,8 @@ function translateHTML () {
     }
   })
 
-  document.querySelectorAll('[i18n-aria-label]').forEach((element) => {
-    const key = element.getAttribute('i18n-aria-label')!
+  document.querySelectorAll('[data-i18n-aria-label]').forEach((element) => {
+    const key = element.getAttribute('data-i18n-aria-label')!
     element.setAttribute('aria-label', i18next.t(key))
   })
 }
