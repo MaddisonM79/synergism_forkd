@@ -52,29 +52,9 @@ translations/en.json       # Required for all new text strings
 - Match existing naming conventions
 - Maintain consistency with current architecture
 
-### Steam
-- There is a Steam version of the app that uses Electron.
-- Steam features MUST be gated by checking the `platform` variable from Config.ts
-- When using a feature only available to the Electron app, you MUST use dynamic imports. Example:
+### Desktop / Steam (deferred)
 
-```ts
-import { platform } from './Config'
-
-async function myFunction () {
-  if (platform === 'steam') {
-    const { steamOnlyFeature } = await import('./steam/steam')
-
-    await steamOnlyFeature()
-  } else {
-    // browser version
-    browserOnlyFeature()
-  }
-}
-```
-
-- The platform variable comes from Vite's `define` config (which uses esbuild under the hood for the substitution). These act as macros essentially, which removes the
-  `else` block on Steam and vice-versa on browser builds.
-- **Wrong**: `import { steamOnlyFeature } from './steam/steam'`W
+The Electron-based Steam build was removed. The plan is to reintroduce a desktop runtime via Tauri + Rust later in the roadmap, with Steam SDK integration and Discord Rich Presence reimplemented on that side. Until then, treat this as a browser-only codebase — there is no `platform === 'steam'` gate, no `PLATFORM` build-time macro, no `src/steam/` contract layer. Don't reintroduce a Steam/Electron abstraction. New desktop-only work should wait for the Tauri integration.
 
 ### Recommended Patterns
 - Objects and arrays that are constant should be hoisted to the module scope when possible.
