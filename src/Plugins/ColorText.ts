@@ -8,6 +8,9 @@ export default {
       return value
     }
 
-    return value.replace(/<<(.*?)\|(.*?)>>/g, '<span style="color:$1">$2</span>')
+    return value.replace(
+      /<<(.*?)\|(.*?)>>/g,
+      (_, color: string, text: string) => `<span style="color:${color.replace(/[<>"&]/g, '')}">${text}</span>`
+    )
   }
 } as Module

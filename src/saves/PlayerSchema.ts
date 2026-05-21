@@ -208,7 +208,7 @@ const toggleSchema = z.record(z.string(), z.boolean()).transform((record) => {
   return record
 })
 
-const decimalStringSchema = z.string().regex(/^|-?\d+(\.\d{1,2})?$/)
+const decimalStringSchema = z.string().regex(/^-?\d+(\.\d{1,2})?$/)
 const integerStringSchema = z.string().regex(/^\d+$/)
 
 // TODO: FUCK THIS SHIT.
