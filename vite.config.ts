@@ -54,7 +54,12 @@ export default defineConfig(({ mode }) => {
       viteStaticCopy({
         targets: [
           { src: 'Pictures', dest: '' },
-          { src: 'translations', dest: '' }
+          { src: 'translations', dest: '' },
+          // MSW service worker must be served at the site root in dev so that
+          // src/Synergism.ts's worker.start({ url: './mockServiceWorker.js' })
+          // can register it. publicDir is disabled (see above), so we copy via
+          // this plugin instead.
+          { src: 'mockServiceWorker.js', dest: '' }
         ]
       })
     ]

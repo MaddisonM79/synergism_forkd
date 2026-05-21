@@ -1,5 +1,6 @@
 import { type FUNDING_SOURCE, loadScript } from '@paypal/paypal-js'
 import i18next from 'i18next'
+import { DOMCacheGetOrSet } from '../Cache/DOM'
 import { apiBaseUrl, isCanonicalHost, platform, prod } from '../Config'
 import { Alert, Notification } from '../UpdateHTML'
 import { assert, memoize } from '../Utility'
@@ -16,7 +17,7 @@ import {
 import { initializePayPal_Subscription } from './SubscriptionsSubtab'
 import { updatePseudoCoins } from './UpgradesSubtab'
 
-const tab = document.querySelector<HTMLElement>('#pseudoCoins > #cartContainer')!
+const tab = DOMCacheGetOrSet('cartContainer')
 const form = tab.querySelector('div.cartList')!
 
 const checkoutStripe = form.querySelector<HTMLElement>('button#checkout')

@@ -1,6 +1,7 @@
 node_modules/
 *.js
 !scripts/*.js
+!mockServiceWorker.js
 dist
 !.eslintrc.js
 .idea
@@ -26,3 +27,6 @@ dist/dist/
 
 # wrangler local state
 .wrangler/
+
+# Claude Code local-only settings (per-user permission allowlist, etc.)
+.claude/settings.local.json

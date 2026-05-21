@@ -1,3 +1,4 @@
+import { DOMCacheGetOrSet } from '../Cache/DOM'
 import { apiBaseUrl } from '../Config'
 import { memoize } from '../Utility'
 
@@ -47,7 +48,7 @@ interface Merch {
   updatedAt: string
 }
 
-const tab = document.querySelector<HTMLElement>('#pseudoCoins > #merchContainer')!
+const tab = DOMCacheGetOrSet('merchContainer')
 
 const initializeMerchSubtab = memoize(() => {
   ;(async () => {

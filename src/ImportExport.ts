@@ -22,6 +22,8 @@ import { resetRuneBlessings } from './RuneBlessings'
 import { resetRunes } from './Runes'
 import { resetRuneSpirits } from './RuneSpirits'
 import { playerJsonSchema } from './saves/PlayerJsonSchema'
+import { reportSaveError } from './saves/reportSaveError'
+import { SaveDecodeError } from './saves/SaveErrors'
 import { getShopUpgradeEffects } from './Shop'
 import { getGQUpgradeEffect, goldenQuarkUpgrades } from './singularity'
 import { getSingularityChallengeEffect } from './SingularityChallenges'
@@ -368,8 +370,7 @@ export const importSynergism = (input: string | null, reset = false) => {
   try {
     f = d ? JSON.parse(d) : JSON.parse(atob(input))
   } catch (e) {
-    console.error(e)
-    Alert(i18next.t('importexport.unableImport'))
+    void reportSaveError(new SaveDecodeError(e))
     return
   }
 

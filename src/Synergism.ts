@@ -72,8 +72,8 @@ import {
   corruptionLoadoutTableCreate,
   corruptionLoadoutTableUpdate,
   CorruptionSaves,
-  corruptionsSchema,
   corruptionStatsUpdate,
+  defaultCorruptions,
   updateCorruptionLoadoutNames,
   updateUndefinedLoadouts
 } from './Corruptions'
@@ -236,6 +236,8 @@ import {
 } from './RuneSpirits'
 import { playerJsonSchema } from './saves/PlayerJsonSchema'
 import { playerUpdateVarSchema } from './saves/PlayerUpdateVarSchema'
+import { logSaveError, reportSaveError } from './saves/reportSaveError'
+import { SaveDecodeError, SchemaValidationError } from './saves/SaveErrors'
 import { getShopUpgradeEffects, updateShopLevels } from './Shop'
 import {
   blankGQLevelObject,
@@ -988,11 +990,11 @@ export const player: Player = {
   },
 
   corruptions: {
-    next: new CorruptionLoadout(corruptionsSchema.parse({})),
-    used: new CorruptionLoadout(corruptionsSchema.parse({})),
+    next: new CorruptionLoadout(defaultCorruptions),
+    used: new CorruptionLoadout(defaultCorruptions),
     saves: new CorruptionSaves(
       Object.fromEntries(
-        Array.from({ length: 16 }, (_, i) => [`Loadout ${i + 1}`, corruptionsSchema.parse({})])
+        Array.from({ length: 16 }, (_, i) => [`Loadout ${i + 1}`, defaultCorruptions])
       )
     ),
     showStats: true
@@ -1304,15 +1306,20 @@ async function syncToSteamCloud (saveData: string) {
 
     if (cloudSave) {
       try {
-        const parsed = playerUpdateVarSchema.parse(JSON.parse(atob(cloudSave)))
-        const cloudPoints = computeAchievementPoints(parsed.achievements, parsed.progressiveAchievements)
-        if (dev) console.log('[SteamCloud] achievementPoints:', achievementPoints, 'cloudPoints:', cloudPoints)
-        if (achievementPoints < cloudPoints) {
-          if (dev) console.log('[SteamCloud] skipping upload, cloud has higher points')
-          return
+        const raw = JSON.parse(atob(cloudSave)) as unknown
+        const decoded = playerUpdateVarSchema.safeParse(raw)
+        if (!decoded.success) {
+          logSaveError(SchemaValidationError.fromZodError(decoded.error))
+        } else {
+          const cloudPoints = computeAchievementPoints(decoded.data.achievements, decoded.data.progressiveAchievements)
+          if (dev) console.log('[SteamCloud] achievementPoints:', achievementPoints, 'cloudPoints:', cloudPoints)
+          if (achievementPoints < cloudPoints) {
+            if (dev) console.log('[SteamCloud] skipping upload, cloud has higher points')
+            return
+          }
         }
       } catch (e) {
-        console.error('[SteamCloud] failed to parse cloud save:', e)
+        logSaveError(new SaveDecodeError(e))
       }
     }
   }
@@ -1353,8 +1360,7 @@ const loadSynergy = () => {
     if (validatedPlayer.success) {
       Object.assign(player, validatedPlayer.data)
     } else {
-      console.log(validatedPlayer.error)
-      console.log(data)
+      void reportSaveError(SchemaValidationError.fromZodError(validatedPlayer.error))
       clearTimers()
       return
     }
@@ -5210,7 +5216,15 @@ export const reloadShit = (ignoreOfflineProgress = false) => {
 }
 
 window.addEventListener('load', async () => {
-  if (dev || testing) {
+  // Gate on import.meta.env.DEV directly rather than the `dev` re-export from
+  // Config.ts — Vite substitutes the macro to a literal at build time, so the
+  // whole ./mock/browser graph (msw + handlers + websocket, ≈415 KB / 109 KB
+  // gzipped) tree-shakes out of the prod bundle. With the variable binding,
+  // Vite can't const-fold across modules and still ships the chunk. `testing`
+  // is hardcoded false in Config.ts, so dropping it from this gate is a no-op
+  // for runtime behavior; if you flip it locally for dev work, you'll also
+  // already be running in DEV. Closes #81 (T8).
+  if (import.meta.env.DEV) {
     const { worker } = await import('./mock/browser')
     await worker.start({
       serviceWorker: {
