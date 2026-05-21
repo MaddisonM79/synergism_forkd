@@ -3513,47 +3513,7 @@ export const updateAchievementPoints = (sourcedFromUpdate = false) => {
   updateAchievementLevel(sourcedFromUpdate)
 }
 
-import { platform } from './Config'
 import { resetTiers } from './Reset'
-
-const unlockedSteamAchievements = new Set<string>()
-
-const unlockSteamAchievement = async (steamAchievementId: string): Promise<void> => {
-  if (platform === 'steam') {
-    if (unlockedSteamAchievements.has(steamAchievementId)) {
-      return // Prevent unnecessary calls to Steam
-    }
-    unlockedSteamAchievements.add(steamAchievementId)
-    try {
-      const { unlockAchievement } = await import('./steam/steam')
-      await unlockAchievement(steamAchievementId)
-    } catch (error) {
-      unlockedSteamAchievements.delete(steamAchievementId)
-      console.error(`Failed to unlock Steam achievement ${steamAchievementId}:`, error)
-    }
-  }
-}
-
-/**
- * Syncs all earned in-game achievements to Steam.
- * Call this after loading a save to ensure Steam achievements match game state.
- */
-export const syncSteamAchievements = async (): Promise<void> => {
-  if (platform === 'steam') {
-    unlockedSteamAchievements.clear()
-
-    const unlockPromises: Promise<unknown>[] = []
-
-    for (let i = 0; i < achievements.length; i++) {
-      const steamId = achievements[i].steamAchievementId
-      if (steamId && player.achievements[i] === 1) {
-        unlockPromises.push(unlockSteamAchievement(steamId))
-      }
-    }
-
-    await Promise.all(unlockPromises)
-  }
-}
 
 const awardAchievement = (index: number) => {
   if (player.achievements[index] === 1) {
@@ -3569,12 +3529,6 @@ const awardAchievement = (index: number) => {
     }
     player.worlds.add(getAchievementQuarks(), false, true)
     revealStuff()
-
-    // Unlock Steam achievement if configured
-    const steamId = achievements[index].steamAchievementId
-    if (steamId) {
-      void unlockSteamAchievement(steamId)
-    }
 
     // Update displays if we are on Achievements Tab
     if (G.currentTab === Tabs.Achievements) {

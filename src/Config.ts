@@ -1,7 +1,5 @@
 /// <reference types="vite/client" />
 
-declare const PLATFORM: 'steam' | undefined
-
 // Vite already declares the ambient ImportMeta.env with PROD/DEV/MODE.
 // Augment it with our custom VITE_* keys via declaration merging.
 declare global {
@@ -33,6 +31,6 @@ export const lastUpdated = new Date('##LAST_UPDATED##')
 export const prod = import.meta.env.PROD
 export const dev = import.meta.env.DEV
 
-export const platform = typeof PLATFORM === 'undefined' ? 'browser' : PLATFORM
+export const platform = 'browser' as const
 
 export const ticksPerSecond = 200

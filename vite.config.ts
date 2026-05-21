@@ -1,4 +1,4 @@
-import { defineConfig, loadEnv } from 'vite'
+import { defineConfig } from 'vite'
 import { viteStaticCopy } from 'vite-plugin-static-copy'
 
 // Vite handles the JS bundle, CSS, favicon, and index.html env substitution.
@@ -12,15 +12,10 @@ import { viteStaticCopy } from 'vite-plugin-static-copy'
 // after the build — Vite doesn't model Cloudflare's _headers file natively.
 
 export default defineConfig(({ mode }) => {
-  const env = loadEnv(mode, process.cwd(), '')
-  const platform = env.PLATFORM ?? 'browser'
-
-  const outDir = platform === 'steam' ? 'dist/dist' : 'build'
-
   return {
     publicDir: false,
     build: {
-      outDir,
+      outDir: 'build',
       emptyOutDir: true,
       sourcemap: mode !== 'production',
       target: 'es2020',
@@ -44,11 +39,6 @@ export default defineConfig(({ mode }) => {
     preview: {
       port: 3000,
       strictPort: true
-    },
-    define: {
-      // PLATFORM is a build-time string macro, not a runtime env var.
-      // PROD / DEV come from import.meta.env natively.
-      PLATFORM: JSON.stringify(platform)
     },
     plugins: [
       viteStaticCopy({
