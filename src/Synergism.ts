@@ -5216,7 +5216,15 @@ export const reloadShit = (ignoreOfflineProgress = false) => {
 }
 
 window.addEventListener('load', async () => {
-  if (dev || testing) {
+  // Gate on import.meta.env.DEV directly rather than the `dev` re-export from
+  // Config.ts — Vite substitutes the macro to a literal at build time, so the
+  // whole ./mock/browser graph (msw + handlers + websocket, ≈415 KB / 109 KB
+  // gzipped) tree-shakes out of the prod bundle. With the variable binding,
+  // Vite can't const-fold across modules and still ships the chunk. `testing`
+  // is hardcoded false in Config.ts, so dropping it from this gate is a no-op
+  // for runtime behavior; if you flip it locally for dev work, you'll also
+  // already be running in DEV. Closes #81 (T8).
+  if (import.meta.env.DEV) {
     const { worker } = await import('./mock/browser')
     await worker.start({
       serviceWorker: {
