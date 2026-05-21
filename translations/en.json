@@ -4826,12 +4826,14 @@
     "currentAscensionTimer": "Current Ascension Timer: +<<gold|{{value}}>> seconds",
     "exportQuarks": "Export Quarks: +<<goldenrod|{{value}}>>",
     "ambrosia": "Ambrosia: +<<orange|{{value}}>> | Ambrosia Bar Points +<<lightblue|{{value2}}>>",
-    "redAmbrosia": "Red Ambrosia: +<<red|{{value}}>> | Red Bar Points +<<red|{{value2}}>>"
+    "redAmbrosia": "Red Ambrosia: +<<red|{{value}}>> | Red Bar Points +<<red|{{value2}}>>",
+    "exit": "That's cool. Take me to the game!"
   },
   "fastForward": {
     "global": "Your Global stuff fast forwarded {{time}} seconds!",
     "ascension": "Your Ascension stuff fast forwarded {{time}} seconds!",
-    "ambrosia": "Your Ambrosia stuff fast forwarded {{time}} seconds!"
+    "ambrosia": "Your Ambrosia stuff fast forwarded {{time}} seconds!",
+    "exit": "Awesome!"
   },
   "campaigns": {
     "intro": "Campaigns - <<orange | Ascensions>> but <<maroon | harder™>>",
