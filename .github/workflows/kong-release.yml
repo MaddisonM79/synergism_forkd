@@ -10,11 +10,11 @@ jobs:
       contents: write
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
-          persist-credentials: false 
+          persist-credentials: false
       - name: Use Node.js
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: lts/*
       - name: Install deps
@@ -29,7 +29,7 @@ jobs:
         run: |
           rm -rf Kong.zip
       - name: Create .zip File
-        uses: vimtor/action-zip@v1
+        uses: vimtor/action-zip@5f1c4aa587ea41db1110df6a99981dbe19cee310 # v1
         with:
           files: dist/ Pictures/Splash/ Pictures/Default/ Pictures/logo.png Pictures/logoLight.png Pictures/MISSINGIMAGE.png translations/ index.html Synergism.css favicon.ico
           dest: Kong.zip
@@ -39,10 +39,10 @@ jobs:
           echo "VERSION=$(jq -r '.version' package.json)" >> $GITHUB_OUTPUT
         id: version
       - name: Create release
-        uses: marvinpinto/action-automatic-releases@latest
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
         with:
-          repo_token: ${{ secrets.GITHUB_TOKEN }}
-          automatic_release_tag: v${{ steps.version.outputs.VERSION }}
-          title: Kongregate Build ${{ github.event.repository.updated_at }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+          tag_name: v${{ steps.version.outputs.VERSION }}
+          name: Kongregate Build ${{ github.event.repository.updated_at }}
           files: |
             Kong.zip
