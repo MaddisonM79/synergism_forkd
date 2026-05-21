@@ -106,6 +106,18 @@ body {
     --scrollbar-bg-color: #111;
     --transition: 0;
     --transition-extra: 0.15s;
+
+    /* Building-tier color system (used by .coinBorder / .diamondBorder / etc.
+       below and by the matching text classes). --tesseract-color lives in
+       html[data-legacyicons] so it can vary by icon theme. */
+    --coin-color: yellow;
+    --diamond-color: cyan;
+    --mythos-color: plum;
+    --particle-color: greenyellow;
+
+    /* Selected state for buy-amount selectors (1 / 10 / 100 / ...).
+       See .buyAmountActive below. */
+    --buy-amount-active-bg: green;
 }
 
 body.loading {
@@ -156,6 +168,20 @@ html[data-legacyicons="true"] {
 .wowhypercubeText { color: var(--hypercube-color); }
 .wowplatonicText { color: var(--platonic-color); }
 .wowhepteractText { color: var(--hepteract-color); }
+
+/* Building-tier border utility classes. Swap these in instead of inline
+   style="border: 2px solid yellow;" — keeps the tier signal themeable. */
+.coinBorder { border: 2px solid var(--coin-color); }
+.diamondBorder { border: 2px solid var(--diamond-color); }
+.mythosBorder { border: 2px solid var(--mythos-color); }
+.particleBorder { border: 2px solid var(--particle-color); }
+.tesseractBorder { border: 2px solid var(--tesseract-color); }
+
+/* "This buy-amount is currently selected" — applied to .buyAmountBtn elements
+   by toggleBuyAmount() in Toggles.ts. Replaces the legacy inline
+   style="background-color: green" pattern. Compound selector beats the
+   .buyAmountBtn { background-color: var(--button-color) } rule defined later. */
+.buyAmountBtn.buyAmountActive { background-color: var(--buy-amount-active-bg); }
 
 .active-subtab {
     background-color: crimson;
