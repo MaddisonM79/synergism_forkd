@@ -72,8 +72,8 @@ import {
   corruptionLoadoutTableCreate,
   corruptionLoadoutTableUpdate,
   CorruptionSaves,
-  corruptionsSchema,
   corruptionStatsUpdate,
+  defaultCorruptions,
   updateCorruptionLoadoutNames,
   updateUndefinedLoadouts
 } from './Corruptions'
@@ -990,11 +990,11 @@ export const player: Player = {
   },
 
   corruptions: {
-    next: new CorruptionLoadout(corruptionsSchema.parse({})),
-    used: new CorruptionLoadout(corruptionsSchema.parse({})),
+    next: new CorruptionLoadout(defaultCorruptions),
+    used: new CorruptionLoadout(defaultCorruptions),
     saves: new CorruptionSaves(
       Object.fromEntries(
-        Array.from({ length: 16 }, (_, i) => [`Loadout ${i + 1}`, corruptionsSchema.parse({})])
+        Array.from({ length: 16 }, (_, i) => [`Loadout ${i + 1}`, defaultCorruptions])
       )
     ),
     showStats: true

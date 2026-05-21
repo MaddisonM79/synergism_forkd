@@ -50,6 +50,12 @@ export const corruptionsSchema = z.object({
   hyperchallenge: z.number().default(0)
 })
 
+// Default Corruptions (all zeros). Safe to share across CorruptionLoadout /
+// CorruptionSaves consumers because their constructors copy fields into
+// private state rather than retaining the reference. Frozen to prevent any
+// accidental mutation if a future caller forgets that contract.
+export const defaultCorruptions: Readonly<Corruptions> = Object.freeze(corruptionsSchema.parse({}))
+
 export type Corruptions = {
   viscosity: number
   drought: number
