@@ -52,6 +52,7 @@ import {
   getReductionValue
 } from './Buy'
 import {
+  CalcCorruptionStuff,
   calculateAcceleratorMultiplier,
   calculateGlobalSpeedMult,
   calculateGoldenQuarks,
@@ -3905,7 +3906,7 @@ export const resetCheck = async (
 export const resetConfirmation = async (i: string): Promise<void> => {
   if (i === 'prestige') {
     if (player.toggles[28]) {
-      const r = await Confirm(i18next.t('main.prestigePrompt'))
+      const r = await Confirm(i18next.t('main.prestigePromptWithGain', { gain: format(G.prestigePointGain, 2, true) }))
       if (r) {
         resetAchievementCheck('prestige')
         reset('prestige')
@@ -3917,7 +3918,7 @@ export const resetConfirmation = async (i: string): Promise<void> => {
   }
   if (i === 'transcend') {
     if (player.toggles[29]) {
-      const z = await Confirm(i18next.t('main.transcendPrompt'))
+      const z = await Confirm(i18next.t('main.transcendPromptWithGain', { gain: format(G.transcendPointGain, 2, true) }))
       if (z) {
         resetAchievementCheck('transcension')
         reset('transcension')
@@ -3930,7 +3931,9 @@ export const resetConfirmation = async (i: string): Promise<void> => {
   if (i === 'reincarnate') {
     if (player.currentChallenge.ascension !== 12) {
       if (player.toggles[30]) {
-        const z = await Confirm(i18next.t('main.reincarnatePrompt'))
+        const z = await Confirm(
+          i18next.t('main.reincarnatePromptWithGain', { gain: format(G.reincarnationPointGain, 2, true) })
+        )
         if (z) {
           resetAchievementCheck('reincarnation')
           reset('reincarnation')
@@ -3942,7 +3945,10 @@ export const resetConfirmation = async (i: string): Promise<void> => {
     }
   }
   if (i === 'ascend') {
-    const z = !player.toggles[31] || (await Confirm(i18next.t('main.ascendPrompt')))
+    const z = !player.toggles[31]
+      || (await Confirm(
+        i18next.t('main.ascendPromptWithGain', { gain: format(CalcCorruptionStuff().wowCubes, 2, true) })
+      ))
     if (z) {
       reset('ascension')
     }
