@@ -27,3 +27,6 @@ dist/dist/
 
 # wrangler local state
 .wrangler/
+
+# Claude Code local-only settings (per-user permission allowlist, etc.)
+.claude/settings.local.json
