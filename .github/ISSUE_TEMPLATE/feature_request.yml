@@ -1,0 +1,39 @@
+name: Feature request
+description: Suggest a new feature or improvement to Synergism
+labels: ["type:feature"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem you're trying to solve
+      description: What's the current pain point or missing capability?
+      placeholder: e.g. "Late-game cube management is tedious because ..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: What change would address the problem?
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Any other approaches you've thought about?
+
+  - type: dropdown
+    id: save-impact
+    attributes:
+      label: Save format impact
+      description: Would this require adding or modifying fields on the `player` object?
+      options:
+        - "No — UI / display only"
+        - "Yes — new fields needed"
+        - "Yes — existing fields changed"
+        - "Unsure"
+    validations:
+      required: true
