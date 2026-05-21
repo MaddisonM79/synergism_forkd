@@ -73,7 +73,7 @@ Since merges are squashed, the PR title becomes the commit message on `main`. In
 
 Changes that add or modify fields on the `player` object affect every player's savefile size and migration path. **Before making such a change, please open an issue first** to discuss the schema impact.
 
-See also [CLAUDE.md](CLAUDE.md) for the agent-facing contribution rules (i18n, DOM caching, Steam/Electron gating, etc.).
+See also [CLAUDE.md](CLAUDE.md) for the agent-facing contribution rules (i18n, DOM caching, etc.).
 
 ## Build-time configuration
 
