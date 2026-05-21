@@ -25,6 +25,9 @@ dist/dist/
 .env.local
 .env.*.local
 
+# husky v9 auto-manages this folder via `npm run prepare`
+.husky/_/
+
 # wrangler local state
 .wrangler/
 
