@@ -72,7 +72,7 @@ async function myFunction () {
 }
 ```
 
-- The platform variable comes from esbuild define hooks. These act as macros essentially, which removes the
+- The platform variable comes from Vite's `define` config (which uses esbuild under the hood for the substitution). These act as macros essentially, which removes the
   `else` block on Steam and vice-versa on browser builds.
 - **Wrong**: `import { steamOnlyFeature } from './steam/steam'`W
 

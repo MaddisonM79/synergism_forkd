@@ -19,11 +19,11 @@
   Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=(), usb=()
   Cross-Origin-Opener-Policy: same-origin
 
-# Long-cache the immutable JS bundle. esbuild produces a stable path; if a
-# content-hash filename is added later, switch this to `immutable`.
-/dist/out.js
-  Cache-Control: public, max-age=3600
+# Vite emits content-hashed filenames under /assets/, so the bundle is
+# immutable — any code change produces a new URL.
+/assets/*
+  Cache-Control: public, max-age=31536000, immutable
 
-# Long-cache static art. Pictures are immutable per release.
+# Static art is immutable per release.
 /Pictures/*
   Cache-Control: public, max-age=86400

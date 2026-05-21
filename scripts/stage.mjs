@@ -1,19 +1,18 @@
-import { copyFileSync, cpSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { resolveBuildConfig } from './buildConfig.mjs'
 
-// scripts/stage.mjs sets up build/ with all static assets and renders the
-// templated index.html / _headers. Run BEFORE scripts/build.mjs — this script
-// removes build/ wholesale and would clobber a fresh bundle if run after.
+// Render _headers.template into build/_headers, substituting env-driven
+// placeholders. Vite handles every other static asset (index.html, the JS
+// bundle, Synergism.css, favicon.ico via index.html <link>, and
+// Pictures/translations via vite-plugin-static-copy), so this script is
+// intentionally tiny.
+//
+// Run AFTER `vite build`. Vite's emptyOutDir clears build/ at the start of
+// its own build, so doing it before would just be wasted work.
 
 const config = resolveBuildConfig()
 
-rmSync('build', { recursive: true, force: true })
-mkdirSync('build/dist', { recursive: true })
-
-cpSync('Pictures', 'build/Pictures', { recursive: true })
-cpSync('translations', 'build/translations', { recursive: true })
-copyFileSync('Synergism.css', 'build/Synergism.css')
-copyFileSync('favicon.ico', 'build/favicon.ico')
+mkdirSync('build', { recursive: true })
 
 const placeholders = {
   '{{API_BASE_URL}}': config.apiBaseUrl,
@@ -21,18 +20,13 @@ const placeholders = {
   '{{CANONICAL_HOST}}': config.canonicalHost
 }
 
-function render (templatePath, outPath) {
-  let body = readFileSync(templatePath, 'utf8')
-  for (const [key, value] of Object.entries(placeholders)) {
-    body = body.replaceAll(key, value)
-  }
-  writeFileSync(outPath, body)
+let headers = readFileSync('_headers.template', 'utf8')
+for (const [key, value] of Object.entries(placeholders)) {
+  headers = headers.replaceAll(key, value)
 }
+writeFileSync('build/_headers', headers)
 
-render('_headers.template', 'build/_headers')
-render('index.html', 'build/index.html')
-
-console.log('staged build/ for deploy')
+console.log('rendered build/_headers')
 console.log(`  api=${config.apiBaseUrl}`)
 console.log(`  ws=${config.wsBaseUrl}`)
 console.log(`  canonical=${config.canonicalHost}`)
