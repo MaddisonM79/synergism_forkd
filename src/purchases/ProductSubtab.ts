@@ -1,10 +1,11 @@
+import { DOMCacheGetOrSet } from '../Cache/DOM'
 import { format } from '../Synergism'
 import { Alert, Notification } from '../UpdateHTML'
 import { memoize } from '../Utility'
 import { coinProducts } from './CartTab'
 import { addToCart, calculateGrossPrice } from './CartUtil'
 
-const productContainer = document.querySelector<HTMLElement>('#pseudoCoins > #productContainer')
+const productContainer = DOMCacheGetOrSet('productContainer')
 
 const formatter = Intl.NumberFormat('en-US', {
   style: 'currency',
@@ -25,7 +26,7 @@ const clickHandler = (e: HTMLElementEventMap['click']) => {
 }
 
 const initializeProductPage = memoize(() => {
-  productContainer!.innerHTML = coinProducts.map((product) => (`
+  productContainer.innerHTML = coinProducts.map((product) => (`
     <section class="pseudoCoinContainer" key="${product.id}">
       <div>
         <img class="pseudoCoinImage" alt="${product.name}" src="./Pictures/${product.id}.png" />
@@ -39,7 +40,7 @@ const initializeProductPage = memoize(() => {
     </section>
   `)).join('')
 
-  productContainer!.style.display = 'grid'
+  productContainer.style.display = 'grid'
 
   document.querySelectorAll<HTMLButtonElement>('.pseudoCoinContainer > div > button[data-id]').forEach((element) => {
     element.addEventListener('click', clickHandler)
@@ -47,10 +48,10 @@ const initializeProductPage = memoize(() => {
 })
 
 export const clearProductPage = () => {
-  productContainer!.style.display = 'none'
+  productContainer.style.display = 'none'
 }
 
 export const toggleProductPage = () => {
   initializeProductPage()
-  productContainer!.style.display = 'grid'
+  productContainer.style.display = 'grid'
 }

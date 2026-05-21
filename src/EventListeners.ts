@@ -1168,11 +1168,11 @@ export const generateEventHandlers = () => {
   })
   saveStringInput.addEventListener('mouseout', CloseModal)
 
-  document.querySelector('#thirdParty > #discord > button')?.addEventListener(
+  DOMCacheGetOrSet('discordJoinButton').addEventListener(
     'click',
     () => location.href = 'https://www.discord.gg/ameCknq' // TODO: redirect with synergism.cc
   )
-  document.querySelector('#thirdParty > #patreon > button')?.addEventListener('click', () => {
+  DOMCacheGetOrSet('patreonSupportButton').addEventListener('click', () => {
     changeTab(Tabs.Purchase)
     changeSubTab(Tabs.Purchase, { page: 1 })
   })
@@ -1631,8 +1631,8 @@ TODO: Fix this entire tab it's utter shit
   }
 
   // EVENT TAB
-  document.querySelector('#consumableEvents > .consumableButton')?.addEventListener('click', visitConsumableTab)
-  document.querySelector('#lotusButtons > .consumableButton')?.addEventListener('click', visitConsumableTab)
+  DOMCacheGetOrSet('eventConsumableButton').addEventListener('click', visitConsumableTab)
+  DOMCacheGetOrSet('lotusConsumableButton').addEventListener('click', visitConsumableTab)
 
   DOMCacheGetOrSet('apply-tips').addEventListener('click', () => {
     Prompt(i18next.t('pseudoCoins.consumables.applyTipsPrompt', { tips: getTips() }))

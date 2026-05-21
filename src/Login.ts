@@ -299,13 +299,11 @@ async function fetchMeRoute () {
 
 export async function handleLogin () {
   generateSubtabBrowser: {
-    const subtabElement = document.querySelector('#accountSubTab div#left.scrollbarX')!
+    const subtabElement = DOMCacheGetOrSet('left')
 
-    const logoutElement = document.getElementById('logoutButton')
-    if (logoutElement !== null) {
-      logoutElement.addEventListener('click', logout, { once: true })
-      document.getElementById('accountSubTab')?.appendChild(logoutElement)
-    }
+    const logoutElement = DOMCacheGetOrSet('logoutButton')
+    logoutElement.addEventListener('click', logout, { once: true })
+    DOMCacheGetOrSet('accountSubTab').appendChild(logoutElement)
 
     const response = await fetchMeRoute()
 
@@ -1060,8 +1058,8 @@ async function decodeSave (save: string) {
 }
 
 function handleCloudSaves () {
-  const subtabElement = document.querySelector('#accountSubTab div#right.scrollbarX')!
-  const table = subtabElement.querySelector('#table > #dataGrid')!
+  const subtabElement = DOMCacheGetOrSet('right')
+  const table = DOMCacheGetOrSet('dataGrid')
 
   const uploadButton = subtabElement.querySelector<HTMLButtonElement>('button#upload')
   const transferButton = subtabElement.querySelector<HTMLButtonElement>('button#transfer')
@@ -1336,7 +1334,7 @@ async function handleSteamCloudSave () {
   if (!steamId) return
 
   const saveFileName = `synergism_${steamId}.txt`
-  const table = document.querySelector('#accountSubTab div#right.scrollbarX #table > #dataGrid')!
+  const table = DOMCacheGetOrSet('dataGrid')
 
   // Remove any existing Steam save row
   table.querySelectorAll('.steam-save-row, .steam-details-row').forEach((row) => row.remove())

@@ -201,7 +201,7 @@ export const disableHotkeys = () => hotkeysEnabled = false
 export const enableHotkeys = () => {
   changeHotkeys()
 
-  const hotkey = document.querySelector('.hotkeys')!
+  const hotkey = DOMCacheGetOrSet('hotkeysList')
 
   while (hotkey.firstChild) {
     hotkey.removeChild(hotkey.firstChild)

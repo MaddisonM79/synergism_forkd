@@ -1457,8 +1457,7 @@ const loadSynergy = () => {
     for (let j = 1; j < player.cubeUpgrades.length; j++) {
       updateCubeUpgradeBG(j)
     }
-    const platUpg = document.querySelectorAll('button[id^="platUpg"]')
-    for (let j = 1; j <= platUpg.length; j++) {
+    for (let j = 1; j < player.platonicUpgrades.length; j++) {
       updatePlatonicUpgradeBG(j)
     }
 
