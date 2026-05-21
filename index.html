@@ -4,6 +4,28 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta content="text/html;charset=utf-8" http-equiv="Content-Type">
     <meta content="utf-8" http-equiv="encoding">
+    <!--
+      Content-Security-Policy: baseline. Loosely permissive because (a) ~728 inline
+      style="..." attributes still ship with the page and (b) some runtime-injected
+      handlers exist (see audit #115/#107). Both are tracked as separate refactors;
+      once they're gone, 'unsafe-inline' can be dropped from script-src and style-src
+      and replaced with nonces. Until then, this policy still blocks the big targets
+      (remote scripts other than Turnstile, <object>/<embed>, base-uri override).
+      frame-ancestors and form-action work via HTTP header, not meta — add those at
+      the origin server or via Cloudflare worker.
+    -->
+    <meta http-equiv="Content-Security-Policy" content="
+      default-src 'self';
+      script-src 'self' 'unsafe-inline' https://challenges.cloudflare.com;
+      style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
+      font-src 'self' https://fonts.gstatic.com;
+      img-src 'self' data:;
+      connect-src 'self' https://synergism.cc wss://synergism.cc https://challenges.cloudflare.com;
+      frame-src https://challenges.cloudflare.com;
+      worker-src 'self' blob:;
+      object-src 'none';
+      base-uri 'self';
+    ">
     <meta property="og:title" content="Synergism">
     <meta property="og:type" content="website">
     <meta property="og:url" content="https://pseudo-corp.github.io/SynergismOfficial">
