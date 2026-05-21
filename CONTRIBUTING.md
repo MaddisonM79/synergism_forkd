@@ -23,7 +23,7 @@ Before running any of the commands below, make sure you have installed:
    ```sh
    npm install
    ```
-4. (Optional) configure local env vars by copying [`.env.example`](.env.example) to `.env.development`. Defaults point at the legacy `synergism.cc` backend so this is only needed if you want to target a different API host.
+4. (Optional) override env defaults by copying [`.env`](.env) to `.env.local` and editing. The committed `.env` points at the legacy `synergism.cc` backend; `.env.local` overrides per-developer values (gitignored).
 5. Switch to a new branch:
    ```sh
    git checkout -b my-branch-name
@@ -32,7 +32,7 @@ Before running any of the commands below, make sure you have installed:
    ```sh
    node --run dev
    ```
-   This stages `build/`, watches `src/` with esbuild, and serves `build/` via `wrangler pages dev` on port 3000 — so the local server applies the same `_headers` (CSP, etc.) that production gets.
+   Runs Vite on port 3000 with HMR — module changes hot-replace, no full reload, ~200ms feedback. To smoke-test against the prod build (with real `_headers` applied at the edge), run `node --run preview:cf` instead — that builds, stages, and serves via `wrangler pages dev`.
 7. Make your changes and verify them in the browser.
 8. Type-check:
    ```sh
@@ -81,11 +81,13 @@ Three environment variables shape the build:
 
 | Variable | Default | Purpose |
 | --- | --- | --- |
-| `API_BASE_URL` | `https://synergism.cc` | Backend HTTP origin (login, payments, messages, translations) |
-| `WS_BASE_URL` | `wss://synergism.cc` | Consumables WebSocket origin |
-| `CANONICAL_HOST` | hostname of `API_BASE_URL` | Canonical web hostname (gates browser-only purchase UI; tightens MSW's unhandled-request guard) |
+| `VITE_API_BASE_URL` | `https://synergism.cc` | Backend HTTP origin (login, payments, messages, translations) |
+| `VITE_WS_BASE_URL` | `wss://synergism.cc` | Consumables WebSocket origin |
+| `VITE_CANONICAL_HOST` | `synergism.cc` | Canonical web hostname (gates browser-only purchase UI; tightens MSW's unhandled-request guard) |
 
-These are injected into the bundle by [`scripts/build.mjs`](scripts/build.mjs) via esbuild `--define`, and substituted into [`index.html`](index.html) and [`_headers.template`](_headers.template) by [`scripts/stage.mjs`](scripts/stage.mjs). Local dev reads them from `.env.development` (cascading: `.env.local` > `.env.{mode}.local` > `.env.{mode}` > `.env`). Production reads them from CF Pages dashboard environment variables.
+Vite injects these into the JS bundle via `import.meta.env` and substitutes them into [`index.html`](index.html) using its native `%VITE_*%` syntax. [`scripts/stage.mjs`](scripts/stage.mjs) renders [`_headers.template`](_headers.template) → `build/_headers` with the same values, since Vite doesn't model Cloudflare's `_headers` file natively.
+
+The committed [`.env`](.env) holds the defaults. Cascading override order: `.env.local` > `.env.{mode}.local` > `.env.{mode}` > `.env`. Production reads from CF Pages dashboard environment variables (which take precedence over everything in the repo).
 
 ## Deploy (Cloudflare Pages)
 
@@ -93,12 +95,7 @@ These are injected into the bundle by [`scripts/build.mjs`](scripts/build.mjs) v
 npm run cloudflare:build
 ```
 
-This runs `cloudflare:stage` (assembles `build/` with templated `index.html` + `_headers`) and then `build:esbuild` (writes `build/dist/out.js`). The result at `build/` is exactly what gets uploaded to CF Pages:
-
-- `index.html`, `Synergism.css`, `favicon.ico`
-- `Pictures/`, `translations/`
-- `dist/out.js`
-- `_headers` (CSP + standard security headers — applied at the CF edge)
+This runs `vite build` (writes hashed bundle + transformed `index.html` to `build/`, copies Pictures/translations via `vite-plugin-static-copy`) and then `cloudflare:stage` (renders `_headers` into `build/`). The result at `build/` is exactly what gets uploaded to CF Pages.
 
 ### Cloudflare Pages dashboard settings
 
@@ -106,8 +103,16 @@ This runs `cloudflare:stage` (assembles `build/` with templated `index.html` + `
 - **Build command:** `npm run cloudflare:build`
 - **Build output directory:** `build`
 - **Node version:** see `engines.node` in [package.json](package.json) (currently `>=22.21.0`)
-- **Environment variables:** `API_BASE_URL`, `WS_BASE_URL`, `CANONICAL_HOST` (set per environment: Production gets the prod values, Preview gets staging values)
+- **Environment variables:** `VITE_API_BASE_URL`, `VITE_WS_BASE_URL`, `VITE_CANONICAL_HOST` (set per environment: Production gets the prod values, Preview gets staging values)
 
 ### Security headers
 
-[`_headers.template`](_headers.template) is the source of truth; `cloudflare:stage` renders it into `build/_headers` with `{{API_BASE_URL}}` / `{{WS_BASE_URL}}` / `{{CANONICAL_HOST}}` substituted from the environment. The `<meta http-equiv>` CSP in `index.html` is kept in sync via the same template substitution and serves as a fallback for local `file://` loads.
+[`_headers.template`](_headers.template) is the source of truth; `cloudflare:stage` renders it into `build/_headers` with `{{API_BASE_URL}}` / `{{WS_BASE_URL}}` / `{{CANONICAL_HOST}}` substituted from the environment. The `<meta http-equiv>` CSP in `index.html` is kept in sync via Vite's `%VITE_*%` substitution and serves as a fallback for local `file://` loads.
+
+### Smoke-testing against the prod build
+
+```sh
+node --run preview:cf
+```
+
+Builds + stages + serves `build/` via `wrangler pages dev` on port 3000. Use this to verify the CSP / HSTS / cache rules behave as expected before pushing.

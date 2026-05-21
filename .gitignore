@@ -19,13 +19,10 @@ build/
 dist/dist/
 !electron/**/*.js
 
-# Local env files — .env.example is committed; everything else is private.
-.env
+# Local env override files. .env is committed with the legacy synergism.cc
+# fallbacks; anything ending in .local is private and gitignored.
 .env.local
 .env.*.local
-.env.development
-.env.production
-.env.preview
 
 # wrangler local state
 .wrangler/
