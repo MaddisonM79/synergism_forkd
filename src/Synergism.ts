@@ -265,7 +265,7 @@ import {
 } from './SingularityChallenges'
 import { changeSubTab, changeTab, getActiveSubTab, Tabs } from './Tabs'
 import { settingAnnotation, settingSymbols, toggleIconSet, toggleTheme } from './Themes'
-import { clearTimeout, clearTimers, setInterval, setTimeout } from './Timers'
+import { clearTimeout, clearTimers, setNamedInterval, setTimeout } from './Timers'
 
 const buyAmountTypes = [
   'coin',
@@ -4624,14 +4624,14 @@ export const slowUpdates = (): void => {
 }
 
 export const constantIntervals = (): void => {
-  setInterval(saveSynergy, 5000)
-  setInterval(slowUpdates, 200)
-  setInterval(fastUpdates, 50)
-  setInterval(campaignIconHTMLUpdates, 15000)
-  setInterval(updateAllRuneLevelsFromEXP, 25)
-  setInterval(updateTalismanRarities, 250)
-  setInterval(() => awardAchievementGroup('runeFreeLevel'), 25)
-  setInterval(() => {
+  setNamedInterval('save', saveSynergy, 5000)
+  setNamedInterval('slowUpdates', slowUpdates, 200)
+  setNamedInterval('fastUpdates', fastUpdates, 50)
+  setNamedInterval('campaignIconHTMLUpdates', campaignIconHTMLUpdates, 15000)
+  setNamedInterval('runeLevelsFromEXP', updateAllRuneLevelsFromEXP, 25)
+  setNamedInterval('talismanRarities', updateTalismanRarities, 250)
+  setNamedInterval('runeFreeLevelAchievement', () => awardAchievementGroup('runeFreeLevel'), 25)
+  setNamedInterval('progressiveAchievementsUpdate', () => {
     for (const key of Object.keys(progressiveAchievements) as ProgressiveAchievements[]) {
       updateProgressiveCache(key)
     }
@@ -4646,7 +4646,7 @@ let lastUpdate = 0
 
 export const createTimer = (): void => {
   lastUpdate = performance.now()
-  setInterval(tick, 1000 / ticksPerSecond)
+  setNamedInterval('mainTick', tick, 1000 / ticksPerSecond)
 }
 
 const dt = 5
@@ -5183,7 +5183,7 @@ export const reloadShit = (ignoreOfflineProgress = false) => {
   changeSubTab(Tabs.Settings, { page: 0 }) // set 'statistics main'
 
   dailyResetCheck()
-  setInterval(dailyResetCheck, 30000)
+  setNamedInterval('dailyResetCheck', dailyResetCheck, 30000)
 
   constantIntervals()
   changeTabColor()
@@ -5191,7 +5191,8 @@ export const reloadShit = (ignoreOfflineProgress = false) => {
   eventCheck()
     .catch(() => {})
     .finally(() => {
-      setInterval(
+      setNamedInterval(
+        'eventCheck',
         () =>
           eventCheck().catch((error: Error) => {
             console.error(error)
@@ -5264,7 +5265,7 @@ window.addEventListener('load', async () => {
 
   refreshQuarkBonus()
     .catch(console.error)
-    .finally(() => setInterval(() => refreshQuarkBonus(), 1000 * 60 * 15))
+    .finally(() => setNamedInterval('refreshQuarkBonus', () => refreshQuarkBonus(), 1000 * 60 * 15))
 
   try {
     await initializePCoinCache()
