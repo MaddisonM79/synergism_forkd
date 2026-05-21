@@ -11,6 +11,11 @@ jobs:
     runs-on: ${{ matrix.os }}
     permissions:
       contents: read
+      # actions/attest-build-provenance signs an attestation via Sigstore
+      # (id-token: write) and uploads it to the GitHub attestations API
+      # (attestations: write).
+      id-token: write
+      attestations: write
 
     strategy:
       fail-fast: false
@@ -40,6 +45,12 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Attest Windows artifacts
+        if: matrix.platform == 'win'
+        uses: actions/attest-build-provenance@977bb373ede98d70efdf65b84cb5f73e068dcc2a # v3
+        with:
+          subject-path: 'release/*.exe'
+
       - name: Upload Windows artifacts
         if: matrix.platform == 'win'
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
@@ -49,6 +60,12 @@ jobs:
             release/*.exe
           if-no-files-found: error
 
+      - name: Attest macOS artifacts
+        if: matrix.platform == 'mac'
+        uses: actions/attest-build-provenance@977bb373ede98d70efdf65b84cb5f73e068dcc2a # v3
+        with:
+          subject-path: 'release/*.zip'
+
       - name: Upload macOS artifacts
         if: matrix.platform == 'mac'
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
@@ -57,6 +74,12 @@ jobs:
           path: |
             release/*.zip
           if-no-files-found: error
+
+      - name: Attest Linux artifacts
+        if: matrix.platform == 'linux'
+        uses: actions/attest-build-provenance@977bb373ede98d70efdf65b84cb5f73e068dcc2a # v3
+        with:
+          subject-path: 'release/linux-unpacked/**/*'
 
       - name: Upload Linux artifacts
         if: matrix.platform == 'linux'
