@@ -48,6 +48,25 @@ Before running any of the commands below, make sure you have installed:
    ```
 10. Push and open a pull request against this repository.
 
+## Pull request titles
+
+PR titles follow the [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/) format and are checked by the `pr-title-lint` workflow:
+
+```
+type(optional-scope): short lowercase subject
+```
+
+Allowed types: `feat`, `fix`, `chore`, `ci`, `docs`, `perf`, `refactor`, `revert`, `security`, `style`, `test`, `ts`, `ux`.
+
+Examples:
+
+- `fix: prevent rune 7 race during singularity`
+- `ux: shorten notification slide-in to 200ms`
+- `ci: install deep-object-diff for translation check`
+- `feat(ants): add Reborn-ELO tranche 11`
+
+Since merges are squashed, the PR title becomes the commit message on `main`. Individual commits on your feature branch can use any message you like.
+
 ## Save format changes
 
 Changes that add or modify fields on the `player` object affect every player's savefile size and migration path. **Before making such a change, please open an issue first** to discuss the schema impact.
