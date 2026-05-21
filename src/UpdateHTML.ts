@@ -558,7 +558,7 @@ export const hideStuff = () => {
   DOMCacheGetOrSet('singularitytab').style.backgroundColor = ''
   DOMCacheGetOrSet('event').style.display = 'none'
   DOMCacheGetOrSet('eventtab').style.backgroundColor = ''
-  document.getElementById('pseudoCoins')?.style.setProperty('display', 'none')
+  DOMCacheGetOrSet('pseudoCoins').style.display = 'none'
   DOMCacheGetOrSet('pseudoCoinstab').style.backgroundColor = ''
 
   const tab = DOMCacheGetOrSet('settingstab')
@@ -652,7 +652,7 @@ export const hideStuff = () => {
   if (G.currentTab === Tabs.Purchase) {
     initializeCart()
 
-    document.getElementById('pseudoCoins')?.style.setProperty('display', 'unset')
+    DOMCacheGetOrSet('pseudoCoins').style.display = 'unset'
     DOMCacheGetOrSet('pseudoCoinstab').style.backgroundColor = 'orange'
   }
 }
@@ -1356,7 +1356,7 @@ let closedNotification: ReturnType<typeof setTimeout> | undefined = undefined
 
 export const Notification = (text: string, time = 5000): Promise<void> => {
   const notification = DOMCacheGetOrSet('notification')
-  const textNode = document.querySelector<HTMLElement>('#notification > p')!
+  const textNode = DOMCacheGetOrSet('notificationText')
   const x = DOMCacheGetOrSet('notifx')
 
   textNode.textContent = text

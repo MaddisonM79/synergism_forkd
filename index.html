@@ -53,7 +53,7 @@
         <div id="notifx">
             <img src="/Pictures/Default/X.png" height="16" width="16">
         </div>
-        <p></p>
+        <p id="notificationText"></p>
     </div>
     <div id="modal">
         <div id="modalContent">
@@ -313,7 +313,7 @@
                 <div id="resetinfo"></div>
             </div>
         </div>
-        <nav class="navbar">
+        <nav id="navbar" class="navbar">
             <button id="mobileMenuToggle" class="mobile-menu-toggle" aria-label="Toggle navigation menu" aria-expanded="false">
                 <span class="hamburger-line"></span>
                 <span class="hamburger-line"></span>
@@ -1844,7 +1844,7 @@
                                 <p id="lotusStatus"></p>
                                 <div id="lotusButtons">
                                     <button id="use-lotus" i18n="pseudoCoins.lotus.useLotus"></button>
-                                    <button class="consumableButton" i18n="pseudoCoins.consumables.consumableButton"></button>
+                                    <button id="lotusConsumableButton" class="consumableButton" i18n="pseudoCoins.consumables.consumableButton"></button>
                                 </div>
                             </div>
                             <p id="lotusInformation"></p>
@@ -2915,13 +2915,13 @@
                 <div id="thirdParty">
                     <div id="discord">
                         <p style="color: gold" i18n="settings.joinDiscord"></p>
-                        <button style="background: transparent">
+                        <button id="discordJoinButton" style="background: transparent">
                             <img alt="Discord Icon" src="/Pictures/Default/icon.gif" title="Click to join the official Discord!" width="100" height="100" loading="lazy">
                         </button>
                     </div>
                     <div id="patreon">
                         <p style="color: gold" i18n="settings.joinPatreon"></p>
-                        <button href="https://www.patreon.com/synergism" style="background: transparent">
+                        <button id="patreonSupportButton" href="https://www.patreon.com/synergism" style="background: transparent">
                             <img alt="Store Icon" src="/Pictures/PseudoShop/GOLDEN_QUARK_BUFF.png" title="Click to support development!" loading="lazy">
                             <p id="currentBonus">Current Bonus: 0%</p>
                         </button>
@@ -3238,7 +3238,7 @@
             </div>
         </div>
         <div class="subtabContent subtabDisplayFlex" id="hotkeys">
-            <div class="hotkeys"></div>
+            <div id="hotkeysList" class="hotkeys"></div>
             <span style="color: lightblue;">Last enabled key: <span style="color: gold;" id="lastHotkey"></span> <span style="color: white;" id="lastHotkeyName"></span></span>
             <span id="hotkeyTooltip" i18n="hotkeys.note2"></span>
             <span class="chal11 grayText" i18n="hotkeys.note1"></span>
@@ -4701,7 +4701,7 @@
                 </div>
             </div>
             <div class="consumableSpoiler" i18n="pseudoCoins.consumables.consumableSpoiler"></div>
-            <button class="consumableButton" i18n="pseudoCoins.consumables.consumableButton"></button>
+            <button id="eventConsumableButton" class="consumableButton" i18n="pseudoCoins.consumables.consumableButton"></button>
             <button id="apply-tips" i18n="pseudoCoins.consumables.applyTips"></button>
         </div>
     </div>

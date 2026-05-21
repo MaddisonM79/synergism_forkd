@@ -2,7 +2,7 @@ import Decimal, { type DecimalSource } from 'break_infinity.js'
 import i18next from 'i18next'
 import { achievementLevel, getAchievementReward } from './Achievements'
 import { getAmbrosiaUpgradeEffects } from './BlueberryUpgrades'
-import { DOMCacheGetOrSet } from './Cache/DOM'
+import { DOMCacheGet, DOMCacheGetOrSet } from './Cache/DOM'
 import {
   calculateAllCubeMultiplier,
   calculateAmbrosiaAdditiveLuckMult,
@@ -3714,7 +3714,7 @@ const loadStatistics = (
   const statNumTotalHTMLName = `${statLinePrefix}NT`
 
   // Query that an element with name statTotalHTMLName Exists
-  const totalElm = document.getElementById(statTotalHTMLName)
+  const totalElm = DOMCacheGet(statTotalHTMLName)
 
   if (totalElm === null && hasSummative) {
     const statTotal = document.createElement('p')
