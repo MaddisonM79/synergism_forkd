@@ -1,7 +1,16 @@
 import Decimal from 'break_infinity.js'
+import rfdc from 'rfdc'
 import { calculateSigmoid } from './Calculate'
 import { Tabs } from './Tabs'
 import type { GlobalVariables } from './types/Synergism'
+
+const cloneGlobals = rfdc({
+  proto: false,
+  circles: false,
+  constructorHandlers: [
+    [Decimal, (o: Decimal) => new Decimal(o)]
+  ]
+})
 
 export enum Upgrade {
   coin = 'coins',
@@ -545,4 +554,6 @@ export const Globals: GlobalVariables = {
   ]
 }
 
-export const blankGlobals = { ...Globals }
+export const blankGlobals = cloneGlobals(Globals)
+
+export const freshBlankGlobals = (): GlobalVariables => cloneGlobals(blankGlobals)
