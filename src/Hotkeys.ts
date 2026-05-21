@@ -161,7 +161,9 @@ const makeSlot = (key: string, descr: string) => {
     }
 
     if (!isNaN(Number(newKey))) {
-      void Alert('Number keys are currently unavailable!')
+      void Alert(
+        'Number keys (0-9) can\'t be rebound — they\'re reserved for in-tab actions (buying buildings, toggling challenges 1-10, spending offerings on runes, etc.).'
+      )
       return
     }
 
