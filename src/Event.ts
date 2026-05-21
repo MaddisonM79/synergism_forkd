@@ -57,7 +57,7 @@ export const eventCheck = async () => {
   const response = await fetch(`${apiBaseUrl}/events/get`)
 
   if (!response.ok) {
-    throw new Error('God fucking dammit')
+    throw new Error(`Failed to fetch events: HTTP ${response.status} ${response.statusText}`.trim())
   }
 
   const apiEvents = await response.json() as GameEvent
