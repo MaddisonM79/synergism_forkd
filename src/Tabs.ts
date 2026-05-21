@@ -1,7 +1,5 @@
-import i18next from 'i18next'
 import { awardUngroupedAchievement } from './Achievements'
 import { DOMCacheGetOrSet, DOMCacheHas } from './Cache/DOM'
-import { platform } from './Config'
 import { pressedKeys } from './Hotkeys'
 import { hasUnreadMessages } from './Messages'
 import { initializeCart } from './purchases/CartTab'
@@ -330,7 +328,7 @@ const subtabInfo: Record<Tabs, SubTab> = {
       },
       {
         subTabID: 'merchContainer',
-        unlocked: () => platform === 'browser', // Steam disallows purchases outside of the Steam ecosystem
+        unlocked: () => true,
         buttonID: 'cartSubTab6'
       }
     ]
@@ -758,17 +756,6 @@ export const changeTab = (tabs: Tabs, step?: number) => {
         subtabInfo[tabRow.getCurrentTab().getType()].subtabIndex = i
       }
     }
-  }
-
-  if (platform === 'steam') {
-    import('./steam/discord').then(({ setRichPresenceDiscord }) => {
-      const i18n = tabRow.getCurrentTab().getAttribute('i18n')
-      setRichPresenceDiscord({
-        details: 'Playing Synergism',
-        state: `Looking at ${i18next.t(i18n!)}...`,
-        startTimestamp: new Date()
-      })
-    })
   }
 }
 

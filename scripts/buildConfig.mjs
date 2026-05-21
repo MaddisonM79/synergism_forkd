@@ -15,7 +15,6 @@ export function resolveBuildConfig (mode = process.env.NODE_ENV ?? 'production')
   const apiBaseUrl = process.env.VITE_API_BASE_URL ?? 'https://synergism.cc'
   const wsBaseUrl = process.env.VITE_WS_BASE_URL ?? 'wss://synergism.cc'
   const canonicalHost = process.env.VITE_CANONICAL_HOST ?? new URL(apiBaseUrl).hostname
-  const platform = process.env.PLATFORM ?? 'browser'
 
-  return { apiBaseUrl, wsBaseUrl, canonicalHost, platform, mode }
+  return { apiBaseUrl, wsBaseUrl, canonicalHost, mode }
 }

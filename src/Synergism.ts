@@ -25,14 +25,12 @@ import {
   awardUngroupedAchievement,
   buildingAchievementCheck,
   challengeAchievementCheck,
-  computeAchievementPoints,
   generateAchievementHTMLs,
   getAchievementReward,
   numAchievements,
   type ProgressiveAchievements,
   progressiveAchievements,
   resetAchievementCheck,
-  syncSteamAchievements,
   updateAchievementPoints,
   updateAllGroupedAchievementProgress,
   updateAllProgressiveAchievementProgress,
@@ -195,7 +193,7 @@ import {
   updateMaxTokens,
   updateTokens
 } from './Campaign'
-import { canonicalHost, dev, lastUpdated, platform, prod, testing, ticksPerSecond, version } from './Config'
+import { canonicalHost, lastUpdated, prod, testing, ticksPerSecond, version } from './Config'
 import { WowCubes, WowHypercubes, WowPlatonicCubes, WowTesseracts } from './CubeExperimental'
 import { eventCheck } from './Event'
 import { autobuyAnts } from './Features/Ants'
@@ -248,8 +246,8 @@ import {
 } from './RuneSpirits'
 import { playerJsonSchema } from './saves/PlayerJsonSchema'
 import { playerUpdateVarSchema } from './saves/PlayerUpdateVarSchema'
-import { logSaveError, reportSaveError } from './saves/reportSaveError'
-import { SaveDecodeError, SchemaValidationError } from './saves/SaveErrors'
+import { reportSaveError } from './saves/reportSaveError'
+import { SchemaValidationError } from './saves/SaveErrors'
 import { getShopUpgradeEffects, updateShopLevels } from './Shop'
 import {
   blankGQLevelObject,
@@ -1286,56 +1284,7 @@ export const saveSynergy = (button?: boolean) => {
     setTimeout(() => (el.textContent = ''), 4000)
   }
 
-  // Auto-sync to Steam Cloud (throttled to every 60 seconds, or immediately on manual save)
-  if (platform === 'steam') {
-    const now = Date.now()
-    if (button || now - lastSteamCloudSync >= 60_000) {
-      lastSteamCloudSync = now
-      void syncToSteamCloud(save)
-    }
-  }
-
   return true
-}
-
-let lastSteamCloudSync = 0
-
-async function syncToSteamCloud (saveData: string) {
-  const { cloudFileExists, cloudReadFile, cloudWriteFile, getSteamId } = await import('./steam/steam')
-  const steamId = await getSteamId()
-  if (!steamId) return
-
-  const saveFileName = `synergism_${steamId}.txt`
-
-  const exists = await cloudFileExists(saveFileName)
-  if (dev) console.log('[SteamCloud] cloudFileExists:', exists)
-
-  if (exists) {
-    const cloudSave = await cloudReadFile(saveFileName)
-    if (dev) console.log('[SteamCloud] cloudReadFile returned:', cloudSave ? `string(${cloudSave.length})` : cloudSave)
-
-    if (cloudSave) {
-      try {
-        const raw = JSON.parse(atob(cloudSave)) as unknown
-        const decoded = playerUpdateVarSchema.safeParse(raw)
-        if (!decoded.success) {
-          logSaveError(SchemaValidationError.fromZodError(decoded.error))
-        } else {
-          const cloudPoints = computeAchievementPoints(decoded.data.achievements, decoded.data.progressiveAchievements)
-          if (dev) console.log('[SteamCloud] achievementPoints:', achievementPoints, 'cloudPoints:', cloudPoints)
-          if (achievementPoints < cloudPoints) {
-            if (dev) console.log('[SteamCloud] skipping upload, cloud has higher points')
-            return
-          }
-        }
-      } catch (e) {
-        logSaveError(new SaveDecodeError(e))
-      }
-    }
-  }
-
-  const writeResult = await cloudWriteFile(saveFileName, saveData)
-  if (dev) console.log('[SteamCloud] cloudWriteFile result:', writeResult)
 }
 
 const loadSynergy = () => {
@@ -2025,8 +1974,6 @@ const loadSynergy = () => {
   } else if (player.currentChallenge.transcension) {
     resetrepeat('transcensionChallenge')
   }
-
-  syncSteamAchievements()
 
   const d = new Date()
   const h = d.getHours()
@@ -5325,120 +5272,6 @@ window.addEventListener('load', async () => {
       Decimal: { value: Decimal },
       i18n: { value: i18next }
     })
-  }
-
-  if (platform === 'steam') {
-    const { setRichPresenceDiscord, getDiscordRpcEnabled, setDiscordRpcEnabled } = await import('./steam/discord')
-
-    setRichPresenceDiscord({
-      details: 'Playing Synergism',
-      state: 'gathering quarks...'
-    })
-
-    // Add Discord RPC toggle to settings, after the delete save button
-    const deleteBtn = DOMCacheGetOrSet('deleteGame')
-    const toggleBtn = document.createElement('button')
-    toggleBtn.style.border = '2px solid red'
-    toggleBtn.textContent = 'Discord Rich Presence: OFF'
-
-    getDiscordRpcEnabled().then((enabled) => {
-      toggleBtn.textContent = `Discord Rich Presence: ${enabled ? 'ON' : 'OFF'}`
-      toggleBtn.style.border = `2px solid ${enabled ? 'green' : 'red'}`
-    })
-
-    toggleBtn.addEventListener('click', async () => {
-      const current = await getDiscordRpcEnabled()
-      const next = !current
-      await setDiscordRpcEnabled(next)
-      toggleBtn.textContent = `Discord Rich Presence: ${next ? 'ON' : 'OFF'}`
-      toggleBtn.style.border = `2px solid ${next ? 'green' : 'red'}`
-    })
-
-    deleteBtn.after(toggleBtn)
-
-    // Window size preset dropdown
-    const { setWindowSize, getWindowSize } = await import('./steam/steam')
-
-    const presets = [
-      { label: 'Window Size...', width: 0, height: 0 },
-      { label: '1280 x 720', width: 1280, height: 720 },
-      { label: '1366 x 768', width: 1366, height: 768 },
-      { label: '1600 x 900', width: 1600, height: 900 },
-      { label: '1920 x 1080', width: 1920, height: 1080 },
-      { label: '2560 x 1440', width: 2560, height: 1440 }
-    ]
-
-    const sizeSelect = document.createElement('select')
-    sizeSelect.style.border = '2px solid cyan'
-    sizeSelect.style.margin = '4px'
-
-    for (const preset of presets) {
-      const option = document.createElement('option')
-      option.textContent = preset.label
-      option.value = `${preset.width}x${preset.height}`
-      sizeSelect.appendChild(option)
-    }
-
-    getWindowSize().then((size) => {
-      if (!size) return
-      const match = presets.find((p) => p.width === size.width && p.height === size.height)
-      if (match) sizeSelect.value = `${match.width}x${match.height}`
-    })
-
-    sizeSelect.addEventListener('change', () => {
-      const [w, h] = sizeSelect.value.split('x').map(Number)
-      if (w && h) setWindowSize(w, h)
-    })
-
-    toggleBtn.after(sizeSelect)
-
-    // UI zoom controls
-    const { setZoomFactor, getZoomFactor } = await import('./steam/steam')
-
-    const zoomContainer = document.createElement('div')
-    zoomContainer.style.display = 'inline-flex'
-    zoomContainer.style.flexDirection = 'column'
-    zoomContainer.style.alignItems = 'center'
-    zoomContainer.style.margin = '4px'
-
-    const zoomLabel = document.createElement('span')
-    zoomLabel.style.color = 'white'
-    zoomLabel.style.marginBottom = '4px'
-
-    const updateZoomLabel = (factor: number) => {
-      zoomLabel.textContent = `UI Scale: ${Math.round(factor * 100)}%`
-    }
-
-    const changeZoom = async (delta: number) => {
-      const current = await getZoomFactor()
-      const next = Math.min(3, Math.max(0.5, Math.round((current + delta) * 20) / 20))
-      await setZoomFactor(next)
-      updateZoomLabel(next)
-    }
-
-    const btnRow = document.createElement('div')
-    btnRow.style.display = 'flex'
-    btnRow.style.gap = '4px'
-
-    const zoomDown = document.createElement('button')
-    zoomDown.textContent = '\u2212'
-    zoomDown.style.border = '2px solid cyan'
-    zoomDown.style.width = '32px'
-    zoomDown.style.height = '32px'
-    zoomDown.addEventListener('click', () => changeZoom(-0.05))
-
-    const zoomUp = document.createElement('button')
-    zoomUp.textContent = '+'
-    zoomUp.style.border = '2px solid cyan'
-    zoomUp.style.width = '32px'
-    zoomUp.style.height = '32px'
-    zoomUp.addEventListener('click', () => changeZoom(0.05))
-
-    getZoomFactor().then(updateZoomLabel)
-
-    btnRow.append(zoomDown, zoomUp)
-    zoomContainer.append(zoomLabel, btnRow)
-    sizeSelect.after(zoomContainer)
   }
 }, { once: true })
 

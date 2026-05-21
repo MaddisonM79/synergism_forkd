@@ -1,10 +1,10 @@
 import { type FUNDING_SOURCE, loadScript } from '@paypal/paypal-js'
 import i18next from 'i18next'
 import { DOMCacheGetOrSet } from '../Cache/DOM'
-import { apiBaseUrl, isCanonicalHost, platform, prod } from '../Config'
+import { apiBaseUrl, isCanonicalHost, prod } from '../Config'
 import { getSubMetadata, type SubscriptionMetadata, type SubscriptionProvider } from '../Login'
 import { Alert, Confirm, Notification } from '../UpdateHTML'
-import { assert, memoize } from '../Utility'
+import { memoize } from '../Utility'
 import { type SubscriptionProduct, subscriptionProducts } from './CartTab'
 import { addToCart, getQuantity } from './CartUtil'
 
@@ -224,12 +224,6 @@ const createSubscriptionTierName = (product: SubscriptionProduct) => {
 }
 
 const noSubscriptionButton = (product: SubscriptionProduct) => {
-  if (platform === 'steam') {
-    return `<button data-id="${product.id}" data-name="${product.name}" class="pseudoCoinButton steamSubscribeButton">
-      Subscribe with Steam - ${formatter.format(product.price / 100)} USD / mo
-    </button>`
-  }
-
   return `<div class="checkout-paypal" data-id="${product.id}"></div>
   <button data-id="${product.id}" data-name="${product.name}" class="pseudoCoinButton">
     ${formatter.format(product.price / 100)} USD / mo
@@ -324,43 +318,11 @@ const manageSubscriptionButtonVisibility = (sub: SubscriptionMetadata) => {
 
   const subscriptionCancelButtons = manageSubscriptionHolder.querySelectorAll<HTMLElement>('.subscriptionCancel')
 
-  if (platform === 'steam') {
-    manageSubscriptionHolder.classList.add('none')
-    return
-  }
-
   patreonManageForm.style.display = sub === null || sub.provider === 'patreon' ? 'flex' : 'none'
   stripeManageForm.style.display = sub === null || sub.provider === 'stripe' ? 'flex' : 'none'
   paypalManageForm.style.display = sub === null || sub.provider === 'paypal' ? 'flex' : 'none'
 
   subscriptionCancelButtons.forEach((btn) => btn.style.display = sub === null ? 'none' : 'block')
-}
-
-async function submitSubscriptionSteam (productId: string) {
-  assert(platform === 'steam')
-  const { submitSteamMicroTxn } = await import('../steam/microtxn')
-
-  const fd = new FormData()
-  fd.set(productId, '1')
-  fd.set('tosAgree', 'on')
-
-  const success = await submitSteamMicroTxn(fd)
-
-  if (success) {
-    Notification('Subscription completed successfully!')
-    updateSubscriptionPage()
-  }
-}
-
-function initializeSteamSubscriptionButtons () {
-  assert(platform === 'steam')
-  document.querySelectorAll<HTMLButtonElement>('.steamSubscribeButton').forEach((button) => {
-    button.addEventListener('click', function(this: HTMLButtonElement) {
-      const productId = this.getAttribute('data-id')!
-      this.disabled = true
-      submitSubscriptionSteam(productId).finally(() => this.disabled = false)
-    })
-  })
 }
 
 const initializeSubscriptionPage = memoize(() => {
@@ -374,7 +336,7 @@ const initializeSubscriptionPage = memoize(() => {
 
   subscriptionSectionHolder.style.display = 'grid'
 
-  document.querySelectorAll<HTMLButtonElement>('.subscriptionContainer > button[data-id]:not(.steamSubscribeButton)')
+  document.querySelectorAll<HTMLButtonElement>('.subscriptionContainer > button[data-id]')
     .forEach(
       (element) => {
         element.addEventListener('click', clickHandler)
@@ -387,11 +349,7 @@ const initializeSubscriptionPage = memoize(() => {
     }
   )
 
-  if (platform === 'steam') {
-    initializeSteamSubscriptionButtons()
-  } else {
-    initializePayPal_Subscription()
-  }
+  initializePayPal_Subscription()
 })
 
 // TODO: When I buy a subscription, cancel or change it, the page should update
@@ -407,26 +365,20 @@ const updateSubscriptionPage = () => {
     createIndividualSubscriptionHTML(product, tier)
   ).join('')
 
-  document.querySelectorAll<HTMLButtonElement>('.subscriptionContainer > button[data-id]:not(.steamSubscribeButton)')
+  document.querySelectorAll<HTMLButtonElement>('.subscriptionContainer > button[data-id]')
     .forEach(
       (element) => {
         element.addEventListener('click', clickHandler)
       }
     )
 
-  if (platform === 'steam') {
-    initializeSteamSubscriptionButtons()
-  } else {
-    initializePayPal_Subscription()
-  }
+  initializePayPal_Subscription()
 }
 
 /**
  * https://stackoverflow.com/a/69024269
  */
 export const initializePayPal_Subscription = async () => {
-  assert(platform === 'browser')
-
   const paypal = await loadScript({
     clientId: 'AS1HYTVcH3Kqt7IVgx7DkjgG8lPMZ5kyPWamSBNEowJ-AJPpANNTJKkB_mF0C4NmQxFuWQ9azGbqH2Gr',
     disableFunding: ['paylater', 'credit', 'card'] satisfies FUNDING_SOURCE[],

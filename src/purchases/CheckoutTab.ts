@@ -1,9 +1,9 @@
 import { type FUNDING_SOURCE, loadScript } from '@paypal/paypal-js'
 import i18next from 'i18next'
 import { DOMCacheGetOrSet } from '../Cache/DOM'
-import { apiBaseUrl, isCanonicalHost, platform, prod } from '../Config'
+import { apiBaseUrl, isCanonicalHost, prod } from '../Config'
 import { Alert, Notification } from '../UpdateHTML'
-import { assert, memoize } from '../Utility'
+import { memoize } from '../Utility'
 import { products, subscriptionProducts } from './CartTab'
 import {
   addToCart,
@@ -107,55 +107,15 @@ const initializeCheckoutTab = memoize(() => {
       .finally(reset)
   }
 
-  async function submitCheckoutSteam (_e: MouseEvent) {
-    const { submitSteamMicroTxn } = await import('../steam/microtxn')
-
-    const fd = new FormData()
-
-    for (const product of getProductsInCart()) {
-      fd.set(product.id, `${product.quantity}`)
-    }
-
-    fd.set('tosAgree', radioTOSAgree.checked ? 'on' : 'off')
-
-    const success = await submitSteamMicroTxn(fd)
-
-    if (success) {
-      Notification('Transaction completed successfully!')
-      clearCart()
-      updateItemList()
-      updateTotalPriceInCart()
-      exponentialPseudoCoinBalanceCheck()
-    }
-  }
-
   // Remove rainbow border highlight when TOS is clicked
   radioTOSAgree.addEventListener('change', () => {
     tosSection.classList.remove('rainbow-border-highlight')
   })
 
-  if (platform !== 'steam') {
-    checkoutStripe?.addEventListener('click', submitCheckout)
-    checkoutNowPayments?.addEventListener('click', submitCheckout)
+  checkoutStripe?.addEventListener('click', submitCheckout)
+  checkoutNowPayments?.addEventListener('click', submitCheckout)
 
-    initializePayPal_OneTime('#checkout-paypal')
-  } else {
-    const checkoutButtonsContainer = tab.querySelector('#checkout-buttons')!
-
-    // Hide Stripe/PayPal/NowPayments checkout buttons
-    checkoutButtonsContainer.querySelectorAll('*').forEach((el) => el.classList.add('none'))
-
-    // Add Steam checkout button
-    const checkoutSteam = document.createElement('button')
-    checkoutSteam.id = 'checkout-steam'
-    checkoutSteam.type = 'submit'
-    checkoutSteam.textContent = 'Checkout with Steam'
-    checkoutSteam.addEventListener('click', (ev) => {
-      checkoutSteam.disabled = true
-      submitCheckoutSteam(ev).finally(() => checkoutSteam.disabled = false)
-    })
-    checkoutButtonsContainer.appendChild(checkoutSteam)
-  }
+  initializePayPal_OneTime('#checkout-paypal')
 })
 
 function addItem (e: MouseEvent) {
@@ -238,8 +198,6 @@ const updateTotalPriceInCart = () => {
  * https://stackoverflow.com/a/69024269
  */
 async function initializePayPal_OneTime (selector: string | HTMLElement) {
-  assert(platform !== 'steam', 'Cannot use PayPal on steam')
-
   const paypal = await loadScript({
     clientId: 'AS1HYTVcH3Kqt7IVgx7DkjgG8lPMZ5kyPWamSBNEowJ-AJPpANNTJKkB_mF0C4NmQxFuWQ9azGbqH2Gr',
     disableFunding: ['paylater', 'credit', 'card'] satisfies FUNDING_SOURCE[],
