@@ -1,5 +1,6 @@
 import { type FUNDING_SOURCE, loadScript } from '@paypal/paypal-js'
 import i18next from 'i18next'
+import { DOMCacheGetOrSet } from '../Cache/DOM'
 import { apiBaseUrl, isCanonicalHost, platform, prod } from '../Config'
 import { getSubMetadata, type SubscriptionMetadata, type SubscriptionProvider } from '../Login'
 import { Alert, Confirm, Notification } from '../UpdateHTML'
@@ -7,9 +8,9 @@ import { assert, memoize } from '../Utility'
 import { type SubscriptionProduct, subscriptionProducts } from './CartTab'
 import { addToCart, getQuantity } from './CartUtil'
 
-const subscriptionsContainer = document.querySelector<HTMLElement>('#pseudoCoins > #subscriptionsContainer')!
-const subscriptionSectionHolder = subscriptionsContainer.querySelector<HTMLElement>('#sub-section-holder')!
-const manageSubscriptionHolder = subscriptionsContainer.querySelector<HTMLElement>('#manage-subscription-holder')!
+const subscriptionsContainer = DOMCacheGetOrSet('subscriptionsContainer')
+const subscriptionSectionHolder = DOMCacheGetOrSet('sub-section-holder')
+const manageSubscriptionHolder = DOMCacheGetOrSet('manage-subscription-holder')
 
 type Actions = 'manage' | 'upgrade' | 'downgrade' | 'cancel'
 type RouteLinks = Record<Actions, string>

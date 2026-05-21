@@ -44,7 +44,7 @@ interface CoinsResponse {
   coins: number
 }
 
-const tab = document.querySelector<HTMLElement>('#pseudoCoins > #upgradesContainer')!
+const tab = DOMCacheGetOrSet('upgradesContainer')
 let activeUpgrade: UpgradesList | undefined
 
 const buyUpgradeSchema = z.object({

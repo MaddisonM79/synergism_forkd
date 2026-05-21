@@ -3,6 +3,7 @@
 import ClipboardJS from 'clipboard'
 import i18next from 'i18next'
 import { achievementPoints, maxAchievementPoints } from './Achievements'
+import { DOMCacheGetOrSet } from './Cache/DOM'
 import { type AmbrosiaUpgradeNames, ambrosiaUpgrades } from './BlueberryUpgrades'
 import {
   calculateAscensionSpeedMult,
@@ -592,7 +593,7 @@ export const generateExportSummary = async (): Promise<void> => {
     }
 
     clipboard.on('success', () => {
-      document.getElementById('exportinfo')!.textContent = 'Copied save to clipboard!'
+      DOMCacheGetOrSet('exportinfo').textContent = 'Copied save to clipboard!'
       cleanup()
     })
 

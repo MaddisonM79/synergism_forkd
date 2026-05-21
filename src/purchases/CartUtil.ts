@@ -1,3 +1,4 @@
+import { DOMCacheGetOrSet } from '../Cache/DOM'
 import type { Product } from './CartTab'
 
 /** A map of all products in the cart. */
@@ -7,7 +8,7 @@ const cartMap = new Map<string, { quantity: number; price: number; rest: Omit<Pr
 let inCart = 0
 
 const updateInCartCount = () => {
-  const counter = document.getElementById('notification-count')!
+  const counter = DOMCacheGetOrSet('notification-count')
 
   if (inCart === 0) {
     counter.style.display = 'none'

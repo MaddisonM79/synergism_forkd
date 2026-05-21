@@ -1,3 +1,4 @@
+import { DOMCacheGetOrSet } from '../Cache/DOM'
 import { apiBaseUrl, prod } from '../Config'
 import { changeSubTab, getActiveSubTab, Tabs } from '../Tabs'
 import { assert, createDeferredPromise, type DeferredPromise, memoize, retry } from '../Utility'
@@ -44,7 +45,7 @@ const cartSubTabs = {
   Merch: 5
 } as const
 
-const tab = document.getElementById('pseudoCoins')!
+const tab = DOMCacheGetOrSet('pseudoCoins')
 
 function* yieldQuerySelectorAll (selector: string) {
   const elements = tab.querySelectorAll(selector)

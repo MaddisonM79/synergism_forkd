@@ -17,7 +17,7 @@ interface ConsumableListItems {
 
 type TimeSkipCategories = 'GLOBAL' | 'ASCENSION' | 'AMBROSIA'
 
-const tab = document.querySelector<HTMLElement>('#pseudoCoins > #consumablesSection')!
+const tab = DOMCacheGetOrSet('consumablesSection')
 
 const initializeConsumablesTab = memoize(() => {
   fetch(`${apiBaseUrl}/consumables/list`)
