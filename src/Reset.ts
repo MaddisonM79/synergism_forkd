@@ -102,7 +102,7 @@ export enum AntSacrificeTiers {
 
 export const resetrepeat = (input: resetNames) => {
   clearInterval(repeatreset)
-  repeatreset = +setInterval(() => resetdetails(input), 50)
+  repeatreset = setInterval(() => resetdetails(input), 50)
 }
 
 const resetdetails = (input: resetNames) => {
@@ -1189,7 +1189,6 @@ export const singularity = (setSingNumber = -1) => {
 
   if (!getSingularityChallengeEffect('limitedTime', 'preserveQuarks')) {
     player.worlds.reset()
-    hold.worlds = Number(hold.worlds)
   } else {
     hold.worlds = Number(player.worlds)
   }

@@ -1043,6 +1043,22 @@ const buyLotusNotification = (amount: number) => {
   }
 }
 
+async function decodeSave (save: string) {
+  const decoded = atob(save)
+  const bytes = new Uint8Array(decoded.length)
+  for (let i = 0; i < decoded.length; i++) {
+    bytes[i] = decoded.charCodeAt(i)
+  }
+
+  const stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream('gzip'))
+  const textBody = await new Response(stream).text()
+  const encoder = new TextEncoder()
+  const jsonBytes = encoder.encode(textBody)
+  const final = btoa(isomorphicDecode(jsonBytes))
+
+  return final
+}
+
 function handleCloudSaves () {
   const subtabElement = document.querySelector('#accountSubTab div#right.scrollbarX')!
   const table = subtabElement.querySelector('#table > #dataGrid')!
@@ -1170,22 +1186,6 @@ function handleCloudSaves () {
           table.appendChild(rowDiv)
           table.appendChild(detailsRow)
         })
-
-        async function decodeSave (save: string) {
-          const decoded = atob(save)
-          const bytes = new Uint8Array(decoded.length)
-          for (let i = 0; i < decoded.length; i++) {
-            bytes[i] = decoded.charCodeAt(i)
-          }
-
-          const stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream('gzip'))
-          const textBody = await new Response(stream).text()
-          const encoder = new TextEncoder()
-          const jsonBytes = encoder.encode(textBody)
-          const final = btoa(isomorphicDecode(jsonBytes))
-
-          return final
-        }
 
         async function handleDownload (saveId: number) {
           const save = cloudSaves.find((s) => saveId === s.id)
