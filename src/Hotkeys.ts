@@ -78,7 +78,7 @@ const eventHotkeys = (event: KeyboardEvent): void => {
     return
   }
 
-  if (document.activeElement?.localName === 'input') {
+  if (document.activeElement?.matches('input, textarea, select, [contenteditable]')) {
     // https://developer.mozilla.org/en-US/docs/Web/API/Event/stopPropagation
     // finally fixes the bug where hotkeys would be activated when typing in an input field
     event.stopPropagation()

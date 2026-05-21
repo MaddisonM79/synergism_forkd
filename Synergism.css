@@ -4,7 +4,6 @@ body {
 }
 
 html {
-    min-width: 1250px;
     position: relative;
     font-family:
         -apple-system,
@@ -338,12 +337,12 @@ body button:active:not(:disabled):not(.disable-hover-color) {
 }
 
 .slide-in {
-    animation: slide-in 1000ms;
+    animation: slide-in 200ms ease-out;
     animation-fill-mode: forwards;
 }
 
 .slide-out {
-    animation: slide-out 1000ms;
+    animation: slide-out 150ms ease-in;
     animation-fill-mode: forwards;
 }
 
@@ -3846,7 +3845,7 @@ header .img {
 .subHeader {
     display: flex;
     flex-direction: row;
-    min-width: 1250px;
+    min-width: min-content;
     max-width: calc((38px + 7.5em) * 4 + 40em);
     min-height: 90px;
     margin-bottom: 5px;
@@ -3888,7 +3887,7 @@ header #obtainiumDisplay { color: pink; }
 #ascensionStats {
     display: flex;
     margin: 10px 0;
-    min-width: 1250px;
+    min-width: min-content;
     justify-content: center;
     align-content: center;
     flex-wrap: wrap;
@@ -7394,5 +7393,32 @@ html[data-instant-unlock2="false"] .infiniteAscentShopUpgrade {
     #challengesAutoToggles > button {
         min-height: 44px;
         padding: 8px 12px;
+    }
+}
+
+/* ============================================
+   REDUCED MOTION
+   ============================================ */
+
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+        scroll-behavior: auto !important;
+    }
+
+    .rainbowText {
+        background-image: none;
+        background-clip: border-box;
+        color: gold;
+    }
+
+    .gradientText {
+        background-image: none;
+        background-clip: border-box;
+        color: var(--gradient-start, gold);
     }
 }

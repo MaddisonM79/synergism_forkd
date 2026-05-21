@@ -1354,7 +1354,7 @@ export const Prompt = (text: string, defaultValue?: string): Promise<string | nu
 let closeNotification: ReturnType<typeof setTimeout> | undefined = undefined
 let closedNotification: ReturnType<typeof setTimeout> | undefined = undefined
 
-export const Notification = (text: string, time = 30000): Promise<void> => {
+export const Notification = (text: string, time = 5000): Promise<void> => {
   const notification = DOMCacheGetOrSet('notification')
   const textNode = document.querySelector<HTMLElement>('#notification > p')!
   const x = DOMCacheGetOrSet('notifx')
@@ -1378,7 +1378,7 @@ export const Notification = (text: string, time = 30000): Promise<void> => {
 
     closeNotification = undefined
     x.removeEventListener('click', close)
-    closedNotification = setTimeout(closed, 1000)
+    closedNotification = setTimeout(closed, 150)
     p.resolve()
   }
 
