@@ -4,11 +4,9 @@ on:
   push:
     paths-ignore:
       - '*.md'
-      - '*.json'
   pull_request:
     paths-ignore:
       - '*.md'
-      - '*.json'
 
 jobs:
   test:
@@ -30,7 +28,7 @@ jobs:
           node-version: lts/*
       - name: Install
         run: |
-          npm install
+          npm ci
       - name: Check
         run: |
           npm run check:tsc
