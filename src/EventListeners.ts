@@ -202,6 +202,27 @@ import {
 import { isMobile } from './Utility'
 import { Globals as G } from './Variables'
 
+const saveStringTooltipHtml = () =>
+  [
+    i18next.t('settings.saveString.version'),
+    i18next.t('settings.saveString.time'),
+    i18next.t('settings.saveString.year'),
+    i18next.t('settings.saveString.day'),
+    i18next.t('settings.saveString.min'),
+    i18next.t('settings.saveString.period'),
+    i18next.t('settings.saveString.date'),
+    i18next.t('settings.saveString.times'),
+    i18next.t('settings.saveString.sing'),
+    i18next.t('settings.saveString.quarks'),
+    i18next.t('settings.saveString.gq'),
+    i18next.t('settings.saveString.stage')
+  ].join('<br>')
+
+function visitConsumableTab () {
+  changeTab(Tabs.Purchase)
+  changeSubTab(Tabs.Purchase, { page: 3 })
+}
+
 export const generateEventHandlers = () => {
   const ordinals = [
     'first',
@@ -1139,26 +1160,10 @@ export const generateEventHandlers = () => {
   DOMCacheGetOrSet('iconSet').addEventListener('click', () => toggleIconSet(player.iconSet + 1))
   DOMCacheGetOrSet('statSymbols').addEventListener('click', () => toggleStatSymbol())
 
-  const html = () =>
-    [
-      i18next.t('settings.saveString.version'),
-      i18next.t('settings.saveString.time'),
-      i18next.t('settings.saveString.year'),
-      i18next.t('settings.saveString.day'),
-      i18next.t('settings.saveString.min'),
-      i18next.t('settings.saveString.period'),
-      i18next.t('settings.saveString.date'),
-      i18next.t('settings.saveString.times'),
-      i18next.t('settings.saveString.sing'),
-      i18next.t('settings.saveString.quarks'),
-      i18next.t('settings.saveString.gq'),
-      i18next.t('settings.saveString.stage')
-    ].join('<br>')
-
-  saveStringInput.addEventListener('mousemove', (e) => Modal(() => html(), e.clientX, e.clientY))
+  saveStringInput.addEventListener('mousemove', (e) => Modal(saveStringTooltipHtml, e.clientX, e.clientY))
   saveStringInput.addEventListener('focus', () => {
     const elmRect = saveStringInput.getBoundingClientRect()
-    Modal(() => html(), elmRect.x, elmRect.y + elmRect.height / 2)
+    Modal(saveStringTooltipHtml, elmRect.x, elmRect.y + elmRect.height / 2)
   })
   saveStringInput.addEventListener('mouseout', CloseModal)
 
@@ -1625,11 +1630,6 @@ TODO: Fix this entire tab it's utter shit
   }
 
   // EVENT TAB
-  function visitConsumableTab () {
-    changeTab(Tabs.Purchase)
-    changeSubTab(Tabs.Purchase, { page: 3 })
-  }
-
   document.querySelector('#consumableEvents > .consumableButton')?.addEventListener('click', visitConsumableTab)
   document.querySelector('#lotusButtons > .consumableButton')?.addEventListener('click', visitConsumableTab)
 

@@ -4,7 +4,13 @@ import { sleep } from './util/util'
 
 const consumable = ws.link('wss://synergism.cc/consumables/connect')
 let tips = 1000
-const lotus = {
+const lotus: {
+  inventory: number
+  used: number
+  active: number
+  activeUntil: number
+  timer: ReturnType<typeof setTimeout> | 0
+} = {
   inventory: 0,
   used: 0,
   active: 0,
@@ -81,7 +87,7 @@ export const consumeHandlers = [
             clearTimeout(lotus.timer)
           }
 
-          lotus.timer = +setTimeout(() => {
+          lotus.timer = setTimeout(() => {
             lotus.active -= data.amount
             client.send(messages.lotusEnded())
           }, lotus.activeUntil - Date.now())

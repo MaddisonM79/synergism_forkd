@@ -98,6 +98,7 @@ export const sortDecimalWithIndices = (toSort: DecimalSource[]) => {
  * Identical to @see {DOMCacheGetOrSet} but casts the type.
  * @param id {string}
  */
+// oxlint-disable-next-line typescript/no-unnecessary-type-parameters -- T is the function's documented contract: callers specify the expected element type
 export const getElementById = <T extends HTMLElement>(id: string) => DOMCacheGetOrSet(id) as T
 
 /**

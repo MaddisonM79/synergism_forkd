@@ -185,7 +185,6 @@ const onInit = memoize(() => {
 export const initializeCart = () => {
   onInit()
 
-  // TODO(@KhafraDev):
-  // eslint-disable-next-line no-new:
-  new CartTab()
+  // TODO(@KhafraDev): refactor CartTab to expose an init() instead of side-effects in constructor
+  void new CartTab()
 }

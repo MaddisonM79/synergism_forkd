@@ -531,7 +531,7 @@ export const playerSchema = z.object({
     return Object.fromEntries(
       Object.keys(blankSave.unlocks).map((key) => {
         const value = object[key] ?? blankSave.unlocks[key as keyof typeof blankSave['unlocks']]
-        return value === null ? [key, false] : [key, Boolean(value)]
+        return value === null ? [key, false] : [key, value]
       })
     )
   }).default(() => ({ ...blankSave.unlocks })),
@@ -542,7 +542,7 @@ export const playerSchema = z.object({
         Object.keys(blankSave.progressiveAchievements).map((key) => {
           const value = object[key]
             ?? blankSave.progressiveAchievements[key as keyof typeof blankSave['progressiveAchievements']]
-          return value === null ? [key, 0] : [key, Number(value)]
+          return value === null ? [key, 0] : [key, value]
         })
       )
     }
@@ -1029,7 +1029,7 @@ export const playerSchema = z.object({
         Object.keys(blankSave.redAmbrosiaUpgrades).map((key) => {
           const value = object[key]
             ?? blankSave.redAmbrosiaUpgrades[key as keyof typeof blankSave['redAmbrosiaUpgrades']]
-          return value === null ? [key, 0] : [key, Number(value)]
+          return value === null ? [key, 0] : [key, value]
         })
       )
     }
