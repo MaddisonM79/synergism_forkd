@@ -72,3 +72,31 @@ Since merges are squashed, the PR title becomes the commit message on `main`. In
 Changes that add or modify fields on the `player` object affect every player's savefile size and migration path. **Before making such a change, please open an issue first** to discuss the schema impact.
 
 See also [CLAUDE.md](CLAUDE.md) for the agent-facing contribution rules (i18n, DOM caching, Steam/Electron gating, etc.).
+
+## Deploy (Cloudflare Pages)
+
+The web build deploys to Cloudflare Pages. To produce a staged deploy directory locally:
+
+```sh
+npm run cloudflare:build
+```
+
+This runs `build:esbuild` (minified bundle → `dist/out.js`) and then `cloudflare:stage`, which assembles a clean output directory at `build/` containing:
+
+- `index.html`, `Synergism.css`, `favicon.ico`
+- `Pictures/`, `translations/`
+- `dist/out.js`
+- `_headers` (CSP + standard security headers — applied at the CF edge)
+
+### Cloudflare Pages dashboard settings
+
+When wiring the project up in the Cloudflare dashboard:
+
+- **Framework preset:** None
+- **Build command:** `npm run cloudflare:build`
+- **Build output directory:** `build`
+- **Node version:** see `engines.node` in [package.json](package.json) (currently `>=22.21.0`)
+
+### Security headers
+
+[`_headers`](_headers) is the source of truth for HTTP response headers at the edge. The Content-Security-Policy there mirrors the `<meta http-equiv>` in [index.html](index.html); keep both in sync until the meta tag can be retired (the HTTP header takes precedence when served from CF).

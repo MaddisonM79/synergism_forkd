@@ -15,5 +15,6 @@ Pictures/TransparentPics/Thumbs.db
 release
 Kong.zip
 targetdir/
+build/
 dist/dist/
 !electron/**/*.js
