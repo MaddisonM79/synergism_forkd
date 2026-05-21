@@ -1,6 +1,6 @@
 import i18next from 'i18next'
 import { awardAchievementGroup } from './Achievements'
-import { DOMCacheGetOrSet } from './Cache/DOM'
+import { DOMCacheDelete, DOMCacheGetOrSet } from './Cache/DOM'
 import { inheritanceTokens, singularityBonusTokenMult } from './Calculate'
 import {
   corrIcons,
@@ -1498,7 +1498,7 @@ export const campaignIconHTMLUpdates = () => {
 }
 
 export const campaignIconHTMLUpdate = (key: CampaignKeys) => {
-  const icon = document.querySelector<HTMLElement>(`#campaignIconGrid > #${key}CampaignIcon`)!
+  const icon = DOMCacheGetOrSet(`${key}CampaignIcon`)
   if (!campaignDatas[key].unlockRequirement()) {
     icon.style.display = 'none'
   } else {
@@ -1636,6 +1636,12 @@ const campaignCorruptionStatHTMLUpdate = (key: CampaignKeys) => {
 
 export const createCampaignIconHTMLS = () => {
   const campaignIconDiv = DOMCacheGetOrSet('campaignIconGrid')
+  // Invalidate any previously-cached campaign-icon entries before detaching
+  // them, so DOMCacheGetOrSet calls in campaignIconHTMLUpdate re-fetch the
+  // freshly created elements instead of pointing at the old detached nodes.
+  for (const key of Object.keys(campaignDatas) as CampaignKeys[]) {
+    DOMCacheDelete(`${key}CampaignIcon`)
+  }
   // Reset existing Icons
   campaignIconDiv.innerHTML = ''
 

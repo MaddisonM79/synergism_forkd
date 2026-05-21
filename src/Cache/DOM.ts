@@ -33,3 +33,29 @@ export const DOMCacheGetOrSet = (id: string) => {
 }
 
 export const DOMCacheHas = (id: string) => DOMCache.has(id)
+
+// Non-throwing variant of DOMCacheGetOrSet — returns null when the element
+// doesn't exist (instead of throwing). Touch-on-get LRU behavior matches
+// DOMCacheGetOrSet. Misses are NOT cached, so a subsequent create() + lookup
+// works correctly (see Statistics.ts create-if-missing pattern).
+export const DOMCacheGet = (id: string): HTMLElement | null => {
+  const cachedEl = DOMCache.get(id)
+  if (cachedEl) {
+    DOMCache.delete(id)
+    DOMCache.set(id, cachedEl)
+    return cachedEl
+  }
+
+  const el = document.getElementById(id)
+  if (!el) return null
+
+  DOMCache.set(id, el)
+  return el
+}
+
+// Invalidates a cached id. Call this BEFORE detaching / replacing the
+// underlying DOM node so subsequent DOMCacheGetOrSet calls re-fetch instead
+// of returning a stale reference (see Campaign.ts createCampaignIconHTMLS).
+export const DOMCacheDelete = (id: string): void => {
+  DOMCache.delete(id)
+}
