@@ -10,13 +10,12 @@ on:
 
 jobs:
   test:
-    runs-on: ${{ matrix.os }}
+    # Browser-only build; production deploys to Cloudflare Pages (Linux).
+    # No desktop runtime to validate. Win/macOS dropped to save ~12x CI minutes
+    # per push (GitHub bills macOS at 10x, Windows at 2x Linux minutes).
+    runs-on: ubuntu-latest
     permissions:
       contents: read
-
-    strategy:
-      matrix:
-        os: [ubuntu-latest, windows-latest, macOS-latest]
 
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -40,7 +39,7 @@ jobs:
         run: |
           npm run build:esbuild
       - name: Check translation files
-        if: matrix.os == 'ubuntu-latest' && ${{ github.event_name == 'pull_request' }}
+        if: ${{ github.event_name == 'pull_request' }}
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         id: check-translation-files
         with:
