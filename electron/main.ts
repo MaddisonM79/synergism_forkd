@@ -84,6 +84,8 @@ function createWindow (): void {
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
+      sandbox: true,
+      webSecurity: true,
       preload: path.join(app.getAppPath(), 'electron', 'preload.js'),
       enableWebSQL: false,
       backgroundThrottling: false
@@ -160,6 +162,13 @@ app.on('open-url', (event, url) => {
 
 app.whenReady().then(async () => {
   const distPath = path.join(app.getAppPath(), 'dist')
+
+  // Deny all Chromium permission requests by default (geolocation, notifications,
+  // media, etc.) — Synergism doesn't need any of them. A compromised renderer
+  // shouldn't be able to silently request them either.
+  session.defaultSession.setPermissionRequestHandler((_webContents, _permission, callback) => {
+    callback(false)
+  })
 
   session.defaultSession.protocol.handle('https', async (request) => {
     const url = new URL(request.url)
