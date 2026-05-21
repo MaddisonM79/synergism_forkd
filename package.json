@@ -79,16 +79,10 @@
     "synergism",
     "synergismofficial"
   ],
-  "author": "Platonic (Kevin Bunn)",
-  "maintainers": [
-    {
-      "email": "pseudonian@gmail.com",
-      "name": "Kevin Bunn"
-    },
-    {
-      "email": "maitken033380023@gmail.com",
-      "name": "Matthew Aitken"
-    }
+  "author": "MaddisonM79 (https://github.com/MaddisonM79)",
+  "contributors": [
+    { "name": "Platonic" },
+    { "name": "Khafra" }
   ],
   "license": "MIT",
   "bugs": {
