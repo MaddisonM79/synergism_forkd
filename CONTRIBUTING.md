@@ -116,3 +116,18 @@ node --run preview:cf
 ```
 
 Builds + stages + serves `build/` via `wrangler pages dev` on port 3000. Use this to verify the CSP / HSTS / cache rules behave as expected before pushing.
+
+## Releases (Kongregate build)
+
+[`.github/workflows/kong-release.yml`](.github/workflows/kong-release.yml) builds `Kong.zip`, generates a Sigstore build-provenance attestation, and creates a GitHub Release. It triggers **only on tag push** matching `v*.*.*` — pushing to `main` does not release. This keeps version bumps explicit and prevents tag overwrites.
+
+To cut a release:
+
+```sh
+# bump package.json version, commit, merge to main, then:
+git checkout main && git pull
+git tag v4.1.2
+git push origin v4.1.2
+```
+
+The tag name (`github.ref_name`) is the release tag and title; `package.json` version is not consulted at release time, so the two can drift if you forget the bump — keep them in sync as a matter of habit.

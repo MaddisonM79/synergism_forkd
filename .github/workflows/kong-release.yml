@@ -1,8 +1,9 @@
 name: Create a release for Kongregate
 on:
   push:
-    branches: master
-    
+    tags:
+      - 'v*.*.*'
+
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
@@ -23,9 +24,7 @@ jobs:
         with:
           node-version: lts/*
       - name: Install deps
-        run: |
-          npm ci
-          sudo apt install -y jq
+        run: npm ci
       - name: Build
         run: |
           node ./scripts/update-last-updated.js
@@ -39,10 +38,6 @@ jobs:
           files: dist/ Pictures/Splash/ Pictures/Default/ Pictures/logo.png Pictures/logoLight.png Pictures/MISSINGIMAGE.png translations/ index.html Synergism.css favicon.ico
           dest: Kong.zip
           recursive: false
-      - name: Retrieve version
-        run: |
-          echo "VERSION=$(jq -r '.version' package.json)" >> $GITHUB_OUTPUT
-        id: version
       - name: Attest Kong.zip
         uses: actions/attest-build-provenance@a2bbfa25375fe432b6a289bc6b6cd05ecd0c4c32 # v4.1.0
         with:
@@ -51,7 +46,7 @@ jobs:
         uses: softprops/action-gh-release@b4309332981a82ec1c5618f44dd2e27cc8bfbfda # v3.0.0
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-          tag_name: v${{ steps.version.outputs.VERSION }}
-          name: Kongregate Build ${{ github.event.repository.updated_at }}
+          tag_name: ${{ github.ref_name }}
+          name: Kongregate Build ${{ github.ref_name }}
           files: |
             Kong.zip
