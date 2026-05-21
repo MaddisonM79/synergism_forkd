@@ -313,6 +313,7 @@ const createIndividualSubscriptionHTML = (product: SubscriptionProduct, currentS
       </section>
     `
   }
+  return undefined
 }
 
 const manageSubscriptionButtonVisibility = (sub: SubscriptionMetadata) => {

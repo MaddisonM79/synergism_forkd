@@ -9,13 +9,13 @@ const lotus: {
   used: number
   active: number
   activeUntil: number
-  timer: ReturnType<typeof setTimeout> | 0
+  timer: ReturnType<typeof setTimeout> | undefined
 } = {
   inventory: 0,
   used: 0,
   active: 0,
   activeUntil: 0,
-  timer: 0
+  timer: undefined
 }
 
 export const consumeHandlers = [

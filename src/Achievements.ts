@@ -3585,6 +3585,7 @@ const awardAchievement = (index: number) => {
       }
     }
   }
+  return undefined
 }
 
 export const awardUngroupedAchievement = (name: UngroupedAchievementNames) => {
