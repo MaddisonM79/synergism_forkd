@@ -10,10 +10,10 @@ jobs:
       contents: read
       deployments: write
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
     - name: Wait for CF Pages
       id: cf-pages
-      uses: WalshyDev/cf-pages-await@v1
+      uses: WalshyDev/cf-pages-await@3abae9f62a7672a1701300702ce42908e16cb88a # v1
       with:
         apiToken: ${{ secrets.CF_API_TOKEN }}
         accountId: 'bd22ac056a23329365c8a57927490701'
