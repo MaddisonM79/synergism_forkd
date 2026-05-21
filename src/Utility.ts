@@ -3,13 +3,16 @@ import DOMPurify from 'dompurify'
 import { DOMCacheGetOrSet } from './Cache/DOM'
 import { format } from './Synergism'
 
-export const isDecimal = (o: unknown): o is Decimal =>
-  o instanceof Decimal
-  || (typeof o === 'object'
-    && o !== null
-    && Object.keys(o).length === 2
-    && 'mantissa' in o
-    && 'exponent' in o)
+// True iff `o` is a real Decimal instance. We used to accept the structural
+// shape `{ mantissa, exponent }` as a fallback so freshly-deserialized saves
+// (where Decimal fields hadn't yet been hydrated) would test true, but the
+// save-loader (PlayerSchema.ts decimalSchema) now constructs `new Decimal(src)`
+// inside the schema transform — every `player.<decimalField>` is a real instance
+// by the time anything outside the schema sees it. The duck-test fallback was
+// also the trust-boundary concern called out by #83 (T10): a hostile save with
+// `{mantissa: <evil>, exponent: <evil>}` would pass the structural check and
+// flow into Decimal-arithmetic call sites. instanceof-only closes that gap.
+export const isDecimal = (o: unknown): o is Decimal => o instanceof Decimal
 
 /**
  * This function calculates the smallest integer increment/decrement that can be applied to a number that is
