@@ -2,6 +2,11 @@
 //
 // Re-export the pieces that the UI tier is allowed to consume here. Anything
 // not exported from this file should be considered internal to the package.
-//
-// Empty for now — code lands as mechanics get migrated out of packages/web_ui.
-export type { CoreEvent } from './events/types.ts'
+
+export type { CoreEvent } from './events/types'
+export type { AcceleratorState, BuyAmount } from './state/schema'
+export type {
+  BuyAcceleratorInput,
+  GetCostAcceleratorInput
+} from './mechanics/accelerators'
+export { buyAccelerator, getCostAccelerator } from './mechanics/accelerators'

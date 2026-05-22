@@ -38,7 +38,7 @@
   },
   "overrides": [
     {
-      "files": ["packages/logic/**/*.ts"],
+      "files": ["packages/logic/src/**/*.ts"],
       "env": {
         "builtin": true,
         "browser": false

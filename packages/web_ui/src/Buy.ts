@@ -1,5 +1,6 @@
 import type { DecimalSource } from 'break_infinity.js'
 import Decimal from 'break_infinity.js'
+import { buyAccelerator as logicBuyAccelerator } from '@synergism/logic'
 import { awardAchievementGroup } from './Achievements'
 import { CalcECC } from './Challenges'
 import { getAntUpgradeEffect } from './Features/Ants/AntUpgrades/lib/upgrade-effects'
@@ -23,131 +24,36 @@ export const getReductionValue = () => {
   return reduction
 }
 
-const getCostAccelerator = (buyingTo: number): Decimal => {
-  ;--buyingTo
-
-  const originalCost = 500
-  let cost = new Decimal(originalCost)
-
-  cost = cost.times(Decimal.pow(4 / G.costDivisor, buyingTo))
-
-  if (buyingTo > (125 + 5 * CalcECC('transcend', player.challengecompletions[4]))) {
-    const num = buyingTo - 125 - 5 * CalcECC('transcend', player.challengecompletions[4])
-    const factorialBit = new Decimal(num).factorial()
-    const multBit = Decimal.pow(4, num)
-    cost = cost.times(multBit.times(factorialBit))
-  }
-
-  if (buyingTo > (2000 + 5 * CalcECC('transcend', player.challengecompletions[4]))) {
-    const sumNum = buyingTo - 2000 - 5 * CalcECC('transcend', player.challengecompletions[4])
-    const sumBit = sumNum * (sumNum + 1) / 2
-    cost = cost.times(Decimal.pow(2, sumBit))
-  }
-
-  if (player.currentChallenge.transcension === 4) {
-    const sumBit = buyingTo * (buyingTo + 1) / 2
-    cost = cost.times(Decimal.pow(10, sumBit))
-  }
-
-  if (player.currentChallenge.reincarnation === 8) {
-    const sumBit = buyingTo * (buyingTo + 1) / 2
-    cost = cost.times(Decimal.pow(1e50, sumBit))
-  }
-  const buymax = Math.pow(10, 15)
-  if (buyingTo > buymax) {
-    const diminishingExponent = 1 / 8
-
-    const QuadrillionCost = getCostAccelerator(buymax)
-
-    const newCost = QuadrillionCost.pow(Math.pow(buyingTo / buymax, 1 / diminishingExponent))
-    const newExtra = newCost.exponent - Math.floor(newCost.exponent)
-    newCost.exponent = Math.floor(newCost.exponent)
-    newCost.mantissa *= Math.pow(10, newExtra)
-    newCost.normalize()
-    return Decimal.max(cost, newCost)
-  }
-  return cost
-}
-
+// Thin shim over @synergism/logic's pure buyAccelerator. Gathers the required
+// computed inputs from player / Globals, applies the returned state slice back
+// to the mutable player object, and runs the legacy post-buy side effects
+// (display refresh + achievement check) that haven't migrated yet.
 export const buyAccelerator = (autobuyer?: boolean) => {
-  const buyStart = player.acceleratorBought
-  const buymax = Math.pow(10, 15)
-  // If at least buymax, we will use a different formulae
-  if (buyStart >= buymax) {
-    const diminishingExponent = 1 / 8
-
-    const log10Resource = Decimal.log10(player.coins)
-    const log10QuadrillionCost = Decimal.log10(getCostAccelerator(buymax))
-
-    let hi = Math.floor(buymax * Math.max(1, Math.pow(log10Resource / log10QuadrillionCost, diminishingExponent)))
-    let lo = buymax
-    while (hi - lo > 0.5) {
-      const mid = Math.floor(lo + (hi - lo) / 2)
-      if (mid === lo || mid === hi) {
-        break
-      }
-      if (!player.coins.gte(getCostAccelerator(mid))) {
-        hi = mid
-      } else {
-        lo = mid
-      }
+  const { state } = logicBuyAccelerator(
+    {
+      acceleratorBought: player.acceleratorBought,
+      acceleratorCost: player.acceleratorCost,
+      coins: player.coins,
+      prestigenoaccelerator: player.prestigenoaccelerator,
+      transcendnoaccelerator: player.transcendnoaccelerator,
+      reincarnatenoaccelerator: player.reincarnatenoaccelerator
+    },
+    {
+      autobuyer: !!autobuyer,
+      coinbuyamount: player.coinbuyamount,
+      costDivisor: G.costDivisor,
+      transcendECC: CalcECC('transcend', player.challengecompletions[4]),
+      inTranscensionChallenge4: player.currentChallenge.transcension === 4,
+      inReincarnationChallenge8: player.currentChallenge.reincarnation === 8
     }
-    const buyable = lo
-    const thisCost = getCostAccelerator(buyable)
+  )
 
-    player.acceleratorBought = buyable
-    player.acceleratorCost = thisCost
-    awardAchievementGroup('accelerators')
-    return
-  }
-
-  // Start buying at the current amount bought + 1
-  const buydefault = buyStart + smallestInc(buyStart)
-  let buyTo = buydefault
-
-  let cashToBuy = getCostAccelerator(buyTo)
-  while (player.coins.gte(cashToBuy)) {
-    // then multiply by 4 until it reaches just above the amount needed
-    buyTo = buyTo * 4
-    cashToBuy = getCostAccelerator(buyTo)
-  }
-  let stepdown = Math.floor(buyTo / 8)
-  while (stepdown >= smallestInc(buyTo)) {
-    // if step down would push it below out of expense range then divide step down by 2
-    if (getCostAccelerator(buyTo - stepdown).lte(player.coins)) {
-      stepdown = Math.floor(stepdown / 2)
-    } else {
-      buyTo = buyTo - Math.max(smallestInc(buyTo), stepdown)
-    }
-  }
-
-  if (!autobuyer && (player.coinbuyamount as number | string) !== 'max') {
-    if (player.acceleratorBought + player.coinbuyamount < buyTo) {
-      buyTo = player.acceleratorBought + player.coinbuyamount
-    }
-  }
-
-  let buyFrom = Math.max(buyTo - 6 - smallestInc(buyTo), buydefault)
-  let thisCost = getCostAccelerator(buyFrom)
-  while (buyFrom <= buyTo && player.coins.gte(thisCost)) {
-    if (buyFrom >= buymax) {
-      buyFrom = buymax
-    }
-    player.coins = player.coins.sub(thisCost)
-    player.acceleratorBought = buyFrom
-    buyFrom = buyFrom + smallestInc(buyFrom)
-    thisCost = getCostAccelerator(buyFrom)
-    player.acceleratorCost = thisCost
-    if (buyFrom >= buymax) {
-      break
-    }
-  }
-
-  if (player.acceleratorBought > 0) {
-    player.prestigenoaccelerator = false
-    player.transcendnoaccelerator = false
-    player.reincarnatenoaccelerator = false
-  }
+  player.acceleratorBought = state.acceleratorBought
+  player.acceleratorCost = state.acceleratorCost
+  player.coins = state.coins
+  player.prestigenoaccelerator = state.prestigenoaccelerator
+  player.transcendnoaccelerator = state.transcendnoaccelerator
+  player.reincarnatenoaccelerator = state.reincarnatenoaccelerator
 
   updateAllTick()
   awardAchievementGroup('accelerators')

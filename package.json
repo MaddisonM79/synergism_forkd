@@ -26,7 +26,7 @@
     "watch:esbuild": "npm run build -w @synergism/web_ui -- --watch",
     "check:tsc": "tsc --build && tsc --noEmit -p packages/web_ui/tsconfig.json && tsc --noEmit -p packages/desktop_ui/tsconfig.json",
     "watch:tsc": "tsc --build --watch",
-    "test": "npm run test -w @synergism/web_ui",
+    "test": "npm test --workspaces --if-present",
     "test:watch": "npm run test:watch -w @synergism/web_ui",
     "prepare": "husky",
     "cloudflare:build": "npm run cloudflare:build -w @synergism/web_ui",
