@@ -167,3 +167,29 @@ export {
   superiorIntellectRuneBlessingEffects,
   thriftRuneBlessingEffects
 } from './mechanics/runeBlessingEffects'
+export type {
+  AchievementTalismanEffects,
+  ChronosTalismanEffects,
+  CookieGrandmaTalismanEffects,
+  ExemptionTalismanEffects,
+  HorseShoeTalismanEffects,
+  MetaphysicsTalismanEffects,
+  MidasTalismanEffects,
+  MortuusTalismanEffects,
+  PlasticTalismanEffects,
+  PolymathTalismanEffects,
+  WowSquareTalismanEffects
+} from './mechanics/talismanEffects'
+export {
+  achievementTalismanEffects,
+  chronosTalismanEffects,
+  cookieGrandmaTalismanEffects,
+  exemptionTalismanEffects,
+  horseShoeTalismanEffects,
+  metaphysicsTalismanEffects,
+  midasTalismanEffects,
+  mortuusTalismanEffects,
+  plasticTalismanEffects,
+  polymathTalismanEffects,
+  wowSquareTalismanEffects
+} from './mechanics/talismanEffects'
