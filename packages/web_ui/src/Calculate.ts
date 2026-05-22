@@ -2,7 +2,9 @@ import {
   calculateActualAntSpeedMult as logicCalcActualAntSpeedMult,
   calculateAscensionSpeedMult as logicCalcAscensionSpeedMult,
   calculateGlobalSpeedMult as logicCalcGlobalSpeedMult,
-  calculateOfferings as logicCalcOfferings
+  calculateObtainium as logicCalcObtainium,
+  calculateOfferings as logicCalcOfferings,
+  calculatePositiveSalvage as logicCalcPositiveSalvage
 } from '@synergism/logic'
 import Decimal from 'break_infinity.js'
 import i18next from 'i18next'
@@ -250,42 +252,22 @@ export const calculateObtainiumDRIgnoreMult = () => {
  * @returns
  */
 export const calculateObtainium = (timeMultUsed = true) => {
-  // Base Obtainium
-  const base = calculateBaseObtainium()
-
-  // Immaculate Offering Capacity
-  const immaculate = calculateObtainiumDRIgnoreMult()
-
-  // Illiteracy Effect
-  const DR = player.corruptions.used.corruptionEffects('illiteracy')
-
-  // Reincarnation Timer Effects (Including HALF MIND)
   const timeMultiplier = timeMultUsed
     ? offeringObtainiumTimeModifiers(player.reincarnationcounter, player.reincarnationCount >= 5)
       .reduce((a, b) => a * b.stat(), 1)
     : 1
 
-  const baseMults = calculateObtainiumDecimal()
-
-  // Why is this a thing? If DR = 0 (which is possible), then the calculation below will not catch chal 14 enabled.
-  if (player.currentChallenge.ascension === 14) {
-    return new Decimal('0')
-  }
-
-  const total = new Decimal(immaculate).times(Decimal.pow(baseMults, DR)).times(timeMultiplier)
-
-  if (
-    player.singularityChallenges.taxmanLastStand.enabled
-    && player.singularityChallenges.taxmanLastStand.completions >= 2
-  ) {
-    return Decimal.min(
-      player.obtainium.times(100).plus(1),
-      Decimal.max(base, total)
-    )
-  }
-
-  // As of Statistics Update, you can never get less than your base Offerings per Reincarnation, no matter what.
-  return Decimal.max(base, total)
+  return logicCalcObtainium({
+    baseObtainium: calculateBaseObtainium(),
+    immaculate: calculateObtainiumDRIgnoreMult(),
+    DR: player.corruptions.used.corruptionEffects('illiteracy'),
+    timeMultiplier,
+    baseMults: calculateObtainiumDecimal(),
+    inAscensionChallenge14: player.currentChallenge.ascension === 14,
+    taxmanLastStandEnabled: player.singularityChallenges.taxmanLastStand.enabled,
+    taxmanLastStandCompletions: player.singularityChallenges.taxmanLastStand.completions,
+    currentObtainium: player.obtainium
+  })
 }
 
 const calculateFastForwardResourcesGlobal = (
@@ -577,14 +559,11 @@ export const calculateRawPositiveSalvage = () => {
 }
 
 export const calculatePositiveSalvage = () => {
-  if (player.singularityChallenges.taxmanLastStand.enabled) {
-    const baseSalvage = 100
-    const positiveSalvage = calculateRawPositiveSalvage()
-
-    return baseSalvage
-      + (positiveSalvage * calculatePositiveSalvageMultiplier()) / Math.max(1, Math.log(positiveSalvage))
-  }
-  return calculateRawPositiveSalvage() * calculatePositiveSalvageMultiplier()
+  return logicCalcPositiveSalvage({
+    rawPositiveSalvage: calculateRawPositiveSalvage(),
+    positiveSalvageMultiplier: calculatePositiveSalvageMultiplier(),
+    taxmanLastStandEnabled: player.singularityChallenges.taxmanLastStand.enabled
+  })
 }
 
 export const calculateNegativeSalvageMultiplier = () => {

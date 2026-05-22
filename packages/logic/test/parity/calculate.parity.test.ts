@@ -10,7 +10,9 @@ import {
   calculateActualAntSpeedMult as newCalcAntSpeed,
   calculateAscensionSpeedMult as newCalcAscension,
   calculateGlobalSpeedMult as newCalcGlobal,
+  calculateObtainium as newCalcObtainium,
   calculateOfferings as newCalcOfferings,
+  calculatePositiveSalvage as newCalcPositiveSalvage,
   getReductionValue as newGetReduction
 } from '../../src/mechanics/calculate'
 
@@ -205,4 +207,106 @@ describe('parity: calculateOfferings', () => {
     )
     expect(closeEnoughDec(newVal, oldVal)).toBe(true)
   })
+})
+
+// ─── calculateObtainium parity ─────────────────────────────────────────────
+
+const oldCalcObtainium = (
+  base: number,
+  immaculate: number,
+  DR: number,
+  timeMultiplier: number,
+  baseMults: Decimal,
+  inC14: boolean,
+  taxmanEnabled: boolean,
+  taxmanCompletions: number,
+  currentObtainium: Decimal
+): Decimal => {
+  if (inC14) return new Decimal('0')
+  const total = new Decimal(immaculate).times(Decimal.pow(baseMults, DR)).times(timeMultiplier)
+  if (taxmanEnabled && taxmanCompletions >= 2) {
+    return Decimal.min(currentObtainium.times(100).plus(1), Decimal.max(base, total))
+  }
+  return Decimal.max(base, total)
+}
+
+describe('parity: calculateObtainium', () => {
+  const fixtures: Array<{
+    label: string
+    base: number
+    immaculate: number
+    DR: number
+    timeMultiplier: number
+    baseMults: Decimal
+    inC14: boolean
+    taxmanEnabled: boolean
+    taxmanCompletions: number
+    currentObtainium: Decimal
+  }> = [
+    { label: 'C14 short-circuits to 0', base: 1e9, immaculate: 100, DR: 1, timeMultiplier: 5, baseMults: new Decimal(1e10), inC14: true, taxmanEnabled: false, taxmanCompletions: 0, currentObtainium: new Decimal(0) },
+    { label: 'normal — total wins over base', base: 100, immaculate: 1, DR: 1, timeMultiplier: 1, baseMults: new Decimal(1e6), inC14: false, taxmanEnabled: false, taxmanCompletions: 0, currentObtainium: new Decimal(0) },
+    { label: 'normal — base floor wins', base: 1e10, immaculate: 1, DR: 1, timeMultiplier: 1, baseMults: new Decimal(100), inC14: false, taxmanEnabled: false, taxmanCompletions: 0, currentObtainium: new Decimal(0) },
+    { label: 'DR < 1 damps baseMults', base: 0, immaculate: 1, DR: 0.5, timeMultiplier: 1, baseMults: new Decimal(1e20), inC14: false, taxmanEnabled: false, taxmanCompletions: 0, currentObtainium: new Decimal(0) },
+    { label: 'DR = 0 means baseMults^0 = 1', base: 0, immaculate: 5, DR: 0, timeMultiplier: 2, baseMults: new Decimal('1e1000'), inC14: false, taxmanEnabled: false, taxmanCompletions: 0, currentObtainium: new Decimal(0) },
+    { label: 'taxman <2 completions: same as plain', base: 100, immaculate: 1, DR: 1, timeMultiplier: 1, baseMults: new Decimal(1e6), inC14: false, taxmanEnabled: true, taxmanCompletions: 1, currentObtainium: new Decimal(1e4) },
+    { label: 'taxman 2+: cap bites at small currentObtainium', base: 100, immaculate: 1, DR: 1, timeMultiplier: 1, baseMults: new Decimal(1e30), inC14: false, taxmanEnabled: true, taxmanCompletions: 2, currentObtainium: new Decimal(10) },
+    { label: 'taxman 2+: main wins under cap', base: 100, immaculate: 1, DR: 1, timeMultiplier: 1, baseMults: new Decimal(1e6), inC14: false, taxmanEnabled: true, taxmanCompletions: 2, currentObtainium: new Decimal(1e9) },
+    { label: 'huge Decimal baseMults * timeMult', base: 0, immaculate: 1, DR: 1, timeMultiplier: 100, baseMults: new Decimal('1e500'), inC14: false, taxmanEnabled: false, taxmanCompletions: 0, currentObtainium: new Decimal(0) }
+  ]
+
+  it.each(fixtures)('$label', (f) => {
+    const newVal = newCalcObtainium({
+      baseObtainium: f.base,
+      immaculate: f.immaculate,
+      DR: f.DR,
+      timeMultiplier: f.timeMultiplier,
+      baseMults: f.baseMults,
+      inAscensionChallenge14: f.inC14,
+      taxmanLastStandEnabled: f.taxmanEnabled,
+      taxmanLastStandCompletions: f.taxmanCompletions,
+      currentObtainium: f.currentObtainium
+    })
+    const oldVal = oldCalcObtainium(
+      f.base,
+      f.immaculate,
+      f.DR,
+      f.timeMultiplier,
+      f.baseMults,
+      f.inC14,
+      f.taxmanEnabled,
+      f.taxmanCompletions,
+      f.currentObtainium
+    )
+    expect(closeEnoughDec(newVal, oldVal)).toBe(true)
+  })
+})
+
+// ─── calculatePositiveSalvage parity ───────────────────────────────────────
+
+const oldCalcPositiveSalvage = (raw: number, mult: number, taxmanEnabled: boolean): number => {
+  if (taxmanEnabled) {
+    const baseSalvage = 100
+    return baseSalvage + (raw * mult) / Math.max(1, Math.log(raw))
+  }
+  return raw * mult
+}
+
+describe('parity: calculatePositiveSalvage', () => {
+  const rawGrid = [0, 0.5, 1, 10, 100, 1000, 1e6, 1e10]
+  const multGrid = [0.5, 1, 2, 5]
+  const taxmanGrid = [false, true]
+
+  for (const taxman of taxmanGrid) {
+    for (const mult of multGrid) {
+      it.each(rawGrid)(`raw=%s mult=${mult} taxman=${taxman}`, (raw) => {
+        const newVal = newCalcPositiveSalvage({
+          rawPositiveSalvage: raw,
+          positiveSalvageMultiplier: mult,
+          taxmanLastStandEnabled: taxman
+        })
+        const oldVal = oldCalcPositiveSalvage(raw, mult, taxman)
+        expect(closeEnough(newVal, oldVal)).toBe(true)
+      })
+    }
+  }
 })

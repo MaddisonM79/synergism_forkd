@@ -182,3 +182,74 @@ export function calculateOfferings(input: CalculateOfferingsInput): Decimal {
   }
   return main
 }
+
+// ─── Obtainium aggregator ──────────────────────────────────────────────────
+
+export interface CalculateObtainiumInput {
+  /** Sum from allBaseObtainiumStats. */
+  baseObtainium: number
+  /** Product from allObtainiumIgnoreDRStats — the "immaculate" leg ignores DR. */
+  immaculate: number
+  /**
+   * Corruption "illiteracy" effect — applied as an exponent on baseMults.
+   * (web_ui: player.corruptions.used.corruptionEffects('illiteracy'))
+   */
+  DR: number
+  /** Product from offeringObtainiumTimeModifiers when timeMultUsed, else 1. */
+  timeMultiplier: number
+  /** Product from allObtainiumStats — large Decimal. */
+  baseMults: Decimal
+  /** player.currentChallenge.ascension === 14 — short-circuits to 0. */
+  inAscensionChallenge14: boolean
+  /** player.singularityChallenges.taxmanLastStand.enabled. */
+  taxmanLastStandEnabled: boolean
+  /** player.singularityChallenges.taxmanLastStand.completions. */
+  taxmanLastStandCompletions: number
+  /** player.obtainium — used by the taxman cap. */
+  currentObtainium: Decimal
+}
+
+/**
+ * Final obtainium value for the next reincarnation. Like calculateOfferings,
+ * with the additional twist that ascension challenge 14 zeroes everything
+ * out and the headline multiplier is `immaculate * baseMults^DR * time`
+ * (the DR is the illiteracy-corruption damping exponent).
+ */
+export function calculateObtainium(input: CalculateObtainiumInput): Decimal {
+  if (input.inAscensionChallenge14) return new Decimal(0)
+  const total = new Decimal(input.immaculate)
+    .times(Decimal.pow(input.baseMults, input.DR))
+    .times(input.timeMultiplier)
+  const main = Decimal.max(input.baseObtainium, total)
+  if (input.taxmanLastStandEnabled && input.taxmanLastStandCompletions >= 2) {
+    return Decimal.min(input.currentObtainium.times(100).plus(1), main)
+  }
+  return main
+}
+
+// ─── Positive salvage aggregator ───────────────────────────────────────────
+
+export interface CalculatePositiveSalvageInput {
+  /** Sum from positiveSalvageStats. */
+  rawPositiveSalvage: number
+  /** Product from calculatePositiveSalvageMultiplier (a small number-only multiplier). */
+  positiveSalvageMultiplier: number
+  /** player.singularityChallenges.taxmanLastStand.enabled. */
+  taxmanLastStandEnabled: boolean
+}
+
+/**
+ * Total positive salvage. Two branches:
+ *
+ *   taxman enabled → 100 + raw * mult / max(1, log(raw))   (log-damped, base 100 floor)
+ *   otherwise      → raw * mult
+ */
+export function calculatePositiveSalvage(input: CalculatePositiveSalvageInput): number {
+  if (input.taxmanLastStandEnabled) {
+    const baseSalvage = 100
+    return baseSalvage
+      + (input.rawPositiveSalvage * input.positiveSalvageMultiplier)
+        / Math.max(1, Math.log(input.rawPositiveSalvage))
+  }
+  return input.rawPositiveSalvage * input.positiveSalvageMultiplier
+}
