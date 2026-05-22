@@ -1,4 +1,11 @@
 import Decimal from 'break_infinity.js'
+import {
+  duplicationRuneBlessingEffects as logicDuplicationBlessing,
+  prismRuneBlessingEffects as logicPrismBlessing,
+  speedRuneBlessingEffects as logicSpeedBlessing,
+  superiorIntellectRuneBlessingEffects as logicSIBlessing,
+  thriftRuneBlessingEffects as logicThriftBlessing
+} from '@synergism/logic'
 import i18next from 'i18next'
 import { awardAchievementGroup, awardUngroupedAchievement } from './Achievements'
 import { DOMCacheGetOrSet } from './Cache/DOM'
@@ -61,12 +68,7 @@ export const runeBlessings: { [K in RuneBlessingKeys]: RuneBlessingData<K> } = {
     runeEXP: new Decimal(0),
     costCoefficient: new Decimal(1e6),
     levelsPerOOM: 4,
-    effects: (level) => {
-      const globalSpeed = 1 + level / 1000000
-      return {
-        globalSpeed
-      }
-    },
+    effects: (level) => logicSpeedBlessing(level),
     effectsDescription: (level) => {
       const globalSpeed = runeBlessings.speed.effects(level).globalSpeed
       return i18next.t('runes.blessings.speed.globalSpeed', {
@@ -87,12 +89,7 @@ export const runeBlessings: { [K in RuneBlessingKeys]: RuneBlessingData<K> } = {
     runeEXP: new Decimal(0),
     costCoefficient: new Decimal(1e7),
     levelsPerOOM: 4,
-    effects: (level) => {
-      const multiplierBoosts = 1 + level / 1000000
-      return {
-        multiplierBoosts
-      }
-    },
+    effects: (level) => logicDuplicationBlessing(level),
     effectsDescription: (level) => {
       const multiplierBoosts = runeBlessings.duplication.effects(level).multiplierBoosts
       return i18next.t('runes.blessings.duplication.multiplierBoosts', {
@@ -113,12 +110,7 @@ export const runeBlessings: { [K in RuneBlessingKeys]: RuneBlessingData<K> } = {
     runeEXP: new Decimal(0),
     costCoefficient: new Decimal(1e9),
     levelsPerOOM: 4,
-    effects: (level) => {
-      const antSacrificeMult = 1 + level / 1000000
-      return {
-        antSacrificeMult
-      }
-    },
+    effects: (level) => logicPrismBlessing(level),
     effectsDescription: (level) => {
       const antSacrificeMult = runeBlessings.prism.effects(level).antSacrificeMult
       return i18next.t('runes.blessings.prism.antSacrifice', {
@@ -139,12 +131,7 @@ export const runeBlessings: { [K in RuneBlessingKeys]: RuneBlessingData<K> } = {
     runeEXP: new Decimal(0),
     costCoefficient: new Decimal(1e12),
     levelsPerOOM: 4,
-    effects: (level) => {
-      const accelBoostCostDelay = 1 + level / 1000000
-      return {
-        accelBoostCostDelay
-      }
-    },
+    effects: (level) => logicThriftBlessing(level),
     effectsDescription: (level) => {
       const accelBoostCostDelay = runeBlessings.thrift.effects(level).accelBoostCostDelay
       return i18next.t('runes.blessings.thrift.acceleratorBoostDelay', {
@@ -165,12 +152,7 @@ export const runeBlessings: { [K in RuneBlessingKeys]: RuneBlessingData<K> } = {
     runeEXP: new Decimal(0),
     costCoefficient: new Decimal(1e15),
     levelsPerOOM: 4,
-    effects: (level) => {
-      const obtToAntExponent = Math.log(1 + level / 1000000)
-      return {
-        obtToAntExponent
-      }
-    },
+    effects: (level) => logicSIBlessing(level),
     effectsDescription: (level) => {
       const obtToAntExponent = runeBlessings.superiorIntellect.effects(level).obtToAntExponent
       const obtExponentHTML = i18next.t('runes.blessings.superiorIntellect.obtExponent', {

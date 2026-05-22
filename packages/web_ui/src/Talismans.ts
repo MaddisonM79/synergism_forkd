@@ -1,3 +1,16 @@
+import {
+  achievementTalismanEffects as logicAchievementTalismanEffects,
+  chronosTalismanEffects as logicChronosTalismanEffects,
+  cookieGrandmaTalismanEffects as logicCookieGrandmaTalismanEffects,
+  exemptionTalismanEffects as logicExemptionTalismanEffects,
+  horseShoeTalismanEffects as logicHorseShoeTalismanEffects,
+  metaphysicsTalismanEffects as logicMetaphysicsTalismanEffects,
+  midasTalismanEffects as logicMidasTalismanEffects,
+  mortuusTalismanEffects as logicMortuusTalismanEffects,
+  plasticTalismanEffects as logicPlasticTalismanEffects,
+  polymathTalismanEffects as logicPolymathTalismanEffects,
+  wowSquareTalismanEffects as logicWowSquareTalismanEffects
+} from '@synergism/logic'
 import Decimal from 'break_infinity.js'
 import i18next from 'i18next'
 import { achievementPoints, awardUngroupedAchievement, getAchievementReward } from './Achievements'
@@ -230,7 +243,9 @@ const polymathInscriptValues = [1, 1.04, 1.08, 1.12, 1.16, 1.20, 1.25, 1.30, 1.3
 const mortuusInscriptValues = [1, 1.05, 1.1, 1.15, 1.2, 1.3, 1.4, 1.5, 1.65, 1.8, 2]
 const plasticInscriptValues = [1, 1.005, 1.01, 1.015, 1.02, 1.025, 1.03, 1.04, 1.045, 1.05, 1.0666]
 const wowSquareInscriptValues = [1, 1.025, 1.05, 1.075, 1.1, 1.125, 1.15, 1.2, 1.225, 1.25, 1.30]
-const achievementEffectInscriptValues = [0, 0.001, 0.002, 0.003, 0.004, 0.006, 0.008, .01, .015, .02, .03]
+// achievementEffectInscriptValues moved to logic with the rest of the
+// achievement-talisman effect formula. Keep achievementDescInscriptValues
+// here — it's only used by the i18next-rendered inscriptionDesc.
 const achievementDescInscriptValues = [1, 1, 1, 1, 1, 1, 1, 1.01, 1.015, 1.02, 1.03]
 const cookieGrandmaInscriptValues = [0, 0.01, 0.02, 0.03, 0.04, 0.05, 0.06, 0.07, 0.08, 0.09, 0.10]
 const horseShoeInscriptValues = [0, 0.001, 0.002, 0.003, 0.004, 0.005, 0.007, 0.01, 0.012, 0.015, 0.02]
@@ -244,13 +259,7 @@ export const talismans: { [K in TalismanKeys]: TalismanData<K> } = {
     maxLevel: 180,
     costs: regularCostProgression,
     levelCapIncrease: () => universalTalismanMaxLevelIncreasers(),
-    effects: (n) => {
-      const duplicationBonus = (n >= 6) ? 12 : 0
-      return {
-        taxReduction: exemptionInscriptValues[n] ?? 0,
-        duplicationOOMBonus: duplicationBonus
-      }
-    },
+    effects: (n) => logicExemptionTalismanEffects(n),
     inscriptionDesc: (n) => {
       return i18next.t('runes.talismans.exemption.inscription', {
         val: format(1 + (exemptionInscriptValues[n] ?? 1), 2, true)
@@ -289,13 +298,7 @@ export const talismans: { [K in TalismanKeys]: TalismanData<K> } = {
     maxLevel: 180,
     costs: regularCostProgression,
     levelCapIncrease: () => universalTalismanMaxLevelIncreasers(),
-    effects: (n) => {
-      const speedBonus = (n >= 6) ? 12 : 0
-      return {
-        globalSpeed: chronosInscriptValues[n] ?? 1,
-        speedOOMBonus: speedBonus
-      }
-    },
+    effects: (n) => logicChronosTalismanEffects(n),
     inscriptionDesc: (n) => {
       return i18next.t('runes.talismans.chronos.inscription', {
         val: formatAsPercentIncrease(chronosInscriptValues[n] ?? 1, 0)
@@ -334,13 +337,7 @@ export const talismans: { [K in TalismanKeys]: TalismanData<K> } = {
     maxLevel: 180,
     costs: regularCostProgression,
     levelCapIncrease: () => universalTalismanMaxLevelIncreasers(),
-    effects: (n) => {
-      const thriftBonus = (n >= 6) ? 12 : 0
-      return {
-        blessingBonus: midasInscriptValues[n] ?? 1,
-        thriftOOMBonus: thriftBonus
-      }
-    },
+    effects: (n) => logicMidasTalismanEffects(n),
     inscriptionDesc: (n) => {
       return i18next.t('runes.talismans.midas.inscription', {
         val: formatAsPercentIncrease(midasInscriptValues[n] ?? 1, 0)
@@ -381,13 +378,7 @@ export const talismans: { [K in TalismanKeys]: TalismanData<K> } = {
     levelCapIncrease: () => {
       return universalTalismanMaxLevelIncreasers() + metaphysicsTalismanMaxLevelIncreasers()
     },
-    effects: (n) => {
-      const signatureValue = (n >= 6) ? 1.07 : 1
-      return {
-        talismanEffect: metaphysicsInscriptValues[n] ?? 1,
-        extraTalismanEffect: signatureValue
-      }
-    },
+    effects: (n) => logicMetaphysicsTalismanEffects(n),
     inscriptionDesc: (n) => {
       return i18next.t('runes.talismans.metaphysics.inscription', {
         val: formatAsPercentIncrease(metaphysicsInscriptValues[n] ?? 1, 0)
@@ -426,13 +417,7 @@ export const talismans: { [K in TalismanKeys]: TalismanData<K> } = {
     maxLevel: 180,
     costs: regularCostProgression,
     levelCapIncrease: () => universalTalismanMaxLevelIncreasers(),
-    effects: (n) => {
-      const SIOOMBonus = (n >= 6) ? 12 : 0
-      return {
-        ascensionSpeedBonus: polymathInscriptValues[n] ?? 1,
-        SIOOMBonus: SIOOMBonus
-      }
-    },
+    effects: (n) => logicPolymathTalismanEffects(n),
     inscriptionDesc: (n) => {
       return i18next.t('runes.talismans.polymath.inscription', {
         val: formatAsPercentIncrease(polymathInscriptValues[n] ?? 1, 0)
@@ -471,13 +456,7 @@ export const talismans: { [K in TalismanKeys]: TalismanData<K> } = {
     maxLevel: 180,
     costs: regularCostProgression,
     levelCapIncrease: () => universalTalismanMaxLevelIncreasers() + mortuusTalismanMaxLevelIncreasers(),
-    effects: (n) => {
-      const prismOOMBonus = (n >= 6) ? 12 : 0
-      return {
-        antBonus: mortuusInscriptValues[n] ?? 1,
-        prismOOMBonus: prismOOMBonus
-      }
-    },
+    effects: (n) => logicMortuusTalismanEffects(n),
     inscriptionDesc: (n) => {
       return i18next.t('runes.talismans.mortuus.inscription', {
         val: formatAsPercentIncrease(mortuusInscriptValues[n] ?? 1, 0)
@@ -518,11 +497,7 @@ export const talismans: { [K in TalismanKeys]: TalismanData<K> } = {
     levelCapIncrease: () => {
       return universalTalismanMaxLevelIncreasers() + plasticTalismanMaxLevelIncreasers()
     },
-    effects: (n) => {
-      return {
-        quarkBonus: plasticInscriptValues[n] ?? 1
-      }
-    },
+    effects: (n) => logicPlasticTalismanEffects(n),
     inscriptionDesc: (n) => {
       return i18next.t('runes.talismans.plastic.inscription', {
         val: formatAsPercentIncrease(plasticInscriptValues[n] ?? 1, 2)
@@ -556,12 +531,7 @@ export const talismans: { [K in TalismanKeys]: TalismanData<K> } = {
     baseMult: new Decimal(1e5),
     costs: (baseMult: Decimal, level: number) => exponentialCostProgression(baseMult, level, 2),
     levelCapIncrease: () => universalTalismanMaxLevelIncreasers(),
-    effects: (n) => {
-      return {
-        evenDimBonus: wowSquareInscriptValues[n] ?? 1,
-        oddDimBonus: n >= 6 ? 1.20 : 1
-      }
-    },
+    effects: (n) => logicWowSquareTalismanEffects(n),
     inscriptionDesc: (n) => {
       return i18next.t('runes.talismans.wowSquare.inscription', {
         val: formatAsPercentIncrease(wowSquareInscriptValues[n] ?? 1, 0)
@@ -595,13 +565,7 @@ export const talismans: { [K in TalismanKeys]: TalismanData<K> } = {
     maxLevel: 40,
     costs: (baseMult: Decimal, level: number) => exponentialCostProgression(baseMult, level, 10),
     levelCapIncrease: () => getLevelMilestone('achievementTalismanEnhancement'),
-    effects: (n) => {
-      const signatureValue = (n >= 6) ? -0.02 : 0
-      return {
-        positiveSalvageMult: achievementEffectInscriptValues[n] ?? 1,
-        negativeSalvageMult: signatureValue
-      }
-    },
+    effects: (n) => logicAchievementTalismanEffects(n),
     inscriptionDesc: (n) => {
       return i18next.t('runes.talismans.achievement.inscription', {
         val: formatAsPercentIncrease(achievementDescInscriptValues[n] ?? 1, 1)
@@ -643,13 +607,7 @@ export const talismans: { [K in TalismanKeys]: TalismanData<K> } = {
     maxLevel: 6,
     costs: (baseMult: Decimal, level: number) => exponentialCostProgression(baseMult, level, 1e8),
     levelCapIncrease: () => 54,
-    effects: (n) => {
-      const cookiesSix = n >= 6
-      return {
-        freeCorruptionLevel: cookieGrandmaInscriptValues[n] ?? 0,
-        cookieSix: cookiesSix
-      }
-    },
+    effects: (n) => logicCookieGrandmaTalismanEffects(n),
     inscriptionDesc: (n) => {
       return i18next.t('runes.talismans.cookieGrandma.inscription', {
         val: format(cookieGrandmaInscriptValues[n] ?? 0, 3)
@@ -683,13 +641,7 @@ export const talismans: { [K in TalismanKeys]: TalismanData<K> } = {
     maxLevel: 12,
     costs: (baseMult: Decimal, level: number) => exponentialCostProgression(baseMult, level, 1e5),
     levelCapIncrease: () => 88,
-    effects: (n) => {
-      const signatureValue = (n >= 6) ? 40 : 0
-      return {
-        luckPercentage: horseShoeInscriptValues[n] ?? 0,
-        redLuck: signatureValue
-      }
-    },
+    effects: (n) => logicHorseShoeTalismanEffects(n),
     inscriptionDesc: (n) => {
       return i18next.t('runes.talismans.horseShoe.inscription', {
         val: format(100 * (horseShoeInscriptValues[n] ?? 0), 2)

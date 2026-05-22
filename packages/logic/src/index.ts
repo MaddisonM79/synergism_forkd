@@ -126,3 +126,141 @@ export {
   multiplierHepteractEffects,
   quarkHepteractEffects
 } from './mechanics/cubes/hepteracts'
+export { CalcECC } from './mechanics/challenges'
+export type {
+  AntiquitiesRuneInput,
+  AntiquitiesRuneKey,
+  DuplicationRuneKey,
+  FiniteDescentRuneKey,
+  HorseShoeRuneKey,
+  InfiniteAscentRuneInput,
+  InfiniteAscentRuneKey,
+  PrismRuneKey,
+  SpeedRuneKey,
+  SuperiorIntellectRuneKey,
+  ThriftRuneKey,
+  TopHatRuneKey
+} from './mechanics/runeEffects'
+export {
+  antiquitiesRuneEffects,
+  duplicationRuneEffects,
+  finiteDescentRuneEffects,
+  horseShoeRuneEffects,
+  infiniteAscentRuneEffects,
+  prismRuneEffects,
+  speedRuneEffects,
+  superiorIntellectRuneEffects,
+  thriftRuneEffects,
+  topHatRuneEffects
+} from './mechanics/runeEffects'
+export type {
+  DuplicationRuneBlessingEffects,
+  PrismRuneBlessingEffects,
+  SpeedRuneBlessingEffects,
+  SuperiorIntellectRuneBlessingEffects,
+  ThriftRuneBlessingEffects
+} from './mechanics/runeBlessingEffects'
+export {
+  duplicationRuneBlessingEffects,
+  prismRuneBlessingEffects,
+  speedRuneBlessingEffects,
+  superiorIntellectRuneBlessingEffects,
+  thriftRuneBlessingEffects
+} from './mechanics/runeBlessingEffects'
+export type {
+  AchievementTalismanEffects,
+  ChronosTalismanEffects,
+  CookieGrandmaTalismanEffects,
+  ExemptionTalismanEffects,
+  HorseShoeTalismanEffects,
+  MetaphysicsTalismanEffects,
+  MidasTalismanEffects,
+  MortuusTalismanEffects,
+  PlasticTalismanEffects,
+  PolymathTalismanEffects,
+  WowSquareTalismanEffects
+} from './mechanics/talismanEffects'
+export {
+  achievementTalismanEffects,
+  chronosTalismanEffects,
+  cookieGrandmaTalismanEffects,
+  exemptionTalismanEffects,
+  horseShoeTalismanEffects,
+  metaphysicsTalismanEffects,
+  midasTalismanEffects,
+  mortuusTalismanEffects,
+  plasticTalismanEffects,
+  polymathTalismanEffects,
+  wowSquareTalismanEffects
+} from './mechanics/talismanEffects'
+export type {
+  ActualAntSpeedMultInput,
+  AscensionSpeedMultInput,
+  CalculateAmbrosiaGenerationSpeedInput,
+  CalculateAmbrosiaLuckInput,
+  CalculateAntSacrificeMultiplierInput,
+  CalculateAscensionSpeedExponentSpreadInput,
+  CalculateCubeMultiplierWithTauInput,
+  CalculateNegativeSalvageInput,
+  CalculateNegativeSalvageMultiplierInput,
+  CalculateObtainiumDecimalInput,
+  CalculateObtainiumInput,
+  CalculateOfferingsInput,
+  CalculatePositiveSalvageInput,
+  CalculatePositiveSalvageMultiplierInput,
+  CalculateTotalCoinOwnedInput,
+  CalculateTotalSalvageInput,
+  GlobalSpeedMultInput,
+  ReductionValueInput
+} from './mechanics/calculate'
+export {
+  calculateActualAntSpeedMult,
+  calculateAllCubeMultiplier,
+  calculateAmbrosiaAdditiveLuckMult,
+  calculateAmbrosiaGenerationSpeed,
+  calculateAmbrosiaGenerationSpeedRaw,
+  calculateAmbrosiaLuck,
+  calculateAmbrosiaLuckRaw,
+  calculateAntSacrificeMultiplier,
+  calculateAscensionSpeedExponentSpread,
+  calculateAscensionSpeedMult,
+  calculateBaseObtainium,
+  calculateBaseOfferings,
+  calculateBlueberryInventory,
+  calculateCubeMultiplier,
+  calculateCubeMultiplierWithTau,
+  calculateFreeShopInfinityUpgrades,
+  calculateGlobalSpeedDREnabledMult,
+  calculateGlobalSpeedDRIgnoreMult,
+  calculateGlobalSpeedMult,
+  calculateGoldenQuarkCost,
+  calculateGoldenQuarks,
+  calculateHepteractMultiplier,
+  calculateHypercubeMultiplier,
+  calculateLuckConversion,
+  calculateNegativeSalvage,
+  calculateNegativeSalvageMultiplier,
+  calculateObtainium,
+  calculateObtainiumDecimal,
+  calculateObtainiumDRIgnoreMult,
+  calculateOcteractMultiplier,
+  calculateOfferings,
+  calculateOfferingsDecimal,
+  calculatePlatonic7UpgradePower,
+  calculatePlatonicMultiplier,
+  calculatePositiveSalvage,
+  calculatePositiveSalvageMultiplier,
+  calculatePowderConversion,
+  calculateQuarkMultiplier,
+  calculateRawAntSpeedMult,
+  calculateRawAscensionSpeedMult,
+  calculateRawNegativeSalvage,
+  calculateRawPositiveSalvage,
+  calculateRedAmbrosiaGenerationSpeed,
+  calculateRedAmbrosiaLuck,
+  calculateSalvageRuneEXPMultiplier,
+  calculateTesseractMultiplier,
+  calculateTotalCoinOwned,
+  calculateTotalSalvage,
+  getReductionValue
+} from './mechanics/calculate'

@@ -1,3 +1,15 @@
+import {
+  antiquitiesRuneEffects as logicAntiquitiesRuneEffects,
+  duplicationRuneEffects as logicDuplicationRuneEffects,
+  finiteDescentRuneEffects as logicFiniteDescentRuneEffects,
+  horseShoeRuneEffects as logicHorseShoeRuneEffects,
+  infiniteAscentRuneEffects as logicInfiniteAscentRuneEffects,
+  prismRuneEffects as logicPrismRuneEffects,
+  speedRuneEffects as logicSpeedRuneEffects,
+  superiorIntellectRuneEffects as logicSuperiorIntellectRuneEffects,
+  thriftRuneEffects as logicThriftRuneEffects,
+  topHatRuneEffects as logicTopHatRuneEffects
+} from '@synergism/logic'
 import { calculateOfferings, calculateSalvageRuneEXPMultiplier } from './Calculate'
 import { format, formatAsPercentIncrease, player } from './Synergism'
 import { Globals as G } from './Variables'
@@ -344,15 +356,7 @@ export const runes: { [K in RuneKeys]: RuneData<K, keyof RuneTypeMap[K]> } = {
     levelsPerOOM: 150,
     ignoreChal9: false,
     levelsPerOOMIncrease: () => speedRuneOOMIncrease(),
-    effects: (n, key) => {
-      if (key === 'acceleratorPower') {
-        return 0.0002 * n
-      } else if (key === 'multiplicativeAccelerators') {
-        return 1 + n / 400
-      } else {
-        return 2 - Math.exp(-Math.cbrt(n) / 100) // globalSpeed
-      }
-    },
+    effects: (n, key) => logicSpeedRuneEffects(n, key),
     effectsDescription: () => {
       const acceleratorPower = getRuneEffects('speed', 'acceleratorPower')
       const multiplicativeAccelerators = getRuneEffects('speed', 'multiplicativeAccelerators')
@@ -388,15 +392,7 @@ export const runes: { [K in RuneKeys]: RuneData<K, keyof RuneTypeMap[K]> } = {
     levelsPerOOM: 120,
     ignoreChal9: false,
     levelsPerOOMIncrease: () => duplicationRuneOOMIncrease(),
-    effects: (n, key) => {
-      if (key === 'multiplierBoosts') {
-        return n / 5
-      } else if (key === 'multiplicativeMultipliers') {
-        return 1 + n / 400
-      } else {
-        return 0.001 + .999 * Math.exp(-Math.cbrt(n) / 5) // taxReduction
-      }
-    },
+    effects: (n, key) => logicDuplicationRuneEffects(n, key),
     effectsDescription: () => {
       const multiplierBoosts = getRuneEffects('duplication', 'multiplierBoosts')
       const multiplicativeMultipliers = getRuneEffects('duplication', 'multiplicativeMultipliers')
@@ -432,13 +428,7 @@ export const runes: { [K in RuneKeys]: RuneData<K, keyof RuneTypeMap[K]> } = {
     levelsPerOOM: 90,
     ignoreChal9: false,
     levelsPerOOMIncrease: () => prismRuneOOMIncrease(),
-    effects: (n, key) => {
-      if (key === 'productionLog10') {
-        return Math.max(0, 2 * Math.log10(1 + n / 2) + (n / 2) * Math.log10(2) - Math.log10(256))
-      } else {
-        return Math.floor(n / 10) // costDivisorLog10
-      }
-    },
+    effects: (n, key) => logicPrismRuneEffects(n, key),
     effectsDescription: () => {
       const productionLog10 = getRuneEffects('prism', 'productionLog10')
       const costDivisorLog10 = getRuneEffects('prism', 'costDivisorLog10')
@@ -470,15 +460,7 @@ export const runes: { [K in RuneKeys]: RuneData<K, keyof RuneTypeMap[K]> } = {
     levelsPerOOM: 60,
     ignoreChal9: false,
     levelsPerOOMIncrease: () => thriftRuneOOMIncrease(),
-    effects: (n, key) => {
-      if (key === 'costDelay') {
-        return Math.min(1e15, n / 125)
-      } else if (key === 'salvage') {
-        return 2.5 * Math.log(1 + n / 10)
-      } else {
-        return 0.01 + 0.99 * Math.exp(-Math.cbrt(n) / 10) // taxReduction
-      }
-    },
+    effects: (n, key) => logicThriftRuneEffects(n, key),
     effectsDescription: () => {
       const costDelay = getRuneEffects('thrift', 'costDelay')
       const salvage = getRuneEffects('thrift', 'salvage')
@@ -510,15 +492,7 @@ export const runes: { [K in RuneKeys]: RuneData<K, keyof RuneTypeMap[K]> } = {
     levelsPerOOM: 30,
     ignoreChal9: false,
     levelsPerOOMIncrease: () => superiorIntellectOOMIncrease(),
-    effects: (n, key) => {
-      if (key === 'offeringMult') {
-        return 1 + n / 2000
-      } else if (key === 'obtainiumMult') {
-        return 1 + n / 200
-      } else {
-        return Math.pow(1 + n / 500, 2) // antSpeed
-      }
-    },
+    effects: (n, key) => logicSuperiorIntellectRuneEffects(n, key),
     effectsDescription: () => {
       const offeringMult = getRuneEffects('superiorIntellect', 'offeringMult')
       const obtainiumMult = getRuneEffects('superiorIntellect', 'obtainiumMult')
@@ -552,15 +526,10 @@ export const runes: { [K in RuneKeys]: RuneData<K, keyof RuneTypeMap[K]> } = {
     levelsPerOOM: 1 / 2,
     ignoreChal9: true,
     levelsPerOOMIncrease: () => infiniteAscentOOMIncrease(),
-    effects: (n, key) => {
-      if (key === 'quarkMult') {
-        return 1 + n / 500 + (n > 0 ? 0.1 : 0)
-      } else if (key === 'cubeMult') {
-        return 1 + n / 100
-      } else {
-        return n * 0.025 * salvagePerkLevels.filter((x) => x <= player.highestSingularityCount).length // salvage
-      }
-    },
+    effects: (n, key) =>
+      logicInfiniteAscentRuneEffects(n, key, {
+        salvagePerkUnlockedCount: salvagePerkLevels.filter((x) => x <= player.highestSingularityCount).length
+      }),
     effectsDescription: () => {
       const quarkMult = getRuneEffects('infiniteAscent', 'quarkMult')
       const cubeMult = getRuneEffects('infiniteAscent', 'cubeMult')
@@ -604,17 +573,7 @@ export const runes: { [K in RuneKeys]: RuneData<K, keyof RuneTypeMap[K]> } = {
     levelsPerOOM: 1 / 50,
     ignoreChal9: true,
     levelsPerOOMIncrease: () => antiquitiesOOMIncrease(),
-    effects: (n, key) => {
-      if (key === 'addCodeCooldownReduction') {
-        return n > 0 ? 0.8 - 0.3 * (n - 1) / (n + 10) : 1
-      } else if (key === 'offeringLog10') {
-        return Math.round(300 * (1 - Math.pow(1 - 1 / 300, n)))
-      } else if (key === 'obtainiumLog10') {
-        return Math.round(300 * (1 - Math.pow(1 - 1 / 300, n)))
-      } else {
-        return (n > 0) ? Math.pow(1.01, Math.min(5, n) * player.singularityCount) : 1 // cubeBonus
-      }
-    },
+    effects: (n, key) => logicAntiquitiesRuneEffects(n, key, { singularityCount: player.singularityCount }),
     effectsDescription: () => {
       const offeringLog10 = getRuneEffects('antiquities', 'offeringLog10')
       const obtainiumLog10 = getRuneEffects('antiquities', 'obtainiumLog10')
@@ -657,15 +616,7 @@ export const runes: { [K in RuneKeys]: RuneData<K, keyof RuneTypeMap[K]> } = {
     levelsPerOOM: 1 / 20,
     ignoreChal9: true,
     levelsPerOOMIncrease: () => horseShoeOOMIncrease(),
-    effects: (n, key) => {
-      if (key === 'ambrosiaLuck') {
-        return n
-      } else if (key === 'redLuck') {
-        return n / 5
-      } else {
-        return -0.5 * n / (n + 50) // redLuckConversion
-      }
-    },
+    effects: (n, key) => logicHorseShoeRuneEffects(n, key),
     effectsDescription: () => {
       const ambrosiaLuck = getRuneEffects('horseShoe', 'ambrosiaLuck')
       const redLuck = getRuneEffects('horseShoe', 'redLuck')
@@ -699,15 +650,7 @@ export const runes: { [K in RuneKeys]: RuneData<K, keyof RuneTypeMap[K]> } = {
     levelsPerOOM: 0.1,
     ignoreChal9: true,
     levelsPerOOMIncrease: () => 0,
-    effects: (n, key) => {
-      if (key === 'ascensionScore') {
-        return n >= 1 ? 1.04 + 0.96 * (n - 1) / (n + 25) : 1
-      } else if (key === 'corruptionFreeLevels') {
-        return n >= 1 ? 0.01 + 0.14 * (n - 1) / (n + 16) : 0
-      } else {
-        return Math.floor(n / 2) // infiniteAscentFreeLevel
-      }
-    },
+    effects: (n, key) => logicFiniteDescentRuneEffects(n, key),
     effectsDescription: () => {
       const corruptionFreeLevels = getRuneEffects('finiteDescent', 'corruptionFreeLevels')
       const ascensionScore = getRuneEffects('finiteDescent', 'ascensionScore')
@@ -743,19 +686,7 @@ export const runes: { [K in RuneKeys]: RuneData<K, keyof RuneTypeMap[K]> } = {
     levelsPerOOM: 1,
     ignoreChal9: false,
     levelsPerOOMIncrease: () => 0,
-    effects: (n, key) => {
-      if (key === 'freeOfferingLevels') {
-        return Math.round(200 * (1 - Math.pow(0.995, n))) / 10
-      } else if (key === 'freeObtainiumLevels') {
-        return Math.round(200 * (1 - Math.pow(0.995, n))) / 10
-      } else if (key === 'freeCubeLevels') {
-        return Math.round(150 * (1 - Math.pow(0.997, n))) / 10
-      } else if (key === 'freeSpeedLevels') {
-        return Math.round(150 * (1 - Math.pow(0.997, n))) / 10
-      } else {
-        return Math.round(100 * (1 - Math.pow(0.999, n))) / 10 // freeInfinityLevels
-      }
-    },
+    effects: (n, key) => logicTopHatRuneEffects(n, key),
     effectsDescription: () => {
       const freeOfferingLevels = getRuneEffects('topHat', 'freeOfferingLevels')
       const freeObtainiumLevels = getRuneEffects('topHat', 'freeObtainiumLevels')
