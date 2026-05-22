@@ -193,3 +193,5 @@ export {
   polymathTalismanEffects,
   wowSquareTalismanEffects
 } from './mechanics/talismanEffects'
+export type { AscensionSpeedMultInput, GlobalSpeedMultInput } from './mechanics/calculate'
+export { calculateAscensionSpeedMult, calculateGlobalSpeedMult } from './mechanics/calculate'

@@ -1,3 +1,7 @@
+import {
+  calculateAscensionSpeedMult as logicCalcAscensionSpeedMult,
+  calculateGlobalSpeedMult as logicCalcGlobalSpeedMult
+} from '@synergism/logic'
 import Decimal from 'break_infinity.js'
 import i18next from 'i18next'
 import { awardUngroupedAchievement, getAchievementReward } from './Achievements'
@@ -394,17 +398,14 @@ export const calculateGlobalSpeedDREnabledMult = () => {
 }
 
 export const calculateGlobalSpeedMult = () => {
-  let normalMult = calculateGlobalSpeedDREnabledMult()
-  if (normalMult > 100) {
-    normalMult = Math.pow(normalMult, 0.5) * 10
-  } else if (normalMult < 1) {
-    const DRPower = calculatePlatonic7UpgradePower()
-    normalMult = Math.pow(normalMult, DRPower)
-  }
+  const totalTimeMultiplier = logicCalcGlobalSpeedMult({
+    normalMult: calculateGlobalSpeedDREnabledMult(),
+    immaculateMult: calculateGlobalSpeedDRIgnoreMult(),
+    drPower: calculatePlatonic7UpgradePower()
+  })
 
-  const immaculateMult = calculateGlobalSpeedDRIgnoreMult()
-  const totalTimeMultiplier = normalMult * immaculateMult
-  // Achievement Stuffs
+  // Achievement awards stay in web_ui — side effects, not part of the
+  // multiplier computation.
   // One second in 100 years
   if (totalTimeMultiplier < 1 / (3600 * 24 * 365 * 100)) {
     awardUngroupedAchievement('verySlow')
@@ -422,17 +423,10 @@ export const calculateRawAscensionSpeedMult = () => {
 }
 
 export const calculateAscensionSpeedMult = () => {
-  let base = calculateRawAscensionSpeedMult()
-
-  const exponentSpread = calculateAscensionSpeedExponentSpread()
-
-  if (base < 1) {
-    base = Math.pow(base, 1 - exponentSpread)
-  } else {
-    base = Math.pow(base, 1 + exponentSpread)
-  }
-
-  return base
+  return logicCalcAscensionSpeedMult({
+    base: calculateRawAscensionSpeedMult(),
+    exponentSpread: calculateAscensionSpeedExponentSpread()
+  })
 }
 
 export const calculateAmbrosiaAdditiveLuckMult = () => {
