@@ -6,9 +6,11 @@
 export type { CoreEvent } from './events/types'
 export type {
   AcceleratorState,
+  AscendBuildingState,
   BuyAmount,
   MultiplierState,
-  ParticleBuildingsState
+  ParticleBuildingsState,
+  TesseractBuildingsState
 } from './state/schema'
 export type {
   BuyAcceleratorInput,
@@ -32,3 +34,14 @@ export type {
   ParticleBuildingIndex
 } from './mechanics/particleBuildings'
 export { buyParticleBuilding, getParticleCost } from './mechanics/particleBuildings'
+export type {
+  BuyTesseractBuildingInput,
+  GetTesseractCostInput,
+  TesseractBuildingIndex,
+  TesseractBuildings
+} from './mechanics/tesseractBuildings'
+export {
+  buyTesseractBuilding,
+  calculateTessBuildingsInBudget,
+  getTesseractCost
+} from './mechanics/tesseractBuildings'

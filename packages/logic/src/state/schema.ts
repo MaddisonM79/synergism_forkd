@@ -32,6 +32,28 @@ export interface MultiplierState {
   reincarnatenomultiplier: boolean
 }
 
+// One position of the ascension-tier building family (tesseract buildings).
+// Subset of the player's ascendBuilding{N} shape — only the fields the buy
+// machinery touches; generated/multiplier stay in web_ui until those mechanics
+// migrate.
+export interface AscendBuildingState {
+  owned: number
+  cost: number
+}
+
+// Slice of GameState read/written by the tesseract-building-purchase
+// machinery. wowTesseracts is the spend resource (mirrored as a number via
+// Number(player.wowTesseracts) at the boundary — the WowTesseracts wrapper
+// class stays in web_ui).
+export interface TesseractBuildingsState {
+  wowTesseracts: number
+  ascendBuilding1: AscendBuildingState
+  ascendBuilding2: AscendBuildingState
+  ascendBuilding3: AscendBuildingState
+  ascendBuilding4: AscendBuildingState
+  ascendBuilding5: AscendBuildingState
+}
+
 // Slice of GameState read/written by the particle-building-purchase machinery.
 // Five positions (first..fifth) each have an owned count + a current cost; the
 // shared resource is reincarnationPoints. No no-purchase-flag bookkeeping —

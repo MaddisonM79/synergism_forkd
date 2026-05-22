@@ -28,3 +28,12 @@ export type CoreEvent =
       after: number
       spent: Decimal
     }
+  | {
+      kind: 'tesseract-buildings-purchased'
+      /** Which of the five ascension-tier (tesseract) buildings (1..5). */
+      index: 1 | 2 | 3 | 4 | 5
+      before: number
+      after: number
+      /** wowTesseracts spent (plain number — WowTesseracts wrapper stays in web_ui). */
+      spent: number
+    }
