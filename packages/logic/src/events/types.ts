@@ -29,6 +29,16 @@ export type CoreEvent =
       spent: Decimal
     }
   | {
+      kind: 'producers-purchased'
+      /** Producer family that was purchased — see ProducerType in mechanics/producers.ts. */
+      type: 'Coin' | 'Diamonds' | 'Mythos' | 'Particles'
+      /** Position within the family (1 = first, 5 = fifth). */
+      index: 1 | 2 | 3 | 4 | 5
+      before: number
+      after: number
+      spent: Decimal
+    }
+  | {
       kind: 'tesseract-buildings-purchased'
       /** Which of the five ascension-tier (tesseract) buildings (1..5). */
       index: 1 | 2 | 3 | 4 | 5

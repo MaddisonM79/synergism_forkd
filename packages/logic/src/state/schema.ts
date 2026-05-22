@@ -32,6 +32,25 @@ export interface MultiplierState {
   reincarnatenomultiplier: boolean
 }
 
+// Generic slice for one producer family (Coin / Diamonds / Mythos / Particles).
+// Field names are family-agnostic — the shim translates between the typed
+// player fields (firstOwnedCoin, firstCostDiamonds, etc.) and this shape.
+// Used by buyMax in mechanics/producers.ts.
+export interface ProducerFamilyState {
+  /** Resource the family buys with (coins / prestigePoints / transcendPoints / reincarnationPoints). */
+  resource: Decimal
+  firstOwned: number
+  firstCost: Decimal
+  secondOwned: number
+  secondCost: Decimal
+  thirdOwned: number
+  thirdCost: Decimal
+  fourthOwned: number
+  fourthCost: Decimal
+  fifthOwned: number
+  fifthCost: Decimal
+}
+
 // One position of the ascension-tier building family (tesseract buildings).
 // Subset of the player's ascendBuilding{N} shape — only the fields the buy
 // machinery touches; generated/multiplier stay in web_ui until those mechanics

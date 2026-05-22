@@ -1,6 +1,7 @@
 import Decimal from 'break_infinity.js'
 import {
   buyAccelerator as logicBuyAccelerator,
+  buyMax as logicBuyMax,
   buyMultiplier as logicBuyMultiplier,
   buyParticleBuilding as logicBuyParticleBuilding,
   buyTesseractBuilding as logicBuyTesseractBuilding,
@@ -9,6 +10,8 @@ import {
   type GetAcceleratorBoostCostInput,
   type GetProducerCostInput,
   getProducerCost,
+  type ProducerFamilyState,
+  type ProducerType,
   type TesseractBuildings as LogicTesseractBuildings
 } from '@synergism/logic'
 import { awardAchievementGroup } from './Achievements'
@@ -19,7 +22,7 @@ import { reset } from './Reset'
 import { getRuneBlessingEffect } from './RuneBlessings'
 import { getRuneEffects } from './Runes'
 import { player, updateAllMultiplier, updateAllTick } from './Synergism'
-import type { FirstToFifth, OneToFive, ZeroToFour } from './types/Synergism'
+import type { FirstToFifth, OneToFive } from './types/Synergism'
 import { crystalupgradedescriptions, upgradeRequirements, upgradeupdate } from './Upgrades'
 import { smallestInc } from './Utility'
 import { Globals as G, Upgrade } from './Variables'
@@ -126,92 +129,40 @@ export const getCost = (
   return getProducerCost(index, type, buyingTo, buildProducerCostInput(r))
 }
 
-export const buyMax = (index: OneToFive, type: keyof typeof buyProducerTypes) => {
-  const zeroIndex = index - 1 as ZeroToFour
-  const pos = G.ordinals[zeroIndex]
-
-  const buymax = Math.pow(10, 15)
-  const coinmax = 1e99
-  const r = getReductionValue()
-  const costInput = buildProducerCostInput(r)
+// Shim over @synergism/logic's pure buyMax. Gathers the live 10-field slice
+// for the chosen producer family + its spend resource via template-literal
+// accessors, calls logic, and writes the returned slice back to player.
+export const buyMax = (index: OneToFive, type: ProducerType) => {
   const tag = buyProducerTypes[type][0]
+  const costInput = buildProducerCostInput()
 
-  const posOwnedType = `${pos}Owned${type}` as const
-
-  const buyStart = player[posOwnedType]
-  // If at least buymax, we will use a different formulae
-  if (buyStart >= buymax) {
-    const diminishingExponent = 1 / 8
-
-    const log10Resource = Decimal.log10(player[tag])
-    const log10QuadrillionCost = Decimal.log10(getProducerCost(index, type, buymax, costInput))
-
-    let hi = Math.floor(buymax * Math.max(1, Math.pow(log10Resource / log10QuadrillionCost, diminishingExponent)))
-    let lo = buymax
-    while (hi - lo > 0.5) {
-      const mid = Math.floor(lo + (hi - lo) / 2)
-      if (mid === lo || mid === hi) {
-        break
-      }
-      if (!player[tag].gte(getProducerCost(index, type, mid, costInput))) {
-        hi = mid
-      } else {
-        lo = mid
-      }
-    }
-    const buyable = lo
-    const thisCost = getProducerCost(index, type, buyable, costInput)
-
-    player[posOwnedType] = buyable
-    player[`${pos}Cost${type}` as const] = thisCost
-    return
+  const familyState: ProducerFamilyState = {
+    resource: player[tag],
+    firstOwned: player[`firstOwned${type}` as const],
+    firstCost: player[`firstCost${type}` as const],
+    secondOwned: player[`secondOwned${type}` as const],
+    secondCost: player[`secondCost${type}` as const],
+    thirdOwned: player[`thirdOwned${type}` as const],
+    thirdCost: player[`thirdCost${type}` as const],
+    fourthOwned: player[`fourthOwned${type}` as const],
+    fourthCost: player[`fourthCost${type}` as const],
+    fifthOwned: player[`fifthOwned${type}` as const],
+    fifthCost: player[`fifthCost${type}` as const]
   }
 
-  // Start buying at the current amount bought + 1
-  const buydefault = buyStart + smallestInc(buyStart)
-  let buyInc = 1
+  const { state } = logicBuyMax(familyState, { index, type, costInput })
 
-  let cashToBuy = getProducerCost(index, type, buyStart + buyInc, costInput)
-
-  // Degenerate Case: return maximum if coins is too large
-  if (cashToBuy.exponent >= coinmax || !player[tag].gte(cashToBuy)) {
-    return
-  }
-
-  while (cashToBuy.exponent < coinmax && player[tag].gte(cashToBuy)) {
-    // then multiply by 4 until it reaches just above the amount needed
-    buyInc = buyInc * 4
-    cashToBuy = getProducerCost(index, type, buyStart + buyInc, costInput)
-  }
-  let stepdown = Math.floor(buyInc / 8)
-  while (stepdown >= smallestInc(buyInc)) {
-    // if step down would push it below out of expense range then divide step down by 2
-    if (getProducerCost(index, type, buyStart + buyInc - stepdown, costInput).lte(player[tag])) {
-      stepdown = Math.floor(stepdown / 2)
-    } else {
-      buyInc = buyInc - Math.max(smallestInc(buyInc), stepdown)
-    }
-  }
-
-  // Resolves the infamous autobuyer bug, for large values. This prevents the notion of even being able
-  // to go above the buymax. Future instances will also not check more than the first few lines
-  // meaning that the code below this cannot run if this ever runs.
-  if (buyStart + buyInc >= buymax) {
-    player[posOwnedType] = buymax
-    player[`${pos}Cost${type}` as const] = getProducerCost(index, type, buymax, costInput)
-    return
-  }
-
-  // go down by 7 steps below the last one able to be bought and spend the cost of 25 up to the one that you started with and stop if coin goes below requirement
-  let buyFrom = Math.max(buyStart + buyInc - 6 - smallestInc(buyInc), buydefault)
-  let thisCost = getProducerCost(index, type, buyFrom, costInput)
-  while (buyFrom <= buyStart + buyInc && player[tag].gte(thisCost)) {
-    player[tag] = player[tag].sub(thisCost)
-    player[posOwnedType] = buyFrom
-    buyFrom = buyFrom + smallestInc(buyFrom)
-    thisCost = getProducerCost(index, type, buyFrom, costInput)
-    player[`${pos}Cost${type}` as const] = thisCost
-  }
+  player[tag] = state.resource
+  player[`firstOwned${type}` as const] = state.firstOwned
+  player[`firstCost${type}` as const] = state.firstCost
+  player[`secondOwned${type}` as const] = state.secondOwned
+  player[`secondCost${type}` as const] = state.secondCost
+  player[`thirdOwned${type}` as const] = state.thirdOwned
+  player[`thirdCost${type}` as const] = state.thirdCost
+  player[`fourthOwned${type}` as const] = state.fourthOwned
+  player[`fourthCost${type}` as const] = state.fourthCost
+  player[`fifthOwned${type}` as const] = state.fifthOwned
+  player[`fifthCost${type}` as const] = state.fifthCost
 }
 
 const buyProducerTypes = {

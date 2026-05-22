@@ -10,6 +10,7 @@ export type {
   BuyAmount,
   MultiplierState,
   ParticleBuildingsState,
+  ProducerFamilyState,
   TesseractBuildingsState
 } from './state/schema'
 export type {
@@ -25,11 +26,12 @@ export type { GetAcceleratorBoostCostInput } from './mechanics/acceleratorBoosts
 export { getAcceleratorBoostCost } from './mechanics/acceleratorBoosts'
 export { buyMultiplier, getCostMultiplier } from './mechanics/multipliers'
 export type {
+  BuyMaxInput,
   GetProducerCostInput,
   ProducerIndex,
   ProducerType
 } from './mechanics/producers'
-export { getProducerCost } from './mechanics/producers'
+export { buyMax, getProducerCost } from './mechanics/producers'
 export type {
   BuyParticleBuildingInput,
   GetParticleCostInput,

@@ -1,10 +1,14 @@
 import type { DecimalSource } from '../math/bignum'
 import { Decimal } from '../math/bignum'
+import { smallestInc } from '../math/smallestInc'
+import type { CoreEvent } from '../events/types'
+import type { ProducerFamilyState } from '../state/schema'
 
 // Producer family: Coin / Diamond / Mythos / Particle buildings. Each
 // family has 5 positions (first..fifth) and a cost curve parameterized by
-// position-derived `num`. Logic owns the pure cost formula; buy loops
-// stay in packages/web_ui until they're migrated next.
+// position-derived `num`. Logic owns the pure cost formula AND the buyMax
+// purchase loop; the manual-click buyProducer loop and the click-handler
+// surface remain in packages/web_ui pending migration.
 
 export type ProducerType = 'Coin' | 'Diamonds' | 'Mythos' | 'Particles'
 export type ProducerIndex = 1 | 2 | 3 | 4 | 5
@@ -196,4 +200,174 @@ export function getProducerCost(
 ): Decimal {
   const [originalCost, num] = getOriginalCostAndNum(index, type)
   return getCostInternal(originalCost, buyingTo, type, num, input)
+}
+
+// ─── buyMax ────────────────────────────────────────────────────────────────
+
+export interface BuyMaxInput {
+  index: ProducerIndex
+  type: ProducerType
+  /** Inputs threaded into getProducerCost for every cost query in the loop. */
+  costInput: GetProducerCostInput
+}
+
+// Position-keyed accessors. Switch (or an if-chain) is required because
+// ProducerFamilyState's field types vary (number vs Decimal) — keyed lookup
+// via a string table can't narrow.
+function readOwned(state: ProducerFamilyState, index: ProducerIndex): number {
+  if (index === 1) return state.firstOwned
+  if (index === 2) return state.secondOwned
+  if (index === 3) return state.thirdOwned
+  if (index === 4) return state.fourthOwned
+  return state.fifthOwned
+}
+function writeOwned(state: ProducerFamilyState, index: ProducerIndex, value: number): void {
+  if (index === 1) state.firstOwned = value
+  else if (index === 2) state.secondOwned = value
+  else if (index === 3) state.thirdOwned = value
+  else if (index === 4) state.fourthOwned = value
+  else state.fifthOwned = value
+}
+function writeCost(state: ProducerFamilyState, index: ProducerIndex, value: Decimal): void {
+  if (index === 1) state.firstCost = value
+  else if (index === 2) state.secondCost = value
+  else if (index === 3) state.thirdCost = value
+  else if (index === 4) state.fourthCost = value
+  else state.fifthCost = value
+}
+
+// Coin/exponent ceiling guard. Mirrors the original buyMax's `coinmax = 1e99`
+// degenerate-case check — once the next cost's exponent crosses this we bail
+// rather than continue doubling buyInc into infinity.
+const COIN_EXPONENT_CEILING = 1e99
+const BUYMAX_PRODUCER = Math.pow(10, 15)
+
+/**
+ * Buy as many of the selected producer (5 positions × 4 families) as the
+ * available resource allows. Same two-path structure as buyMultiplier /
+ * buyAccelerator: high-end binary search above BUYMAX_PRODUCER snaps the
+ * count without subtracting the resource; the normal path brackets the
+ * affordable count and walks the last few steps subtracting per-purchase.
+ */
+export function buyMax(
+  state: ProducerFamilyState,
+  input: BuyMaxInput
+): { state: ProducerFamilyState; events: CoreEvent[] } {
+  const events: CoreEvent[] = []
+  const next: ProducerFamilyState = {
+    resource: new Decimal(state.resource),
+    firstOwned: state.firstOwned,
+    firstCost: new Decimal(state.firstCost),
+    secondOwned: state.secondOwned,
+    secondCost: new Decimal(state.secondCost),
+    thirdOwned: state.thirdOwned,
+    thirdCost: new Decimal(state.thirdCost),
+    fourthOwned: state.fourthOwned,
+    fourthCost: new Decimal(state.fourthCost),
+    fifthOwned: state.fifthOwned,
+    fifthCost: new Decimal(state.fifthCost)
+  }
+  const startingResource = new Decimal(state.resource)
+  const buyStart = readOwned(next, input.index)
+
+  const cost = (buyingTo: number): Decimal => getProducerCost(input.index, input.type, buyingTo, input.costInput)
+
+  if (buyStart >= BUYMAX_PRODUCER) {
+    const diminishingExponent = 1 / 8
+    const log10Resource = Decimal.log10(next.resource)
+    const log10QuadrillionCost = Decimal.log10(cost(BUYMAX_PRODUCER))
+
+    let hi = Math.floor(
+      BUYMAX_PRODUCER * Math.max(1, Math.pow(log10Resource / log10QuadrillionCost, diminishingExponent))
+    )
+    let lo = BUYMAX_PRODUCER
+    while (hi - lo > 0.5) {
+      const mid = Math.floor(lo + (hi - lo) / 2)
+      if (mid === lo || mid === hi) break
+      if (!next.resource.gte(cost(mid))) {
+        hi = mid
+      } else {
+        lo = mid
+      }
+    }
+    const buyable = lo
+    writeOwned(next, input.index, buyable)
+    writeCost(next, input.index, cost(buyable))
+    if (buyable > buyStart) {
+      events.push({
+        kind: 'producers-purchased',
+        type: input.type,
+        index: input.index,
+        before: buyStart,
+        after: buyable,
+        spent: startingResource.sub(next.resource)
+      })
+    }
+    return { state: next, events }
+  }
+
+  // Normal path: exponential bracket, then refine, then walk the tail.
+  const buydefault = buyStart + smallestInc(buyStart)
+  let buyInc = 1
+
+  let cashToBuy = cost(buyStart + buyInc)
+
+  // Degenerate case: cost already past the exponent ceiling or unaffordable.
+  if (cashToBuy.exponent >= COIN_EXPONENT_CEILING || !next.resource.gte(cashToBuy)) {
+    return { state: next, events }
+  }
+
+  while (cashToBuy.exponent < COIN_EXPONENT_CEILING && next.resource.gte(cashToBuy)) {
+    // Multiply target by 4 until cost just exceeds the available budget.
+    buyInc = buyInc * 4
+    cashToBuy = cost(buyStart + buyInc)
+  }
+  let stepdown = Math.floor(buyInc / 8)
+  while (stepdown >= smallestInc(buyInc)) {
+    if (cost(buyStart + buyInc - stepdown).lte(next.resource)) {
+      stepdown = Math.floor(stepdown / 2)
+    } else {
+      buyInc = buyInc - Math.max(smallestInc(buyInc), stepdown)
+    }
+  }
+
+  // Snap to BUYMAX cap before the walk. The original commentary calls this
+  // the "infamous autobuyer bug" fix — past BUYMAX_PRODUCER we just write the
+  // snapped state and stop.
+  if (buyStart + buyInc >= BUYMAX_PRODUCER) {
+    writeOwned(next, input.index, BUYMAX_PRODUCER)
+    writeCost(next, input.index, cost(BUYMAX_PRODUCER))
+    events.push({
+      kind: 'producers-purchased',
+      type: input.type,
+      index: input.index,
+      before: buyStart,
+      after: BUYMAX_PRODUCER,
+      spent: startingResource.sub(next.resource)
+    })
+    return { state: next, events }
+  }
+
+  let buyFrom = Math.max(buyStart + buyInc - 6 - smallestInc(buyInc), buydefault)
+  let thisCost = cost(buyFrom)
+  while (buyFrom <= buyStart + buyInc && next.resource.gte(thisCost)) {
+    next.resource = next.resource.sub(thisCost)
+    writeOwned(next, input.index, buyFrom)
+    buyFrom = buyFrom + smallestInc(buyFrom)
+    thisCost = cost(buyFrom)
+    writeCost(next, input.index, thisCost)
+  }
+
+  if (readOwned(next, input.index) > buyStart) {
+    events.push({
+      kind: 'producers-purchased',
+      type: input.type,
+      index: input.index,
+      before: buyStart,
+      after: readOwned(next, input.index),
+      spent: startingResource.sub(next.resource)
+    })
+  }
+
+  return { state: next, events }
 }
