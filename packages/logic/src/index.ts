@@ -14,6 +14,7 @@ export type {
   ParticleBuildingsState,
   PlatonicBlessings,
   ProducerFamilyState,
+  TesseractBlessings,
   TesseractBuildingsState,
   UpgradesState
 } from './state/schema'
@@ -80,3 +81,15 @@ export {
   calculateRuneEffectivenessHypercubeBlessing,
   calculateSalvageHypercubeBlessing
 } from './mechanics/cubes/hypercubeBlessings'
+export {
+  calculateAcceleratorTesseractBlessing,
+  calculateAntELOTesseractBlessing,
+  calculateAntSacrificeTesseractBlessing,
+  calculateAntSpeedTesseractBlessing,
+  calculateGlobalSpeedTesseractBlessing,
+  calculateMultiplierTesseractBlessing,
+  calculateObtainiumTesseractBlessing,
+  calculateOfferingTesseractBlessing,
+  calculateRuneEffectivenessTesseractBlessing,
+  calculateSalvageTesseractBlessing
+} from './mechanics/cubes/tesseractBlessings'

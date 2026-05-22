@@ -32,6 +32,22 @@ export interface MultiplierState {
   reincarnatenomultiplier: boolean
 }
 
+// Player's accumulated tesseract blessings. Inputs to the 10 calculate*
+// TesseractBlessing functions. Mirrors player.tesseractBlessings; each
+// function reads exactly one field.
+export interface TesseractBlessings {
+  accelerator: number
+  multiplier: number
+  offering: number
+  runeExp: number
+  obtainium: number
+  antSpeed: number
+  antSacrifice: number
+  antELO: number
+  talismanBonus: number
+  globalSpeed: number
+}
+
 // Player's accumulated hypercube blessings. Inputs to the 10 calculate*
 // HypercubeBlessing functions. Mirrors player.hypercubeBlessings; each
 // function reads exactly one field.

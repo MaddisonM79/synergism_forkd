@@ -1,117 +1,65 @@
-import Decimal from 'break_infinity.js'
 import {
-  calculateAcceleratorHypercubeBlessing,
-  calculateAntELOHypercubeBlessing,
-  calculateAntSacrificeHypercubeBlessing,
-  calculateAntSpeedHypercubeBlessing,
-  calculateGlobalSpeedHypercubeBlessing,
-  calculateMultiplierHypercubeBlessing,
-  calculateObtainiumHypercubeBlessing,
-  calculateOfferingHypercubeBlessing,
-  calculateRuneEffectivenessHypercubeBlessing,
-  calculateSalvageHypercubeBlessing
-} from './Hypercubes'
+  calculateAcceleratorHypercubeBlessing as logicCalcAcceleratorHyper,
+  calculateAcceleratorTesseractBlessing as logicCalcAcceleratorTess,
+  calculateAntELOHypercubeBlessing as logicCalcAntELOHyper,
+  calculateAntELOTesseractBlessing as logicCalcAntELOTess,
+  calculateAntSacrificeHypercubeBlessing as logicCalcAntSacrificeHyper,
+  calculateAntSacrificeTesseractBlessing as logicCalcAntSacrificeTess,
+  calculateAntSpeedHypercubeBlessing as logicCalcAntSpeedHyper,
+  calculateAntSpeedTesseractBlessing as logicCalcAntSpeedTess,
+  calculateGlobalSpeedHypercubeBlessing as logicCalcGlobalSpeedHyper,
+  calculateGlobalSpeedTesseractBlessing as logicCalcGlobalSpeedTess,
+  calculateHypercubeBlessingMultiplierPlatonicBlessing as logicCalcHypercubeBlessingMultPlatonic,
+  calculateMultiplierHypercubeBlessing as logicCalcMultiplierHyper,
+  calculateMultiplierTesseractBlessing as logicCalcMultiplierTess,
+  calculateObtainiumHypercubeBlessing as logicCalcObtainiumHyper,
+  calculateObtainiumTesseractBlessing as logicCalcObtainiumTess,
+  calculateOfferingHypercubeBlessing as logicCalcOfferingHyper,
+  calculateOfferingTesseractBlessing as logicCalcOfferingTess,
+  calculateRuneEffectivenessHypercubeBlessing as logicCalcRuneEffectivenessHyper,
+  calculateRuneEffectivenessTesseractBlessing as logicCalcRuneEffectivenessTess,
+  calculateSalvageHypercubeBlessing as logicCalcSalvageHyper,
+  calculateSalvageTesseractBlessing as logicCalcSalvageTess
+} from '@synergism/logic'
 import { player } from './Synergism'
 
-export const calculateAcceleratorTesseractBlessing = () => {
-  const DR = 1 / 6
-  const effectPerBlessing = calculateAcceleratorHypercubeBlessing() / 1000
-  const limit = 1000
+// Thin shims over @synergism/logic's pure tesseract-blessing calculators.
+// Each tesseract function takes the matching hypercube-blessing value as its
+// amplifier source. The hypercube layer is itself pure but depends on the
+// platonic amplifier, so the shim composes the full chain on each call:
+//
+//   tesseractBlessing
+//     ← hypercubeBlessing
+//         ← platonicHypercubeBonusAmplifier
+//
+// Two zero-arg helpers keep the chain DRY without changing public semantics.
 
-  if (player.tesseractBlessings.accelerator < limit) {
-    return 1 + effectPerBlessing * player.tesseractBlessings.accelerator
-  } else {
-    const limitMult = Math.pow(limit, 1 - DR)
-    return 1 + effectPerBlessing * limitMult * Math.pow(player.tesseractBlessings.accelerator, DR)
-  }
-}
+const platonicAmp = () => logicCalcHypercubeBlessingMultPlatonic(player.platonicBlessings)
+const hyperBlessing = (
+  fn: (state: typeof player.hypercubeBlessings, amp: number) => number
+) => fn(player.hypercubeBlessings, platonicAmp())
 
-export const calculateMultiplierTesseractBlessing = () => {
-  const DR = 1 / 6
-  const effectPerBlessing = calculateMultiplierHypercubeBlessing() / 1000
-  const limit = 1000
-  if (player.tesseractBlessings.multiplier < limit) {
-    return 1 + effectPerBlessing * player.tesseractBlessings.multiplier
-  } else {
-    const limitMult = Math.pow(limit, 1 - DR)
-    return 1 + effectPerBlessing * limitMult * Math.pow(player.tesseractBlessings.multiplier, DR)
-  }
-}
+export const calculateAcceleratorTesseractBlessing = () =>
+  logicCalcAcceleratorTess(player.tesseractBlessings, hyperBlessing(logicCalcAcceleratorHyper))
+export const calculateMultiplierTesseractBlessing = () =>
+  logicCalcMultiplierTess(player.tesseractBlessings, hyperBlessing(logicCalcMultiplierHyper))
+export const calculateOfferingTesseractBlessing = () =>
+  logicCalcOfferingTess(player.tesseractBlessings, hyperBlessing(logicCalcOfferingHyper))
+export const calculateObtainiumTesseractBlessing = () =>
+  logicCalcObtainiumTess(player.tesseractBlessings, hyperBlessing(logicCalcObtainiumHyper))
+export const calculateAntSacrificeTesseractBlessing = () =>
+  logicCalcAntSacrificeTess(player.tesseractBlessings, hyperBlessing(logicCalcAntSacrificeHyper))
+export const calculateRuneEffectivenessTesseractBlessing = () =>
+  logicCalcRuneEffectivenessTess(player.tesseractBlessings, hyperBlessing(logicCalcRuneEffectivenessHyper))
+export const calculateGlobalSpeedTesseractBlessing = () =>
+  logicCalcGlobalSpeedTess(player.tesseractBlessings, hyperBlessing(logicCalcGlobalSpeedHyper))
 
-export const calculateOfferingTesseractBlessing = () => {
-  const DR = 1 / 3
-  const effectPerBlessing = calculateOfferingHypercubeBlessing() / 1000
-  const limit = 1000
-  if (player.tesseractBlessings.offering < limit) {
-    return 1 + effectPerBlessing * player.tesseractBlessings.offering
-  } else {
-    const limitMult = Math.pow(limit, 1 - DR)
-    return 1 + effectPerBlessing * limitMult * Math.pow(player.tesseractBlessings.offering, DR)
-  }
-}
-
-export const calculateSalvageTesseractBlessing = () => {
-  const factor = Math.pow(Math.log10(player.tesseractBlessings.runeExp + 1), 1.25)
-  const cap = 1 / 2 * calculateSalvageHypercubeBlessing()
-  return 1 + cap * factor / (20 + factor)
-}
-
-export const calculateObtainiumTesseractBlessing = () => {
-  const DR = 1 / 3
-  const effectPerBlessing = calculateObtainiumHypercubeBlessing() / 1000
-  const limit = 1000
-  if (player.tesseractBlessings.obtainium < limit) {
-    return 1 + effectPerBlessing * player.tesseractBlessings.obtainium
-  } else {
-    const limitMult = Math.pow(limit, 1 - DR)
-    return 1 + effectPerBlessing * limitMult * Math.pow(player.tesseractBlessings.obtainium, DR)
-  }
-}
-
-export const calculateAntSpeedTesseractBlessing = () => {
-  const effectPerBlessing = 1 / 1000
-  return new Decimal(1 + effectPerBlessing * player.tesseractBlessings.antSpeed).times(
-    calculateAntSpeedHypercubeBlessing()
-  )
-}
-
-export const calculateAntSacrificeTesseractBlessing = () => {
-  const DR = 1 / 6
-  const effectPerBlessing = calculateAntSacrificeHypercubeBlessing() / 1000
-  const limit = 1000
-  if (player.tesseractBlessings.antSacrifice < limit) {
-    return 1 + effectPerBlessing * player.tesseractBlessings.antSacrifice
-  } else {
-    const limitMult = Math.pow(limit, 1 - DR)
-    return 1 + effectPerBlessing * limitMult * Math.pow(player.tesseractBlessings.antSacrifice, DR)
-  }
-}
-
-export const calculateAntELOTesseractBlessing = () => {
-  const hypercubeMult = calculateAntELOHypercubeBlessing()
-  return 1 + Math.log10(player.tesseractBlessings.antELO + 1) * hypercubeMult / 100
-}
-
-export const calculateRuneEffectivenessTesseractBlessing = () => {
-  const DR = 1 / 32
-  const effectPerBlessing = calculateRuneEffectivenessHypercubeBlessing() / 1000
-  const limit = 1000
-  if (player.tesseractBlessings.talismanBonus < limit) {
-    return 1 + effectPerBlessing * player.tesseractBlessings.talismanBonus
-  } else {
-    const limitMult = Math.pow(limit, 1 - DR)
-    return 1 + effectPerBlessing * limitMult * Math.pow(player.tesseractBlessings.talismanBonus, DR)
-  }
-}
-
-export const calculateGlobalSpeedTesseractBlessing = () => {
-  const DR = 1 / 32
-  const effectPerBlessing = calculateGlobalSpeedHypercubeBlessing() / 1000
-  const limit = 1000
-  if (player.tesseractBlessings.globalSpeed < limit) {
-    return 1 + effectPerBlessing * player.tesseractBlessings.globalSpeed
-  } else {
-    const limitMult = Math.pow(limit, 1 - DR)
-    return 1 + effectPerBlessing * limitMult * Math.pow(player.tesseractBlessings.globalSpeed, DR)
-  }
-}
+// Outliers — the hypercube blessing for each isn't an amplifier but a direct
+// multiplier / cap value. The hypercube-side Salvage and AntELO functions are
+// amplifier-free; AntSpeed uses the platonic amp like the rest.
+export const calculateSalvageTesseractBlessing = () =>
+  logicCalcSalvageTess(player.tesseractBlessings, logicCalcSalvageHyper(player.hypercubeBlessings))
+export const calculateAntSpeedTesseractBlessing = () =>
+  logicCalcAntSpeedTess(player.tesseractBlessings, hyperBlessing(logicCalcAntSpeedHyper))
+export const calculateAntELOTesseractBlessing = () =>
+  logicCalcAntELOTess(player.tesseractBlessings, logicCalcAntELOHyper(player.hypercubeBlessings))
