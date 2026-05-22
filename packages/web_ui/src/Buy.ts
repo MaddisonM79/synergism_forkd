@@ -4,6 +4,7 @@ import {
   buyMax as logicBuyMax,
   buyMultiplier as logicBuyMultiplier,
   buyParticleBuilding as logicBuyParticleBuilding,
+  buyProducer as logicBuyProducer,
   buyTesseractBuilding as logicBuyTesseractBuilding,
   calculateTessBuildingsInBudget as logicCalculateTessBuildingsInBudget,
   getAcceleratorBoostCost as logicGetAcceleratorBoostCost,
@@ -11,6 +12,7 @@ import {
   type GetProducerCostInput,
   getProducerCost,
   type ProducerFamilyState,
+  type ProducerIndex,
   type ProducerType,
   type TesseractBuildings as LogicTesseractBuildings
 } from '@synergism/logic'
@@ -172,68 +174,68 @@ const buyProducerTypes = {
   Coin: ['coins', 'coin']
 } as const
 
+// Maps FirstToFifth ordinal names to the numeric ProducerIndex the logic
+// function expects. The `num` value the OLD signature took is derivable from
+// (index, type) and is computed inside the logic function, so it's no longer
+// a shim parameter.
+const POSITION_TO_INDEX: Record<FirstToFifth, ProducerIndex> = {
+  first: 1,
+  second: 2,
+  third: 3,
+  fourth: 4,
+  fifth: 5
+}
+
+// Shim over @synergism/logic's pure buyProducer. Gathers the 10-field family
+// slice + the spend resource, pre-computes `r` from getReductionValue() (the
+// rune/research/CalcECC/ant-upgrade aggregate), and writes the result back to
+// player. Existing callers stop passing `num` — logic derives it.
 export const buyProducer = (
   pos: FirstToFifth,
-  type: keyof typeof buyProducerTypes,
-  num: number,
+  type: ProducerType,
   autobuyer?: boolean
 ) => {
-  const [tag, amounttype] = buyProducerTypes[type]
-  const buythisamount = autobuyer ? 500 : player[`${amounttype}buyamount` as const]
-  let r = 1
-  r += getRuneEffects('thrift', 'costDelay')
-  r += (player.researches[56] + player.researches[57] + player.researches[58] + player.researches[59]
-    + player.researches[60]) / 200
-  r += CalcECC('transcend', player.challengecompletions[4]) / 200
-  r += getAntUpgradeEffect(AntUpgrades.BuildingCostScale).buildingCostScale
+  const tag = buyProducerTypes[type][0]
+  const amounttype = buyProducerTypes[type][1]
+  const buyamount = player[`${amounttype}buyamount` as const]
 
-  const posCostType = `${pos}Cost${type}` as const
-  const posOwnedType = `${pos}Owned${type}` as const
-
-  while (
-    player[tag].gte(player[posCostType]) && G.ticker < buythisamount && player[posOwnedType] < Number.MAX_SAFE_INTEGER
-  ) {
-    player[tag] = player[tag].sub(player[posCostType])
-    player[posOwnedType] += 1
-    player[posCostType] = player[posCostType].times(Decimal.pow(1.25, num))
-    player[posCostType] = player[posCostType].add(1)
-    if (player[posOwnedType] >= (1000 * r)) {
-      player[posCostType] = player[posCostType].times(player[posOwnedType]).dividedBy(1000).times(1 + num / 2)
-    }
-    if (player[posOwnedType] >= (5000 * r)) {
-      player[posCostType] = player[posCostType].times(player[posOwnedType]).times(10).times(10 + num * 10)
-    }
-    if (player[posOwnedType] >= (20000 * r)) {
-      player[posCostType] = player[posCostType].times(Decimal.pow(player[posOwnedType], 3)).times(100000).times(
-        100 + num * 100
-      )
-    }
-    if (player[posOwnedType] >= (250000 * r)) {
-      player[posCostType] = player[posCostType].times(Decimal.pow(1.03, player[posOwnedType] - 250000 * r))
-    }
-    if (player.currentChallenge.transcension === 4 && (type === 'Coin' || type === 'Diamonds')) {
-      player[posCostType] = player[posCostType].times(
-        Math.pow(100 * player[posOwnedType] + 10000, 1.25 + 1 / 4 * player.challengecompletions[4])
-      )
-      if (player[posOwnedType] >= 1000 - (10 * player.challengecompletions[4])) {
-        player[posCostType] = player[posCostType].times(Decimal.pow(1.25, player[posOwnedType]))
-      }
-    }
-    if (
-      player.currentChallenge.reincarnation === 8 && (type === 'Coin' || type === 'Diamonds' || type === 'Mythos')
-      && player[posOwnedType] >= (1000 * player.challengecompletions[8] * r)
-    ) {
-      player[posCostType] = player[posCostType].times(
-        Decimal.pow(
-          2,
-          (player[posOwnedType] - (1000 * player.challengecompletions[8] * r))
-            / (1 + (player.challengecompletions[8] / 2))
-        )
-      )
-    }
-    G.ticker += 1
+  const familyState: ProducerFamilyState = {
+    resource: player[tag],
+    firstOwned: player[`firstOwned${type}` as const],
+    firstCost: player[`firstCost${type}` as const],
+    secondOwned: player[`secondOwned${type}` as const],
+    secondCost: player[`secondCost${type}` as const],
+    thirdOwned: player[`thirdOwned${type}` as const],
+    thirdCost: player[`thirdCost${type}` as const],
+    fourthOwned: player[`fourthOwned${type}` as const],
+    fourthCost: player[`fourthCost${type}` as const],
+    fifthOwned: player[`fifthOwned${type}` as const],
+    fifthCost: player[`fifthCost${type}` as const]
   }
-  G.ticker = 0
+
+  const { state } = logicBuyProducer(familyState, {
+    index: POSITION_TO_INDEX[pos],
+    type,
+    autobuyer: !!autobuyer,
+    buyamount,
+    r: getReductionValue(),
+    inTranscensionChallenge4: player.currentChallenge.transcension === 4,
+    inReincarnationChallenge8: player.currentChallenge.reincarnation === 8,
+    challengecompletions4: player.challengecompletions[4],
+    challengecompletions8: player.challengecompletions[8]
+  })
+
+  player[tag] = state.resource
+  player[`firstOwned${type}` as const] = state.firstOwned
+  player[`firstCost${type}` as const] = state.firstCost
+  player[`secondOwned${type}` as const] = state.secondOwned
+  player[`secondCost${type}` as const] = state.secondCost
+  player[`thirdOwned${type}` as const] = state.thirdOwned
+  player[`thirdCost${type}` as const] = state.thirdCost
+  player[`fourthOwned${type}` as const] = state.fourthOwned
+  player[`fourthCost${type}` as const] = state.fourthCost
+  player[`fifthOwned${type}` as const] = state.fifthOwned
+  player[`fifthCost${type}` as const] = state.fifthCost
 }
 
 export const buyUpgrades = (type: Upgrade, pos: number, state?: boolean) => {

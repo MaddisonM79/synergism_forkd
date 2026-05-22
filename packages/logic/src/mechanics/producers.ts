@@ -221,6 +221,13 @@ function readOwned(state: ProducerFamilyState, index: ProducerIndex): number {
   if (index === 4) return state.fourthOwned
   return state.fifthOwned
 }
+function readCost(state: ProducerFamilyState, index: ProducerIndex): Decimal {
+  if (index === 1) return state.firstCost
+  if (index === 2) return state.secondCost
+  if (index === 3) return state.thirdCost
+  if (index === 4) return state.fourthCost
+  return state.fifthCost
+}
 function writeOwned(state: ProducerFamilyState, index: ProducerIndex, value: number): void {
   if (index === 1) state.firstOwned = value
   else if (index === 2) state.secondOwned = value
@@ -356,6 +363,139 @@ export function buyMax(
     buyFrom = buyFrom + smallestInc(buyFrom)
     thisCost = cost(buyFrom)
     writeCost(next, input.index, thisCost)
+  }
+
+  if (readOwned(next, input.index) > buyStart) {
+    events.push({
+      kind: 'producers-purchased',
+      type: input.type,
+      index: input.index,
+      before: buyStart,
+      after: readOwned(next, input.index),
+      spent: startingResource.sub(next.resource)
+    })
+  }
+
+  return { state: next, events }
+}
+
+// ─── buyProducer (manual-click loop) ───────────────────────────────────────
+
+export interface BuyProducerInput {
+  index: ProducerIndex
+  type: ProducerType
+  /** True when the autobuyer is driving — caps the loop at 500 iterations. */
+  autobuyer: boolean
+  /** Per-click cap from player.{coin,crystal,mythos,particle}buyamount. */
+  buyamount: number
+  /**
+   * Reduction value — `getReductionValue()` in web_ui. Shifts the per-step
+   * exponent thresholds (1000*r, 5000*r, 20000*r, 250000*r) and the
+   * challenge-8 amplifier threshold. Combine of:
+   *   1 + getRuneEffects('thrift', 'costDelay')
+   *     + (researches[56..60] sum)/200
+   *     + CalcECC('transcend', cc4)/200
+   *     + getAntUpgradeEffect(AntUpgrades.BuildingCostScale).buildingCostScale
+   */
+  r: number
+  inTranscensionChallenge4: boolean
+  inReincarnationChallenge8: boolean
+  challengecompletions4: number
+  challengecompletions8: number
+}
+
+// `num` derivation: Coin uses the position index directly, every other family
+// uses the triangle number index*(index+1)/2. Mirrors the call-site convention
+// in EventListeners.ts and getOriginalCostAndNum above.
+function numFor(index: ProducerIndex, type: ProducerType): number {
+  return type === 'Coin' ? index : index * (index + 1) / 2
+}
+
+/**
+ * Manual-click producer purchase loop. Buys one producer per iteration,
+ * subtracts current cost, then applies the per-iteration cost multiplier
+ * ladder (×1.25^num, +1 mantissa adjustment, threshold amplifiers at
+ * 1000/5000/20000/250000 *r, challenge-4 transcension, challenge-8
+ * reincarnation). Loop caps at `buyamount` (or 500 when the autobuyer is
+ * driving).
+ */
+export function buyProducer(
+  state: ProducerFamilyState,
+  input: BuyProducerInput
+): { state: ProducerFamilyState; events: CoreEvent[] } {
+  const events: CoreEvent[] = []
+  const next: ProducerFamilyState = {
+    resource: new Decimal(state.resource),
+    firstOwned: state.firstOwned,
+    firstCost: new Decimal(state.firstCost),
+    secondOwned: state.secondOwned,
+    secondCost: new Decimal(state.secondCost),
+    thirdOwned: state.thirdOwned,
+    thirdCost: new Decimal(state.thirdCost),
+    fourthOwned: state.fourthOwned,
+    fourthCost: new Decimal(state.fourthCost),
+    fifthOwned: state.fifthOwned,
+    fifthCost: new Decimal(state.fifthCost)
+  }
+  const startingResource = new Decimal(state.resource)
+  const buyStart = readOwned(next, input.index)
+  const num = numFor(input.index, input.type)
+  const buythisamount = input.autobuyer ? 500 : input.buyamount
+
+  let t = 0
+  while (
+    next.resource.gte(readCost(next, input.index))
+    && t < buythisamount
+    && readOwned(next, input.index) < Number.MAX_SAFE_INTEGER
+  ) {
+    next.resource = next.resource.sub(readCost(next, input.index))
+    writeOwned(next, input.index, readOwned(next, input.index) + 1)
+    let cost = readCost(next, input.index).times(Decimal.pow(1.25, num))
+    cost = cost.add(1)
+    const owned = readOwned(next, input.index)
+
+    // Per-step exponent threshold ladder. Each rung adds a one-off cost
+    // multiplier once the cumulative count crosses the (threshold * r) mark.
+    if (owned >= 1000 * input.r) {
+      cost = cost.times(owned).dividedBy(1000).times(1 + num / 2)
+    }
+    if (owned >= 5000 * input.r) {
+      cost = cost.times(owned).times(10).times(10 + num * 10)
+    }
+    if (owned >= 20000 * input.r) {
+      cost = cost.times(Decimal.pow(owned, 3)).times(100000).times(100 + num * 100)
+    }
+    if (owned >= 250000 * input.r) {
+      cost = cost.times(Decimal.pow(1.03, owned - 250000 * input.r))
+    }
+
+    // Challenge-4 (transcension) — amplifies Coin / Diamonds.
+    if (input.inTranscensionChallenge4 && (input.type === 'Coin' || input.type === 'Diamonds')) {
+      cost = cost.times(
+        Math.pow(100 * owned + 10000, 1.25 + 1 / 4 * input.challengecompletions4)
+      )
+      if (owned >= 1000 - 10 * input.challengecompletions4) {
+        cost = cost.times(Decimal.pow(1.25, owned))
+      }
+    }
+
+    // Challenge-8 (reincarnation) — amplifies Coin / Diamonds / Mythos at high counts.
+    if (
+      input.inReincarnationChallenge8
+      && (input.type === 'Coin' || input.type === 'Diamonds' || input.type === 'Mythos')
+      && owned >= 1000 * input.challengecompletions8 * input.r
+    ) {
+      cost = cost.times(
+        Decimal.pow(
+          2,
+          (owned - 1000 * input.challengecompletions8 * input.r)
+            / (1 + input.challengecompletions8 / 2)
+        )
+      )
+    }
+
+    writeCost(next, input.index, cost)
+    t += 1
   }
 
   if (readOwned(next, input.index) > buyStart) {

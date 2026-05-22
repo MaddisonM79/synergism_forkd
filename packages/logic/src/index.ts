@@ -27,11 +27,12 @@ export { getAcceleratorBoostCost } from './mechanics/acceleratorBoosts'
 export { buyMultiplier, getCostMultiplier } from './mechanics/multipliers'
 export type {
   BuyMaxInput,
+  BuyProducerInput,
   GetProducerCostInput,
   ProducerIndex,
   ProducerType
 } from './mechanics/producers'
-export { buyMax, getProducerCost } from './mechanics/producers'
+export { buyMax, buyProducer, getProducerCost } from './mechanics/producers'
 export type {
   BuyParticleBuildingInput,
   GetParticleCostInput,

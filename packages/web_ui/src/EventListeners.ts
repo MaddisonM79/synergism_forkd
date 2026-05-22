@@ -368,8 +368,7 @@ export const generateEventHandlers = () => {
       ).addEventListener('pointerdown', () =>
         buyProducer(
           ordinals[index2 - 1] as FirstToFifth,
-          buildingTypesAlternate3[index],
-          index === 0 ? index2 : (index2 * (index2 + 1)) / 2
+          buildingTypesAlternate3[index]
         ))
     }
   }
