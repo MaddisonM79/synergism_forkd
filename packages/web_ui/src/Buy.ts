@@ -5,6 +5,8 @@ import {
   buyParticleBuilding as logicBuyParticleBuilding,
   buyTesseractBuilding as logicBuyTesseractBuilding,
   calculateTessBuildingsInBudget as logicCalculateTessBuildingsInBudget,
+  getAcceleratorBoostCost as logicGetAcceleratorBoostCost,
+  type GetAcceleratorBoostCostInput,
   type GetProducerCostInput,
   getProducerCost,
   type TesseractBuildings as LogicTesseractBuildings
@@ -373,6 +375,11 @@ export const boostAccelerator = (automated?: boolean) => {
     buyamount = automated ? 9999 : player.coinbuyamount
   }
 
+  // Cost-delay multiplier is stable for the duration of this buy loop —
+  // capture once and feed every getAcceleratorBoostCost call through it.
+  const accelBoostCostDelay = getRuneBlessingEffect('thrift').accelBoostCostDelay
+  const costInput: GetAcceleratorBoostCostInput = { accelBoostCostDelay }
+
   if (player.upgrades[46] < 1) {
     while (player.prestigePoints.gte(player.acceleratorBoostCost) && G.ticker < buyamount) {
       if (player.prestigePoints.gte(player.acceleratorBoostCost)) {
@@ -380,12 +387,12 @@ export const boostAccelerator = (automated?: boolean) => {
         player.acceleratorBoostCost = player.acceleratorBoostCost.times(1e10).times(
           Decimal.pow(10, player.acceleratorBoostBought)
         )
-        if (player.acceleratorBoostBought > (1000 * getRuneBlessingEffect('thrift').accelBoostCostDelay)) {
+        if (player.acceleratorBoostBought > (1000 * accelBoostCostDelay)) {
           player.acceleratorBoostCost = player.acceleratorBoostCost.times(
             Decimal.pow(
               10,
-              Math.pow(player.acceleratorBoostBought - (1000 * getRuneBlessingEffect('thrift').accelBoostCostDelay), 2)
-                / getRuneBlessingEffect('thrift').accelBoostCostDelay
+              Math.pow(player.acceleratorBoostBought - (1000 * accelBoostCostDelay), 2)
+                / accelBoostCostDelay
             )
           )
         }
@@ -408,7 +415,7 @@ export const boostAccelerator = (automated?: boolean) => {
       const diminishingExponent = 1 / 8
 
       const log10Resource = Decimal.log10(player.prestigePoints)
-      const log10QuadrillionCost = Decimal.log10(getAcceleratorBoostCost(buymax))
+      const log10QuadrillionCost = Decimal.log10(logicGetAcceleratorBoostCost(buymax, costInput))
 
       let hi = Math.floor(buymax * Math.max(1, Math.pow(log10Resource / log10QuadrillionCost, diminishingExponent)))
       let lo = buymax
@@ -417,14 +424,14 @@ export const boostAccelerator = (automated?: boolean) => {
         if (mid === lo || mid === hi) {
           break
         }
-        if (!player.prestigePoints.gte(getAcceleratorBoostCost(mid))) {
+        if (!player.prestigePoints.gte(logicGetAcceleratorBoostCost(mid, costInput))) {
           hi = mid
         } else {
           lo = mid
         }
       }
       const buyable = lo
-      const thisCost = getAcceleratorBoostCost(buyable)
+      const thisCost = logicGetAcceleratorBoostCost(buyable, costInput)
 
       player.acceleratorBoostBought = buyable
       player.acceleratorBoostCost = thisCost
@@ -435,15 +442,15 @@ export const boostAccelerator = (automated?: boolean) => {
     const buydefault = buyStart + smallestInc(buyStart)
     let buyInc = 1
 
-    let cost = getAcceleratorBoostCost(buyStart + buyInc)
+    let cost = logicGetAcceleratorBoostCost(buyStart + buyInc, costInput)
     while (player.prestigePoints.gte(cost)) {
       buyInc *= 4
-      cost = getAcceleratorBoostCost(buyStart + buyInc)
+      cost = logicGetAcceleratorBoostCost(buyStart + buyInc, costInput)
     }
     let stepdown = Math.floor(buyInc / 8)
     while (stepdown >= smallestInc(buyInc)) {
       // if step down would push it below out of expense range then divide step down by 2
-      if (getAcceleratorBoostCost(buyStart + buyInc - stepdown).lte(player.prestigePoints)) {
+      if (logicGetAcceleratorBoostCost(buyStart + buyInc - stepdown, costInput).lte(player.prestigePoints)) {
         stepdown = Math.floor(stepdown / 2)
       } else {
         buyInc = buyInc - Math.max(smallestInc(buyInc), stepdown)
@@ -451,15 +458,18 @@ export const boostAccelerator = (automated?: boolean) => {
     }
     // go down by 7 steps below the last one able to be bought and spend the cost of 25 up to the one that you started with and stop if coin goes below requirement
     let buyFrom = Math.max(buyStart + buyInc - 6 - smallestInc(buyInc), buydefault)
-    let thisCost = getAcceleratorBoostCost(player.acceleratorBoostBought)
-    while (buyFrom <= buyStart + buyInc && player.prestigePoints.gte(getAcceleratorBoostCost(buyFrom))) {
+    let thisCost = logicGetAcceleratorBoostCost(player.acceleratorBoostBought, costInput)
+    while (
+      buyFrom <= buyStart + buyInc
+      && player.prestigePoints.gte(logicGetAcceleratorBoostCost(buyFrom, costInput))
+    ) {
       player.prestigePoints = player.prestigePoints.sub(thisCost)
       if (buyFrom >= buymax) {
         buyFrom = buymax
       }
       player.acceleratorBoostBought = buyFrom
       buyFrom = buyFrom + smallestInc(buyFrom)
-      thisCost = getAcceleratorBoostCost(buyFrom)
+      thisCost = logicGetAcceleratorBoostCost(buyFrom, costInput)
       player.acceleratorBoostCost = thisCost
 
       player.transcendnoaccelerator = false
@@ -472,42 +482,6 @@ export const boostAccelerator = (automated?: boolean) => {
 
   G.ticker = 0
   awardAchievementGroup('acceleratorBoosts')
-}
-
-const linSum = (n: number) => n * (n + 1) / 2
-const sqrSum = (n: number) => n * (n + 1) * (2 * n + 1) / 6
-
-const getAcceleratorBoostCost = (level = 1): Decimal => {
-  // formula starts at 0 but buying starts at 1
-  level--
-  const buymax = Math.pow(10, 15)
-  const base = new Decimal(1e3)
-  const eff = getRuneBlessingEffect('thrift').accelBoostCostDelay
-
-  let cost = base
-  if (level > 1000 * eff) {
-    cost = base.times(Decimal.pow(
-      10,
-      10 * level
-        + linSum(level) // each level increases the exponent by 1 more each time
-        + sqrSum(level - 1000 * eff) / eff
-    )) // after cost delay is passed each level increases the cost by the square each time
-  } else {
-    cost = base.times(Decimal.pow(10, 10 * level + linSum(level)))
-  }
-  if (level > buymax) {
-    const diminishingExponent = 1 / 8
-
-    const QuadrillionCost = getAcceleratorBoostCost(buymax)
-
-    const newCost = QuadrillionCost.pow(Math.pow(level / buymax, 1 / diminishingExponent))
-    const newExtra = newCost.exponent - Math.floor(newCost.exponent)
-    newCost.exponent = Math.floor(newCost.exponent)
-    newCost.mantissa *= Math.pow(10, newExtra)
-    newCost.normalize()
-    return Decimal.max(cost, newCost)
-  }
-  return cost
 }
 
 // Shim over @synergism/logic's pure buyParticleBuilding. Same shape as the
