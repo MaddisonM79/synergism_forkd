@@ -1,6 +1,9 @@
 import type { DecimalSource } from 'break_infinity.js'
 import Decimal from 'break_infinity.js'
-import { buyAccelerator as logicBuyAccelerator } from '@synergism/logic'
+import {
+  buyAccelerator as logicBuyAccelerator,
+  buyMultiplier as logicBuyMultiplier
+} from '@synergism/logic'
 import { awardAchievementGroup } from './Achievements'
 import { CalcECC } from './Challenges'
 import { getAntUpgradeEffect } from './Features/Ants/AntUpgrades/lib/upgrade-effects'
@@ -59,128 +62,34 @@ export const buyAccelerator = (autobuyer?: boolean) => {
   awardAchievementGroup('accelerators')
 }
 
-const getCostMultiplier = (buyingTo: number): Decimal => {
-  ;--buyingTo
-
-  const originalCost = 1e4
-  let cost = new Decimal(originalCost)
-  cost = cost.times(Decimal.pow(10, buyingTo / G.costDivisor))
-
-  if (buyingTo > (75 + 2 * CalcECC('transcend', player.challengecompletions[4]))) {
-    const num = buyingTo - 75 - 2 * CalcECC('transcend', player.challengecompletions[4])
-    const factorialBit = new Decimal(num).factorial()
-    const powBit = Decimal.pow(10, num)
-    cost = cost.times(factorialBit.times(powBit))
-  }
-
-  if (buyingTo > (2000 + 2 * CalcECC('transcend', player.challengecompletions[4]))) {
-    const sumNum = buyingTo - 2000 - 2 * CalcECC('transcend', player.challengecompletions[4])
-    const sumBit = sumNum * (sumNum + 1) / 2
-    cost = cost.times(Decimal.pow(2, sumBit))
-  }
-  if (player.currentChallenge.transcension === 4) {
-    const sumBit = buyingTo * (buyingTo + 1) / 2
-    cost = cost.times(Decimal.pow(10, sumBit))
-  }
-  if (player.currentChallenge.reincarnation === 8) {
-    const sumBit = buyingTo * (buyingTo + 1) / 2
-    cost = cost.times(Decimal.pow(1e50, sumBit))
-  }
-  const buymax = Math.pow(10, 15)
-  if (buyingTo > buymax) {
-    const diminishingExponent = 1 / 8
-
-    const QuadrillionCost = getCostMultiplier(buymax)
-
-    const newCost = QuadrillionCost.pow(Math.pow(buyingTo / buymax, 1 / diminishingExponent))
-    const newExtra = newCost.exponent - Math.floor(newCost.exponent)
-    newCost.exponent = Math.floor(newCost.exponent)
-    newCost.mantissa *= Math.pow(10, newExtra)
-    newCost.normalize()
-    return Decimal.max(cost, newCost)
-  }
-  return cost
-}
-
+// Shim over @synergism/logic's pure buyMultiplier. Mirror of the
+// buyAccelerator shim above.
 export const buyMultiplier = (autobuyer?: boolean) => {
-  const buyStart = player.multiplierBought
-  const buymax = Math.pow(10, 15)
-  // If at least buymax, we will use a different formulae
-  if (buyStart >= buymax) {
-    const diminishingExponent = 1 / 8
-
-    const log10Resource = Decimal.log10(player.coins)
-    const log10QuadrillionCost = Decimal.log10(getCostMultiplier(buymax))
-
-    let hi = Math.floor(buymax * Math.max(1, Math.pow(log10Resource / log10QuadrillionCost, diminishingExponent)))
-    let lo = buymax
-    while (hi - lo > 0.5) {
-      const mid = Math.floor(lo + (hi - lo) / 2)
-      if (mid === lo || mid === hi) {
-        break
-      }
-      if (!player.coins.gte(getCostMultiplier(mid))) {
-        hi = mid
-      } else {
-        lo = mid
-      }
+  const { state } = logicBuyMultiplier(
+    {
+      multiplierBought: player.multiplierBought,
+      multiplierCost: player.multiplierCost,
+      coins: player.coins,
+      prestigenomultiplier: player.prestigenomultiplier,
+      transcendnomultiplier: player.transcendnomultiplier,
+      reincarnatenomultiplier: player.reincarnatenomultiplier
+    },
+    {
+      autobuyer: !!autobuyer,
+      coinbuyamount: player.coinbuyamount,
+      costDivisor: G.costDivisor,
+      transcendECC: CalcECC('transcend', player.challengecompletions[4]),
+      inTranscensionChallenge4: player.currentChallenge.transcension === 4,
+      inReincarnationChallenge8: player.currentChallenge.reincarnation === 8
     }
-    const buyable = lo
-    const thisCost = getCostMultiplier(buyable)
+  )
 
-    player.multiplierBought = buyable
-    player.multiplierCost = thisCost
-    awardAchievementGroup('multipliers')
-    return
-  }
-
-  // Start buying at the current amount bought + 1
-  const buydefault = buyStart + smallestInc(buyStart)
-  let buyTo = buydefault
-
-  let cashToBuy = getCostMultiplier(buyTo)
-  while (player.coins.gte(cashToBuy)) {
-    // then multiply by 4 until it reaches just above the amount needed
-    buyTo = buyTo * 4
-    cashToBuy = getCostMultiplier(buyTo)
-  }
-  let stepdown = Math.floor(buyTo / 8)
-  while (stepdown >= smallestInc(buyTo)) {
-    // if step down would push it below out of expense range then divide step down by 2
-    if (getCostMultiplier(buyTo - stepdown).lte(player.coins)) {
-      stepdown = Math.floor(stepdown / 2)
-    } else {
-      buyTo = buyTo - Math.max(smallestInc(buyTo), stepdown)
-    }
-  }
-
-  if (!autobuyer && (player.coinbuyamount as number | string) !== 'max') {
-    if (player.multiplierBought + player.coinbuyamount < buyTo) {
-      buyTo = player.multiplierBought + player.coinbuyamount
-    }
-  }
-
-  let buyFrom = Math.max(buyTo - 6 - smallestInc(buyTo), buydefault)
-  let thisCost = getCostMultiplier(buyFrom)
-  while (buyFrom <= buyTo && player.coins.gte(thisCost)) {
-    if (buyFrom >= buymax) {
-      buyFrom = buymax
-    }
-    player.coins = player.coins.sub(thisCost)
-    player.multiplierBought = buyFrom
-    buyFrom = buyFrom + smallestInc(buyFrom)
-    thisCost = getCostMultiplier(buyFrom)
-    player.multiplierCost = thisCost
-    if (buyFrom >= buymax) {
-      break
-    }
-  }
-
-  if (player.multiplierBought > 0) {
-    player.prestigenomultiplier = false
-    player.transcendnomultiplier = false
-    player.reincarnatenomultiplier = false
-  }
+  player.multiplierBought = state.multiplierBought
+  player.multiplierCost = state.multiplierCost
+  player.coins = state.coins
+  player.prestigenomultiplier = state.prestigenomultiplier
+  player.transcendnomultiplier = state.transcendnomultiplier
+  player.reincarnatenomultiplier = state.reincarnatenomultiplier
 
   updateAllMultiplier()
   awardAchievementGroup('multipliers')

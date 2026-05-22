@@ -14,3 +14,9 @@ export type CoreEvent =
       after: number
       spent: Decimal
     }
+  | {
+      kind: 'multipliers-purchased'
+      before: number
+      after: number
+      spent: Decimal
+    }
