@@ -6,6 +6,7 @@ import {
   buyParticleBuilding as logicBuyParticleBuilding,
   buyProducer as logicBuyProducer,
   buyTesseractBuilding as logicBuyTesseractBuilding,
+  buyUpgrades as logicBuyUpgrades,
   calculateTessBuildingsInBudget as logicCalculateTessBuildingsInBudget,
   getAcceleratorBoostCost as logicGetAcceleratorBoostCost,
   type GetAcceleratorBoostCostInput,
@@ -14,7 +15,9 @@ import {
   type ProducerFamilyState,
   type ProducerIndex,
   type ProducerType,
-  type TesseractBuildings as LogicTesseractBuildings
+  type TesseractBuildings as LogicTesseractBuildings,
+  type UpgradesState,
+  type UpgradeTier
 } from '@synergism/logic'
 import { awardAchievementGroup } from './Achievements'
 import { CalcECC } from './Challenges'
@@ -238,36 +241,64 @@ export const buyProducer = (
   player[`fifthCost${type}` as const] = state.fifthCost
 }
 
+// Maps the Upgrade enum (whose values are resource field names) to the tier
+// label the logic function dispatches on. Implemented as a function — not a
+// top-level keyed map — to avoid a temporal-dead-zone access of `Upgrade` at
+// module-load time (Buy.ts and Variables.ts participate in a circular
+// dependency cycle through Calculate.ts / Tabs.ts).
+const upgradeToTier = (type: Upgrade): UpgradeTier => {
+  if (type === Upgrade.coin) return 'coin'
+  if (type === Upgrade.prestige) return 'prestige'
+  if (type === Upgrade.transcend) return 'transcend'
+  return 'reincarnation'
+}
+
+// Shim over @synergism/logic's pure buyUpgrades. Gathers the four reset-tier
+// resources + the upgrades bitmap + the seven no-upgrades flags, then writes
+// the result back. On a successful purchase the upgrade-purchased event
+// triggers the leftover UI side effect (upgradeupdate).
 export const buyUpgrades = (type: Upgrade, pos: number, state?: boolean) => {
-  if (!upgradeRequirements[pos]) {
-    return
+  const slice: UpgradesState = {
+    coins: player.coins,
+    prestigePoints: player.prestigePoints,
+    transcendPoints: player.transcendPoints,
+    reincarnationPoints: player.reincarnationPoints,
+    upgrades: player.upgrades,
+    prestigenocoinupgrades: player.prestigenocoinupgrades,
+    transcendnocoinupgrades: player.transcendnocoinupgrades,
+    transcendnocoinorprestigeupgrades: player.transcendnocoinorprestigeupgrades,
+    reincarnatenocoinupgrades: player.reincarnatenocoinupgrades,
+    reincarnatenocoinorprestigeupgrades: player.reincarnatenocoinorprestigeupgrades,
+    reincarnatenocoinprestigeortranscendupgrades: player.reincarnatenocoinprestigeortranscendupgrades,
+    reincarnatenocoinprestigetranscendorgeneratorupgrades:
+      player.reincarnatenocoinprestigetranscendorgeneratorupgrades
   }
 
-  const currency = type
-  if (player[currency].gte(Decimal.pow(10, G.upgradeCosts[pos])) && player.upgrades[pos] === 0) {
-    player[currency] = player[currency].sub(Decimal.pow(10, G.upgradeCosts[pos]))
-    player.upgrades[pos] = 1
-    upgradeupdate(pos, state)
-  }
+  const { state: next, events } = logicBuyUpgrades(slice, {
+    tier: upgradeToTier(type),
+    pos,
+    costExponent: G.upgradeCosts[pos],
+    requirementExists: upgradeRequirements[pos] !== undefined
+  })
 
-  if (type === Upgrade.transcend) {
-    player.reincarnatenocoinprestigeortranscendupgrades = false
-    player.reincarnatenocoinprestigetranscendorgeneratorupgrades = false
-  }
-  if (type === Upgrade.prestige) {
-    player.transcendnocoinorprestigeupgrades = false
-    player.reincarnatenocoinorprestigeupgrades = false
-    player.reincarnatenocoinprestigeortranscendupgrades = false
-    player.reincarnatenocoinprestigetranscendorgeneratorupgrades = false
-  }
-  if (type === Upgrade.coin) {
-    player.prestigenocoinupgrades = false
-    player.transcendnocoinupgrades = false
-    player.transcendnocoinorprestigeupgrades = false
-    player.reincarnatenocoinupgrades = false
-    player.reincarnatenocoinorprestigeupgrades = false
-    player.reincarnatenocoinprestigeortranscendupgrades = false
-    player.reincarnatenocoinprestigetranscendorgeneratorupgrades = false
+  player.coins = next.coins
+  player.prestigePoints = next.prestigePoints
+  player.transcendPoints = next.transcendPoints
+  player.reincarnationPoints = next.reincarnationPoints
+  player.upgrades = next.upgrades
+  player.prestigenocoinupgrades = next.prestigenocoinupgrades
+  player.transcendnocoinupgrades = next.transcendnocoinupgrades
+  player.transcendnocoinorprestigeupgrades = next.transcendnocoinorprestigeupgrades
+  player.reincarnatenocoinupgrades = next.reincarnatenocoinupgrades
+  player.reincarnatenocoinorprestigeupgrades = next.reincarnatenocoinorprestigeupgrades
+  player.reincarnatenocoinprestigeortranscendupgrades = next.reincarnatenocoinprestigeortranscendupgrades
+  player.reincarnatenocoinprestigetranscendorgeneratorupgrades =
+    next.reincarnatenocoinprestigetranscendorgeneratorupgrades
+
+  for (const event of events) {
+    if (event.kind === 'upgrade-purchased') {
+      upgradeupdate(event.pos, state)
+    }
   }
 }
 

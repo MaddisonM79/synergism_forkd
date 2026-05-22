@@ -32,6 +32,27 @@ export interface MultiplierState {
   reincarnatenomultiplier: boolean
 }
 
+// Slice of GameState read/written by buyUpgrades. All four reset-tier resources
+// live here so the function can dispatch on the upgrade tier without taking
+// four overloads. The seven `*no*upgrades` flags are achievement gates that
+// flip false depending on the tier purchased — see mechanics/upgrades.ts for
+// the per-tier flip matrix.
+export interface UpgradesState {
+  coins: Decimal
+  prestigePoints: Decimal
+  transcendPoints: Decimal
+  reincarnationPoints: Decimal
+  /** Bitmap of owned upgrades; 0 = unowned, 1 = owned. Indexed by `pos`. */
+  upgrades: number[]
+  prestigenocoinupgrades: boolean
+  transcendnocoinupgrades: boolean
+  transcendnocoinorprestigeupgrades: boolean
+  reincarnatenocoinupgrades: boolean
+  reincarnatenocoinorprestigeupgrades: boolean
+  reincarnatenocoinprestigeortranscendupgrades: boolean
+  reincarnatenocoinprestigetranscendorgeneratorupgrades: boolean
+}
+
 // Generic slice for one producer family (Coin / Diamonds / Mythos / Particles).
 // Field names are family-agnostic — the shim translates between the typed
 // player fields (firstOwnedCoin, firstCostDiamonds, etc.) and this shape.

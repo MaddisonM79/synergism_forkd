@@ -29,6 +29,14 @@ export type CoreEvent =
       spent: Decimal
     }
   | {
+      kind: 'upgrade-purchased'
+      /** Resource tier the upgrade was bought against. */
+      tier: 'coin' | 'prestige' | 'transcend' | 'reincarnation'
+      /** Upgrade index within the bitmap (1-based; pos=0 is the historical sentinel). */
+      pos: number
+      spent: Decimal
+    }
+  | {
       kind: 'producers-purchased'
       /** Producer family that was purchased — see ProducerType in mechanics/producers.ts. */
       type: 'Coin' | 'Diamonds' | 'Mythos' | 'Particles'

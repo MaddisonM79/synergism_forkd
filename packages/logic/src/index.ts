@@ -11,7 +11,8 @@ export type {
   MultiplierState,
   ParticleBuildingsState,
   ProducerFamilyState,
-  TesseractBuildingsState
+  TesseractBuildingsState,
+  UpgradesState
 } from './state/schema'
 export type {
   BuyAcceleratorInput,
@@ -50,3 +51,5 @@ export {
   calculateTessBuildingsInBudget,
   getTesseractCost
 } from './mechanics/tesseractBuildings'
+export type { BuyUpgradeInput, UpgradeTier } from './mechanics/upgrades'
+export { buyUpgrades } from './mechanics/upgrades'
