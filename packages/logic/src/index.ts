@@ -9,6 +9,7 @@ export type {
   AscendBuildingState,
   BuyAmount,
   CrystalUpgradesState,
+  HypercubeBlessings,
   MultiplierState,
   ParticleBuildingsState,
   PlatonicBlessings,
@@ -67,3 +68,15 @@ export {
   calculateTaxPlatonicBlessing,
   calculateTesseractMultiplierPlatonicBlessing
 } from './mechanics/cubes/platonicBlessings'
+export {
+  calculateAcceleratorHypercubeBlessing,
+  calculateAntELOHypercubeBlessing,
+  calculateAntSacrificeHypercubeBlessing,
+  calculateAntSpeedHypercubeBlessing,
+  calculateGlobalSpeedHypercubeBlessing,
+  calculateMultiplierHypercubeBlessing,
+  calculateObtainiumHypercubeBlessing,
+  calculateOfferingHypercubeBlessing,
+  calculateRuneEffectivenessHypercubeBlessing,
+  calculateSalvageHypercubeBlessing
+} from './mechanics/cubes/hypercubeBlessings'

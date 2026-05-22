@@ -32,6 +32,22 @@ export interface MultiplierState {
   reincarnatenomultiplier: boolean
 }
 
+// Player's accumulated hypercube blessings. Inputs to the 10 calculate*
+// HypercubeBlessing functions. Mirrors player.hypercubeBlessings; each
+// function reads exactly one field.
+export interface HypercubeBlessings {
+  accelerator: number
+  multiplier: number
+  offering: number
+  runeExp: number
+  obtainium: number
+  antSpeed: number
+  antSacrifice: number
+  antELO: number
+  talismanBonus: number
+  globalSpeed: number
+}
+
 // Player's accumulated platonic-cube blessings. Inputs to the 8 calculate*
 // PlatonicBlessing functions in mechanics/cubes/platonicBlessings.ts. Mirrors
 // player.platonicBlessings; each function reads exactly one field.
