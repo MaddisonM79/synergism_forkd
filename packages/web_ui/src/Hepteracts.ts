@@ -1,4 +1,14 @@
 import Decimal from 'break_infinity.js'
+import {
+  abyssHepteractEffects as logicAbyssEffects,
+  acceleratorBoostHepteractEffects as logicAcceleratorBoostEffects,
+  acceleratorHepteractEffects as logicAcceleratorEffects,
+  challengeHepteractEffects as logicChallengeEffects,
+  chronosHepteractEffects as logicChronosEffects,
+  hyperrealismHepteractEffects as logicHyperrealismEffects,
+  multiplierHepteractEffects as logicMultiplierEffects,
+  quarkHepteractEffects as logicQuarkEffects
+} from '@synergism/logic'
 import i18next from 'i18next'
 import { DOMCacheGetOrSet } from './Cache/DOM'
 import {
@@ -72,11 +82,7 @@ export const hepteracts: { [K in HepteractKeys]: HepteractData<K> } = {
       const condition = Globals.challenge15Rewards.hepteractsUnlocked.value
       return Boolean(condition)
     },
-    EFFECTS: (hept) => {
-      return {
-        ascensionSpeed: 1 + 6 * hept / 10000
-      }
-    },
+    EFFECTS: (hept) => logicChronosEffects(hept),
     EFFECTSDESCRIPTION: (hept) => {
       const effects = hepteracts.chronos.EFFECTS(hept)
       return i18next.t('wowCubes.hepteractForge.descriptions.chronos.currentEffect', {
@@ -100,11 +106,7 @@ export const hepteracts: { [K in HepteractKeys]: HepteractData<K> } = {
       const condition = Globals.challenge15Rewards.hepteractsUnlocked.value
       return Boolean(condition)
     },
-    EFFECTS: (hept) => {
-      return {
-        hypercubeMultiplier: 1 + 6 * hept / 10000
-      }
-    },
+    EFFECTS: (hept) => logicHyperrealismEffects(hept),
     EFFECTSDESCRIPTION: (hept) => {
       const effects = hepteracts.hyperrealism.EFFECTS(hept)
       return i18next.t('wowCubes.hepteractForge.descriptions.hyperrealism.currentEffect', {
@@ -128,12 +130,7 @@ export const hepteracts: { [K in HepteractKeys]: HepteractData<K> } = {
       const condition = Globals.challenge15Rewards.hepteractsUnlocked.value
       return Boolean(condition)
     },
-    EFFECTS: (hept) => {
-      const exponent = hepteracts.quark.DR + hepteracts.quark.DR_INCREASE()
-      return {
-        quarkMultiplier: Math.pow(1 + 0.2 * Math.log2(1 + hept / 500), exponent)
-      }
-    },
+    EFFECTS: (hept) => logicQuarkEffects(hept, hepteracts.quark.DR + hepteracts.quark.DR_INCREASE()),
     EFFECTSDESCRIPTION: (hept) => {
       const effects = hepteracts.quark.EFFECTS(hept)
       return i18next.t('wowCubes.hepteractForge.descriptions.quark.currentEffect', {
@@ -174,11 +171,7 @@ export const hepteracts: { [K in HepteractKeys]: HepteractData<K> } = {
       const condition = Globals.challenge15Rewards.challengeHepteractUnlocked.value
       return Boolean(condition)
     },
-    EFFECTS: (hept) => {
-      return {
-        c15ScoreMultiplier: 1 + 5 * hept / 10000
-      }
-    },
+    EFFECTS: (hept) => logicChallengeEffects(hept),
     EFFECTSDESCRIPTION: (hept) => {
       const effects = hepteracts.challenge.EFFECTS(hept)
       return i18next.t('wowCubes.hepteractForge.descriptions.challenge.currentEffect', {
@@ -202,11 +195,7 @@ export const hepteracts: { [K in HepteractKeys]: HepteractData<K> } = {
       const condition = Globals.challenge15Rewards.abyssHepteractUnlocked.value
       return Boolean(condition)
     },
-    EFFECTS: (hept) => {
-      return {
-        salvage: 0.1 * Math.floor(10 * Math.log2(Math.max(1, hept * 2)))
-      }
-    },
+    EFFECTS: (hept) => logicAbyssEffects(hept),
     EFFECTSDESCRIPTION: (hept) => {
       const effects = hepteracts.abyss.EFFECTS(hept)
       return i18next.t('wowCubes.hepteractForge.descriptions.abyss.currentEffect', {
@@ -230,12 +219,7 @@ export const hepteracts: { [K in HepteractKeys]: HepteractData<K> } = {
       const condition = Globals.challenge15Rewards.acceleratorHepteractUnlocked.value
       return Boolean(condition)
     },
-    EFFECTS: (hept) => {
-      return {
-        accelerators: 2000 * hept,
-        acceleratorMultiplier: 1 + 3 * hept / 10000
-      }
-    },
+    EFFECTS: (hept) => logicAcceleratorEffects(hept),
     EFFECTSDESCRIPTION: (hept) => {
       const effects = hepteracts.accelerator.EFFECTS(hept)
       return i18next.t('wowCubes.hepteractForge.descriptions.accelerator.currentEffect', {
@@ -260,11 +244,7 @@ export const hepteracts: { [K in HepteractKeys]: HepteractData<K> } = {
       const condition = Globals.challenge15Rewards.acceleratorBoostHepteractUnlocked.value
       return Boolean(condition)
     },
-    EFFECTS: (hept) => {
-      return {
-        acceleratorBoostMultiplier: 1 + hept / 1000
-      }
-    },
+    EFFECTS: (hept) => logicAcceleratorBoostEffects(hept),
     EFFECTSDESCRIPTION: (hept) => {
       const effects = hepteracts.acceleratorBoost.EFFECTS(hept)
       return i18next.t('wowCubes.hepteractForge.descriptions.acceleratorBoost.currentEffect', {
@@ -288,12 +268,7 @@ export const hepteracts: { [K in HepteractKeys]: HepteractData<K> } = {
       const condition = Globals.challenge15Rewards.multiplierHepteractUnlocked.value
       return Boolean(condition)
     },
-    EFFECTS: (hept) => {
-      return {
-        multiplier: 1000 * hept,
-        multiplierMultiplier: 1 + 3 * hept / 10000
-      }
-    },
+    EFFECTS: (hept) => logicMultiplierEffects(hept),
     EFFECTSDESCRIPTION: (hept) => {
       const effects = hepteracts.multiplier.EFFECTS(hept)
       return i18next.t('wowCubes.hepteractForge.descriptions.multiplier.currentEffect', {
