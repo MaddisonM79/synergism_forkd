@@ -1,3 +1,4 @@
+import { CalcECC as logicCalcECC } from '@synergism/logic'
 import Decimal from 'break_infinity.js'
 import i18next from 'i18next'
 import { DOMCacheGetOrSet } from './Cache/DOM'
@@ -552,28 +553,9 @@ const calculateChallengeRequirementMultiplier = (
 /**
  * Works to mitigate the difficulty of calculating challenge reward multipliers when considering softcapping
  */
-export const CalcECC = (type: 'transcend' | 'reincarnation' | 'ascension', completions: number) => { // ECC stands for "Effective Challenge Completions"
-  let effective = 0
-  switch (type) {
-    case 'transcend':
-      effective += Math.min(100, completions)
-      effective += 1 / 20 * (Math.min(1000, Math.max(100, completions)) - 100)
-      effective += 1 / 100 * (Math.max(1000, completions) - 1000)
-      return effective
-    case 'reincarnation':
-      effective += Math.min(25, completions)
-      effective += 1 / 2 * (Math.min(75, Math.max(25, completions)) - 25)
-      effective += 1 / 10 * (Math.max(75, completions) - 75)
-      return effective
-    case 'ascension':
-      effective += Math.min(10, completions)
-      effective += 1 / 2 * (Math.max(10, completions) - 10)
-      return effective
-    default: {
-      throw new Error(`Unhandled challenge type: ${type satisfies never}`)
-    }
-  }
-}
+// Re-export of @synergism/logic's pure CalcECC. ECC stands for "Effective
+// Challenge Completions" — three piecewise linear curves keyed by tier.
+export const CalcECC = logicCalcECC
 
 export const challengeRequirement = (challenge: number, completion: number, special = 0) => {
   const base = G.challengeBaseRequirements[challenge - 1]

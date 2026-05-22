@@ -126,3 +126,4 @@ export {
   multiplierHepteractEffects,
   quarkHepteractEffects
 } from './mechanics/cubes/hepteracts'
+export { CalcECC } from './mechanics/challenges'
