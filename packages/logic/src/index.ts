@@ -127,3 +127,29 @@ export {
   quarkHepteractEffects
 } from './mechanics/cubes/hepteracts'
 export { CalcECC } from './mechanics/challenges'
+export type {
+  AntiquitiesRuneInput,
+  AntiquitiesRuneKey,
+  DuplicationRuneKey,
+  FiniteDescentRuneKey,
+  HorseShoeRuneKey,
+  InfiniteAscentRuneInput,
+  InfiniteAscentRuneKey,
+  PrismRuneKey,
+  SpeedRuneKey,
+  SuperiorIntellectRuneKey,
+  ThriftRuneKey,
+  TopHatRuneKey
+} from './mechanics/runeEffects'
+export {
+  antiquitiesRuneEffects,
+  duplicationRuneEffects,
+  finiteDescentRuneEffects,
+  horseShoeRuneEffects,
+  infiniteAscentRuneEffects,
+  prismRuneEffects,
+  speedRuneEffects,
+  superiorIntellectRuneEffects,
+  thriftRuneEffects,
+  topHatRuneEffects
+} from './mechanics/runeEffects'
