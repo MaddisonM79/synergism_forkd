@@ -11,6 +11,7 @@ export type {
   CrystalUpgradesState,
   MultiplierState,
   ParticleBuildingsState,
+  PlatonicBlessings,
   ProducerFamilyState,
   TesseractBuildingsState,
   UpgradesState
@@ -56,3 +57,13 @@ export type { BuyUpgradeInput, UpgradeTier } from './mechanics/upgrades'
 export { buyUpgrades } from './mechanics/upgrades'
 export type { BuyCrystalUpgradesInput } from './mechanics/crystalUpgrades'
 export { buyCrystalUpgrades } from './mechanics/crystalUpgrades'
+export {
+  calculateAscensionScorePlatonicBlessing,
+  calculateCubeMultiplierPlatonicBlessing,
+  calculateGlobalSpeedPlatonicBlessing,
+  calculateHypercubeBlessingMultiplierPlatonicBlessing,
+  calculateHypercubeMultiplierPlatonicBlessing,
+  calculatePlatonicMultiplierPlatonicBlessing,
+  calculateTaxPlatonicBlessing,
+  calculateTesseractMultiplierPlatonicBlessing
+} from './mechanics/cubes/platonicBlessings'

@@ -32,6 +32,19 @@ export interface MultiplierState {
   reincarnatenomultiplier: boolean
 }
 
+// Player's accumulated platonic-cube blessings. Inputs to the 8 calculate*
+// PlatonicBlessing functions in mechanics/cubes/platonicBlessings.ts. Mirrors
+// player.platonicBlessings; each function reads exactly one field.
+export interface PlatonicBlessings {
+  cubes: number
+  tesseracts: number
+  hypercubes: number
+  platonics: number
+  hypercubeBonus: number
+  taxes: number
+  globalSpeed: number
+}
+
 // Slice of GameState read/written by buyCrystalUpgrades. prestigeShards is
 // the spend resource; crystalUpgrades[u] holds the current level for each
 // crystal upgrade index (0-based). Caller passes 1-based `i` as input — the
