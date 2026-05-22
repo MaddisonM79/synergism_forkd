@@ -253,3 +253,217 @@ export function calculatePositiveSalvage(input: CalculatePositiveSalvageInput): 
   }
   return input.rawPositiveSalvage * input.positiveSalvageMultiplier
 }
+
+// ─── Salvage support: multipliers, raw sums, total ─────────────────────────
+
+export interface CalculatePositiveSalvageMultiplierInput {
+  /** posSalvagePerkSings.filter(x => x <= player.highestSingularityCount).length — count of unlocked perk thresholds. */
+  positiveSalvagePerkUnlockedCount: number
+  /** getTalismanEffects('achievement').positiveSalvageMult. */
+  talismanAchievementPositiveSalvageMult: number
+}
+
+export function calculatePositiveSalvageMultiplier(input: CalculatePositiveSalvageMultiplierInput): number {
+  return 1
+    + input.positiveSalvagePerkUnlockedCount / 100
+    + input.talismanAchievementPositiveSalvageMult
+}
+
+export interface CalculateNegativeSalvageMultiplierInput {
+  /** negSalvagePerkSings.filter(x => x <= player.highestSingularityCount).length. */
+  negativeSalvagePerkUnlockedCount: number
+  /** getTalismanEffects('achievement').negativeSalvageMult. */
+  talismanAchievementNegativeSalvageMult: number
+}
+
+export function calculateNegativeSalvageMultiplier(input: CalculateNegativeSalvageMultiplierInput): number {
+  return 1
+    - input.negativeSalvagePerkUnlockedCount / 100
+    + input.talismanAchievementNegativeSalvageMult
+}
+
+export interface CalculateNegativeSalvageInput {
+  rawNegativeSalvage: number
+  negativeSalvageMultiplier: number
+}
+export function calculateNegativeSalvage(input: CalculateNegativeSalvageInput): number {
+  return input.rawNegativeSalvage * input.negativeSalvageMultiplier
+}
+
+export interface CalculateTotalSalvageInput {
+  positiveSalvage: number
+  negativeSalvage: number
+}
+export function calculateTotalSalvage(input: CalculateTotalSalvageInput): number {
+  return input.positiveSalvage + input.negativeSalvage
+}
+
+/**
+ * Each point of total salvage shifts the rune-EXP multiplier by ~7.6%
+ * (10^(1/30) ≈ 1.079). 30 points = 10x.
+ */
+export function calculateSalvageRuneEXPMultiplier(salvage: number): Decimal {
+  return Decimal.pow(10, salvage / 30)
+}
+
+// ─── Ambrosia ──────────────────────────────────────────────────────────────
+
+export interface CalculateAmbrosiaLuckInput {
+  rawLuck: number
+  multiplier: number
+}
+export function calculateAmbrosiaLuck(input: CalculateAmbrosiaLuckInput): number {
+  return input.rawLuck * input.multiplier
+}
+
+export interface CalculateAmbrosiaGenerationSpeedInput {
+  rawSpeed: number
+  blueberries: number
+}
+export function calculateAmbrosiaGenerationSpeed(input: CalculateAmbrosiaGenerationSpeedInput): number {
+  return input.rawSpeed * input.blueberries
+}
+
+// ─── Cube multiplier with tau exponent ─────────────────────────────────────
+
+export interface CalculateCubeMultiplierWithTauInput {
+  /** Base cube multiplier (web_ui: calculateCubeMultiplier()). */
+  base: number
+  /** getGQUpgradeEffect('platonicTau', 'tauPower'). */
+  tauPower: number
+}
+export function calculateCubeMultiplierWithTau(input: CalculateCubeMultiplierWithTauInput): number {
+  return Math.pow(input.base, input.tauPower)
+}
+
+// ─── Platonic-7 DR power (used inside calculateGlobalSpeedMult below 1) ────
+
+export function calculatePlatonic7UpgradePower(platonicUpgrade7: number): number {
+  return 1 - platonicUpgrade7 / 30
+}
+
+// ─── Ascension speed exponent spread ───────────────────────────────────────
+
+export interface CalculateAscensionSpeedExponentSpreadInput {
+  /** Sum of three GQ/shop upgrade contributions. */
+  singAscensionSpeedExponentSpread: number
+  singAscensionSpeed2ExponentSpread: number
+  chronometerInfinityExponentSpread: number
+}
+export function calculateAscensionSpeedExponentSpread(input: CalculateAscensionSpeedExponentSpreadInput): number {
+  return input.singAscensionSpeedExponentSpread
+    + input.singAscensionSpeed2ExponentSpread
+    + input.chronometerInfinityExponentSpread
+}
+
+// ─── StatLine reducers (named for documentation, trivial inside) ──────────
+//
+// The Statistics.ts StatLine arrays each compute their own per-line values
+// in web_ui. The aggregator math — product or sum — moves here. Each named
+// function makes its semantic explicit; the implementation is `reduce`.
+
+export const calculateAllCubeMultiplier = (stats: readonly number[]): number =>
+  stats.reduce((a, b) => a * b, 1)
+export const calculateCubeMultiplier = (stats: readonly number[]): number =>
+  stats.reduce((a, b) => a * b, 1)
+export const calculateTesseractMultiplier = (stats: readonly number[]): number =>
+  stats.reduce((a, b) => a * b, 1)
+export const calculateHypercubeMultiplier = (stats: readonly number[]): number =>
+  stats.reduce((a, b) => a * b, 1)
+export const calculatePlatonicMultiplier = (stats: readonly number[]): number =>
+  stats.reduce((a, b) => a * b, 1)
+export const calculateHepteractMultiplier = (stats: readonly number[]): number =>
+  stats.reduce((a, b) => a * b, 1)
+export const calculateOcteractMultiplier = (stats: readonly number[]): number =>
+  stats.reduce((a, b) => a * b, 1)
+
+export const calculateBaseOfferings = (stats: readonly number[]): number =>
+  stats.reduce((a, b) => a + b, 0)
+export const calculateBaseObtainium = (stats: readonly number[]): number =>
+  stats.reduce((a, b) => a + b, 0)
+
+export const calculateOfferingsDecimal = (stats: readonly DecimalSource[]): Decimal =>
+  stats.reduce<Decimal>((acc, v) => acc.times(v), new Decimal(1))
+
+/**
+ * calculateObtainiumDecimal in web_ui multiplies the per-stat product by the
+ * already-precomputed obtainium cube blessing. Keep the same shape here:
+ * caller supplies the cubeBlessing value alongside the stat list.
+ */
+export interface CalculateObtainiumDecimalInput {
+  stats: readonly DecimalSource[]
+  obtainiumCubeBlessing: DecimalSource
+}
+export const calculateObtainiumDecimal = (input: CalculateObtainiumDecimalInput): Decimal =>
+  input.stats.reduce<Decimal>((acc, v) => acc.times(v), new Decimal(1)).times(input.obtainiumCubeBlessing)
+
+export const calculateObtainiumDRIgnoreMult = (stats: readonly number[]): number =>
+  stats.reduce((a, b) => a * b, 1)
+
+export const calculateQuarkMultiplier = (stats: readonly number[]): number =>
+  stats.reduce((a, b) => a * b, 1)
+
+/** Like calculateObtainiumDecimal: trailing factor is the antSacrifice cube blessing (Decimal). */
+export interface CalculateAntSacrificeMultiplierInput {
+  stats: readonly DecimalSource[]
+  antSacrificeCubeBlessing: DecimalSource
+}
+export const calculateAntSacrificeMultiplier = (input: CalculateAntSacrificeMultiplierInput): Decimal =>
+  input.stats.reduce<Decimal>((acc, v) => acc.times(v), new Decimal(1))
+    .times(input.antSacrificeCubeBlessing)
+
+export const calculateGlobalSpeedDRIgnoreMult = (stats: readonly number[]): number =>
+  stats.reduce((a, b) => a * b, 1)
+export const calculateGlobalSpeedDREnabledMult = (stats: readonly number[]): number =>
+  stats.reduce((a, b) => a * b, 1)
+export const calculateRawAscensionSpeedMult = (stats: readonly number[]): number =>
+  stats.reduce((a, b) => a * b, 1)
+
+export const calculateAmbrosiaAdditiveLuckMult = (stats: readonly number[]): number =>
+  stats.reduce((a, b) => a + b, 0)
+export const calculateAmbrosiaLuckRaw = (stats: readonly number[]): number =>
+  stats.reduce((a, b) => a + b, 0)
+export const calculateBlueberryInventory = (stats: readonly number[]): number =>
+  stats.reduce((a, b) => a + b, 0)
+export const calculateAmbrosiaGenerationSpeedRaw = (stats: readonly number[]): number =>
+  stats.reduce((a, b) => a * b, 1)
+
+export const calculatePowderConversion = (stats: readonly number[]): number =>
+  stats.reduce((a, b) => a * b, 1)
+export const calculateGoldenQuarks = (stats: readonly number[]): number =>
+  stats.reduce((a, b) => a * b, 1)
+export const calculateGoldenQuarkCost = (stats: readonly number[]): number =>
+  stats.reduce((a, b) => a * b, 1)
+export const calculateLuckConversion = (stats: readonly number[]): number =>
+  stats.reduce((a, b) => a + b, 0)
+export const calculateRedAmbrosiaLuck = (stats: readonly number[]): number =>
+  stats.reduce((a, b) => a + b, 0)
+export const calculateRedAmbrosiaGenerationSpeed = (stats: readonly number[]): number =>
+  stats.reduce((a, b) => a * b, 1)
+export const calculateFreeShopInfinityUpgrades = (stats: readonly number[]): number =>
+  stats.reduce((a, b) => a + b, 0)
+
+export const calculateRawAntSpeedMult = (stats: readonly DecimalSource[]): Decimal =>
+  stats.reduce<Decimal>((acc, v) => acc.times(v), new Decimal(1))
+
+export const calculateRawPositiveSalvage = (stats: readonly number[]): number =>
+  stats.reduce((a, b) => a + b, 0)
+export const calculateRawNegativeSalvage = (stats: readonly number[]): number =>
+  stats.reduce((a, b) => a + b, 0)
+
+// ─── Misc helpers ──────────────────────────────────────────────────────────
+
+export interface CalculateTotalCoinOwnedInput {
+  firstOwnedCoin: number
+  secondOwnedCoin: number
+  thirdOwnedCoin: number
+  fourthOwnedCoin: number
+  fifthOwnedCoin: number
+}
+export function calculateTotalCoinOwned(input: CalculateTotalCoinOwnedInput): number {
+  return input.firstOwnedCoin
+    + input.secondOwnedCoin
+    + input.thirdOwnedCoin
+    + input.fourthOwnedCoin
+    + input.fifthOwnedCoin
+}
