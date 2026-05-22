@@ -1,5 +1,11 @@
 import type { DecimalSource } from 'break_infinity.js'
 import Decimal from 'break_infinity.js'
+import {
+  buyAccelerator as logicBuyAccelerator,
+  buyMultiplier as logicBuyMultiplier,
+  type GetProducerCostInput,
+  getProducerCost
+} from '@synergism/logic'
 import { awardAchievementGroup } from './Achievements'
 import { CalcECC } from './Challenges'
 import { getAntUpgradeEffect } from './Features/Ants/AntUpgrades/lib/upgrade-effects'
@@ -23,457 +29,106 @@ export const getReductionValue = () => {
   return reduction
 }
 
-const getCostAccelerator = (buyingTo: number): Decimal => {
-  ;--buyingTo
-
-  const originalCost = 500
-  let cost = new Decimal(originalCost)
-
-  cost = cost.times(Decimal.pow(4 / G.costDivisor, buyingTo))
-
-  if (buyingTo > (125 + 5 * CalcECC('transcend', player.challengecompletions[4]))) {
-    const num = buyingTo - 125 - 5 * CalcECC('transcend', player.challengecompletions[4])
-    const factorialBit = new Decimal(num).factorial()
-    const multBit = Decimal.pow(4, num)
-    cost = cost.times(multBit.times(factorialBit))
-  }
-
-  if (buyingTo > (2000 + 5 * CalcECC('transcend', player.challengecompletions[4]))) {
-    const sumNum = buyingTo - 2000 - 5 * CalcECC('transcend', player.challengecompletions[4])
-    const sumBit = sumNum * (sumNum + 1) / 2
-    cost = cost.times(Decimal.pow(2, sumBit))
-  }
-
-  if (player.currentChallenge.transcension === 4) {
-    const sumBit = buyingTo * (buyingTo + 1) / 2
-    cost = cost.times(Decimal.pow(10, sumBit))
-  }
-
-  if (player.currentChallenge.reincarnation === 8) {
-    const sumBit = buyingTo * (buyingTo + 1) / 2
-    cost = cost.times(Decimal.pow(1e50, sumBit))
-  }
-  const buymax = Math.pow(10, 15)
-  if (buyingTo > buymax) {
-    const diminishingExponent = 1 / 8
-
-    const QuadrillionCost = getCostAccelerator(buymax)
-
-    const newCost = QuadrillionCost.pow(Math.pow(buyingTo / buymax, 1 / diminishingExponent))
-    const newExtra = newCost.exponent - Math.floor(newCost.exponent)
-    newCost.exponent = Math.floor(newCost.exponent)
-    newCost.mantissa *= Math.pow(10, newExtra)
-    newCost.normalize()
-    return Decimal.max(cost, newCost)
-  }
-  return cost
-}
-
+// Thin shim over @synergism/logic's pure buyAccelerator. Gathers the required
+// computed inputs from player / Globals, applies the returned state slice back
+// to the mutable player object, and runs the legacy post-buy side effects
+// (display refresh + achievement check) that haven't migrated yet.
 export const buyAccelerator = (autobuyer?: boolean) => {
-  const buyStart = player.acceleratorBought
-  const buymax = Math.pow(10, 15)
-  // If at least buymax, we will use a different formulae
-  if (buyStart >= buymax) {
-    const diminishingExponent = 1 / 8
-
-    const log10Resource = Decimal.log10(player.coins)
-    const log10QuadrillionCost = Decimal.log10(getCostAccelerator(buymax))
-
-    let hi = Math.floor(buymax * Math.max(1, Math.pow(log10Resource / log10QuadrillionCost, diminishingExponent)))
-    let lo = buymax
-    while (hi - lo > 0.5) {
-      const mid = Math.floor(lo + (hi - lo) / 2)
-      if (mid === lo || mid === hi) {
-        break
-      }
-      if (!player.coins.gte(getCostAccelerator(mid))) {
-        hi = mid
-      } else {
-        lo = mid
-      }
+  const { state } = logicBuyAccelerator(
+    {
+      acceleratorBought: player.acceleratorBought,
+      acceleratorCost: player.acceleratorCost,
+      coins: player.coins,
+      prestigenoaccelerator: player.prestigenoaccelerator,
+      transcendnoaccelerator: player.transcendnoaccelerator,
+      reincarnatenoaccelerator: player.reincarnatenoaccelerator
+    },
+    {
+      autobuyer: !!autobuyer,
+      coinbuyamount: player.coinbuyamount,
+      costDivisor: G.costDivisor,
+      transcendECC: CalcECC('transcend', player.challengecompletions[4]),
+      inTranscensionChallenge4: player.currentChallenge.transcension === 4,
+      inReincarnationChallenge8: player.currentChallenge.reincarnation === 8
     }
-    const buyable = lo
-    const thisCost = getCostAccelerator(buyable)
+  )
 
-    player.acceleratorBought = buyable
-    player.acceleratorCost = thisCost
-    awardAchievementGroup('accelerators')
-    return
-  }
-
-  // Start buying at the current amount bought + 1
-  const buydefault = buyStart + smallestInc(buyStart)
-  let buyTo = buydefault
-
-  let cashToBuy = getCostAccelerator(buyTo)
-  while (player.coins.gte(cashToBuy)) {
-    // then multiply by 4 until it reaches just above the amount needed
-    buyTo = buyTo * 4
-    cashToBuy = getCostAccelerator(buyTo)
-  }
-  let stepdown = Math.floor(buyTo / 8)
-  while (stepdown >= smallestInc(buyTo)) {
-    // if step down would push it below out of expense range then divide step down by 2
-    if (getCostAccelerator(buyTo - stepdown).lte(player.coins)) {
-      stepdown = Math.floor(stepdown / 2)
-    } else {
-      buyTo = buyTo - Math.max(smallestInc(buyTo), stepdown)
-    }
-  }
-
-  if (!autobuyer && (player.coinbuyamount as number | string) !== 'max') {
-    if (player.acceleratorBought + player.coinbuyamount < buyTo) {
-      buyTo = player.acceleratorBought + player.coinbuyamount
-    }
-  }
-
-  let buyFrom = Math.max(buyTo - 6 - smallestInc(buyTo), buydefault)
-  let thisCost = getCostAccelerator(buyFrom)
-  while (buyFrom <= buyTo && player.coins.gte(thisCost)) {
-    if (buyFrom >= buymax) {
-      buyFrom = buymax
-    }
-    player.coins = player.coins.sub(thisCost)
-    player.acceleratorBought = buyFrom
-    buyFrom = buyFrom + smallestInc(buyFrom)
-    thisCost = getCostAccelerator(buyFrom)
-    player.acceleratorCost = thisCost
-    if (buyFrom >= buymax) {
-      break
-    }
-  }
-
-  if (player.acceleratorBought > 0) {
-    player.prestigenoaccelerator = false
-    player.transcendnoaccelerator = false
-    player.reincarnatenoaccelerator = false
-  }
+  player.acceleratorBought = state.acceleratorBought
+  player.acceleratorCost = state.acceleratorCost
+  player.coins = state.coins
+  player.prestigenoaccelerator = state.prestigenoaccelerator
+  player.transcendnoaccelerator = state.transcendnoaccelerator
+  player.reincarnatenoaccelerator = state.reincarnatenoaccelerator
 
   updateAllTick()
   awardAchievementGroup('accelerators')
 }
 
-const getCostMultiplier = (buyingTo: number): Decimal => {
-  ;--buyingTo
-
-  const originalCost = 1e4
-  let cost = new Decimal(originalCost)
-  cost = cost.times(Decimal.pow(10, buyingTo / G.costDivisor))
-
-  if (buyingTo > (75 + 2 * CalcECC('transcend', player.challengecompletions[4]))) {
-    const num = buyingTo - 75 - 2 * CalcECC('transcend', player.challengecompletions[4])
-    const factorialBit = new Decimal(num).factorial()
-    const powBit = Decimal.pow(10, num)
-    cost = cost.times(factorialBit.times(powBit))
-  }
-
-  if (buyingTo > (2000 + 2 * CalcECC('transcend', player.challengecompletions[4]))) {
-    const sumNum = buyingTo - 2000 - 2 * CalcECC('transcend', player.challengecompletions[4])
-    const sumBit = sumNum * (sumNum + 1) / 2
-    cost = cost.times(Decimal.pow(2, sumBit))
-  }
-  if (player.currentChallenge.transcension === 4) {
-    const sumBit = buyingTo * (buyingTo + 1) / 2
-    cost = cost.times(Decimal.pow(10, sumBit))
-  }
-  if (player.currentChallenge.reincarnation === 8) {
-    const sumBit = buyingTo * (buyingTo + 1) / 2
-    cost = cost.times(Decimal.pow(1e50, sumBit))
-  }
-  const buymax = Math.pow(10, 15)
-  if (buyingTo > buymax) {
-    const diminishingExponent = 1 / 8
-
-    const QuadrillionCost = getCostMultiplier(buymax)
-
-    const newCost = QuadrillionCost.pow(Math.pow(buyingTo / buymax, 1 / diminishingExponent))
-    const newExtra = newCost.exponent - Math.floor(newCost.exponent)
-    newCost.exponent = Math.floor(newCost.exponent)
-    newCost.mantissa *= Math.pow(10, newExtra)
-    newCost.normalize()
-    return Decimal.max(cost, newCost)
-  }
-  return cost
-}
-
+// Shim over @synergism/logic's pure buyMultiplier. Mirror of the
+// buyAccelerator shim above.
 export const buyMultiplier = (autobuyer?: boolean) => {
-  const buyStart = player.multiplierBought
-  const buymax = Math.pow(10, 15)
-  // If at least buymax, we will use a different formulae
-  if (buyStart >= buymax) {
-    const diminishingExponent = 1 / 8
-
-    const log10Resource = Decimal.log10(player.coins)
-    const log10QuadrillionCost = Decimal.log10(getCostMultiplier(buymax))
-
-    let hi = Math.floor(buymax * Math.max(1, Math.pow(log10Resource / log10QuadrillionCost, diminishingExponent)))
-    let lo = buymax
-    while (hi - lo > 0.5) {
-      const mid = Math.floor(lo + (hi - lo) / 2)
-      if (mid === lo || mid === hi) {
-        break
-      }
-      if (!player.coins.gte(getCostMultiplier(mid))) {
-        hi = mid
-      } else {
-        lo = mid
-      }
+  const { state } = logicBuyMultiplier(
+    {
+      multiplierBought: player.multiplierBought,
+      multiplierCost: player.multiplierCost,
+      coins: player.coins,
+      prestigenomultiplier: player.prestigenomultiplier,
+      transcendnomultiplier: player.transcendnomultiplier,
+      reincarnatenomultiplier: player.reincarnatenomultiplier
+    },
+    {
+      autobuyer: !!autobuyer,
+      coinbuyamount: player.coinbuyamount,
+      costDivisor: G.costDivisor,
+      transcendECC: CalcECC('transcend', player.challengecompletions[4]),
+      inTranscensionChallenge4: player.currentChallenge.transcension === 4,
+      inReincarnationChallenge8: player.currentChallenge.reincarnation === 8
     }
-    const buyable = lo
-    const thisCost = getCostMultiplier(buyable)
+  )
 
-    player.multiplierBought = buyable
-    player.multiplierCost = thisCost
-    awardAchievementGroup('multipliers')
-    return
-  }
-
-  // Start buying at the current amount bought + 1
-  const buydefault = buyStart + smallestInc(buyStart)
-  let buyTo = buydefault
-
-  let cashToBuy = getCostMultiplier(buyTo)
-  while (player.coins.gte(cashToBuy)) {
-    // then multiply by 4 until it reaches just above the amount needed
-    buyTo = buyTo * 4
-    cashToBuy = getCostMultiplier(buyTo)
-  }
-  let stepdown = Math.floor(buyTo / 8)
-  while (stepdown >= smallestInc(buyTo)) {
-    // if step down would push it below out of expense range then divide step down by 2
-    if (getCostMultiplier(buyTo - stepdown).lte(player.coins)) {
-      stepdown = Math.floor(stepdown / 2)
-    } else {
-      buyTo = buyTo - Math.max(smallestInc(buyTo), stepdown)
-    }
-  }
-
-  if (!autobuyer && (player.coinbuyamount as number | string) !== 'max') {
-    if (player.multiplierBought + player.coinbuyamount < buyTo) {
-      buyTo = player.multiplierBought + player.coinbuyamount
-    }
-  }
-
-  let buyFrom = Math.max(buyTo - 6 - smallestInc(buyTo), buydefault)
-  let thisCost = getCostMultiplier(buyFrom)
-  while (buyFrom <= buyTo && player.coins.gte(thisCost)) {
-    if (buyFrom >= buymax) {
-      buyFrom = buymax
-    }
-    player.coins = player.coins.sub(thisCost)
-    player.multiplierBought = buyFrom
-    buyFrom = buyFrom + smallestInc(buyFrom)
-    thisCost = getCostMultiplier(buyFrom)
-    player.multiplierCost = thisCost
-    if (buyFrom >= buymax) {
-      break
-    }
-  }
-
-  if (player.multiplierBought > 0) {
-    player.prestigenomultiplier = false
-    player.transcendnomultiplier = false
-    player.reincarnatenomultiplier = false
-  }
+  player.multiplierBought = state.multiplierBought
+  player.multiplierCost = state.multiplierCost
+  player.coins = state.coins
+  player.prestigenomultiplier = state.prestigenomultiplier
+  player.transcendnomultiplier = state.transcendnomultiplier
+  player.reincarnatenomultiplier = state.reincarnatenomultiplier
 
   updateAllMultiplier()
   awardAchievementGroup('multipliers')
 }
 
-/*
-// Uses same as Decimal prototype but does so without creating new objects
-Decimal.prototype.factorial = function () {
-  // Using Stirling's Approximation.
-  // https://en.wikipedia.org/wiki/Stirling%27s_approximation#Versions_suitable_for_calculators
-  var n = this.toNumber() + 1;
-  return Decimal.pow(n / Math.E * Math.sqrt(n * Math.sinh(1 / n) + 1 / (810 * Math.pow(n, 6))), n).mul(Math.sqrt(2 * Math.PI / n));
-};
-*/
+// Build the GetProducerCostInput from live player + globals state. Used by
+// both the local getCost shim and buyMax — anything in this file that needs
+// to evaluate the producer-cost formula.
+const buildProducerCostInput = (r?: number): GetProducerCostInput => ({
+  costDivisor: r ?? getReductionValue(),
+  inTranscensionChallenge4: player.currentChallenge.transcension === 4,
+  inReincarnationChallenge8: player.currentChallenge.reincarnation === 8,
+  inReincarnationChallenge10: player.currentChallenge.reincarnation === 10,
+  challengecompletions4: player.challengecompletions[4],
+  challengecompletions8: player.challengecompletions[8]
+})
 
-const mantissaFactorialPartExtra = Math.log10(2 * Math.PI)
-const exponentFactorialPartExtra = Math.log10(Math.E)
-
-const factorialByExponent = (fact: number) => {
-  if (++fact === 0) {
-    return 0
-  }
-  return ((Math.log10(fact * Math.sqrt(fact * Math.sinh(1 / fact) + 1 / (810 * Math.pow(fact, 6))))
-    - exponentFactorialPartExtra) * fact) + ((mantissaFactorialPartExtra - Math.log10(fact)) / 2)
-}
-
-const fact100exponent = Math.log10(9.332621544394e+157)
-
-// system of equations
-// 16 digits of precision
-// log10(1.25)xn = log10(x)+16
-// see: https://www.wolframalpha.com/input/?i=log10%28x%29%2B16+%3D+log10%281.25%29x
-// xn ~= 188.582
-// x ~= 188.582/n
-const precision16_loss_addition_of_ones = 188.582
-const known_log10s = (() => {
-  // needed logs
-  const needed = [1.03, 1.25]
-  const nums = [1, 2, 3, 4, 5, 6, 10, 15]
-  for (const num of nums) {
-    needed.push(100 + (100 * num))
-    needed.push(10 + (10 * num))
-  }
-
-  // Gets all possible challenge 8 completion amounts
-  const chalcompletions = 1000
-  for (let i = 0; i < chalcompletions; ++i) {
-    needed.push(1 + (i / 2))
-  }
-
-  // constructing all logs
-  const obj: Record<number, number> = {}
-  for (const need of needed) {
-    obj[need] ??= Math.log10(need)
-  }
-  return obj
-})()
-
-const coinBuildingCosts = [100, 1000, 2e4, 4e5, 8e6] as const
-const diamondBuildingCosts = [100, 1e5, 1e15, 1e40, 1e100] as const
-const mythosAndParticleBuildingCosts = [1, 1e2, 1e4, 1e8, 1e16] as const
-
-const getCostInternal = (
-  originalCost: DecimalSource,
-  buyingTo: number,
+// Shim over @synergism/logic's getProducerCost. Same signature as the
+// pre-migration getCost so external callers (Synergism.ts autobuyer code)
+// don't change.
+export const getCost = (
+  index: OneToFive,
   type: keyof typeof buyProducerTypes,
-  num: number,
-  r: number
-): Decimal => {
-  // It's 0 indexed by mistake so you have to subtract 1 somewhere.
-  ;--buyingTo
-  const buymax = Math.pow(10, 15)
-  // Accounts for the multiplies by 1.25^num buyingTo times
-  const cost = new Decimal(originalCost)
-  let mlog10125 = num * buyingTo
-  // Accounts for the add 1s
-  if (buyingTo < precision16_loss_addition_of_ones / num) {
-    cost.mantissa += buyingTo / Math.pow(10, cost.exponent)
-  }
-  let fastFactMultBuyTo = 0
-  // floored r value gets used a lot in removing calculations
-  let fr = Math.floor(r * 1000)
-  if (buyingTo >= r * 1000) {
-    // This code is such a mess at this point, just know that this is equivalent to what it was before
-    ;++fastFactMultBuyTo
-    cost.exponent -= factorialByExponent(fr)
-    cost.exponent += (-3 + Math.log10(1 + (num / 2))) * (buyingTo - fr)
-  }
-
-  fr = Math.floor(r * 5000)
-  if (buyingTo >= r * 5000) {
-    // This code is such a mess at this point, just know that this is equivalent to what it was before
-    ;++fastFactMultBuyTo
-    cost.exponent -= factorialByExponent(fr)
-    cost.exponent += ((known_log10s[10 + num * 10] + 1) * (buyingTo - fr - 1)) + 1
-  }
-
-  fr = Math.floor(r * 20000)
-  if (buyingTo >= r * 20000) {
-    // This code is such a mess at this point, just know that this is equivalent to what it was before
-    fastFactMultBuyTo += 3
-    cost.exponent -= factorialByExponent(fr) * 3
-    cost.exponent += (known_log10s[100 + (100 * num)] + 5) * (buyingTo - fr)
-  }
-
-  fr = Math.floor(r * 250000)
-  if (buyingTo >= r * 250000) {
-    // 1.03^x*1.03^y = 1.03^(x+y), we'll abuse this for this section of the algorithm
-    // 1.03^(x+y-((number of terms)250000*r))
-    // up to 250003 case
-    // assume r = 1 for this case
-    // (1.03^250000-250000)(1.03^250001-250000)(1.03^250002-250000)(1.03^250003) = (1.03^0*1.03^1*1.03^2*1.03^3)
-    // so in reality we just need to take buyingTo - fr and sum the power up to it
-    // (1.03^(sum from 0 to buyingTo - fr)) is the multiplier
-    // so (1.03^( (buyingTo-fr)(buyingTo-fr+1)/2 )
-    // god damn that was hard to make an algo for
-    cost.exponent += Math.log10(1.03) * (buyingTo - fr) * ((buyingTo - fr + 1) / 2)
-  }
-  // Applies the factorials from earlier without computing them 5 times
-  cost.exponent += factorialByExponent(buyingTo) * fastFactMultBuyTo
-  let fastFactMultBuyTo100 = 0
-  if ((player.currentChallenge.transcension === 4) && (type === 'Coin' || type === 'Diamonds')) {
-    // you would not fucking believe how long it took me to figure this out
-    // (100*costofcurrent + 10000)^n = (((100+buyingTo)!/100!)*100^buyingTo)^n
-    ;++fastFactMultBuyTo100
-    if (buyingTo >= (1000 - (10 * player.challengecompletions[4]))) {
-      // and I changed this to be a summation of all the previous buys 1.25 to the sum from 1 to buyingTo
-      mlog10125 += buyingTo * (buyingTo + 1) / 2
-    }
-  }
-  if ((player.currentChallenge.reincarnation === 10) && (type === 'Coin' || type === 'Diamonds')) {
-    // you would not fucking believe how long it took me to figure this out
-    // (100*costofcurrent + 10000)^n = (((100+buyingTo)!/100!)*100^buyingTo)^n
-    ;++fastFactMultBuyTo100
-    if (buyingTo >= (r * 25000)) {
-      // and I changed this to be a summation of all the previous buys 1.25 to the sum from 1 to buyingTo
-      mlog10125 += buyingTo * (buyingTo + 1) / 2
-    }
-  }
-  // Applies the factorial w/ formula from earlier n times to avoid multiple computations
-  cost.exponent += fastFactMultBuyTo100
-    * ((factorialByExponent(buyingTo + 100) - fact100exponent + (2 * buyingTo))
-      * (1.25 + (player.challengecompletions[4] / 4)))
-  // Applies all the Math.log10(1.25)s from earlier n times to avoid multiple computations
-  // log10(1.25)
-  cost.exponent += known_log10s[1.25] * mlog10125
-  fr = Math.floor(r * 1000 * player.challengecompletions[8])
-  if (
-    player.currentChallenge.reincarnation === 8 && (type === 'Coin' || type === 'Diamonds' || type === 'Mythos')
-    && buyingTo >= (1000 * player.challengecompletions[8] * r)
-  ) {
-    cost.exponent +=
-      ((known_log10s[2] * ((buyingTo - fr + 1) / 2)) - known_log10s[1 + (player.challengecompletions[8] / 2)])
-      * (buyingTo - fr)
-  }
-
-  const extra = cost.exponent - Math.floor(cost.exponent)
-  cost.exponent = Math.floor(cost.exponent)
-  cost.mantissa *= Math.pow(10, extra)
-  cost.normalize()
-  if (buyingTo > buymax) {
-    const diminishingExponent = 1 / 8
-
-    const QuadrillionCost = getCostInternal(originalCost, buymax, type, num, r)
-
-    const newCost = QuadrillionCost.pow(Math.pow(buyingTo / buymax, 1 / diminishingExponent))
-    const newExtra = newCost.exponent - Math.floor(newCost.exponent)
-    newCost.exponent = Math.floor(newCost.exponent)
-    newCost.mantissa *= Math.pow(10, newExtra)
-    newCost.normalize()
-    return Decimal.max(cost, newCost)
-  }
-  return cost
-}
-
-const getOriginalCostAndNum = (index: OneToFive, type: keyof typeof buyProducerTypes) => {
-  const originalCostArray = type === 'Coin'
-    ? coinBuildingCosts
-    : type === 'Diamonds'
-    ? diamondBuildingCosts
-    : mythosAndParticleBuildingCosts
-  const num = type === 'Coin' ? index : index * (index + 1) / 2
-  const originalCost = originalCostArray[index - 1 as ZeroToFour]
-  return [originalCost, num] as const
-}
-
-export const getCost = (index: OneToFive, type: keyof typeof buyProducerTypes, buyingTo: number, r?: number) => {
-  const [originalCost, num] = getOriginalCostAndNum(index, type)
-  return getCostInternal(originalCost, buyingTo, type, num, r ?? getReductionValue())
+  buyingTo: number,
+  r?: number
+) => {
+  return getProducerCost(index, type, buyingTo, buildProducerCostInput(r))
 }
 
 export const buyMax = (index: OneToFive, type: keyof typeof buyProducerTypes) => {
   const zeroIndex = index - 1 as ZeroToFour
   const pos = G.ordinals[zeroIndex]
-  const [originalCost, num] = getOriginalCostAndNum(index, type)
 
   const buymax = Math.pow(10, 15)
   const coinmax = 1e99
   const r = getReductionValue()
+  const costInput = buildProducerCostInput(r)
   const tag = buyProducerTypes[type][0]
 
   const posOwnedType = `${pos}Owned${type}` as const
@@ -484,7 +139,7 @@ export const buyMax = (index: OneToFive, type: keyof typeof buyProducerTypes) =>
     const diminishingExponent = 1 / 8
 
     const log10Resource = Decimal.log10(player[tag])
-    const log10QuadrillionCost = Decimal.log10(getCostInternal(originalCost, buymax, type, num, r))
+    const log10QuadrillionCost = Decimal.log10(getProducerCost(index, type, buymax, costInput))
 
     let hi = Math.floor(buymax * Math.max(1, Math.pow(log10Resource / log10QuadrillionCost, diminishingExponent)))
     let lo = buymax
@@ -493,14 +148,14 @@ export const buyMax = (index: OneToFive, type: keyof typeof buyProducerTypes) =>
       if (mid === lo || mid === hi) {
         break
       }
-      if (!player[tag].gte(getCostInternal(originalCost, mid, type, num, r))) {
+      if (!player[tag].gte(getProducerCost(index, type, mid, costInput))) {
         hi = mid
       } else {
         lo = mid
       }
     }
     const buyable = lo
-    const thisCost = getCostInternal(originalCost, buyable, type, num, r)
+    const thisCost = getProducerCost(index, type, buyable, costInput)
 
     player[posOwnedType] = buyable
     player[`${pos}Cost${type}` as const] = thisCost
@@ -511,7 +166,7 @@ export const buyMax = (index: OneToFive, type: keyof typeof buyProducerTypes) =>
   const buydefault = buyStart + smallestInc(buyStart)
   let buyInc = 1
 
-  let cashToBuy = getCostInternal(originalCost, buyStart + buyInc, type, num, r)
+  let cashToBuy = getProducerCost(index, type, buyStart + buyInc, costInput)
 
   // Degenerate Case: return maximum if coins is too large
   if (cashToBuy.exponent >= coinmax || !player[tag].gte(cashToBuy)) {
@@ -521,12 +176,12 @@ export const buyMax = (index: OneToFive, type: keyof typeof buyProducerTypes) =>
   while (cashToBuy.exponent < coinmax && player[tag].gte(cashToBuy)) {
     // then multiply by 4 until it reaches just above the amount needed
     buyInc = buyInc * 4
-    cashToBuy = getCostInternal(originalCost, buyStart + buyInc, type, num, r)
+    cashToBuy = getProducerCost(index, type, buyStart + buyInc, costInput)
   }
   let stepdown = Math.floor(buyInc / 8)
   while (stepdown >= smallestInc(buyInc)) {
     // if step down would push it below out of expense range then divide step down by 2
-    if (getCostInternal(originalCost, buyStart + buyInc - stepdown, type, num, r).lte(player[tag])) {
+    if (getProducerCost(index, type, buyStart + buyInc - stepdown, costInput).lte(player[tag])) {
       stepdown = Math.floor(stepdown / 2)
     } else {
       buyInc = buyInc - Math.max(smallestInc(buyInc), stepdown)
@@ -538,18 +193,18 @@ export const buyMax = (index: OneToFive, type: keyof typeof buyProducerTypes) =>
   // meaning that the code below this cannot run if this ever runs.
   if (buyStart + buyInc >= buymax) {
     player[posOwnedType] = buymax
-    player[`${pos}Cost${type}` as const] = getCostInternal(originalCost, buymax, type, num, r)
+    player[`${pos}Cost${type}` as const] = getProducerCost(index, type, buymax, costInput)
     return
   }
 
   // go down by 7 steps below the last one able to be bought and spend the cost of 25 up to the one that you started with and stop if coin goes below requirement
   let buyFrom = Math.max(buyStart + buyInc - 6 - smallestInc(buyInc), buydefault)
-  let thisCost = getCostInternal(originalCost, buyFrom, type, num, r)
+  let thisCost = getProducerCost(index, type, buyFrom, costInput)
   while (buyFrom <= buyStart + buyInc && player[tag].gte(thisCost)) {
     player[tag] = player[tag].sub(thisCost)
     player[posOwnedType] = buyFrom
     buyFrom = buyFrom + smallestInc(buyFrom)
-    thisCost = getCostInternal(originalCost, buyFrom, type, num, r)
+    thisCost = getProducerCost(index, type, buyFrom, costInput)
     player[`${pos}Cost${type}` as const] = thisCost
   }
 }
@@ -877,6 +532,11 @@ const getParticleCost = (originalCost: DecimalSource, buyTo: number): Decimal =>
   }
   return cost
 }
+
+// Used by buyParticleBuilding below — the particle path uses a different
+// cost function (getParticleCost) than the producer family, so the array
+// stays local until that path migrates too.
+const mythosAndParticleBuildingCosts = [1, 1e2, 1e4, 1e8, 1e16] as const
 
 export const buyParticleBuilding = (
   index: OneToFive,

@@ -25,6 +25,9 @@ dist/dist/
 .env.local
 .env.*.local
 
+# TypeScript composite build incremental cache (per-package, regenerated on build)
+*.tsbuildinfo
+
 # husky v9 auto-manages this folder via `npm run prepare`
 .husky/_/
 

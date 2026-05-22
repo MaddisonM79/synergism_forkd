@@ -1,0 +1,15 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "lib": ["DOM", "DOM.Iterable", "ES2022"],
+    "jsx": "react",
+    "jsxFactory": "h",
+    "jsxFragmentFactory": "Fragment",
+    "allowImportingTsExtensions": true,
+    "outDir": "./dist",
+    "noEmit": true
+  },
+  "references": [{ "path": "../logic" }],
+  "include": ["src/**/*.ts", "test/**/*.ts"],
+  "exclude": ["dist", "node_modules", "build"]
+}

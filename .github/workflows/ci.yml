@@ -64,9 +64,9 @@ jobs:
               return added;
             }
 
-            var source = JSON.parse(fs.readFileSync('./translations/en.json'));
-            var translations = fs.readdirSync('./translations')
-              .map(f => path.join('./translations', f))
+            var source = JSON.parse(fs.readFileSync('./packages/web_ui/translations/en.json'));
+            var translations = fs.readdirSync('./packages/web_ui/translations')
+              .map(f => path.join('./packages/web_ui/translations', f))
               .map(j => ({ path: j, json: JSON.parse(fs.readFileSync(j)) }));
 
             // Warn-only — 6 non-en files currently carry stale keys from
