@@ -8,6 +8,7 @@ export type {
   AcceleratorState,
   AscendBuildingState,
   BuyAmount,
+  CrystalUpgradesState,
   MultiplierState,
   ParticleBuildingsState,
   ProducerFamilyState,
@@ -53,3 +54,5 @@ export {
 } from './mechanics/tesseractBuildings'
 export type { BuyUpgradeInput, UpgradeTier } from './mechanics/upgrades'
 export { buyUpgrades } from './mechanics/upgrades'
+export type { BuyCrystalUpgradesInput } from './mechanics/crystalUpgrades'
+export { buyCrystalUpgrades } from './mechanics/crystalUpgrades'

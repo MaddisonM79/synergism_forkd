@@ -32,6 +32,15 @@ export interface MultiplierState {
   reincarnatenomultiplier: boolean
 }
 
+// Slice of GameState read/written by buyCrystalUpgrades. prestigeShards is
+// the spend resource; crystalUpgrades[u] holds the current level for each
+// crystal upgrade index (0-based). Caller passes 1-based `i` as input — the
+// function does the -1 internally.
+export interface CrystalUpgradesState {
+  prestigeShards: Decimal
+  crystalUpgrades: number[]
+}
+
 // Slice of GameState read/written by buyUpgrades. All four reset-tier resources
 // live here so the function can dispatch on the upgrade tier without taking
 // four overloads. The seven `*no*upgrades` flags are achievement gates that

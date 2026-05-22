@@ -1,6 +1,7 @@
 import Decimal from 'break_infinity.js'
 import {
   buyAccelerator as logicBuyAccelerator,
+  buyCrystalUpgrades as logicBuyCrystalUpgrades,
   buyMax as logicBuyMax,
   buyMultiplier as logicBuyMultiplier,
   buyParticleBuilding as logicBuyParticleBuilding,
@@ -8,6 +9,7 @@ import {
   buyTesseractBuilding as logicBuyTesseractBuilding,
   buyUpgrades as logicBuyUpgrades,
   calculateTessBuildingsInBudget as logicCalculateTessBuildingsInBudget,
+  type CrystalUpgradesState,
   getAcceleratorBoostCost as logicGetAcceleratorBoostCost,
   type GetAcceleratorBoostCostInput,
   type GetProducerCostInput,
@@ -302,53 +304,36 @@ export const buyUpgrades = (type: Upgrade, pos: number, state?: boolean) => {
   }
 }
 
-const calculateCrystalBuy = (i: number) => {
-  const u = i - 1
-  const exponent = Decimal.log(player.prestigeShards.add(1), 10)
-  const exponentCostReduction = getRuneEffects('prism', 'costDivisorLog10')
-  const toBuy = Math.floor(
-    Math.pow(
-      Math.max(
-        0,
-        2 * (exponent + exponentCostReduction - G.crystalUpgradesCost[u]) / G.crystalUpgradeCostIncrement[u] + 1 / 4
-      ),
-      1 / 2
-    )
-      + 1 / 2
-  )
-  return toBuy
-}
-
+// Shim over @synergism/logic's pure buyCrystalUpgrades. Looks up the per-index
+// cost constants from G, computes the prism-rune reduction and the
+// reincarnation-challenge flag, calls logic, applies state. On a successful
+// purchase in the manual (non-auto) path, fires the leftover UI side effect
+// `crystalupgradedescriptions(i)`.
 export const buyCrystalUpgrades = (i: number, auto = false) => {
   const u = i - 1
-
-  let c = 0
-  if (player.upgrades[73] > 0.5 && player.currentChallenge.reincarnation !== 0) {
-    c += 10
+  const slice: CrystalUpgradesState = {
+    prestigeShards: player.prestigeShards,
+    crystalUpgrades: player.crystalUpgrades
   }
 
-  const costReduction = getRuneEffects('prism', 'costDivisorLog10')
+  const { state: next, events } = logicBuyCrystalUpgrades(slice, {
+    i,
+    auto,
+    prismCostDivisorLog10: getRuneEffects('prism', 'costDivisorLog10'),
+    crystalUpgradesCost: G.crystalUpgradesCost[u],
+    crystalUpgradeCostIncrement: G.crystalUpgradeCostIncrement[u],
+    upgrade73: player.upgrades[73],
+    inAnyReincarnationChallenge: player.currentChallenge.reincarnation !== 0
+  })
 
-  const toBuy = calculateCrystalBuy(i)
+  player.prestigeShards = next.prestigeShards
+  player.crystalUpgrades = next.crystalUpgrades
 
-  if (toBuy + c > player.crystalUpgrades[u]) {
-    player.crystalUpgrades[u] = 100 / 100 * (toBuy + c)
-    /* Automation no longer spends Crystals. Late game players experience weird 'zeroing' of Crystals
-       When they can afford Crystal Upgrades, due to precision issues. It is easier to just
-       Not spend crystals before this becomes a significant issue. */
-    if (toBuy > 0 && !auto) {
-      player.prestigeShards = player.prestigeShards.sub(
-        Decimal.pow(
-          10,
-          G.crystalUpgradesCost[u] - costReduction
-            + G.crystalUpgradeCostIncrement[u] * (1 / 2 * Math.pow(toBuy - 1 / 2, 2) - 1 / 8)
-        )
-      )
-      if (!auto) {
-        crystalupgradedescriptions(i)
+  if (!auto) {
+    for (const event of events) {
+      if (event.kind === 'crystal-upgrade-purchased') {
+        crystalupgradedescriptions(event.i)
       }
-      // This can sometimes just happen... yeah pretty bad!
-      player.prestigeShards = player.prestigeShards.max(0)
     }
   }
 }

@@ -29,6 +29,15 @@ export type CoreEvent =
       spent: Decimal
     }
   | {
+      kind: 'crystal-upgrade-purchased'
+      /** 1-based crystal upgrade index. */
+      i: number
+      before: number
+      after: number
+      /** prestigeShards spent (zero when triggered by an autobuyer — autobuyers get the levels free). */
+      spent: Decimal
+    }
+  | {
       kind: 'upgrade-purchased'
       /** Resource tier the upgrade was bought against. */
       tier: 'coin' | 'prestige' | 'transcend' | 'reincarnation'
