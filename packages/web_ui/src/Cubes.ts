@@ -1,5 +1,17 @@
-import Decimal from 'break_infinity.js'
+import type Decimal from 'break_infinity.js'
 import i18next from 'i18next'
+import {
+  calculateAcceleratorCubeBlessing as logicCalcAcceleratorCube,
+  calculateAntELOCubeBlessing as logicCalcAntELOCube,
+  calculateAntSacrificeCubeBlessing as logicCalcAntSacrificeCube,
+  calculateAntSpeedCubeBlessing as logicCalcAntSpeedCube,
+  calculateGlobalSpeedCubeBlessing as logicCalcGlobalSpeedCube,
+  calculateMultiplierCubeBlessing as logicCalcMultiplierCube,
+  calculateObtainiumCubeBlessing as logicCalcObtainiumCube,
+  calculateOfferingCubeBlessing as logicCalcOfferingCube,
+  calculateRuneEffectivenessCubeBlessing as logicCalcRuneEffectivenessCube,
+  calculateSalvageCubeBlessing as logicCalcSalvageCube
+} from '@synergism/logic'
 import { DOMCacheGetOrSet } from './Cache/DOM'
 import { calculateCubicSumData, calculateSummationNonLinear } from './Calculate'
 import { researchData, updateResearchBG } from './Research'
@@ -263,149 +275,41 @@ export const autoBuyCubeUpgrades = () => {
   }
 }
 
-export const calculateAcceleratorCubeBlessing = () => {
-  const DR = 1 / 3
-  const effectPerBlessing = calculateAcceleratorTesseractBlessing() / 500
-  const limit = 1000
-  const DRIncrease = player.cubeUpgrades[45] / 300
-
-  if (player.cubeBlessings.accelerator < limit) {
-    return Math.pow(effectPerBlessing * player.cubeBlessings.accelerator, 1 + DRIncrease)
-  } else {
-    const limitMult = Math.pow(limit, 1 - DR + DRIncrease)
-    return effectPerBlessing * limitMult * Math.pow(player.cubeBlessings.accelerator, DR + DRIncrease)
-  }
-}
-
-export const calculateMultiplierCubeBlessing = () => {
-  const DR = 1 / 3
-  const effectPerBlessing = calculateMultiplierTesseractBlessing() / 5000
-  const limit = 1000
-  const DRIncrease = player.cubeUpgrades[35] / 300
-
-  if (player.cubeBlessings.multiplier < limit) {
-    return Math.pow(1 + effectPerBlessing * player.cubeBlessings.multiplier, 1 + DRIncrease)
-  } else {
-    const limitMult = Math.pow(limit, 1 - DR + DRIncrease)
-    return 1 + effectPerBlessing * limitMult * Math.pow(player.cubeBlessings.multiplier, DR + DRIncrease)
-  }
-}
-
-export const calculateOfferingCubeBlessing = () => {
-  const DR = 2 / 3
-  const effectPerBlessing = new Decimal(calculateOfferingTesseractBlessing()).div(2000)
-  const limit = 1000
-  const DRIncrease = player.cubeUpgrades[24] * 2 / 300
-
-  if (player.cubeBlessings.offering < limit) {
-    return Decimal.min(
-      1e300,
-      Decimal.pow(effectPerBlessing.times(player.cubeBlessings.offering).plus(1), 1 + DRIncrease)
-    ).toNumber()
-  } else {
-    const limitMult = Decimal.pow(limit, 1 - DR + DRIncrease)
-    return Decimal.min(
-      1e300,
-      limitMult.times(effectPerBlessing).times(Math.pow(player.cubeBlessings.offering, DR + DRIncrease)).plus(1)
-    ).toNumber()
-  }
-}
-
-export const calculateSalvageCubeBlessing = () => {
-  const limit = 1000
-  const effectMultiplier = (1 + player.cubeUpgrades[14] / 100) * calculateSalvageTesseractBlessing()
-
-  if (player.cubeBlessings.runeExp < limit) {
-    return effectMultiplier * (player.cubeBlessings.runeExp * 10 / limit)
-  } else {
-    const limitBonus = 10
-    return effectMultiplier * (limitBonus + 10 * Math.log10(player.cubeBlessings.runeExp / limit))
-  }
-}
-
-export const calculateObtainiumCubeBlessing = () => {
-  const DR = 2 / 3
-  const effectPerBlessing = new Decimal(calculateObtainiumTesseractBlessing()).div(2000)
-  const limit = 1000
-  const DRIncrease = player.cubeUpgrades[40] * 2 / 300
-
-  if (player.cubeBlessings.obtainium < limit) {
-    return Decimal.min(
-      1e300,
-      Decimal.pow(effectPerBlessing.times(player.cubeBlessings.obtainium).plus(1), 1 + DRIncrease)
-    ).toNumber()
-  } else {
-    const limitMult = Decimal.pow(limit, 1 - DR + DRIncrease)
-    return Decimal.min(
-      1e300,
-      limitMult.times(effectPerBlessing).times(Math.pow(player.cubeBlessings.obtainium, DR + DRIncrease)).plus(1)
-    ).toNumber()
-  }
-}
-
-export const calculateAntSpeedCubeBlessing = () => {
-  const effectPerBlessing = 1 / 1000
-  const exponentIncrease = player.cubeUpgrades[22] / 40
-  const firstBonus = 0.1 * Math.min(player.cubeBlessings.antSpeed, 1)
-
-  return Decimal.pow(1 + effectPerBlessing * player.cubeBlessings.antSpeed + firstBonus, 2 + exponentIncrease)
-    .times(calculateAntSpeedTesseractBlessing())
-}
-
-export const calculateAntSacrificeCubeBlessing = (): Decimal => {
-  const DR = 2 / 3
-  const effectPerBlessing = calculateAntSacrificeTesseractBlessing() / 5000
-  const limit = 1000
-  const DRIncrease = player.cubeUpgrades[15] / 50
-
-  if (player.cubeBlessings.antSacrifice < limit) {
-    return Decimal.pow(1 + effectPerBlessing * player.cubeBlessings.antSacrifice, 1 + DRIncrease)
-  } else {
-    const limitMult = Math.pow(limit, 1 - DR + DRIncrease)
-    return Decimal.pow(player.cubeBlessings.antSacrifice, DR + DRIncrease).times(effectPerBlessing).times(limitMult)
-      .add(1)
-  }
-}
-
-export const calculateAntELOCubeBlessing = () => {
-  const effectExponent = 1 + player.cubeUpgrades[25] / 100
-
-  return Math.pow(
-    1 + 0.1 * Math.log10(1 + player.cubeBlessings.antELO) * calculateAntELOTesseractBlessing(),
-    effectExponent
+// Thin shims over @synergism/logic's pure cube-blessing calculators. Each
+// reads the matching tesseract-blessing value (which itself composes through
+// the hypercube and platonic-blessing layers in logic) and the per-function
+// player.cubeUpgrades[N] level.
+export const calculateAcceleratorCubeBlessing = () =>
+  logicCalcAcceleratorCube(player.cubeBlessings, calculateAcceleratorTesseractBlessing(), player.cubeUpgrades[45])
+export const calculateMultiplierCubeBlessing = () =>
+  logicCalcMultiplierCube(player.cubeBlessings, calculateMultiplierTesseractBlessing(), player.cubeUpgrades[35])
+export const calculateOfferingCubeBlessing = () =>
+  logicCalcOfferingCube(player.cubeBlessings, calculateOfferingTesseractBlessing(), player.cubeUpgrades[24])
+export const calculateSalvageCubeBlessing = () =>
+  logicCalcSalvageCube(player.cubeBlessings, calculateSalvageTesseractBlessing(), player.cubeUpgrades[14])
+export const calculateObtainiumCubeBlessing = () =>
+  logicCalcObtainiumCube(player.cubeBlessings, calculateObtainiumTesseractBlessing(), player.cubeUpgrades[40])
+// AntSpeed's tesseract result is a Decimal — pass it through unchanged so
+// late-game values past Number precision survive the multiplication.
+export const calculateAntSpeedCubeBlessing = () =>
+  logicCalcAntSpeedCube(
+    player.cubeBlessings,
+    calculateAntSpeedTesseractBlessing(),
+    player.cubeUpgrades[22]
   )
-}
-
-export const calculateRuneEffectivenessCubeBlessing = () => {
-  const DR = 1 / 16
-  const effectPerBlessing = calculateRuneEffectivenessTesseractBlessing() / 10000
-  const limit = 1000
-  const DRIncrease = player.cubeUpgrades[44] / 1600
-
-  if (player.cubeBlessings.talismanBonus < limit) {
-    return Math.pow(1 + effectPerBlessing * player.cubeBlessings.talismanBonus, 1 + DRIncrease)
-  } else {
-    const limitMult = Math.pow(limit, 1 - DR + DRIncrease)
-    return Math.min(
-      1e300,
-      1 + limitMult * effectPerBlessing * Math.pow(player.cubeBlessings.talismanBonus, DR + DRIncrease)
-    )
-  }
-}
-
-export const calculateGlobalSpeedCubeBlessing = () => {
-  const DR = 1 / 16
-  const effectPerBlessing = calculateGlobalSpeedTesseractBlessing() / 1000
-  const limit = 1000
-  const DRIncrease = player.cubeUpgrades[34] / 1600
-
-  if (player.cubeBlessings.globalSpeed < limit) {
-    return Math.pow(1 + effectPerBlessing * player.cubeBlessings.globalSpeed, 1 + DRIncrease)
-  } else {
-    const limitMult = Math.pow(limit, 1 - DR + DRIncrease)
-    return Math.min(
-      1e300,
-      1 + limitMult * effectPerBlessing * Math.pow(player.cubeBlessings.globalSpeed, DR + DRIncrease)
-    )
-  }
-}
+export const calculateAntSacrificeCubeBlessing = (): Decimal =>
+  logicCalcAntSacrificeCube(
+    player.cubeBlessings,
+    calculateAntSacrificeTesseractBlessing(),
+    player.cubeUpgrades[15]
+  )
+export const calculateAntELOCubeBlessing = () =>
+  logicCalcAntELOCube(player.cubeBlessings, calculateAntELOTesseractBlessing(), player.cubeUpgrades[25])
+export const calculateRuneEffectivenessCubeBlessing = () =>
+  logicCalcRuneEffectivenessCube(
+    player.cubeBlessings,
+    calculateRuneEffectivenessTesseractBlessing(),
+    player.cubeUpgrades[44]
+  )
+export const calculateGlobalSpeedCubeBlessing = () =>
+  logicCalcGlobalSpeedCube(player.cubeBlessings, calculateGlobalSpeedTesseractBlessing(), player.cubeUpgrades[34])

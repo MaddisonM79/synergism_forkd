@@ -32,6 +32,23 @@ export interface MultiplierState {
   reincarnatenomultiplier: boolean
 }
 
+// Player's accumulated cube (wow-cube) blessings. Inputs to the 10
+// calculate*CubeBlessing functions. Mirrors player.cubeBlessings; each
+// function reads exactly one field plus a single player.cubeUpgrades[N]
+// level that's passed in separately as a numeric input.
+export interface CubeBlessings {
+  accelerator: number
+  multiplier: number
+  offering: number
+  runeExp: number
+  obtainium: number
+  antSpeed: number
+  antSacrifice: number
+  antELO: number
+  talismanBonus: number
+  globalSpeed: number
+}
+
 // Player's accumulated tesseract blessings. Inputs to the 10 calculate*
 // TesseractBlessing functions. Mirrors player.tesseractBlessings; each
 // function reads exactly one field.
