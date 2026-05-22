@@ -14,6 +14,7 @@ import {
   type GetAcceleratorBoostCostInput,
   type GetProducerCostInput,
   getProducerCost,
+  getReductionValue as logicGetReductionValue,
   type ProducerFamilyState,
   type ProducerIndex,
   type ProducerType,
@@ -34,14 +35,20 @@ import { crystalupgradedescriptions, upgradeRequirements, upgradeupdate } from '
 import { smallestInc } from './Utility'
 import { Globals as G, Upgrade } from './Variables'
 
+// Cost-divisor `r` aggregator. The logic version of CalcECC is called inside
+// logicGetReductionValue, so this shim only assembles the four external
+// scalar contributions.
 export const getReductionValue = () => {
-  let reduction = 1
-  reduction += getRuneEffects('thrift', 'costDelay')
-  reduction += (player.researches[56] + player.researches[57] + player.researches[58] + player.researches[59]
-    + player.researches[60]) / 200
-  reduction += CalcECC('transcend', player.challengecompletions[4]) / 200
-  reduction += getAntUpgradeEffect(AntUpgrades.BuildingCostScale).buildingCostScale
-  return reduction
+  return logicGetReductionValue({
+    thriftCostDelay: getRuneEffects('thrift', 'costDelay'),
+    researchesSum: player.researches[56]
+      + player.researches[57]
+      + player.researches[58]
+      + player.researches[59]
+      + player.researches[60],
+    challengeCompletions4: player.challengecompletions[4],
+    antBuildingCostScale: getAntUpgradeEffect(AntUpgrades.BuildingCostScale).buildingCostScale
+  })
 }
 
 // Thin shim over @synergism/logic's pure buyAccelerator. Gathers the required

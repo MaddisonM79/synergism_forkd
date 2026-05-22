@@ -1,7 +1,8 @@
 import {
   calculateActualAntSpeedMult as logicCalcActualAntSpeedMult,
   calculateAscensionSpeedMult as logicCalcAscensionSpeedMult,
-  calculateGlobalSpeedMult as logicCalcGlobalSpeedMult
+  calculateGlobalSpeedMult as logicCalcGlobalSpeedMult,
+  calculateOfferings as logicCalcOfferings
 } from '@synergism/logic'
 import Decimal from 'break_infinity.js'
 import i18next from 'i18next'
@@ -211,33 +212,21 @@ export const calculateBaseOfferings = () => {
 }
 
 export const calculateOfferings = (timeMultUsed = true) => {
-  const baseOfferings = calculateBaseOfferings()
   const timeMultiplier = timeMultUsed
     ? offeringObtainiumTimeModifiers(player.prestigecounter, getLevelMilestone('offeringTimerScaling') === 1).reduce(
       (a, b) => a * b.stat(),
       1
     )
     : 1
-  const offeringMult = calculateOfferingsDecimal()
 
-  // Exalt 8 2+ Effect
-  if (
-    player.singularityChallenges.taxmanLastStand.enabled
-    && player.singularityChallenges.taxmanLastStand.completions >= 2
-  ) {
-    return Decimal.min(
-      player.offerings.times(100).plus(1),
-      Decimal.max(
-        baseOfferings,
-        offeringMult.times(timeMultiplier)
-      )
-    )
-  }
-
-  return Decimal.max(
-    baseOfferings,
-    offeringMult.times(timeMultiplier)
-  )
+  return logicCalcOfferings({
+    baseOfferings: calculateBaseOfferings(),
+    timeMultiplier,
+    offeringMult: calculateOfferingsDecimal(),
+    taxmanLastStandEnabled: player.singularityChallenges.taxmanLastStand.enabled,
+    taxmanLastStandCompletions: player.singularityChallenges.taxmanLastStand.completions,
+    currentOfferings: player.offerings
+  })
 }
 
 // Ditto

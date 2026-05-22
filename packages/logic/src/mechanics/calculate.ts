@@ -1,10 +1,13 @@
 import { Decimal } from '../math/bignum'
 import type { DecimalSource } from '../math/bignum'
+import { CalcECC } from './challenges'
 
-// Pure subroutines from packages/web_ui/src/Calculate.ts. Each takes its
-// inputs as precomputed numbers — the surrounding StatLine reductions stay in
-// web_ui (those are essentially aggregators over per-line `stat()` callbacks,
-// which still read from player/G state).
+// Pure subroutines from packages/web_ui/src/Calculate.ts (and the
+// getReductionValue helper from Buy.ts, which conceptually belongs with the
+// cost-divisor aggregators). Each takes its inputs as precomputed numbers —
+// the surrounding StatLine reductions stay in web_ui (those are essentially
+// aggregators over per-line `stat()` callbacks, which still read from
+// player/G state).
 
 // ─── Global speed multiplier ───────────────────────────────────────────────
 
@@ -117,4 +120,65 @@ export function calculateActualAntSpeedMult(input: ActualAntSpeedMultInput): Dec
   }
 
   return Decimal.pow(input.base, exponent)
+}
+
+// ─── Reduction value (cost divisor `r`) ────────────────────────────────────
+
+export interface ReductionValueInput {
+  /** getRuneEffects('thrift', 'costDelay') — thrift rune cost-delay effect. */
+  thriftCostDelay: number
+  /** Sum of player.researches[56..60]. Divided by 200. */
+  researchesSum: number
+  /** player.challengecompletions[4]. Feeds CalcECC('transcend', cc4) / 200. */
+  challengeCompletions4: number
+  /** getAntUpgradeEffect(AntUpgrades.BuildingCostScale).buildingCostScale. */
+  antBuildingCostScale: number
+}
+
+/**
+ * Aggregator from packages/web_ui/src/Buy.ts. The value scales the
+ * cost-step thresholds in producer / particle / boost cost formulas; the
+ * already-migrated buy mechanics receive it as their `r` / `costDivisor`
+ * input. Logic owns the formula now; callers (the Buy.ts shim) precompute
+ * each contribution and pass it in.
+ */
+export function getReductionValue(input: ReductionValueInput): number {
+  return 1
+    + input.thriftCostDelay
+    + input.researchesSum / 200
+    + CalcECC('transcend', input.challengeCompletions4) / 200
+    + input.antBuildingCostScale
+}
+
+// ─── Offerings aggregator ──────────────────────────────────────────────────
+
+export interface CalculateOfferingsInput {
+  /** Sum from allBaseOfferingStats. */
+  baseOfferings: number
+  /** Product from offeringObtainiumTimeModifiers when timeMultUsed, else 1. */
+  timeMultiplier: number
+  /** Product from allOfferingStats (Decimal — can exceed 1e300). */
+  offeringMult: Decimal
+  /** player.singularityChallenges.taxmanLastStand.enabled. */
+  taxmanLastStandEnabled: boolean
+  /** player.singularityChallenges.taxmanLastStand.completions (>= 2 triggers the cap). */
+  taxmanLastStandCompletions: number
+  /** player.offerings — used by the taxman cap. */
+  currentOfferings: Decimal
+}
+
+/**
+ * Final offerings value for the next reset. Combines a base floor with a
+ * Decimal "max possible" product, and applies the Exalt 8 (taxmanLastStand)
+ * cap when that singularity challenge has been completed at least twice:
+ *
+ *   if taxmanLastStand2+: min(offerings*100 + 1, max(base, mult * time))
+ *   else                : max(base, mult * time)
+ */
+export function calculateOfferings(input: CalculateOfferingsInput): Decimal {
+  const main = Decimal.max(input.baseOfferings, input.offeringMult.times(input.timeMultiplier))
+  if (input.taxmanLastStandEnabled && input.taxmanLastStandCompletions >= 2) {
+    return Decimal.min(input.currentOfferings.times(100).plus(1), main)
+  }
+  return main
 }

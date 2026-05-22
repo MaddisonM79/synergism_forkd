@@ -196,10 +196,14 @@ export {
 export type {
   ActualAntSpeedMultInput,
   AscensionSpeedMultInput,
-  GlobalSpeedMultInput
+  CalculateOfferingsInput,
+  GlobalSpeedMultInput,
+  ReductionValueInput
 } from './mechanics/calculate'
 export {
   calculateActualAntSpeedMult,
   calculateAscensionSpeedMult,
-  calculateGlobalSpeedMult
+  calculateGlobalSpeedMult,
+  calculateOfferings,
+  getReductionValue
 } from './mechanics/calculate'
