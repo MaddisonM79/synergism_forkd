@@ -153,3 +153,17 @@ export {
   thriftRuneEffects,
   topHatRuneEffects
 } from './mechanics/runeEffects'
+export type {
+  DuplicationRuneBlessingEffects,
+  PrismRuneBlessingEffects,
+  SpeedRuneBlessingEffects,
+  SuperiorIntellectRuneBlessingEffects,
+  ThriftRuneBlessingEffects
+} from './mechanics/runeBlessingEffects'
+export {
+  duplicationRuneBlessingEffects,
+  prismRuneBlessingEffects,
+  speedRuneBlessingEffects,
+  superiorIntellectRuneBlessingEffects,
+  thriftRuneBlessingEffects
+} from './mechanics/runeBlessingEffects'
