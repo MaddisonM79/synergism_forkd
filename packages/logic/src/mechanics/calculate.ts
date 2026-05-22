@@ -1,3 +1,6 @@
+import { Decimal } from '../math/bignum'
+import type { DecimalSource } from '../math/bignum'
+
 // Pure subroutines from packages/web_ui/src/Calculate.ts. Each takes its
 // inputs as precomputed numbers — the surrounding StatLine reductions stay in
 // web_ui (those are essentially aggregators over per-line `stat()` callbacks,
@@ -74,4 +77,44 @@ export function calculateAscensionSpeedMult(input: AscensionSpeedMultInput): num
   return input.base < 1
     ? Math.pow(input.base, 1 - input.exponentSpread)
     : Math.pow(input.base, 1 + input.exponentSpread)
+}
+
+// ─── Ant speed (with ascension-challenge penalties) ────────────────────────
+
+export interface ActualAntSpeedMultInput {
+  /**
+   * Product of the antSpeedStats StatLines (web_ui's
+   *   statLineDecimalMultiplication(antSpeedStats)
+   * ).
+   */
+  base: DecimalSource
+  /**
+   * player.currentChallenge.ascension. Picks the exponent penalty:
+   *   12 → 0.75   13 → 0.23   14 → 0.20   15 → 0.50   else → 1
+   */
+  ascensionChallenge: number
+  /**
+   * player.platonicUpgrades[10]. When > 0 AND ascensionChallenge === 15, the
+   * exponent is multiplied by 1.25 — partial mitigation of the C15 penalty.
+   */
+  platonicUpgrade10: number
+}
+
+/**
+ * Raises the precomputed Decimal base by an exponent that depends on the
+ * current ascension challenge. The penalties (and the platonic-10 mitigation
+ * for C15) are preserved verbatim from web_ui.
+ */
+export function calculateActualAntSpeedMult(input: ActualAntSpeedMultInput): Decimal {
+  let exponent = 1
+  if (input.ascensionChallenge === 12) exponent = 0.75
+  else if (input.ascensionChallenge === 13) exponent = 0.23
+  else if (input.ascensionChallenge === 14) exponent = 0.2
+  else if (input.ascensionChallenge === 15) exponent = 0.5
+
+  if (input.platonicUpgrade10 > 0 && input.ascensionChallenge === 15) {
+    exponent *= 1.25
+  }
+
+  return Decimal.pow(input.base, exponent)
 }

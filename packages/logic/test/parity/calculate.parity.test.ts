@@ -4,7 +4,9 @@
 // transcribes the branching verbatim.
 
 import { describe, expect, it } from 'vitest'
+import Decimal from 'break_infinity.js'
 import {
+  calculateActualAntSpeedMult as newCalcAntSpeed,
   calculateAscensionSpeedMult as newCalcAscension,
   calculateGlobalSpeedMult as newCalcGlobal
 } from '../../src/mechanics/calculate'
@@ -61,5 +63,41 @@ describe('parity: calculateAscensionSpeedMult', () => {
       const oldVal = oldCalcAscension(base, spread)
       expect(closeEnough(newVal, oldVal)).toBe(true)
     })
+  }
+})
+
+const oldCalcAntSpeed = (base: Decimal, ascensionChallenge: number, platonicUpgrade10: number): Decimal => {
+  let exponent = 1
+  if (ascensionChallenge === 12) exponent = 0.75
+  else if (ascensionChallenge === 13) exponent = 0.23
+  else if (ascensionChallenge === 14) exponent = 0.2
+  else if (ascensionChallenge === 15) exponent = 0.5
+  if (platonicUpgrade10 > 0 && ascensionChallenge === 15) exponent *= 1.25
+  return Decimal.pow(base, exponent)
+}
+
+const closeEnoughDec = (a: Decimal, b: Decimal, rel = 1e-12): boolean => {
+  if (a.eq(b)) return true
+  if (a.abs().lt(1) && b.abs().lt(1)) return a.minus(b).abs().lt(rel)
+  return a.minus(b).abs().div(Decimal.max(a.abs(), b.abs())).lt(rel)
+}
+
+describe('parity: calculateActualAntSpeedMult', () => {
+  const bases = [new Decimal(0.5), new Decimal(1), new Decimal(1e6), new Decimal('1e100')]
+  // All four penalty challenges + "no challenge" + an unrelated challenge
+  // number that should map to exponent=1.
+  const ascensionChallenges = [0, 7, 12, 13, 14, 15]
+  const platonic10Values = [0, 1]
+
+  for (const ac of ascensionChallenges) {
+    for (const p10 of platonic10Values) {
+      for (const base of bases) {
+        it(`base=${base.toString()} ac=${ac} p10=${p10}`, () => {
+          const newVal = newCalcAntSpeed({ base, ascensionChallenge: ac, platonicUpgrade10: p10 })
+          const oldVal = oldCalcAntSpeed(base, ac, p10)
+          expect(closeEnoughDec(newVal, oldVal)).toBe(true)
+        })
+      }
+    }
   }
 })

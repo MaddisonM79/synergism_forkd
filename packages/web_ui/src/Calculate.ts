@@ -1,4 +1,5 @@
 import {
+  calculateActualAntSpeedMult as logicCalcActualAntSpeedMult,
   calculateAscensionSpeedMult as logicCalcAscensionSpeedMult,
   calculateGlobalSpeedMult as logicCalcGlobalSpeedMult
 } from '@synergism/logic'
@@ -630,25 +631,11 @@ export const calculateRawAntSpeedMult = () => {
 }
 
 export const calculateActualAntSpeedMult = () => {
-  const base = calculateRawAntSpeedMult()
-
-  // TODO: How can we make these penalties not suck to balance?
-  let exponent = 1
-  if (player.currentChallenge.ascension === 12) {
-    exponent = 0.75
-  } else if (player.currentChallenge.ascension === 13) {
-    exponent = 0.23
-  } else if (player.currentChallenge.ascension === 14) {
-    exponent = 0.2
-  } else if (player.currentChallenge.ascension === 15) {
-    exponent = 0.5
-  }
-
-  if (player.platonicUpgrades[10] > 0 && player.currentChallenge.ascension === 15) {
-    exponent *= 1.25
-  }
-
-  return Decimal.pow(base, exponent)
+  return logicCalcActualAntSpeedMult({
+    base: calculateRawAntSpeedMult(),
+    ascensionChallenge: player.currentChallenge.ascension,
+    platonicUpgrade10: player.platonicUpgrades[10]
+  })
 }
 
 export const timeWarp = async () => {
