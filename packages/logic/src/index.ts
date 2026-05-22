@@ -19,3 +19,9 @@ export type {
 } from './mechanics/multipliers'
 export { buyAccelerator, getCostAccelerator } from './mechanics/accelerators'
 export { buyMultiplier, getCostMultiplier } from './mechanics/multipliers'
+export type {
+  GetProducerCostInput,
+  ProducerIndex,
+  ProducerType
+} from './mechanics/producers'
+export { getProducerCost } from './mechanics/producers'
