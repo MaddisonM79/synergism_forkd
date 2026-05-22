@@ -7,7 +7,8 @@ export type { CoreEvent } from './events/types'
 export type {
   AcceleratorState,
   BuyAmount,
-  MultiplierState
+  MultiplierState,
+  ParticleBuildingsState
 } from './state/schema'
 export type {
   BuyAcceleratorInput,
@@ -25,3 +26,9 @@ export type {
   ProducerType
 } from './mechanics/producers'
 export { getProducerCost } from './mechanics/producers'
+export type {
+  BuyParticleBuildingInput,
+  GetParticleCostInput,
+  ParticleBuildingIndex
+} from './mechanics/particleBuildings'
+export { buyParticleBuilding, getParticleCost } from './mechanics/particleBuildings'

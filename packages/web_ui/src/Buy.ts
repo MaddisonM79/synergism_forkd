@@ -1,8 +1,8 @@
-import type { DecimalSource } from 'break_infinity.js'
 import Decimal from 'break_infinity.js'
 import {
   buyAccelerator as logicBuyAccelerator,
   buyMultiplier as logicBuyMultiplier,
+  buyParticleBuilding as logicBuyParticleBuilding,
   type GetProducerCostInput,
   getProducerCost
 } from '@synergism/logic'
@@ -507,111 +507,48 @@ const getAcceleratorBoostCost = (level = 1): Decimal => {
   return cost
 }
 
-const getParticleCost = (originalCost: DecimalSource, buyTo: number): Decimal => {
-  ;--buyTo
-  originalCost = new Decimal(originalCost)
-  let cost = originalCost.times(Decimal.pow(2, buyTo))
-
-  const DR = (player.currentChallenge.ascension !== 15) ? 325000 : 1000
-
-  if (buyTo > DR) {
-    cost = cost.times(Decimal.pow(1.001, (buyTo - DR) * ((buyTo - DR + 1) / 2)))
-  }
-  const buymax = Math.pow(10, 15)
-  if (buyTo > buymax) {
-    const diminishingExponent = 1 / 8
-
-    const QuadrillionCost = getParticleCost(originalCost, buymax)
-
-    const newCost = QuadrillionCost.pow(Math.pow(buyTo / buymax, 1 / diminishingExponent))
-    const newExtra = newCost.exponent - Math.floor(newCost.exponent)
-    newCost.exponent = Math.floor(newCost.exponent)
-    newCost.mantissa *= Math.pow(10, newExtra)
-    newCost.normalize()
-    return Decimal.max(cost, newCost)
-  }
-  return cost
-}
-
-// Used by buyParticleBuilding below — the particle path uses a different
-// cost function (getParticleCost) than the producer family, so the array
-// stays local until that path migrates too.
-const mythosAndParticleBuildingCosts = [1, 1e2, 1e4, 1e8, 1e16] as const
-
+// Shim over @synergism/logic's pure buyParticleBuilding. Same shape as the
+// buyAccelerator / buyMultiplier shims above: gather inputs, call logic, apply
+// returned state back to player. The logic function operates on all five
+// positions in one slice — only the position selected by `index` actually
+// changes — so we read/write the full slice each call.
 export const buyParticleBuilding = (
   index: OneToFive,
   autobuyer = false
 ) => {
-  const zeroIndex = index - 1 as ZeroToFour
-  const originalCost = mythosAndParticleBuildingCosts[zeroIndex]
-  const pos = G.ordinals[zeroIndex]
-  const key = `${pos}OwnedParticles` as const
-  const buyStart = player[key]
-  const buymax = Math.pow(10, 15)
-  // If at least buymax, we will use a different formulae
-  if (buyStart >= buymax) {
-    const diminishingExponent = 1 / 8
-
-    const log10Resource = Decimal.log10(player.reincarnationPoints)
-    const log10QuadrillionCost = Decimal.log10(getParticleCost(originalCost, buymax))
-
-    let hi = Math.floor(buymax * Math.max(1, Math.pow(log10Resource / log10QuadrillionCost, diminishingExponent)))
-    let lo = buymax
-    while (hi - lo > 0.5) {
-      const mid = Math.floor(lo + (hi - lo) / 2)
-      if (mid === lo || mid === hi) {
-        break
-      }
-      if (!player.reincarnationPoints.gte(getParticleCost(originalCost, mid))) {
-        hi = mid
-      } else {
-        lo = mid
-      }
+  const { state } = logicBuyParticleBuilding(
+    {
+      reincarnationPoints: player.reincarnationPoints,
+      firstOwnedParticles: player.firstOwnedParticles,
+      firstCostParticles: player.firstCostParticles,
+      secondOwnedParticles: player.secondOwnedParticles,
+      secondCostParticles: player.secondCostParticles,
+      thirdOwnedParticles: player.thirdOwnedParticles,
+      thirdCostParticles: player.thirdCostParticles,
+      fourthOwnedParticles: player.fourthOwnedParticles,
+      fourthCostParticles: player.fourthCostParticles,
+      fifthOwnedParticles: player.fifthOwnedParticles,
+      fifthCostParticles: player.fifthCostParticles
+    },
+    {
+      index,
+      autobuyer,
+      particlebuyamount: player.particlebuyamount,
+      inAscensionChallenge15: player.currentChallenge.ascension === 15
     }
-    const buyable = lo
-    const thisCost = getParticleCost(originalCost, buyable)
+  )
 
-    player[key] = buyable
-    player[`${pos}CostParticles` as const] = thisCost
-    return
-  }
-
-  // Start buying at the current amount bought + 1
-  const buydefault = buyStart + smallestInc(buyStart)
-  let buyTo = buydefault
-
-  let cashToBuy = getParticleCost(originalCost, buyTo)
-  while (player.reincarnationPoints.gte(cashToBuy)) {
-    // then multiply by 4 until it reaches just above the amount needed
-    buyTo = buyTo * 4
-    cashToBuy = getParticleCost(originalCost, buyTo)
-  }
-  let stepdown = Math.floor(buyTo / 8)
-  while (stepdown >= smallestInc(buyTo)) {
-    // if step down would push it below out of expense range then divide step down by 2
-    if (getParticleCost(originalCost, buyTo - stepdown).lte(player.reincarnationPoints)) {
-      stepdown = Math.floor(stepdown / 2)
-    } else {
-      buyTo = buyTo - Math.max(smallestInc(buyTo), stepdown)
-    }
-  }
-
-  if (!autobuyer) {
-    if (player.particlebuyamount + buyStart < buyTo) {
-      buyTo = buyStart + player.particlebuyamount + smallestInc(player[key] + player.particlebuyamount)
-    }
-  }
-
-  // go down by 7 steps below the last one able to be bought and spend the cost of 25 up to the one that you started with and stop if coin goes below requirement
-  let buyFrom = Math.max(buyTo - 6 - smallestInc(buyTo), buydefault)
-  let thisCost = getParticleCost(originalCost, buyFrom)
-  while (buyFrom <= buyTo && player.reincarnationPoints.gte(thisCost)) {
-    player.reincarnationPoints = player.reincarnationPoints.sub(thisCost)
-    player[key] = buyFrom
-    buyFrom = buyFrom + smallestInc(buyFrom)
-    thisCost = getParticleCost(originalCost, buyFrom)
-    player[`${pos}CostParticles` as const] = thisCost
-  }
+  player.reincarnationPoints = state.reincarnationPoints
+  player.firstOwnedParticles = state.firstOwnedParticles
+  player.firstCostParticles = state.firstCostParticles
+  player.secondOwnedParticles = state.secondOwnedParticles
+  player.secondCostParticles = state.secondCostParticles
+  player.thirdOwnedParticles = state.thirdOwnedParticles
+  player.thirdCostParticles = state.thirdCostParticles
+  player.fourthOwnedParticles = state.fourthOwnedParticles
+  player.fourthCostParticles = state.fourthCostParticles
+  player.fifthOwnedParticles = state.fifthOwnedParticles
+  player.fifthCostParticles = state.fifthCostParticles
 }
 
 const tesseractBuildingCosts = [1, 10, 100, 1000, 10000] as const

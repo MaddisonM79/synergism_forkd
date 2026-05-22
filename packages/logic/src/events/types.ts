@@ -20,3 +20,11 @@ export type CoreEvent =
       after: number
       spent: Decimal
     }
+  | {
+      kind: 'particle-buildings-purchased'
+      /** Which of the five particle buildings was purchased (1 = first, 5 = fifth). */
+      index: 1 | 2 | 3 | 4 | 5
+      before: number
+      after: number
+      spent: Decimal
+    }

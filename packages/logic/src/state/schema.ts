@@ -31,3 +31,22 @@ export interface MultiplierState {
   transcendnomultiplier: boolean
   reincarnatenomultiplier: boolean
 }
+
+// Slice of GameState read/written by the particle-building-purchase machinery.
+// Five positions (first..fifth) each have an owned count + a current cost; the
+// shared resource is reincarnationPoints. No no-purchase-flag bookkeeping —
+// particle buildings don't gate any "didn't buy" achievements like the
+// accelerator/multiplier mechanics do.
+export interface ParticleBuildingsState {
+  reincarnationPoints: Decimal
+  firstOwnedParticles: number
+  firstCostParticles: Decimal
+  secondOwnedParticles: number
+  secondCostParticles: Decimal
+  thirdOwnedParticles: number
+  thirdCostParticles: Decimal
+  fourthOwnedParticles: number
+  fourthCostParticles: Decimal
+  fifthOwnedParticles: number
+  fifthCostParticles: Decimal
+}
