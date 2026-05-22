@@ -13,7 +13,6 @@
     "no-non-null-assertion": "off",
     "no-param-reassign": "off",
 
-    // Type-aware rules
     "typescript/no-misused-promises": "off",
     "typescript/await-thenable": "error",
     "typescript/no-unnecessary-type-assertion": "warn",
@@ -24,10 +23,8 @@
     "typescript/no-base-to-string": "off",
     "typescript/restrict-template-expressions": "off",
 
-    // This triggers for i18next.t()
     "import/no-named-as-default-member": "off",
 
-    // Too new
     "unicorn/no-array-sort": "off"
   },
   "settings": {},
@@ -39,5 +36,40 @@
     "PROD": "readonly",
     "DEV": "readonly"
   },
-  "ignorePatterns": ["dist/**", "node_modules/**", "mockServiceWorker.js"]
+  "overrides": [
+    {
+      "files": ["packages/logic/**/*.ts"],
+      "env": {
+        "builtin": true,
+        "browser": false
+      },
+      "rules": {
+        "no-restricted-globals": [
+          "error",
+          { "name": "document", "message": "packages/logic must not touch the DOM. Move this to the UI tier." },
+          { "name": "window", "message": "packages/logic must be portable — no window references." },
+          { "name": "localStorage", "message": "Persistence happens in the UI tier; logic returns state, UI persists it." },
+          { "name": "sessionStorage", "message": "Persistence happens in the UI tier; logic returns state, UI persists it." },
+          { "name": "navigator", "message": "packages/logic must be portable — no navigator." },
+          { "name": "location", "message": "packages/logic must be portable — no location." },
+          { "name": "alert", "message": "packages/logic returns events; UI decides whether to show a dialog." },
+          { "name": "confirm", "message": "packages/logic returns events; UI decides whether to show a dialog." },
+          { "name": "prompt", "message": "packages/logic returns events; UI decides whether to show a dialog." },
+          { "name": "Notification", "message": "packages/logic returns events; UI decides whether to notify." }
+        ],
+        "no-restricted-imports": [
+          "error",
+          {
+            "paths": [
+              { "name": "i18next", "message": "packages/logic must not translate strings. Return translation keys / event payloads; UI translates." }
+            ],
+            "patterns": [
+              { "group": ["**/web_ui/**", "**/desktop_ui/**", "@synergism/web_ui", "@synergism/desktop_ui"], "message": "packages/logic must not import from a UI tier — direction is UI -> logic only." }
+            ]
+          }
+        ]
+      }
+    }
+  ],
+  "ignorePatterns": ["dist/**", "node_modules/**", "packages/web_ui/mockServiceWorker.js", "**/build/**"]
 }

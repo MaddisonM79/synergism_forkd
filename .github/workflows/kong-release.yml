@@ -27,7 +27,7 @@ jobs:
         run: npm ci
       - name: Build
         run: |
-          node ./scripts/update-last-updated.js
+          node ./packages/web_ui/scripts/update-last-updated.js
           npm run-script build:esbuild
       - name: Remove old .zip
         run: |
@@ -35,7 +35,7 @@ jobs:
       - name: Create .zip File
         uses: vimtor/action-zip@5f1c4aa587ea41db1110df6a99981dbe19cee310 # v1
         with:
-          files: dist/ Pictures/Splash/ Pictures/Default/ Pictures/logo.png Pictures/logoLight.png Pictures/MISSINGIMAGE.png translations/ index.html Synergism.css favicon.ico
+          files: packages/web_ui/build/ packages/web_ui/Pictures/Splash/ packages/web_ui/Pictures/Default/ packages/web_ui/Pictures/logo.png packages/web_ui/Pictures/logoLight.png packages/web_ui/Pictures/MISSINGIMAGE.png packages/web_ui/translations/ packages/web_ui/index.html packages/web_ui/Synergism.css packages/web_ui/favicon.ico
           dest: Kong.zip
           recursive: false
       - name: Attest Kong.zip

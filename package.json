@@ -1,24 +1,38 @@
 {
   "name": "synergismofficial",
   "version": "4.1.1",
+  "private": true,
   "description": "",
-  "main": "dist/bundle.js",
   "engines": {
     "node": ">=22.21.0"
   },
-  "dependencies": {
-    "@paypal/paypal-js": "^9.7.0",
-    "@ungap/custom-elements": "^1.3.0",
-    "break_infinity.js": "^2.0.0",
-    "clipboard": "^2.0.11",
-    "dompurify": "^3.4.5",
-    "fast-mersenne-twister": "^1.0.3",
-    "i18next": "^22.4.9",
-    "lz-string": "^1.4.4",
-    "mime-types": "^3.0.2",
-    "rfdc": "^1.4.1",
-    "worker-timers": "^8.0.31",
-    "zod": "^3.25.76"
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "npm run dev -w @synergism/web_ui",
+    "preview": "npm run preview -w @synergism/web_ui",
+    "preview:cf": "npm run cloudflare:build -w @synergism/web_ui && npx wrangler pages dev packages/web_ui/build --port 3000",
+    "lint": "oxlint",
+    "lint:fix": "oxlint --fix",
+    "fmt": "npx dprint fmt",
+    "format": "npx dprint fmt",
+    "csslint": "npx stylelint packages/web_ui/Synergism.css",
+    "csslint:fix": "npx stylelint packages/web_ui/Synergism.css --fix",
+    "htmllint": "npx htmlhint packages/web_ui/index.html",
+    "build": "npm run build -w @synergism/web_ui",
+    "build:esbuild": "npm run build -w @synergism/web_ui",
+    "watch": "npm run build -w @synergism/web_ui -- --watch",
+    "watch:esbuild": "npm run build -w @synergism/web_ui -- --watch",
+    "check:tsc": "tsc --build && tsc --noEmit -p packages/web_ui/tsconfig.json && tsc --noEmit -p packages/desktop_ui/tsconfig.json",
+    "watch:tsc": "tsc --build --watch",
+    "test": "npm run test -w @synergism/web_ui",
+    "test:watch": "npm run test:watch -w @synergism/web_ui",
+    "prepare": "husky",
+    "cloudflare:build": "npm run cloudflare:build -w @synergism/web_ui",
+    "cloudflare:stage": "npm run cloudflare:stage -w @synergism/web_ui",
+    "msw:init": "npm run msw:init -w @synergism/web_ui",
+    "check-circular": "madge --circular packages/logic/src/ packages/web_ui/src/"
   },
   "devDependencies": {
     "@types/cloudflare-turnstile": "^0.2.2",
@@ -42,31 +56,6 @@
     "vitest": "^3.2.4",
     "wrangler": "^4.0.0"
   },
-  "scripts": {
-    "dev": "vite",
-    "preview": "vite preview",
-    "preview:cf": "npm run cloudflare:build && npx wrangler pages dev build --port 3000",
-    "lint": "oxlint",
-    "lint:fix": "oxlint --fix",
-    "fmt": "npx dprint fmt",
-    "format": "npx dprint fmt",
-    "csslint": "npx stylelint Synergism.css",
-    "csslint:fix": "npx stylelint Synergism.css --fix",
-    "htmllint": "npx htmlhint index.html",
-    "build": "vite build",
-    "build:esbuild": "vite build",
-    "watch": "vite build --watch",
-    "watch:esbuild": "vite build --watch",
-    "check:tsc": "npx -p typescript tsc",
-    "watch:tsc": "npx -p typescript tsc --watch",
-    "test": "vitest run",
-    "test:watch": "vitest",
-    "prepare": "husky",
-    "cloudflare:build": "vite build && npm run cloudflare:stage",
-    "cloudflare:stage": "node scripts/stage.mjs",
-    "msw:init": "npx -y msw init build --save",
-    "check-circular": "madge --circular src/"
-  },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/Pseudo-Corp/SynergismOfficial.git"
@@ -88,11 +77,5 @@
   "bugs": {
     "url": "https://github.com/Pseudo-Corp/SynergismOfficial/issues"
   },
-  "homepage": "https://github.com/Pseudo-Corp/SynergismOfficial#readme",
-  "msw": {
-    "workerDirectory": [
-      "build",
-      ""
-    ]
-  }
+  "homepage": "https://github.com/Pseudo-Corp/SynergismOfficial#readme"
 }
