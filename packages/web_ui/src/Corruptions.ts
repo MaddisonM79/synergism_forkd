@@ -1,4 +1,7 @@
 import {
+  calculateCorruptionDifficultyScore as logicCorruptionDifficultyScore,
+  calculateCorruptionRawMultiplier as logicCorruptionRawMultiplier,
+  clipCorruptionLevel as logicClipCorruptionLevel,
   droughtEffect as logicDroughtEffect,
   hyperchallengeEffect as logicHyperchallengeEffect,
   illiteracyEffect as logicIlliteracyEffect,
@@ -19,7 +22,7 @@ import { getTalismanEffects } from './Talismans'
 import { IconSets } from './Themes'
 import { toggleCorruptionLevel } from './Toggles'
 import { Alert, Notification, Prompt } from './UpdateHTML'
-import { getElementById, productContents, sumContents, validateNonnegativeInteger } from './Utility'
+import { getElementById, productContents, sumContents } from './Utility'
 import { Globals as G } from './Variables'
 
 enum CorruptionIndices {
@@ -87,7 +90,6 @@ export const c15Corruptions: Corruptions = {
 
 export class CorruptionLoadout {
   #totalScoreMult = 1
-  #corruptionScoreMults = [1, 3, 4, 5, 6, 7, 7.75, 8.5, 9.25, 10, 10.75, 11.5, 12.25, 13, 16, 20, 25, 33, 35]
   #levels: Corruptions = {
     viscosity: 0,
     drought: 0,
@@ -127,19 +129,11 @@ export class CorruptionLoadout {
   }
 
   public clipCorruptionLevels () {
-    const minLevel = 0
     const maxLevel = maxCorruptionLevel()
 
     for (const [corr, level] of Object.entries(this.#levels)) {
       const corruption = corr as keyof Corruptions
-
-      // Standard Validation
-      if (!validateNonnegativeInteger(level)) {
-        this.#levels[corruption] = 0
-      }
-
-      this.#levels[corruption] = Math.max(minLevel, this.#levels[corruption])
-      this.#levels[corruption] = Math.min(maxLevel, this.#levels[corruption])
+      this.#levels[corruption] = logicClipCorruptionLevel(level, maxLevel)
     }
   }
 
@@ -148,32 +142,17 @@ export class CorruptionLoadout {
     bonusVal += getSingularityChallengeEffect('oneChallengeCap', 'corrScoreIncrease')
     bonusVal += 0.3 * player.cubeUpgrades[74]
 
-    const bonusMult = 1
-
     // player.platonicUpgrades[17] is the 17th platonic upgrade, known usually as P4x2, makes
     // Exponent 3 + 0.04 * level if the corr is viscosity and it is set at least level 10.
     const viscosityPower = (player.platonicUpgrades[17] > 0 && this.#levels.viscosity >= 10 && corr === 'viscosity')
       ? 3 + 0.04 * player.platonicUpgrades[17]
       : 1
 
-    const totalLevel = this.#levels[corr] + this.bonusLevels
-    const scoreMultLength = this.#corruptionScoreMults.length
-
-    if (totalLevel < scoreMultLength - 1) {
-      const portionAboveLevel = Math.ceil(totalLevel) - totalLevel
-      return Math.pow(
-        this.#corruptionScoreMults[Math.floor(totalLevel)] + bonusVal
-          + portionAboveLevel
-            * (this.#corruptionScoreMults[Math.ceil(totalLevel)] - this.#corruptionScoreMults[Math.floor(totalLevel)]),
-        viscosityPower
-      ) * bonusMult
-    } else {
-      return Math.pow(
-        (this.#corruptionScoreMults[scoreMultLength - 1] + bonusVal)
-          * Math.pow(1.2, totalLevel - scoreMultLength + 1),
-        viscosityPower
-      ) * bonusMult
-    }
+    return logicCorruptionRawMultiplier({
+      totalLevel: this.#levels[corr] + this.bonusLevels,
+      bonusVal,
+      viscosityPower
+    })
   }
 
   #viscosityEffect () {
@@ -270,11 +249,8 @@ export class CorruptionLoadout {
   }
 
   get totalCorruptionDifficultyScore () {
-    let basePoints = 400
-    Object.keys(this.#levels).forEach((key) => {
-      basePoints += 16 * Math.pow(this.getTotalLevel(key as keyof Corruptions), 2)
-    })
-    return basePoints
+    const bonus = this.bonusLevels
+    return logicCorruptionDifficultyScore(Object.values(this.#levels).map((lvl) => lvl + bonus))
   }
 
   get totalCorruptionDifficultyMultiplier () {

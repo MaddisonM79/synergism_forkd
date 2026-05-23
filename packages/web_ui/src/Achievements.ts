@@ -1,5 +1,17 @@
 import {
   achievementLevelFromPoints as logicAchievementLevelFromPoints,
+  ambrosiaCountPoints as logicAmbrosiaCountPoints,
+  antMasteryPoints as logicAntMasteryPoints,
+  computeAchievementPoints as logicComputeAchievementPoints,
+  exaltPoints as logicExaltPoints,
+  freeRuneLevelPoints as logicFreeRuneLevelPoints,
+  getAchievementQuarks as logicGetAchievementQuarks,
+  maxedUpgradeFamilyPoints as logicMaxedUpgradeFamilyPoints,
+  rebornELOPoints as logicRebornELOPoints,
+  redAmbrosiaCountPoints as logicRedAmbrosiaCountPoints,
+  runeLevelPoints as logicRuneLevelPoints,
+  singularityCountPoints as logicSingularityCountPoints,
+  talismanRarityPoints as logicTalismanRarityPoints,
   toNextAchievementLevelEXP as logicToNextAchievementLevelEXP
 } from '@synergism/logic'
 import Decimal from 'break_infinity.js'
@@ -122,15 +134,7 @@ export const buildingAchievementCheck = () => {
   awardAchievementGroup('fifthOwnedCoin')
 }
 
-const getAchievementQuarks = () => {
-  const globalQuarkMultiplier = player.worlds.applyBonus(1)
-  let actualMultiplier = globalQuarkMultiplier
-  if (actualMultiplier > 100) {
-    actualMultiplier = Math.pow(100, 0.6) * Math.pow(actualMultiplier, 0.4)
-  }
-
-  return Math.floor(5 * actualMultiplier)
-}
+const getAchievementQuarks = () => logicGetAchievementQuarks(player.worlds.applyBonus(1))
 
 /* June 9, 2025 Achievements System Rewrite */
 export type AchievementGroups =
@@ -285,10 +289,7 @@ export type ProgressiveAchievements =
 export const progressiveAchievements: Record<ProgressiveAchievements, ProgressiveAchievement> = {
   runeLevel: {
     maxPointValue: 1000,
-    pointsAwarded: (cached: number) => {
-      return Math.min(200, Math.floor(cached / 1000)) + Math.min(400, Math.floor(cached / 2500))
-        + Math.min(400, Math.floor(cached / 12500))
-    },
+    pointsAwarded: (cached: number) => logicRuneLevelPoints(cached),
     updateValue: () => {
       return sumOfRuneLevels()
     },
@@ -299,10 +300,7 @@ export const progressiveAchievements: Record<ProgressiveAchievements, Progressiv
   },
   freeRuneLevel: {
     maxPointValue: 500,
-    pointsAwarded: (cached: number) => {
-      return Math.min(100, Math.floor(cached / 250)) + Math.min(200, Math.floor(cached / 750))
-        + Math.min(200, Math.floor(cached / 2500))
-    },
+    pointsAwarded: (cached: number) => logicFreeRuneLevelPoints(cached),
     updateValue: () => {
       return sumOfFreeRuneLevels()
     },
@@ -314,14 +312,11 @@ export const progressiveAchievements: Record<ProgressiveAchievements, Progressiv
   antMasteries: {
     maxPointValue: 360,
     pointsAwarded: (_cached: number) => {
-      let pointValue = 0
+      const masteries: number[] = []
       for (let ant = AntProducers.Workers; ant <= LAST_ANT_PRODUCER; ant++) {
-        pointValue += 3 * player.ants.masteries[ant].highestMastery
-        if (player.ants.masteries[ant].highestMastery >= 12) {
-          pointValue += 4
-        }
+        masteries.push(player.ants.masteries[ant].highestMastery)
       }
-      return pointValue
+      return logicAntMasteryPoints(masteries)
     },
     updateValue: () => {
       let numMasteries = 0
@@ -337,14 +332,8 @@ export const progressiveAchievements: Record<ProgressiveAchievements, Progressiv
   },
   rebornELO: {
     maxPointValue: 1000,
-    pointsAwarded: (_cached: number) => {
-      const leaderboardELO = calculateLeaderboardValue(player.ants.highestRebornELOEver)
-      return Math.min(100, Math.floor(leaderboardELO / 100))
-        + Math.min(150, Math.floor(leaderboardELO / 1000))
-        + Math.min(150, Math.floor(leaderboardELO / 9000))
-        + Math.min(200, Math.floor(leaderboardELO / 75000))
-        + Math.min(400, Math.floor(leaderboardELO / 150000))
-    },
+    pointsAwarded: (_cached: number) =>
+      logicRebornELOPoints(calculateLeaderboardValue(player.ants.highestRebornELOEver)),
     updateValue: () => {
       return calculateLeaderboardValue(player.ants.highestRebornELOEver)
     },
@@ -355,11 +344,7 @@ export const progressiveAchievements: Record<ProgressiveAchievements, Progressiv
   },
   singularityCount: {
     maxPointValue: 3600,
-    pointsAwarded: (_cached: number) => {
-      return 9 * player.highestSingularityCount
-        + 3 * Math.max(0, player.highestSingularityCount - 100)
-        + 3 * Math.max(0, player.highestSingularityCount - 200)
-    },
+    pointsAwarded: (_cached: number) => logicSingularityCountPoints(player.highestSingularityCount),
     updateValue: () => {
       return player.highestSingularityCount
     },
@@ -370,11 +355,7 @@ export const progressiveAchievements: Record<ProgressiveAchievements, Progressiv
   },
   ambrosiaCount: {
     maxPointValue: 800,
-    pointsAwarded: (cached: number) => {
-      return Math.min(200, Math.floor(cached / 100))
-        + Math.min(200, Math.floor(cached / 10000))
-        + Math.min(400, Math.floor(400 * Math.sqrt(cached / 1e8)))
-    },
+    pointsAwarded: (cached: number) => logicAmbrosiaCountPoints(cached),
     updateValue: () => {
       return player.lifetimeAmbrosia
     },
@@ -385,12 +366,7 @@ export const progressiveAchievements: Record<ProgressiveAchievements, Progressiv
   },
   redAmbrosiaCount: {
     maxPointValue: 1000,
-    pointsAwarded: (cached: number) => {
-      return Math.min(200, Math.floor(cached / 25))
-        + Math.min(200, Math.floor(cached / 2500))
-        + Math.min(400, Math.floor(400 * cached / 5e6))
-        + Math.min(200, Math.floor(200 * cached / 1.25e7))
-    },
+    pointsAwarded: (cached: number) => logicRedAmbrosiaCountPoints(cached),
     updateValue: () => {
       return player.lifetimeRedAmbrosia
     },
@@ -402,11 +378,11 @@ export const progressiveAchievements: Record<ProgressiveAchievements, Progressiv
   exalts: {
     maxPointValue: maxAPFromChallenges,
     pointsAwarded: (_cached: number) => {
-      let pointValue = 0
+      const rewardAPs: number[] = []
       for (const chal of Object.keys(player.singularityChallenges) as SingularityChallengeDataKeys[]) {
-        pointValue += player.singularityChallenges[chal].rewardAP
+        rewardAPs.push(player.singularityChallenges[chal].rewardAP)
       }
-      return pointValue
+      return logicExaltPoints(rewardAPs)
     },
     updateValue: () => {
       return 0
@@ -441,14 +417,13 @@ export const progressiveAchievements: Record<ProgressiveAchievements, Progressiv
   singularityUpgrades: {
     maxPointValue: maxGoldenQuarkUpgradeAP,
     pointsAwarded: (_cached: number) => {
-      let pointValue = 0
-      // Go through all sing upgrades. if the max level is NOT -1, add 5 points if the upgrade level equals max level
+      let maxedCount = 0
       for (const upgrade of Object.values(goldenQuarkUpgrades)) {
         if (upgrade.maxLevel !== -1 && upgrade.level >= upgrade.maxLevel) {
-          pointValue += 5
+          maxedCount += 1
         }
       }
-      return pointValue
+      return logicMaxedUpgradeFamilyPoints(maxedCount, 5)
     },
     updateValue: () => {
       return 0
@@ -461,14 +436,13 @@ export const progressiveAchievements: Record<ProgressiveAchievements, Progressiv
   octeractUpgrades: {
     maxPointValue: maxOcteractUpgradeAP,
     pointsAwarded: (_cached: number) => {
-      let pointValue = 0
-      // Go through all octeract upgrades. if the max level is NOT -1, add 8 points if the upgrade level equals max level
+      let maxedCount = 0
       for (const upgrade of Object.values(octeractUpgrades)) {
         if (upgrade.maxLevel !== -1 && upgrade.level >= upgrade.maxLevel) {
-          pointValue += 8
+          maxedCount += 1
         }
       }
-      return pointValue
+      return logicMaxedUpgradeFamilyPoints(maxedCount, 8)
     },
     updateValue: () => {
       return 0
@@ -481,13 +455,13 @@ export const progressiveAchievements: Record<ProgressiveAchievements, Progressiv
   redAmbrosiaUpgrades: {
     maxPointValue: maxRedAmbrosiaUpgradeAP,
     pointsAwarded: () => {
-      let pointValue = 0
+      let maxedCount = 0
       for (const upgrade of Object.values(redAmbrosiaUpgrades)) {
         if (upgrade.level >= upgrade.maxLevel) {
-          pointValue += 10
+          maxedCount += 1
         }
       }
-      return pointValue
+      return logicMaxedUpgradeFamilyPoints(maxedCount, 10)
     },
     updateValue: () => {
       return 0
@@ -499,9 +473,7 @@ export const progressiveAchievements: Record<ProgressiveAchievements, Progressiv
   },
   talismanRarities: {
     maxPointValue: maxTalismansRarityAP,
-    pointsAwarded: (cached: number) => {
-      return 5 * cached
-    },
+    pointsAwarded: (cached: number) => logicTalismanRarityPoints(cached),
     updateValue: () => {
       return Object.values(talismans).reduce((acc, talisman) => {
         acc += talisman.rarity
@@ -3602,15 +3574,14 @@ export function computeAchievementPoints (
   savedAchievements: number[],
   savedProgressiveAchievements: Record<string, number>
 ): number {
-  let points = achievements.reduce((sum, ach, index) => {
-    return sum + (savedAchievements[index] ? ach.pointValue : 0)
-  }, 0)
-
-  for (const k of Object.keys(progressiveAchievements) as ProgressiveAchievements[]) {
-    points += progressiveAchievements[k].pointsAwarded(savedProgressiveAchievements[k] ?? 0)
-  }
-
-  return points
+  const progressiveKeys = Object.keys(progressiveAchievements) as ProgressiveAchievements[]
+  return logicComputeAchievementPoints({
+    pointValues: achievements.map((ach) => ach.pointValue),
+    savedAchievements,
+    progressivePointsAwarded: progressiveKeys.map((k) =>
+      progressiveAchievements[k].pointsAwarded(savedProgressiveAchievements[k] ?? 0)
+    )
+  })
 }
 
 export const toNextAchievementLevelEXP = () => logicToNextAchievementLevelEXP(achievementPoints)

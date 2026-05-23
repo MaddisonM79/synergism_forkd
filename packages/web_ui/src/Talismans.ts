@@ -1,16 +1,21 @@
 import {
   achievementTalismanEffects as logicAchievementTalismanEffects,
+  affordableTalismanLevel as logicAffordableTalismanLevel,
   chronosTalismanEffects as logicChronosTalismanEffects,
+  computeTalismanRarity as logicComputeTalismanRarity,
   cookieGrandmaTalismanEffects as logicCookieGrandmaTalismanEffects,
   exemptionTalismanEffects as logicExemptionTalismanEffects,
   exponentialCostProgression as logicExponentialCostProgression,
   horseShoeTalismanEffects as logicHorseShoeTalismanEffects,
+  levelsUntilTalismanRarityIncrease as logicLevelsUntilTalismanRarityIncrease,
   metaphysicsTalismanEffects as logicMetaphysicsTalismanEffects,
   midasTalismanEffects as logicMidasTalismanEffects,
   mortuusTalismanEffects as logicMortuusTalismanEffects,
   plasticTalismanEffects as logicPlasticTalismanEffects,
   polymathTalismanEffects as logicPolymathTalismanEffects,
+  rarityValues as logicRarityValues,
   regularCostProgression as logicRegularCostProgression,
+  sumOfTalismanRarities as logicSumOfTalismanRarities,
   type TalismanCraftItems as LogicTalismanCraftItems,
   wowSquareTalismanEffects as logicWowSquareTalismanEffects
 } from '@synergism/logic'
@@ -102,19 +107,7 @@ export const noTalismanFragments: Record<TalismanCraftItems, Decimal> = {
   mythicalFragment: new Decimal(0)
 }
 
-const rarityValues: Record<number, number> = {
-  0: 0,
-  1: 1,
-  2: 1.2,
-  3: 1.5,
-  4: 1.8,
-  5: 2.1,
-  6: 2.5,
-  7: 3,
-  8: 3.25,
-  9: 3.5,
-  10: 4
-}
+const rarityValues = logicRarityValues
 
 interface TalismanData<K extends TalismanKeys> {
   level: number
@@ -615,64 +608,34 @@ export const getTalismanLevelCap = (t: TalismanKeys) => {
 }
 
 const setTalismanRarity = (t: TalismanKeys) => {
-  if (!talismans[t].isUnlocked()) {
-    talismans[t].rarity = 0
-    return
-  }
-
-  // Since the actual level cap depends on
-  // level cap increasers, this can be greater than 1
-  const levelRatio = talismans[t].level / talismans[t].maxLevel
-
-  let extraRarity = 0
-  if (levelRatio >= 1) {
-    if (levelRatio >= 2) {
-      extraRarity += 1
-    }
-    if (levelRatio >= 4) {
-      extraRarity += 1
-    }
-    if (levelRatio >= 8) {
-      extraRarity += 1
-    }
-  }
-
-  talismans[t].rarity = 1 + Math.min(6, Math.floor(6 * levelRatio)) + extraRarity
+  talismans[t].rarity = logicComputeTalismanRarity({
+    isUnlocked: talismans[t].isUnlocked(),
+    level: talismans[t].level,
+    maxLevel: talismans[t].maxLevel
+  })
 }
 
-const levelsUntilRarityIncrease = (t: TalismanKeys) => {
-  const level = talismans[t].level
-  const maxLevel = talismans[t].maxLevel
-  if (level >= maxLevel) {
-    // This ignores rarity above 7...
-    // And just tries to level to cap
-    return getTalismanLevelCap(t) - level
-  } else {
-    const currentRarity = talismans[t].rarity
-    const levelReq = Math.ceil(maxLevel * currentRarity / 6)
-    return levelReq - level
-  }
-}
+const levelsUntilRarityIncrease = (t: TalismanKeys) =>
+  logicLevelsUntilTalismanRarityIncrease({
+    level: talismans[t].level,
+    maxLevel: talismans[t].maxLevel,
+    currentRarity: talismans[t].rarity,
+    levelCap: getTalismanLevelCap(t)
+  })
 
 const affordableNextLevel = (
   t: TalismanKeys,
   budget: Record<TalismanCraftItems, Decimal>,
   level: number,
   loadingTalismans = false
-): boolean => {
-  const costs = talismans[t].costs(talismans[t].baseMult, level)
-  // This fixes a bug where imprecisions cause Talismans to be one level lower after loading
-  // Talismans might need a redesign in terms of leveling, to make it more in line with Runes/Spirits/Blessings
-  const smallBufferMult = loadingTalismans ? 1.0001 : 1
-
-  for (const item in costs) {
-    if (costs[item as TalismanCraftItems].gt(budget[item as TalismanCraftItems].times(smallBufferMult))) {
-      return false
-    }
-  }
-
-  return true
-}
+): boolean =>
+  // The 1.0001 cushion when loadingTalismans is true fixes a save-load bug
+  // where Decimal imprecision dropped talismans by one level on import.
+  logicAffordableTalismanLevel({
+    costs: talismans[t].costs(talismans[t].baseMult, level),
+    budget,
+    bufferMult: loadingTalismans ? 1.0001 : 1
+  })
 
 export const updateTalismanLevelAndSpentFromInvested = (t: TalismanKeys): void => {
   let level = 0
@@ -1122,13 +1085,10 @@ export const resetTalismanData = (tier: keyof typeof resetTiers) => {
   player.mythicalFragments = new Decimal(0)
 }
 
-export const sumOfTalismanRarities = (): number => {
-  let sum = 0
-  for (const t of Object.keys(talismans) as TalismanKeys[]) {
-    sum += talismans[t].rarity
-  }
-  return sum
-}
+export const sumOfTalismanRarities = (): number =>
+  logicSumOfTalismanRarities(
+    (Object.keys(talismans) as TalismanKeys[]).map((t) => talismans[t].rarity)
+  )
 
 /**
  * Updates legacy talisman data (player.talismanLevels[i]) to the
