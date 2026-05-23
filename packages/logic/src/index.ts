@@ -137,7 +137,26 @@ export {
   multiplierHepteractEffects,
   quarkHepteractEffects
 } from './mechanics/cubes/hepteracts'
-export { CalcECC } from './mechanics/challenges'
+export type {
+  Challenge15ScoreMultiplierInput,
+  ChallengeRequirementInput,
+  ChallengeRequirementMultiplierInput,
+  ChallengeType,
+  GetMaxChallengesInput,
+  GetNextAscensionChallengeInput,
+  GetNextRegularChallengeInput
+} from './mechanics/challenges'
+export {
+  autoAscensionChallengeSweepUnlock,
+  CalcECC,
+  calculateChallengeRequirementMultiplier,
+  challenge15ScoreMultiplier,
+  challengeRequirement,
+  challengeScoreDisplay,
+  getMaxChallenges,
+  getNextAscensionChallenge,
+  getNextRegularChallenge
+} from './mechanics/challenges'
 export type {
   AntiquitiesRuneInput,
   AntiquitiesRuneKey,
