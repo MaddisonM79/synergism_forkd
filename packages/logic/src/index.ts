@@ -158,6 +158,11 @@ export {
   getNextRegularChallenge
 } from './mechanics/challenges'
 export type {
+  QuarkHandlerInput,
+  QuarkHandlerResult
+} from './mechanics/quarks'
+export { quarkHandler } from './mechanics/quarks'
+export type {
   AntiquitiesRuneInput,
   AntiquitiesRuneKey,
   DuplicationRuneKey,
