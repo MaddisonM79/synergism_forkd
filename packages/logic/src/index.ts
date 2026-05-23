@@ -4,6 +4,17 @@
 // not exported from this file should be considered internal to the package.
 
 export type { CoreEvent } from './events/types'
+export { calculateSigmoid, calculateSigmoidExponential } from './math/sigmoid'
+export type {
+  CalculateCubicSumDataResult,
+  CalculateSummationNonLinearResult
+} from './math/summations'
+export {
+  calculateCubicSumData,
+  calculateSummationCubic,
+  calculateSummationNonLinear,
+  solveQuadratic
+} from './math/summations'
 export type {
   AcceleratorState,
   AscendBuildingState,
@@ -213,6 +224,97 @@ export type {
   GlobalSpeedMultInput,
   ReductionValueInput
 } from './mechanics/calculate'
+export type {
+  AmbrosiaMultInput,
+  CalculateRequiredBlueberryTimeInput,
+  CalculateRequiredRedAmbrosiaTimeInput
+} from './mechanics/ambrosia'
+export type {
+  CalculateAcceleratorMultiplierInput,
+  CalculateTotalAcceleratorBoostInput,
+  CalculateTotalAcceleratorBoostResult
+} from './mechanics/acceleratorMultipliers'
+export {
+  calculateAcceleratorMultiplier,
+  calculateTotalAcceleratorBoost
+} from './mechanics/acceleratorMultipliers'
+export type { CalculateAscensionCountInput } from './mechanics/ascensions'
+export { calculateAscensionCount } from './mechanics/ascensions'
+export type { CalculateCubeQuarkMultiplierInput } from './mechanics/overfluxBonuses'
+export {
+  calculateCubeMultFromPowder,
+  calculateCubeQuarkMultiplier,
+  calculateQuarkMultFromPowder
+} from './mechanics/overfluxBonuses'
+export {
+  calculateAmbrosiaCubeMult,
+  calculateAmbrosiaGenerationOcteractUpgrade,
+  calculateAmbrosiaGenerationSingularityUpgrade,
+  calculateAmbrosiaLuckOcteractUpgrade,
+  calculateAmbrosiaLuckSingularityUpgrade,
+  calculateAmbrosiaQuarkMult,
+  calculateNumberOfThresholds,
+  calculateRequiredBlueberryTime,
+  calculateRequiredRedAmbrosiaTime,
+  calculateSingularityMilestoneBlueberries,
+  calculateToNextThreshold
+} from './mechanics/ambrosia'
+export type {
+  CalculateExalt3PenaltyInput,
+  CalculateExalt4EffectiveSingularityMultiplierInput
+} from './mechanics/exaltPenalties'
+export type {
+  CalculatePotionValueInput,
+  PotionBonusResult
+} from './mechanics/potionBonuses'
+export {
+  calculateObtainiumPotionBaseObtainium,
+  calculateOfferingPotionBaseOfferings,
+  calculatePotionValue
+} from './mechanics/potionBonuses'
+export type {
+  CalculateCookieUpgrade29LuckInput,
+  CalculateRedAmbrosiaCubesInput,
+  CalculateRedAmbrosiaResourceInput
+} from './mechanics/redAmbrosiaBonuses'
+export {
+  calculateCookieUpgrade29Luck,
+  calculateRedAmbrosiaCubes,
+  calculateRedAmbrosiaObtainium,
+  calculateRedAmbrosiaOffering
+} from './mechanics/redAmbrosiaBonuses'
+export type {
+  CalculateTotalOcteractCubeBonusInput,
+  CalculateTotalOcteractObtainiumBonusInput,
+  CalculateTotalOcteractOfferingBonusInput,
+  CalculateTotalOcteractQuarkBonusInput
+} from './mechanics/octeractBonuses'
+export {
+  calculateTotalOcteractCubeBonus,
+  calculateTotalOcteractObtainiumBonus,
+  calculateTotalOcteractOfferingBonus,
+  calculateTotalOcteractQuarkBonus
+} from './mechanics/octeractBonuses'
+export {
+  calculateExalt3AscensionLimit,
+  calculateExalt3Penalty,
+  calculateExalt4EffectiveSingularityMultiplier,
+  calculateExalt6Penalty,
+  calculateExalt6PenaltyPerSecond,
+  calculateExalt6TimeLimit
+} from './mechanics/exaltPenalties'
+export type { CalculateBaseGoldenQuarksInput } from './mechanics/singularityMilestones'
+export {
+  calculateBaseGoldenQuarks,
+  calculateDilatedFiveLeafBonus,
+  calculateImmaculateAlchemyBonus,
+  calculateSingularityAmbrosiaLuckMilestoneBonus,
+  calculateSingularityQuarkMilestoneMultiplier,
+  derpsmithCornucopiaBonus,
+  inheritanceTokens,
+  singularityBonusTokenMult,
+  sumOfExaltCompletions
+} from './mechanics/singularityMilestones'
 export {
   calculateActualAntSpeedMult,
   calculateAllCubeMultiplier,
