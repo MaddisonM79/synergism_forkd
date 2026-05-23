@@ -69,7 +69,22 @@ export {
   MAX_ANT_MASTERY_LEVEL
 } from './mechanics/antMasteries'
 export type {
+  AntProducerCostInput,
+  AntProducerData,
+  AntProducerMaxCostInput,
+  AntProducerMaxPurchasableInput,
+  BaseAntsToBeGeneratedInput
+} from './mechanics/antProducers'
+export {
+  antProducerData,
+  calculateBaseAntsToBeGenerated,
+  getCostMaxAntProducers,
+  getCostNextAntProducer,
+  getMaxPurchasableAntProducers
+} from './mechanics/antProducers'
+export type {
   AvailableRebornELOInput,
+  BaseQuarksFromRebornELOStagesResult,
   RebornELOStageModifiers,
   RebornELOStageModifiersInput,
   RebornELOTranche,
@@ -77,15 +92,19 @@ export type {
   TotalProductionForRebornELOInput
 } from './mechanics/antRebornELO'
 export {
+  baseQuarksFromRebornELOStages,
   calculateAvailableRebornELO,
+  calculateLeaderboardValue,
   calculateLeftoverRebornELO,
   calculateRebornELOThresholds,
   calculateSingularityPerkELO,
   calculateStageRebornSpeedMult,
   calculateToNextRebornELOThreshold,
   calculateTotalProductionForRebornELO,
+  LEADERBOARD_WEIGHTS,
   perRebornELOStageModifiers,
   quarkMultiplierPerRebornELOThreshold,
+  quarksFromELOMult,
   rebornELOStageModifiers,
   rebornELOThresholdTranches,
   rebornSpeedPerkLevels,
@@ -150,6 +169,14 @@ export {
   taxesAntUpgradeEffect,
   wowCubesAntUpgradeEffect
 } from './mechanics/antUpgrades'
+export type {
+  CalculateTrueAntLevelInput,
+  ComputeFreeAntUpgradeLevelsInput
+} from './mechanics/antUpgradeLevels'
+export {
+  calculateTrueAntLevel,
+  computeFreeAntUpgradeLevels
+} from './mechanics/antUpgradeLevels'
 export type { CalculateAscensionCountInput } from './mechanics/ascensions'
 export { calculateAscensionCount } from './mechanics/ascensions'
 export type { AmbrosiaUpgradeNames, AmbrosiaUpgradeRewards } from './mechanics/blueberryUpgrades'

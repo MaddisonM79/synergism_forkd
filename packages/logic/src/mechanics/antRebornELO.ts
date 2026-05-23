@@ -235,6 +235,76 @@ export function calculateTotalProductionForRebornELO (input: TotalProductionForR
   return production
 }
 
+// ─── Leaderboard + daily-quark math ───────────────────────────────────────
+
+/**
+ * Per-rank multipliers applied to the top-N daily/all-time reborn-ELO
+ * leaderboard entries. Lifted from
+ *   packages/web_ui/src/Features/Ants/AntSacrifice/Rewards/ELO/RebornELO/
+ *     QuarkCorner/lib/leaderboard-update.ts (LEADERBOARD_WEIGHTS).
+ */
+export const LEADERBOARD_WEIGHTS: readonly number[] = [1, 0.8, 0.6, 0.4, 0.2]
+
+/** Weighted-sum of a leaderboard array, floor'd to an integer. Walks at
+ * most `min(leaderboard.length, LEADERBOARD_WEIGHTS.length)` entries. */
+export function calculateLeaderboardValue (
+  leaderboard: ReadonlyArray<{ elo: number; sacrificeId: number }>
+): number {
+  let total = 0
+  const n = Math.min(leaderboard.length, LEADERBOARD_WEIGHTS.length)
+  for (let i = 0; i < n; i++) {
+    total += leaderboard[i].elo * LEADERBOARD_WEIGHTS[i]
+  }
+  return Math.floor(total)
+}
+
+/**
+ * Lifetime-ELO quark multiplier — sigmoid-ish ramp `2 − 0.8^(stages/100)`,
+ * asymptoting at 2× as the player accumulates reborn stages.
+ *
+ * Caller passes the result of calculateLeaderboardValue on the all-time
+ * leaderboard (player.ants.highestRebornELOEver in legacy).
+ */
+export function quarksFromELOMult (lifetimeLeaderboardELO: number): number {
+  const numStages = calculateRebornELOThresholds(lifetimeLeaderboardELO)
+  return 2 - Math.pow(0.8, numStages / 100)
+}
+
+export interface BaseQuarksFromRebornELOStagesResult {
+  /** Sum of per-stage quark rewards across tranches. */
+  baseQuarks: number
+  /** Per-stage quark multiplier (capped at 1000 stages contributing). */
+  stageMult: number
+}
+
+/**
+ * Per-tranche base-quark loop from availableQuarksFromELO. Walks each
+ * tranche, accumulating `min(tranche.stages, remainingStages) × quarkPerStage`
+ * until stages are exhausted. Separately computes the stage multiplier
+ * as `quarkMultiplierPerRebornELOThreshold ^ min(numStages, 1000)`.
+ *
+ * Callers (web_ui's availableQuarksFromELO) combine `baseQuarks` with
+ * `player.worlds.applyBonus()` and `stageMult` × additional ant-quark
+ * multipliers.
+ */
+export function baseQuarksFromRebornELOStages (
+  numStages: number
+): BaseQuarksFromRebornELOStagesResult {
+  let baseQuarks = 0
+  let remaining = numStages
+  for (const tranch of rebornELOThresholdTranches) {
+    const stagesInThisTranche = Math.min(tranch.stages, remaining)
+    baseQuarks += stagesInThisTranche * tranch.quarkPerStage
+    remaining -= stagesInThisTranche
+    if (remaining <= 0) {
+      break
+    }
+  }
+  const usedNumberStagesForMult = Math.min(numStages, 1000)
+  const stageMult = Math.pow(quarkMultiplierPerRebornELOThreshold, usedNumberStagesForMult)
+  return { baseQuarks, stageMult }
+}
+
 // ─── Ant-related singularity perks ────────────────────────────────────────
 
 /**
