@@ -23,6 +23,21 @@ export { calculateAcceleratorMultiplier, calculateTotalAcceleratorBoost } from '
 export type { BuyAcceleratorInput, GetCostAcceleratorInput } from './mechanics/accelerators'
 export { buyAccelerator, getCostAccelerator } from './mechanics/accelerators'
 export { achievementLevelFromPoints, toNextAchievementLevelEXP } from './mechanics/achievementLevels'
+export type { ComputeAchievementPointsInput } from './mechanics/achievementPoints'
+export {
+  ambrosiaCountPoints,
+  antMasteryPoints,
+  computeAchievementPoints,
+  exaltPoints,
+  freeRuneLevelPoints,
+  getAchievementQuarks,
+  maxedUpgradeFamilyPoints,
+  rebornELOPoints,
+  redAmbrosiaCountPoints,
+  runeLevelPoints,
+  singularityCountPoints,
+  talismanRarityPoints
+} from './mechanics/achievementPoints'
 export type {
   AmbrosiaMultInput,
   CalculateRequiredBlueberryTimeInput,
@@ -241,6 +256,7 @@ export type {
 } from './mechanics/coinProduction'
 export { calculateCoinProduction } from './mechanics/coinProduction'
 export type {
+  CorruptionRawMultiplierInput,
   DroughtEffectInput,
   HyperchallengeEffectInput,
   IlliteracyEffectInput,
@@ -248,6 +264,10 @@ export type {
   ViscosityEffectInput
 } from './mechanics/corruptions'
 export {
+  calculateCorruptionDifficultyScore,
+  calculateCorruptionRawMultiplier,
+  clipCorruptionLevel,
+  corruptionScoreMults,
   droughtEffect,
   hyperchallengeEffect,
   illiteracyEffect,
@@ -872,6 +892,18 @@ export type {
 export { calculateEffectiveSingularities, calculateSingularityDebuff } from './mechanics/singularityPenalties'
 export type { TalismanCraftCosts, TalismanCraftItems } from './mechanics/talismanCosts'
 export { exponentialCostProgression, regularCostProgression } from './mechanics/talismanCosts'
+export type {
+  AffordableTalismanLevelInput,
+  ComputeTalismanRarityInput,
+  LevelsUntilTalismanRarityIncreaseInput
+} from './mechanics/talismanLevels'
+export {
+  affordableTalismanLevel,
+  computeTalismanRarity,
+  levelsUntilTalismanRarityIncrease,
+  rarityValues,
+  sumOfTalismanRarities
+} from './mechanics/talismanLevels'
 export type {
   AchievementTalismanEffects,
   ChronosTalismanEffects,

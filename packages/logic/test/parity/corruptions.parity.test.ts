@@ -5,6 +5,11 @@
 
 import { describe, expect, it } from 'vitest'
 import {
+  calculateCorruptionDifficultyScore as newDifficultyScore,
+  calculateCorruptionRawMultiplier as newRawMult,
+  clipCorruptionLevel as newClipLevel,
+  type CorruptionRawMultiplierInput,
+  corruptionScoreMults,
   droughtEffect as newDrought,
   hyperchallengeEffect as newHyperchallenge,
   illiteracyEffect as newIlliteracy,
@@ -215,6 +220,139 @@ describe('parity: hyperchallengeEffect', () => {
       const divisor = 1 + 2 / 5 * c.platonicUpgrade8
       const oldVal = Math.max(1, c.baseEffect / divisor)
       expect(newHyperchallenge(c)).toBe(oldVal)
+    })
+  }
+})
+
+// ─── calculateCorruptionRawMultiplier ──────────────────────────────────────
+//
+// Old (in-class) implementation transcribed below, using the
+// corruptionScoreMults table as #corruptionScoreMults. bonusMult was always 1
+// in the original code, so we drop it from the new signature.
+
+const oldScoreMults = [1, 3, 4, 5, 6, 7, 7.75, 8.5, 9.25, 10, 10.75, 11.5, 12.25, 13, 16, 20, 25, 33, 35]
+
+const oldRawMult = (i: CorruptionRawMultiplierInput): number => {
+  const scoreMultLength = oldScoreMults.length
+  if (i.totalLevel < scoreMultLength - 1) {
+    const portionAboveLevel = Math.ceil(i.totalLevel) - i.totalLevel
+    return Math.pow(
+      oldScoreMults[Math.floor(i.totalLevel)] + i.bonusVal
+        + portionAboveLevel
+          * (oldScoreMults[Math.ceil(i.totalLevel)] - oldScoreMults[Math.floor(i.totalLevel)]),
+      i.viscosityPower
+    )
+  } else {
+    return Math.pow(
+      (oldScoreMults[scoreMultLength - 1] + i.bonusVal)
+        * Math.pow(1.2, i.totalLevel - scoreMultLength + 1),
+      i.viscosityPower
+    )
+  }
+}
+
+describe('parity: corruptionScoreMults', () => {
+  it('matches the legacy table values', () => {
+    expect([...corruptionScoreMults]).toEqual(oldScoreMults)
+  })
+})
+
+describe('parity: calculateCorruptionRawMultiplier', () => {
+  const cases: CorruptionRawMultiplierInput[] = [
+    // Integer levels below table length, no bonus, no viscosity exponent
+    { totalLevel: 0, bonusVal: 0, viscosityPower: 1 },
+    { totalLevel: 5, bonusVal: 0, viscosityPower: 1 },
+    { totalLevel: 13, bonusVal: 0, viscosityPower: 1 },
+    // Interpolation between table entries
+    { totalLevel: 0.5, bonusVal: 0, viscosityPower: 1 },
+    { totalLevel: 5.25, bonusVal: 0, viscosityPower: 1 },
+    { totalLevel: 12.5, bonusVal: 0, viscosityPower: 1 },
+    // Boundary: totalLevel = scoreMultLength - 1 (= 18) → tail branch
+    { totalLevel: 17.99, bonusVal: 0, viscosityPower: 1 },
+    { totalLevel: 18, bonusVal: 0, viscosityPower: 1 },
+    { totalLevel: 18.5, bonusVal: 0, viscosityPower: 1 },
+    // Far tail with 1.2^x extrapolation
+    { totalLevel: 30, bonusVal: 0, viscosityPower: 1 },
+    { totalLevel: 100, bonusVal: 0, viscosityPower: 1 },
+    // bonusVal contributions
+    { totalLevel: 3, bonusVal: 2.5, viscosityPower: 1 },
+    { totalLevel: 12.4, bonusVal: 10, viscosityPower: 1 },
+    { totalLevel: 25, bonusVal: 5, viscosityPower: 1 },
+    // viscosityPower != 1 (P4x2 path)
+    { totalLevel: 10, bonusVal: 0, viscosityPower: 3 },
+    { totalLevel: 10, bonusVal: 0, viscosityPower: 3.4 }, // 3 + 0.04 * 10
+    { totalLevel: 15.5, bonusVal: 3, viscosityPower: 3.2 },
+    { totalLevel: 25, bonusVal: 7, viscosityPower: 3.8 }
+  ]
+  for (const [idx, c] of cases.entries()) {
+    it(`case ${idx} (level=${c.totalLevel} bonus=${c.bonusVal} vp=${c.viscosityPower})`, () => {
+      expect(newRawMult(c)).toBeCloseTo(oldRawMult(c), 10)
+    })
+  }
+})
+
+// ─── calculateCorruptionDifficultyScore ────────────────────────────────────
+
+const oldDifficultyScore = (levels: number[]): number => {
+  let basePoints = 400
+  for (const lvl of levels) {
+    basePoints += 16 * Math.pow(lvl, 2)
+  }
+  return basePoints
+}
+
+describe('parity: calculateCorruptionDifficultyScore', () => {
+  const cases: number[][] = [
+    [], // empty (just 400)
+    [0, 0, 0, 0, 0, 0, 0, 0], // all zeros
+    [1, 1, 1, 1, 1, 1, 1, 1], // each contributing 16
+    [11, 11, 11, 11, 11, 11, 11, 11], // c15 loadout
+    [5, 3, 7, 0, 0, 9, 12, 4], // mixed
+    [100, 0, 0, 0, 0, 0, 0, 0], // one large
+    [25, 13, 18, 22, 30, 8, 16, 19] // varied with bonuses applied
+  ]
+  for (const [idx, c] of cases.entries()) {
+    it(`case ${idx} (sum=${c.reduce((a, b) => a + b, 0)})`, () => {
+      expect(newDifficultyScore(c)).toBe(oldDifficultyScore(c))
+    })
+  }
+})
+
+// ─── clipCorruptionLevel ───────────────────────────────────────────────────
+//
+// Old behavior: validateNonnegativeInteger reset to 0 on non-integer/NaN/etc,
+// then Math.max(0, x) then Math.min(maxLevel, x). Equivalent to:
+
+const oldClip = (level: number, maxLevel: number): number => {
+  let v = level
+  if (!Number.isFinite(v) || Number.isNaN(v) || !Number.isInteger(v)) {
+    v = 0
+  }
+  v = Math.max(0, v)
+  v = Math.min(maxLevel, v)
+  return v
+}
+
+describe('parity: clipCorruptionLevel', () => {
+  const cases: Array<[number, number]> = [
+    [0, 13],
+    [5, 13],
+    [13, 13],
+    [14, 13], // clamps to max
+    [-1, 13], // negative integer clamps to 0
+    [-100, 13],
+    [3.5, 13], // non-integer → 0
+    [Number.NaN, 13],
+    [Number.POSITIVE_INFINITY, 13],
+    [Number.NEGATIVE_INFINITY, 13],
+    [0, 0],
+    [5, 0], // maxLevel = 0
+    [11, 11], // exactly at max
+    [100, 20]
+  ]
+  for (const [level, maxLevel] of cases) {
+    it(`level=${level} maxLevel=${maxLevel}`, () => {
+      expect(newClipLevel(level, maxLevel)).toBe(oldClip(level, maxLevel))
     })
   }
 })
