@@ -1,3 +1,79 @@
+import {
+  ambrosiaBaseObtainium1CostFormula as logicAmbrosiaBaseObtainium1CostFormula,
+  ambrosiaBaseObtainium1Effect as logicAmbrosiaBaseObtainium1Effect,
+  ambrosiaBaseObtainium2CostFormula as logicAmbrosiaBaseObtainium2CostFormula,
+  ambrosiaBaseObtainium2Effect as logicAmbrosiaBaseObtainium2Effect,
+  ambrosiaBaseOffering1CostFormula as logicAmbrosiaBaseOffering1CostFormula,
+  ambrosiaBaseOffering1Effect as logicAmbrosiaBaseOffering1Effect,
+  ambrosiaBaseOffering2CostFormula as logicAmbrosiaBaseOffering2CostFormula,
+  ambrosiaBaseOffering2Effect as logicAmbrosiaBaseOffering2Effect,
+  ambrosiaBrickOfLeadCostFormula as logicAmbrosiaBrickOfLeadCostFormula,
+  ambrosiaBrickOfLeadEffect as logicAmbrosiaBrickOfLeadEffect,
+  ambrosiaCubeLuck1CostFormula as logicAmbrosiaCubeLuck1CostFormula,
+  ambrosiaCubeLuck1Effect as logicAmbrosiaCubeLuck1Effect,
+  ambrosiaCubeQuark1CostFormula as logicAmbrosiaCubeQuark1CostFormula,
+  ambrosiaCubeQuark1Effect as logicAmbrosiaCubeQuark1Effect,
+  ambrosiaCubes1CostFormula as logicAmbrosiaCubes1CostFormula,
+  ambrosiaCubes1Effect as logicAmbrosiaCubes1Effect,
+  ambrosiaCubes2CostFormula as logicAmbrosiaCubes2CostFormula,
+  ambrosiaCubes2Effect as logicAmbrosiaCubes2Effect,
+  ambrosiaCubes3CostFormula as logicAmbrosiaCubes3CostFormula,
+  ambrosiaCubes3Effect as logicAmbrosiaCubes3Effect,
+  ambrosiaFreeGenerationUpgradesCostFormula as logicAmbrosiaFreeGenerationUpgradesCostFormula,
+  ambrosiaFreeGenerationUpgradesEffect as logicAmbrosiaFreeGenerationUpgradesEffect,
+  ambrosiaFreeLuckUpgradesCostFormula as logicAmbrosiaFreeLuckUpgradesCostFormula,
+  ambrosiaFreeLuckUpgradesEffect as logicAmbrosiaFreeLuckUpgradesEffect,
+  ambrosiaFreeQuarkUpgradesCostFormula as logicAmbrosiaFreeQuarkUpgradesCostFormula,
+  ambrosiaFreeQuarkUpgradesEffect as logicAmbrosiaFreeQuarkUpgradesEffect,
+  ambrosiaFreeRedLuckUpgradesCostFormula as logicAmbrosiaFreeRedLuckUpgradesCostFormula,
+  ambrosiaFreeRedLuckUpgradesEffect as logicAmbrosiaFreeRedLuckUpgradesEffect,
+  ambrosiaHyperfluxCostFormula as logicAmbrosiaHyperfluxCostFormula,
+  ambrosiaHyperfluxEffect as logicAmbrosiaHyperfluxEffect,
+  ambrosiaInfiniteShopUpgrades1CostFormula as logicAmbrosiaInfiniteShopUpgrades1CostFormula,
+  ambrosiaInfiniteShopUpgrades1Effect as logicAmbrosiaInfiniteShopUpgrades1Effect,
+  ambrosiaInfiniteShopUpgrades2CostFormula as logicAmbrosiaInfiniteShopUpgrades2CostFormula,
+  ambrosiaInfiniteShopUpgrades2Effect as logicAmbrosiaInfiniteShopUpgrades2Effect,
+  ambrosiaLuck1CostFormula as logicAmbrosiaLuck1CostFormula,
+  ambrosiaLuck1Effect as logicAmbrosiaLuck1Effect,
+  ambrosiaLuck2CostFormula as logicAmbrosiaLuck2CostFormula,
+  ambrosiaLuck2Effect as logicAmbrosiaLuck2Effect,
+  ambrosiaLuck3CostFormula as logicAmbrosiaLuck3CostFormula,
+  ambrosiaLuck3Effect as logicAmbrosiaLuck3Effect,
+  ambrosiaLuck4CostFormula as logicAmbrosiaLuck4CostFormula,
+  ambrosiaLuck4Effect as logicAmbrosiaLuck4Effect,
+  ambrosiaLuckCube1CostFormula as logicAmbrosiaLuckCube1CostFormula,
+  ambrosiaLuckCube1Effect as logicAmbrosiaLuckCube1Effect,
+  ambrosiaLuckQuark1CostFormula as logicAmbrosiaLuckQuark1CostFormula,
+  ambrosiaLuckQuark1Effect as logicAmbrosiaLuckQuark1Effect,
+  ambrosiaObtainium1CostFormula as logicAmbrosiaObtainium1CostFormula,
+  ambrosiaObtainium1Effect as logicAmbrosiaObtainium1Effect,
+  ambrosiaOffering1CostFormula as logicAmbrosiaOffering1CostFormula,
+  ambrosiaOffering1Effect as logicAmbrosiaOffering1Effect,
+  ambrosiaPatreonCostFormula as logicAmbrosiaPatreonCostFormula,
+  ambrosiaPatreonEffect as logicAmbrosiaPatreonEffect,
+  ambrosiaQuarkCube1CostFormula as logicAmbrosiaQuarkCube1CostFormula,
+  ambrosiaQuarkCube1Effect as logicAmbrosiaQuarkCube1Effect,
+  ambrosiaQuarkLuck1CostFormula as logicAmbrosiaQuarkLuck1CostFormula,
+  ambrosiaQuarkLuck1Effect as logicAmbrosiaQuarkLuck1Effect,
+  ambrosiaQuarks1CostFormula as logicAmbrosiaQuarks1CostFormula,
+  ambrosiaQuarks1Effect as logicAmbrosiaQuarks1Effect,
+  ambrosiaQuarks2CostFormula as logicAmbrosiaQuarks2CostFormula,
+  ambrosiaQuarks2Effect as logicAmbrosiaQuarks2Effect,
+  ambrosiaQuarks3CostFormula as logicAmbrosiaQuarks3CostFormula,
+  ambrosiaQuarks3Effect as logicAmbrosiaQuarks3Effect,
+  ambrosiaRuneOOMBonusCostFormula as logicAmbrosiaRuneOOMBonusCostFormula,
+  ambrosiaRuneOOMBonusEffect as logicAmbrosiaRuneOOMBonusEffect,
+  ambrosiaSingReduction1CostFormula as logicAmbrosiaSingReduction1CostFormula,
+  ambrosiaSingReduction1Effect as logicAmbrosiaSingReduction1Effect,
+  ambrosiaSingReduction2CostFormula as logicAmbrosiaSingReduction2CostFormula,
+  ambrosiaSingReduction2Effect as logicAmbrosiaSingReduction2Effect,
+  ambrosiaTalismanBonusRuneLevelCostFormula as logicAmbrosiaTalismanBonusRuneLevelCostFormula,
+  ambrosiaTalismanBonusRuneLevelEffect as logicAmbrosiaTalismanBonusRuneLevelEffect,
+  ambrosiaTutorialCostFormula as logicAmbrosiaTutorialCostFormula,
+  ambrosiaTutorialEffect as logicAmbrosiaTutorialEffect,
+  type AmbrosiaUpgradeNames as LogicAmbrosiaUpgradeNames,
+  type AmbrosiaUpgradeRewards as LogicAmbrosiaUpgradeRewards
+} from '@synergism/logic'
 import i18next from 'i18next'
 import { DOMCacheGetOrSet } from './Cache/DOM'
 import { calculateAmbrosiaLuck, calculateBlueberryInventory } from './Calculate'
@@ -12,46 +88,20 @@ import { assert, isMobile } from './Utility'
 export type BlueberryOpt = Partial<Record<AmbrosiaUpgradeNames, number>>
 export type BlueberryLoadoutMode = 'saveTree' | 'loadTree'
 
-type AmbrosiaUpgradeRewards = {
-  ambrosiaTutorial: { quarks: number; cubes: number }
-  ambrosiaQuarks1: { quarks: number }
-  ambrosiaCubes1: { cubes: number }
-  ambrosiaLuck1: { ambrosiaLuck: number }
-  ambrosiaQuarkCube1: { cubes: number }
-  ambrosiaLuckCube1: { cubes: number }
-  ambrosiaCubeQuark1: { quarks: number }
-  ambrosiaLuckQuark1: { quarks: number }
-  ambrosiaCubeLuck1: { ambrosiaLuck: number }
-  ambrosiaQuarkLuck1: { ambrosiaLuck: number }
-  ambrosiaQuarks2: { quarks: number }
-  ambrosiaCubes2: { cubes: number }
-  ambrosiaLuck2: { ambrosiaLuck: number }
-  ambrosiaQuarks3: { quarks: number }
-  ambrosiaCubes3: { cubes: number }
-  ambrosiaLuck3: { ambrosiaLuck: number }
-  ambrosiaLuck4: { ambrosiaLuckPercentage: number }
-  ambrosiaPatreon: { blueberryGeneration: number }
-  ambrosiaObtainium1: { obtainiumMult: number }
-  ambrosiaOffering1: { offeringMult: number }
-  ambrosiaHyperflux: { hyperFlux: number }
-  ambrosiaBaseOffering1: { offering: number }
-  ambrosiaBaseObtainium1: { obtainium: number }
-  ambrosiaBaseOffering2: { offering: number }
-  ambrosiaBaseObtainium2: { obtainium: number }
-  ambrosiaSingReduction1: { singularityReduction: number }
-  ambrosiaInfiniteShopUpgrades1: { freeLevels: number }
-  ambrosiaInfiniteShopUpgrades2: { freeLevels: number }
-  ambrosiaSingReduction2: { singularityReduction: number }
-  ambrosiaTalismanBonusRuneLevel: { talismanBonusRuneLevel: number }
-  ambrosiaRuneOOMBonus: { runeOOMBonus: number; infiniteAscentOOMBonus: number }
-  ambrosiaBrickOfLead: { barRequirementMult: number; additiveLuckMult: number; singularitySpeedMult: number }
-  ambrosiaFreeQuarkUpgrades: { freeQuarkUpgrades: number }
-  ambrosiaFreeLuckUpgrades: { freeLuckUpgrades: number }
-  ambrosiaFreeGenerationUpgrades: { freeGenerationUpgrades: number }
-  ambrosiaFreeRedLuckUpgrades: { freeRedLuckUpgrades: number }
-}
+// Re-exported from @synergism/logic so existing call sites that import these
+// types from this module keep compiling unchanged.
+type AmbrosiaUpgradeRewards = LogicAmbrosiaUpgradeRewards
+export type AmbrosiaUpgradeNames = LogicAmbrosiaUpgradeNames
 
-export type AmbrosiaUpgradeNames = keyof AmbrosiaUpgradeRewards
+// The sum of `floor(log10(wow*+1))` across the six cube tiers — pre-computed
+// here so the logic-side cube-bonus effects stay player-free.
+const wowCubeLogSum = (): number =>
+  Math.floor(Math.log10(Number(player.wowCubes) + 1))
+  + Math.floor(Math.log10(Number(player.wowTesseracts) + 1))
+  + Math.floor(Math.log10(Number(player.wowHypercubes) + 1))
+  + Math.floor(Math.log10(Number(player.wowPlatonicCubes) + 1))
+  + Math.floor(Math.log10(player.wowAbyssals + 1))
+  + Math.floor(Math.log10(player.wowOcteracts + 1))
 
 type AmbrosiaUpgradeUnlockCriterion = 'Exalt1x1' | 'Exalt5x1'
 
@@ -85,16 +135,8 @@ export const ambrosiaUpgrades: {
     blueberryCost: 0,
     ignoreEXALT: false,
     prerequisites: {},
-    costFormula: (level: number, baseCost: number): number => {
-      return baseCost * (Math.pow(level + 1, 2) - Math.pow(level, 2))
-    },
-    effects: (n, key) => {
-      if (key === 'cubes') {
-        return 1 + 0.05 * n
-      } else {
-        return 1 + 0.01 * n // quarks
-      }
-    },
+    costFormula: logicAmbrosiaTutorialCostFormula,
+    effects: logicAmbrosiaTutorialEffect,
     effectsDescription: function() {
       const cubes = getAmbrosiaUpgradeEffects('ambrosiaTutorial', 'cubes')
       const quarks = getAmbrosiaUpgradeEffects('ambrosiaTutorial', 'quarks')
@@ -119,12 +161,8 @@ export const ambrosiaUpgrades: {
     prerequisites: {
       ambrosiaTutorial: 10
     },
-    costFormula: (level: number, baseCost: number): number => {
-      return baseCost * (Math.pow(level + 1, 3) - Math.pow(level, 3))
-    },
-    effects: (n: number) => {
-      return 1 + 0.01 * n // quarks
-    },
+    costFormula: logicAmbrosiaQuarks1CostFormula,
+    effects: logicAmbrosiaQuarks1Effect,
     effectsDescription: function() {
       const quarks = getAmbrosiaUpgradeEffects('ambrosiaQuarks1', 'quarks')
       return i18next.t('ambrosia.data.ambrosiaQuarks1.effect', {
@@ -147,12 +185,8 @@ export const ambrosiaUpgrades: {
     prerequisites: {
       ambrosiaTutorial: 10
     },
-    costFormula: (level: number, baseCost: number): number => {
-      return baseCost * (Math.pow(level + 1, 3) - Math.pow(level, 3))
-    },
-    effects: (n: number) => {
-      return (1 + 0.05 * n) * Math.pow(1.1, Math.floor(n / 5)) // cubes
-    },
+    costFormula: logicAmbrosiaCubes1CostFormula,
+    effects: logicAmbrosiaCubes1Effect,
     effectsDescription: function() {
       const cubes = getAmbrosiaUpgradeEffects('ambrosiaCubes1', 'cubes')
       return i18next.t('ambrosia.data.ambrosiaCubes1.effect', {
@@ -175,12 +209,8 @@ export const ambrosiaUpgrades: {
     prerequisites: {
       ambrosiaTutorial: 10
     },
-    costFormula: (level: number, baseCost: number): number => {
-      return baseCost * (Math.pow(level + 1, 3) - Math.pow(level, 3))
-    },
-    effects: (n: number) => {
-      return 2 * n + 12 * Math.floor(n / 10) // ambrosiaLuck
-    },
+    costFormula: logicAmbrosiaLuck1CostFormula,
+    effects: logicAmbrosiaLuck1Effect,
     effectsDescription: function() {
       const ambrosiaLuck = getAmbrosiaUpgradeEffects('ambrosiaLuck1', 'ambrosiaLuck')
       return i18next.t('ambrosia.data.ambrosiaLuck1.effect', {
@@ -204,15 +234,8 @@ export const ambrosiaUpgrades: {
       ambrosiaCubes1: 30,
       ambrosiaQuarks1: 20
     },
-    costFormula: (level: number, baseCost: number): number => {
-      return baseCost * (Math.pow(level + 1, 3) - Math.pow(level, 3))
-    },
-    effects: (n: number) => {
-      const baseVal = 0.001 * n
-      return 1
-        + baseVal
-          * Math.floor(Math.pow(Math.log10(Number(player.worlds) + 1) + 1, 2)) // cubes
-    },
+    costFormula: logicAmbrosiaQuarkCube1CostFormula,
+    effects: (n: number) => logicAmbrosiaQuarkCube1Effect(n, Number(player.worlds)),
     effectsDescription: function() {
       const cubes = getAmbrosiaUpgradeEffects('ambrosiaQuarkCube1', 'cubes')
       return i18next.t('ambrosia.data.ambrosiaQuarkCube1.effect', {
@@ -236,13 +259,8 @@ export const ambrosiaUpgrades: {
       ambrosiaCubes1: 30,
       ambrosiaLuck1: 20
     },
-    costFormula: (level: number, baseCost: number): number => {
-      return baseCost * (Math.pow(level + 1, 3) - Math.pow(level, 3))
-    },
-    effects: (n: number) => {
-      const baseVal = 0.0005 * n
-      return 1 + baseVal * calculateAmbrosiaLuck() // cubes
-    },
+    costFormula: logicAmbrosiaLuckCube1CostFormula,
+    effects: (n: number) => logicAmbrosiaLuckCube1Effect(n, calculateAmbrosiaLuck()),
     effectsDescription: function() {
       const cubes = getAmbrosiaUpgradeEffects('ambrosiaLuckCube1', 'cubes')
       return i18next.t('ambrosia.data.ambrosiaLuckCube1.effect', {
@@ -266,21 +284,8 @@ export const ambrosiaUpgrades: {
       ambrosiaQuarks1: 30,
       ambrosiaCubes1: 20
     },
-    costFormula: (level: number, baseCost: number): number => {
-      return baseCost * (Math.pow(level + 1, 3) - Math.pow(level, 3))
-    },
-    effects: (n: number) => {
-      const baseVal = 0.0001 * n
-      return 1
-        + baseVal
-          * (Math.floor(Math.log10(Number(player.wowCubes) + 1))
-            + Math.floor(Math.log10(Number(player.wowTesseracts) + 1))
-            + Math.floor(Math.log10(Number(player.wowHypercubes) + 1))
-            + Math.floor(Math.log10(Number(player.wowPlatonicCubes) + 1))
-            + Math.floor(Math.log10(player.wowAbyssals + 1))
-            + Math.floor(Math.log10(player.wowOcteracts + 1))
-            + 6) // quarks
-    },
+    costFormula: logicAmbrosiaCubeQuark1CostFormula,
+    effects: (n: number) => logicAmbrosiaCubeQuark1Effect(n, wowCubeLogSum()),
     effectsDescription: function() {
       const quarks = getAmbrosiaUpgradeEffects('ambrosiaCubeQuark1', 'quarks')
       return i18next.t('ambrosia.data.ambrosiaCubeQuark1.effect', {
@@ -304,18 +309,8 @@ export const ambrosiaUpgrades: {
       ambrosiaQuarks1: 30,
       ambrosiaLuck1: 20
     },
-    costFormula: (level: number, baseCost: number): number => {
-      return baseCost * (Math.pow(level + 1, 3) - Math.pow(level, 3))
-    },
-    effects: (n: number) => {
-      const baseVal = 0.0001 * n
-      const luck = calculateAmbrosiaLuck()
-      const effectiveLuck = Math.min(
-        luck,
-        Math.pow(1000, 0.5) * Math.pow(luck, 0.5)
-      )
-      return 1 + baseVal * effectiveLuck // quarks
-    },
+    costFormula: logicAmbrosiaLuckQuark1CostFormula,
+    effects: (n: number) => logicAmbrosiaLuckQuark1Effect(n, calculateAmbrosiaLuck()),
     effectsDescription: function() {
       const quarks = getAmbrosiaUpgradeEffects('ambrosiaLuckQuark1', 'quarks')
       return i18next.t('ambrosia.data.ambrosiaLuckQuark1.effect', {
@@ -339,20 +334,8 @@ export const ambrosiaUpgrades: {
       ambrosiaLuck1: 30,
       ambrosiaCubes1: 20
     },
-    costFormula: (level: number, baseCost: number): number => {
-      return baseCost * (Math.pow(level + 1, 3) - Math.pow(level, 3))
-    },
-    effects: (n: number) => {
-      const baseVal = 0.02 * n
-      return baseVal
-        * (Math.floor(Math.log10(Number(player.wowCubes) + 1))
-          + Math.floor(Math.log10(Number(player.wowTesseracts) + 1))
-          + Math.floor(Math.log10(Number(player.wowHypercubes) + 1))
-          + Math.floor(Math.log10(Number(player.wowPlatonicCubes) + 1))
-          + Math.floor(Math.log10(player.wowAbyssals + 1))
-          + Math.floor(Math.log10(player.wowOcteracts + 1))
-          + 6) // ambrosiaLuck
-    },
+    costFormula: logicAmbrosiaCubeLuck1CostFormula,
+    effects: (n: number) => logicAmbrosiaCubeLuck1Effect(n, wowCubeLogSum()),
     effectsDescription: function() {
       const ambrosiaLuck = getAmbrosiaUpgradeEffects('ambrosiaCubeLuck1', 'ambrosiaLuck')
       return i18next.t('ambrosia.data.ambrosiaCubeLuck1.effect', {
@@ -376,13 +359,8 @@ export const ambrosiaUpgrades: {
       ambrosiaLuck1: 30,
       ambrosiaQuarks1: 20
     },
-    costFormula: (level: number, baseCost: number): number => {
-      return baseCost * (Math.pow(level + 1, 3) - Math.pow(level, 3))
-    },
-    effects: (n: number) => {
-      const baseVal = 0.02 * n
-      return baseVal * Math.floor(Math.pow(Math.log10(Number(player.worlds) + 1) + 1, 2)) // ambrosiaLuck
-    },
+    costFormula: logicAmbrosiaQuarkLuck1CostFormula,
+    effects: (n: number) => logicAmbrosiaQuarkLuck1Effect(n, Number(player.worlds)),
     effectsDescription: function() {
       const ambrosiaLuck = getAmbrosiaUpgradeEffects('ambrosiaQuarkLuck1', 'ambrosiaLuck')
       return i18next.t('ambrosia.data.ambrosiaQuarkLuck1.effect', {
@@ -405,16 +383,8 @@ export const ambrosiaUpgrades: {
     prerequisites: {
       ambrosiaQuarks1: 40
     },
-    costFormula: (level: number, baseCost: number): number => {
-      return baseCost * (Math.pow(level + 1, 2) - Math.pow(level, 2))
-    },
-    effects: (n: number) => {
-      return 1
-        + (0.01
-            + Math.floor(getAmbrosiaUpgradeEffectiveLevels('ambrosiaQuarks1') / 10)
-              / 1000)
-          * n // quarks
-    },
+    costFormula: logicAmbrosiaQuarks2CostFormula,
+    effects: (n: number) => logicAmbrosiaQuarks2Effect(n, getAmbrosiaUpgradeEffectiveLevels('ambrosiaQuarks1')),
     effectsDescription: function() {
       const quarks = getAmbrosiaUpgradeEffects('ambrosiaQuarks2', 'quarks')
       return i18next.t('ambrosia.data.ambrosiaQuarks2.effect', {
@@ -437,18 +407,8 @@ export const ambrosiaUpgrades: {
     prerequisites: {
       ambrosiaCubes1: 40
     },
-    costFormula: (level: number, baseCost: number): number => {
-      return baseCost * (Math.pow(level + 1, 2) - Math.pow(level, 2))
-    },
-    effects: (n: number) => {
-      return (1
-        + (0.1
-            + 10
-              * (Math.floor(getAmbrosiaUpgradeEffectiveLevels('ambrosiaCubes1') / 10)
-                / 1000))
-          * n)
-        * Math.pow(1.15, Math.floor(n / 5)) // cubes
-    },
+    costFormula: logicAmbrosiaCubes2CostFormula,
+    effects: (n: number) => logicAmbrosiaCubes2Effect(n, getAmbrosiaUpgradeEffectiveLevels('ambrosiaCubes1')),
     effectsDescription: function() {
       const cubes = getAmbrosiaUpgradeEffects('ambrosiaCubes2', 'cubes')
       return i18next.t('ambrosia.data.ambrosiaCubes2.effect', {
@@ -471,15 +431,8 @@ export const ambrosiaUpgrades: {
     prerequisites: {
       ambrosiaLuck1: 40
     },
-    costFormula: (level: number, baseCost: number): number => {
-      return baseCost * (Math.pow(level + 1, 2) - Math.pow(level, 2))
-    },
-    effects: (n: number) => {
-      return (3
-            + 0.3 * Math.floor(getAmbrosiaUpgradeEffectiveLevels('ambrosiaLuck1') / 10))
-          * n
-        + 40 * Math.floor(n / 10) // ambrosiaLuck
-    },
+    costFormula: logicAmbrosiaLuck2CostFormula,
+    effects: (n: number) => logicAmbrosiaLuck2Effect(n, getAmbrosiaUpgradeEffectiveLevels('ambrosiaLuck1')),
     effectsDescription: function() {
       const ambrosiaLuck = getAmbrosiaUpgradeEffects('ambrosiaLuck2', 'ambrosiaLuck')
       return i18next.t('ambrosia.data.ambrosiaLuck2.effect', {
@@ -503,14 +456,8 @@ export const ambrosiaUpgrades: {
       ambrosiaQuarks1: 100,
       ambrosiaQuarks2: 50
     },
-    costFormula: (level: number, baseCost: number): number => {
-      return baseCost + 50000 * level
-    },
-    effects: (n: number) => {
-      const quark2Mult = 1 + getAmbrosiaUpgradeEffectiveLevels('ambrosiaQuarks2') / 100
-      const quark3Base = 0.05 * n
-      return 1 + quark3Base * quark2Mult // quarks
-    },
+    costFormula: logicAmbrosiaQuarks3CostFormula,
+    effects: (n: number) => logicAmbrosiaQuarks3Effect(n, getAmbrosiaUpgradeEffectiveLevels('ambrosiaQuarks2')),
     effectsDescription: function() {
       const quarks = getAmbrosiaUpgradeEffects('ambrosiaQuarks3', 'quarks')
       return i18next.t('ambrosia.data.ambrosiaQuarks3.effect', {
@@ -534,15 +481,8 @@ export const ambrosiaUpgrades: {
       ambrosiaCubes1: 100,
       ambrosiaCubes2: 50
     },
-    costFormula: (level: number, baseCost: number): number => {
-      return baseCost + 5000 * level
-    },
-    effects: (n: number) => {
-      const cube2Multi = 1 + 3 * getAmbrosiaUpgradeEffectiveLevels('ambrosiaCubes2') / 100
-      const cube3Base = 0.2 * n
-      const cube3Exponential = Math.pow(1.2, Math.floor(n / 5))
-      return (1 + cube3Base * cube2Multi) * cube3Exponential // cubes
-    },
+    costFormula: logicAmbrosiaCubes3CostFormula,
+    effects: (n: number) => logicAmbrosiaCubes3Effect(n, getAmbrosiaUpgradeEffectiveLevels('ambrosiaCubes2')),
     effectsDescription: function() {
       const cubes = getAmbrosiaUpgradeEffects('ambrosiaCubes3', 'cubes')
       return i18next.t('ambrosia.data.ambrosiaCubes3.effect', {
@@ -566,12 +506,8 @@ export const ambrosiaUpgrades: {
       ambrosiaLuck1: 90,
       ambrosiaLuck2: 50
     },
-    costFormula: (_level: number, baseCost: number): number => {
-      return baseCost // Level has no effect
-    },
-    effects: (n: number) => {
-      return calculateBlueberryInventory() * n // ambrosiaLuck
-    },
+    costFormula: logicAmbrosiaLuck3CostFormula,
+    effects: (n: number) => logicAmbrosiaLuck3Effect(n, calculateBlueberryInventory()),
     effectsDescription: function() {
       const ambrosiaLuck = getAmbrosiaUpgradeEffects('ambrosiaLuck3', 'ambrosiaLuck')
       return i18next.t('ambrosia.data.ambrosiaLuck3.effect', {
@@ -592,14 +528,8 @@ export const ambrosiaUpgrades: {
     blueberryCost: 5,
     ignoreEXALT: false,
     prerequisites: {},
-    costFormula: (level, baseCost): number => {
-      return baseCost + 20000 * level
-    },
-    effects: (n: number) => {
-      const digits = Math.ceil(Math.log10(player.lifetimeRedAmbrosia + 1))
-        + Math.ceil(Math.log10(player.lifetimeAmbrosia + 1))
-      return digits * n / 10000 // ambrosiaLuckPercentage
-    },
+    costFormula: logicAmbrosiaLuck4CostFormula,
+    effects: (n: number) => logicAmbrosiaLuck4Effect(n, player.lifetimeRedAmbrosia, player.lifetimeAmbrosia),
     effectsDescription: function() {
       const ambrosiaLuckPercentage = getAmbrosiaUpgradeEffects('ambrosiaLuck4', 'ambrosiaLuckPercentage')
       return i18next.t('ambrosia.data.ambrosiaLuck4.effect', {
@@ -620,12 +550,8 @@ export const ambrosiaUpgrades: {
     blueberryCost: 0,
     ignoreEXALT: false,
     prerequisites: {},
-    costFormula: (level: number, baseCost: number): number => {
-      return baseCost * (Math.pow(level + 1, 2) - Math.pow(level, 2))
-    },
-    effects: (n: number) => {
-      return 1 + (n * getQuarkBonus()) / 100 // blueberryGeneration
-    },
+    costFormula: logicAmbrosiaPatreonCostFormula,
+    effects: (n: number) => logicAmbrosiaPatreonEffect(n, getQuarkBonus()),
     effectsDescription: function() {
       const blueberryGeneration = getAmbrosiaUpgradeEffects('ambrosiaPatreon', 'blueberryGeneration')
       return i18next.t('ambrosia.data.ambrosiaPatreon.effect', {
@@ -646,13 +572,8 @@ export const ambrosiaUpgrades: {
     blueberryCost: 1,
     ignoreEXALT: false,
     prerequisites: {},
-    costFormula: (level: number, baseCost: number): number => {
-      return baseCost * Math.pow(25, level)
-    },
-    effects: (n) => {
-      const luck = calculateAmbrosiaLuck()
-      return 1 + n * luck / 1000 // obtainiumMult
-    },
+    costFormula: logicAmbrosiaObtainium1CostFormula,
+    effects: (n: number) => logicAmbrosiaObtainium1Effect(n, calculateAmbrosiaLuck()),
     effectsDescription: function() {
       const obtainiumMult = getAmbrosiaUpgradeEffects('ambrosiaObtainium1', 'obtainiumMult')
       return i18next.t('ambrosia.data.ambrosiaObtainium1.effect', {
@@ -673,13 +594,8 @@ export const ambrosiaUpgrades: {
     blueberryCost: 1,
     ignoreEXALT: false,
     prerequisites: {},
-    costFormula: (level: number, baseCost: number): number => {
-      return baseCost * Math.pow(25, level)
-    },
-    effects: (n: number) => {
-      const luck = calculateAmbrosiaLuck()
-      return 1 + n * luck / 1000 // offeringMult
-    },
+    costFormula: logicAmbrosiaOffering1CostFormula,
+    effects: (n: number) => logicAmbrosiaOffering1Effect(n, calculateAmbrosiaLuck()),
     effectsDescription: function() {
       const offeringMult = getAmbrosiaUpgradeEffects('ambrosiaOffering1', 'offeringMult')
       return i18next.t('ambrosia.data.ambrosiaOffering1.effect', {
@@ -700,15 +616,8 @@ export const ambrosiaUpgrades: {
     blueberryCost: 3,
     ignoreEXALT: false,
     prerequisites: {},
-    costFormula: (level: number, baseCost: number): number => {
-      return (baseCost + 33333 * Math.min(4, level)) * Math.max(1, Math.pow(3, level - 4))
-    },
-    effects: (n: number) => {
-      return Math.pow(
-        1 + n / 100,
-        player.platonicUpgrades[19]
-      ) // hyperflux
-    },
+    costFormula: logicAmbrosiaHyperfluxCostFormula,
+    effects: (n: number) => logicAmbrosiaHyperfluxEffect(n, player.platonicUpgrades[19]),
     effectsDescription: function() {
       const hyperflux = getAmbrosiaUpgradeEffects('ambrosiaHyperflux', 'hyperFlux')
       return i18next.t('ambrosia.data.ambrosiaHyperflux.effect', {
@@ -729,12 +638,8 @@ export const ambrosiaUpgrades: {
     blueberryCost: 1,
     ignoreEXALT: false,
     prerequisites: {},
-    costFormula: (level: number, baseCost: number): number => {
-      return baseCost * (Math.pow(level + 1, 3) - Math.pow(level, 3))
-    },
-    effects: (n: number) => {
-      return n // offering
-    },
+    costFormula: logicAmbrosiaBaseOffering1CostFormula,
+    effects: logicAmbrosiaBaseOffering1Effect,
     effectsDescription: function() {
       const offering = getAmbrosiaUpgradeEffects('ambrosiaBaseOffering1', 'offering')
       return i18next.t('ambrosia.data.ambrosiaBaseOffering1.effect', {
@@ -755,12 +660,8 @@ export const ambrosiaUpgrades: {
     blueberryCost: 1,
     ignoreEXALT: false,
     prerequisites: {},
-    costFormula: (level: number, baseCost: number): number => {
-      return baseCost * (Math.pow(level + 1, 3) - Math.pow(level, 3))
-    },
-    effects: (n: number) => {
-      return n // obtainium
-    },
+    costFormula: logicAmbrosiaBaseObtainium1CostFormula,
+    effects: logicAmbrosiaBaseObtainium1Effect,
     effectsDescription: function() {
       const obtainium = getAmbrosiaUpgradeEffects('ambrosiaBaseObtainium1', 'obtainium')
       return i18next.t('ambrosia.data.ambrosiaBaseObtainium1.effect', {
@@ -784,12 +685,8 @@ export const ambrosiaUpgrades: {
       ambrosiaBaseOffering1: 30,
       ambrosiaBaseObtainium1: 10
     },
-    costFormula: (level: number, baseCost: number): number => {
-      return baseCost * (Math.pow(level + 1, 3) - Math.pow(level, 3))
-    },
-    effects: (n: number) => {
-      return n // offering
-    },
+    costFormula: logicAmbrosiaBaseOffering2CostFormula,
+    effects: logicAmbrosiaBaseOffering2Effect,
     effectsDescription: function() {
       const offering = getAmbrosiaUpgradeEffects('ambrosiaBaseOffering2', 'offering')
       return i18next.t('ambrosia.data.ambrosiaBaseOffering2.effect', {
@@ -813,12 +710,8 @@ export const ambrosiaUpgrades: {
       ambrosiaBaseObtainium1: 15,
       ambrosiaBaseOffering1: 20
     },
-    costFormula: (level: number, baseCost: number): number => {
-      return baseCost * (Math.pow(level + 1, 3) - Math.pow(level, 3))
-    },
-    effects: (n: number) => {
-      return n // obtainium
-    },
+    costFormula: logicAmbrosiaBaseObtainium2CostFormula,
+    effects: logicAmbrosiaBaseObtainium2Effect,
     effectsDescription: function() {
       const obtainium = getAmbrosiaUpgradeEffects('ambrosiaBaseObtainium2', 'obtainium')
       return i18next.t('ambrosia.data.ambrosiaBaseObtainium2.effect', {
@@ -841,16 +734,8 @@ export const ambrosiaUpgrades: {
     prerequisites: {
       ambrosiaHyperflux: 4
     },
-    costFormula: (level: number, baseCost: number): number => {
-      return baseCost * Math.pow(99, level)
-    },
-    effects: (n: number) => {
-      if (player.insideSingularityChallenge) {
-        return 0
-      } else {
-        return n // singularityReduction
-      }
-    },
+    costFormula: logicAmbrosiaSingReduction1CostFormula,
+    effects: (n: number) => logicAmbrosiaSingReduction1Effect(n, player.insideSingularityChallenge),
     effectsDescription: function() {
       const singularityReduction = getAmbrosiaUpgradeEffects('ambrosiaSingReduction1', 'singularityReduction')
       return i18next.t('ambrosia.data.ambrosiaSingReduction1.effect', {
@@ -875,12 +760,8 @@ export const ambrosiaUpgrades: {
       ambrosiaBaseOffering1: 20,
       ambrosiaBaseObtainium1: 10
     },
-    costFormula: (_level: number, baseCost: number): number => {
-      return baseCost
-    },
-    effects: (n: number) => {
-      return n // freeLevels
-    },
+    costFormula: logicAmbrosiaInfiniteShopUpgrades1CostFormula,
+    effects: logicAmbrosiaInfiniteShopUpgrades1Effect,
     effectsDescription: function() {
       const freeLevels = getAmbrosiaUpgradeEffects('ambrosiaInfiniteShopUpgrades1', 'freeLevels')
       return i18next.t('ambrosia.data.ambrosiaInfiniteShopUpgrades1.effect', {
@@ -906,12 +787,8 @@ export const ambrosiaUpgrades: {
       ambrosiaBaseOffering2: 20,
       ambrosiaBaseObtainium2: 10
     },
-    costFormula: (_level: number, baseCost: number): number => {
-      return baseCost
-    },
-    effects: (n: number) => {
-      return n // freeLevels
-    },
+    costFormula: logicAmbrosiaInfiniteShopUpgrades2CostFormula,
+    effects: logicAmbrosiaInfiniteShopUpgrades2Effect,
     effectsDescription: function() {
       const freeLevels = getAmbrosiaUpgradeEffects('ambrosiaInfiniteShopUpgrades2', 'freeLevels')
       return i18next.t('ambrosia.data.ambrosiaInfiniteShopUpgrades2.effect', {
@@ -932,16 +809,8 @@ export const ambrosiaUpgrades: {
     blueberryCost: 4,
     ignoreEXALT: true,
     prerequisites: {},
-    costFormula: (level: number, baseCost: number): number => {
-      return baseCost * Math.pow(3, level)
-    },
-    effects: (n: number) => {
-      if (player.insideSingularityChallenge) {
-        return n
-      } else {
-        return 0
-      } // singularityReduction
-    },
+    costFormula: logicAmbrosiaSingReduction2CostFormula,
+    effects: (n: number) => logicAmbrosiaSingReduction2Effect(n, player.insideSingularityChallenge),
     effectsDescription: function() {
       const singularityReduction = getAmbrosiaUpgradeEffects('ambrosiaSingReduction2', 'singularityReduction')
       return i18next.t('ambrosia.data.ambrosiaSingReduction2.effect', {
@@ -962,12 +831,8 @@ export const ambrosiaUpgrades: {
     blueberryCost: 0,
     ignoreEXALT: false,
     prerequisites: {},
-    costFormula: (level: number, baseCost: number): number => {
-      return baseCost * (Math.pow(level + 1, 2) - Math.pow(level, 2))
-    },
-    effects: (n: number) => {
-      return n / 200 // talismanBonusRuneLevel
-    },
+    costFormula: logicAmbrosiaTalismanBonusRuneLevelCostFormula,
+    effects: logicAmbrosiaTalismanBonusRuneLevelEffect,
     effectsDescription: function() {
       const talismanBonusRuneLevel = getAmbrosiaUpgradeEffects(
         'ambrosiaTalismanBonusRuneLevel',
@@ -991,16 +856,8 @@ export const ambrosiaUpgrades: {
     blueberryCost: 0,
     ignoreEXALT: false,
     prerequisites: {},
-    costFormula: (level: number, baseCost: number): number => {
-      return Math.ceil(baseCost * (Math.pow(level + 1, 1.5) - Math.pow(level, 1.5)))
-    },
-    effects: (n, key) => {
-      if (key === 'runeOOMBonus') {
-        return n
-      } else {
-        return n / 1000 // infiniteAscentOOMBonus
-      }
-    },
+    costFormula: logicAmbrosiaRuneOOMBonusCostFormula,
+    effects: logicAmbrosiaRuneOOMBonusEffect,
     effectsDescription: function() {
       const runeOOMBonus = getAmbrosiaUpgradeEffects('ambrosiaRuneOOMBonus', 'runeOOMBonus')
       const infiniteAscentOOMBonus = getAmbrosiaUpgradeEffects('ambrosiaRuneOOMBonus', 'infiniteAscentOOMBonus')
@@ -1023,18 +880,8 @@ export const ambrosiaUpgrades: {
     blueberryCost: 4,
     ignoreEXALT: false,
     prerequisites: {},
-    costFormula: (level: number, baseCost: number): number => {
-      return baseCost * (Math.pow(level + 1, 3) - Math.pow(level, 3))
-    },
-    effects: (n, key) => {
-      if (key === 'barRequirementMult') {
-        return 1 / (1 - n / 50)
-      } else if (key === 'additiveLuckMult') {
-        return n / 50
-      } else {
-        return 1 - n / 100 // singularitySpeedMult
-      }
-    },
+    costFormula: logicAmbrosiaBrickOfLeadCostFormula,
+    effects: logicAmbrosiaBrickOfLeadEffect,
     effectsDescription: function() {
       const barRequirementMult = getAmbrosiaUpgradeEffects('ambrosiaBrickOfLead', 'barRequirementMult')
       const luckMult = getAmbrosiaUpgradeEffects('ambrosiaBrickOfLead', 'additiveLuckMult')
@@ -1059,12 +906,8 @@ export const ambrosiaUpgrades: {
     blueberryCost: 1,
     ignoreEXALT: false,
     prerequisites: {},
-    costFormula: (level: number, baseCost: number): number => {
-      return baseCost * (Math.pow(level + 1, 2) - Math.pow(level, 2))
-    },
-    effects: (n: number) => {
-      return n // freeLuckUpgrades
-    },
+    costFormula: logicAmbrosiaFreeLuckUpgradesCostFormula,
+    effects: logicAmbrosiaFreeLuckUpgradesEffect,
     effectsDescription: function() {
       const levels = getAmbrosiaUpgradeEffects('ambrosiaFreeLuckUpgrades', 'freeLuckUpgrades')
       return i18next.t('ambrosia.data.ambrosiaFreeLuckUpgrades.effect', {
@@ -1085,12 +928,8 @@ export const ambrosiaUpgrades: {
     blueberryCost: 1,
     ignoreEXALT: false,
     prerequisites: {},
-    costFormula: (level: number, baseCost: number): number => {
-      return baseCost * (Math.pow(10, level + 1) - Math.pow(10, level))
-    },
-    effects: (n: number) => {
-      return n // freeGenerationUpgrades
-    },
+    costFormula: logicAmbrosiaFreeGenerationUpgradesCostFormula,
+    effects: logicAmbrosiaFreeGenerationUpgradesEffect,
     effectsDescription: function() {
       const levels = getAmbrosiaUpgradeEffects('ambrosiaFreeGenerationUpgrades', 'freeGenerationUpgrades')
       return i18next.t('ambrosia.data.ambrosiaFreeGenerationUpgrades.effect', {
@@ -1113,12 +952,8 @@ export const ambrosiaUpgrades: {
     prerequisites: {
       ambrosiaFreeLuckUpgrades: 10
     },
-    costFormula: (level: number, baseCost: number): number => {
-      return baseCost * (Math.pow(level + 1, 2) - Math.pow(level, 2))
-    },
-    effects: (n: number) => {
-      return n // freeRedLuckUpgrades
-    },
+    costFormula: logicAmbrosiaFreeRedLuckUpgradesCostFormula,
+    effects: logicAmbrosiaFreeRedLuckUpgradesEffect,
     effectsDescription: function() {
       const levels = getAmbrosiaUpgradeEffects('ambrosiaFreeRedLuckUpgrades', 'freeRedLuckUpgrades')
       return i18next.t('ambrosia.data.ambrosiaFreeRedLuckUpgrades.effect', {
@@ -1139,12 +974,8 @@ export const ambrosiaUpgrades: {
     blueberryCost: 2,
     ignoreEXALT: false,
     prerequisites: {},
-    costFormula: (level: number, baseCost: number): number => {
-      return baseCost * (Math.pow(level + 1, 3) - Math.pow(level, 3))
-    },
-    effects: (n: number) => {
-      return n / 10 // freeQuarkUpgrades
-    },
+    costFormula: logicAmbrosiaFreeQuarkUpgradesCostFormula,
+    effects: logicAmbrosiaFreeQuarkUpgradesEffect,
     effectsDescription: function() {
       const levels = getAmbrosiaUpgradeEffects('ambrosiaFreeQuarkUpgrades', 'freeQuarkUpgrades')
       return i18next.t('ambrosia.data.ambrosiaFreeQuarkUpgrades.effect', {

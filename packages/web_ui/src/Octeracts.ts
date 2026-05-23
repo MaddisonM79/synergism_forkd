@@ -1,7 +1,103 @@
 import {
   actualOcteractUpgradeTotalLevels as logicActualOcteractUpgradeTotalLevels,
+  octeractAmbrosiaGeneration2CostFormula as logicOctAmbGen2Cost,
+  octeractAmbrosiaGeneration2Effect as logicOctAmbGen2Effect,
+  octeractAmbrosiaGeneration3CostFormula as logicOctAmbGen3Cost,
+  octeractAmbrosiaGeneration3Effect as logicOctAmbGen3Effect,
+  octeractAmbrosiaGeneration4CostFormula as logicOctAmbGen4Cost,
+  octeractAmbrosiaGeneration4Effect as logicOctAmbGen4Effect,
+  octeractAmbrosiaGenerationCostFormula as logicOctAmbGenCost,
+  octeractAmbrosiaGenerationEffect as logicOctAmbGenEffect,
+  octeractAmbrosiaLuck2CostFormula as logicOctAmbLuck2Cost,
+  octeractAmbrosiaLuck2Effect as logicOctAmbLuck2Effect,
+  octeractAmbrosiaLuck3CostFormula as logicOctAmbLuck3Cost,
+  octeractAmbrosiaLuck3Effect as logicOctAmbLuck3Effect,
+  octeractAmbrosiaLuck4CostFormula as logicOctAmbLuck4Cost,
+  octeractAmbrosiaLuck4Effect as logicOctAmbLuck4Effect,
+  octeractAmbrosiaLuckCostFormula as logicOctAmbLuckCost,
+  octeractAmbrosiaLuckEffect as logicOctAmbLuckEffect,
+  octeractAscensions2CostFormula as logicOctAscensions2Cost,
+  octeractAscensions2Effect as logicOctAscensions2Effect,
+  octeractAscensionsCostFormula as logicOctAscensionsCost,
+  octeractAscensionsEffect as logicOctAscensionsEffect,
+  octeractAscensionsOcteractGainCostFormula as logicOctAscOctGainCost,
+  octeractAscensionsOcteractGainEffect as logicOctAscOctGainEffect,
+  octeractAutoPotionEfficiencyCostFormula as logicOctAutoPotionEffCost,
+  octeractAutoPotionEfficiencyEffect as logicOctAutoPotionEffEffect,
+  octeractAutoPotionSpeedCostFormula as logicOctAutoPotionSpeedCost,
+  octeractAutoPotionSpeedEffect as logicOctAutoPotionSpeedEffect,
+  octeractBlueberriesCostFormula as logicOctBlueberriesCost,
+  octeractBlueberriesEffect as logicOctBlueberriesEffect,
+  octeractBonusTokens1CostFormula as logicOctBonusTokens1Cost,
+  octeractBonusTokens1Effect as logicOctBonusTokens1Effect,
+  octeractBonusTokens2CostFormula as logicOctBonusTokens2Cost,
+  octeractBonusTokens2Effect as logicOctBonusTokens2Effect,
+  octeractBonusTokens3CostFormula as logicOctBonusTokens3Cost,
+  octeractBonusTokens3Effect as logicOctBonusTokens3Effect,
+  octeractBonusTokens4CostFormula as logicOctBonusTokens4Cost,
+  octeractBonusTokens4Effect as logicOctBonusTokens4Effect,
+  octeractCorruptionCostFormula as logicOctCorruptionCost,
+  octeractCorruptionEffect as logicOctCorruptionEffect,
+  octeractExportQuarksCostFormula as logicOctExportQuarksCost,
+  octeractExportQuarksEffect as logicOctExportQuarksEffect,
+  octeractFastForwardCostFormula as logicOctFastForwardCost,
+  octeractFastForwardEffect as logicOctFastForwardEffect,
   octeractFreeLevelMultiplier as logicOcteractFreeLevelMultiplier,
-  octeractFreeLevelSoftcap as logicOcteractFreeLevelSoftcap
+  octeractFreeLevelSoftcap as logicOcteractFreeLevelSoftcap,
+  octeractGain2CostFormula as logicOctGain2Cost,
+  octeractGain2Effect as logicOctGain2Effect,
+  octeractGainCostFormula as logicOctGainCost,
+  octeractGainEffect as logicOctGainEffect,
+  octeractGQCostReduceCostFormula as logicOctGQCostReduceCost,
+  octeractGQCostReduceEffect as logicOctGQCostReduceEffect,
+  octeractImprovedAscensionSpeed2CostFormula as logicOctImprAscSpeed2Cost,
+  octeractImprovedAscensionSpeed2Effect as logicOctImprAscSpeed2Effect,
+  octeractImprovedAscensionSpeedCostFormula as logicOctImprAscSpeedCost,
+  octeractImprovedAscensionSpeedEffect as logicOctImprAscSpeedEffect,
+  octeractImprovedDaily2CostFormula as logicOctImprDaily2Cost,
+  octeractImprovedDaily2Effect as logicOctImprDaily2Effect,
+  octeractImprovedDaily3CostFormula as logicOctImprDaily3Cost,
+  octeractImprovedDaily3Effect as logicOctImprDaily3Effect,
+  octeractImprovedDailyCostFormula as logicOctImprDailyCost,
+  octeractImprovedDailyEffect as logicOctImprDailyEffect,
+  octeractImprovedFree2CostFormula as logicOctImprFree2Cost,
+  octeractImprovedFree2Effect as logicOctImprFree2Effect,
+  octeractImprovedFree3CostFormula as logicOctImprFree3Cost,
+  octeractImprovedFree3Effect as logicOctImprFree3Effect,
+  octeractImprovedFree4CostFormula as logicOctImprFree4Cost,
+  octeractImprovedFree4Effect as logicOctImprFree4Effect,
+  octeractImprovedFreeCostFormula as logicOctImprFreeCost,
+  octeractImprovedFreeEffect as logicOctImprFreeEffect,
+  octeractImprovedGlobalSpeedCostFormula as logicOctImprGlobalSpeedCost,
+  octeractImprovedGlobalSpeedEffect as logicOctImprGlobalSpeedEffect,
+  octeractImprovedQuarkHeptCostFormula as logicOctImprQuarkHeptCost,
+  octeractImprovedQuarkHeptEffect as logicOctImprQuarkHeptEffect,
+  octeractInfiniteShopUpgradesCostFormula as logicOctInfShopCost,
+  octeractInfiniteShopUpgradesEffect as logicOctInfShopEffect,
+  octeractObtainium1CostFormula as logicOctObtainium1Cost,
+  octeractObtainium1Effect as logicOctObtainium1Effect,
+  octeractOfferings1CostFormula as logicOctOfferings1Cost,
+  octeractOfferings1Effect as logicOctOfferings1Effect,
+  octeractOneMindImproverCostFormula as logicOctOneMindCost,
+  octeractOneMindImproverEffect as logicOctOneMindEffect,
+  octeractQuarkGain2CostFormula as logicOctQuarkGain2Cost,
+  octeractQuarkGain2Effect as logicOctQuarkGain2Effect,
+  octeractQuarkGainCostFormula as logicOctQuarkGainCost,
+  octeractQuarkGainEffect as logicOctQuarkGainEffect,
+  octeractSingUpgradeCapCostFormula as logicOctSingUpgradeCapCost,
+  octeractSingUpgradeCapEffect as logicOctSingUpgradeCapEffect,
+  octeractStarterCostFormula as logicOctStarterCost,
+  octeractStarterEffect as logicOctStarterEffect,
+  octeractTalismanLevelCap1CostFormula as logicOctTalismanCap1Cost,
+  octeractTalismanLevelCap1Effect as logicOctTalismanCap1Effect,
+  octeractTalismanLevelCap2CostFormula as logicOctTalismanCap2Cost,
+  octeractTalismanLevelCap2Effect as logicOctTalismanCap2Effect,
+  octeractTalismanLevelCap3CostFormula as logicOctTalismanCap3Cost,
+  octeractTalismanLevelCap3Effect as logicOctTalismanCap3Effect,
+  octeractTalismanLevelCap4CostFormula as logicOctTalismanCap4Cost,
+  octeractTalismanLevelCap4Effect as logicOctTalismanCap4Effect,
+  type OcteractUpgradeRewards as LogicOcteractUpgradeRewards,
+  type OcteractUpgrades as LogicOcteractUpgrades
 } from '@synergism/logic'
 import i18next from 'i18next'
 import { DOMCacheGetOrSet } from './Cache/DOM'
@@ -12,67 +108,10 @@ import { format, formatAsPercentIncrease, formatTimeShort, player } from './Syne
 import { Alert, Prompt } from './UpdateHTML'
 import { isMobile } from './Utility'
 
-type OcteractUpgradeRewards = {
-  octeractStarter: {
-    quarkMult: number
-    antSpeedMult: number
-    octeractMult: number
-  }
-  octeractGain: { octeractMult: number }
-  octeractGain2: { octeractMult: number }
-  octeractQuarkGain: { quarkMult: number }
-  octeractQuarkGain2: { quarkMult: number }
-  octeractCorruption: { corruptionLevelCapIncrease: number }
-  octeractGQCostReduce: { goldenQuarkCostMult: number }
-  octeractExportQuarks: { exportQuarkMult: number }
-  octeractImprovedDaily: { extraGoldenQuarks: number }
-  octeractImprovedDaily2: { goldenQuarkMult: number }
-  octeractImprovedDaily3: {
-    extraGoldenQuarks: number
-    goldenQuarkMult: number
-  }
-  octeractImprovedQuarkHept: { quarkHeptExponent: number }
-  octeractImprovedGlobalSpeed: { globalSpeedMult: number }
-  octeractImprovedAscensionSpeed: { ascensionSpeedMult: number }
-  octeractImprovedAscensionSpeed2: { ascensionSpeedMult: number }
-  octeractImprovedFree: {
-    unlocked: boolean
-    freeLevelPower: number
-  }
-  octeractImprovedFree2: { freeLevelPowerIncrease: number }
-  octeractImprovedFree3: { freeLevelPowerIncrease: number }
-  octeractImprovedFree4: { freeLevelPowerIncrease: number }
-  octeractSingUpgradeCap: { goldenQuarkUpgradeCapIncrease: number }
-  octeractOfferings1: { offeringMult: number }
-  octeractObtainium1: { obtainiumMult: number }
-  octeractAscensions: { ascensionCountMult: number }
-  octeractAscensions2: { ascensionCountMult: number }
-  octeractAscensionsOcteractGain: { octeractMult: number }
-  octeractFastForward: { lookahead: number }
-  octeractAutoPotionSpeed: { autoPotionSpeedMult: number }
-  octeractAutoPotionEfficiency: { potionPowerMult: number }
-  octeractOneMindImprover: { ascendSpeedExponent: number }
-  octeractAmbrosiaLuck: { ambrosiaLuck: number }
-  octeractAmbrosiaLuck2: { ambrosiaLuck: number }
-  octeractAmbrosiaLuck3: { ambrosiaLuck: number }
-  octeractAmbrosiaLuck4: { ambrosiaLuck: number }
-  octeractAmbrosiaGeneration: { ambrosiaBarSpeedMult: number }
-  octeractAmbrosiaGeneration2: { ambrosiaBarSpeedMult: number }
-  octeractAmbrosiaGeneration3: { ambrosiaBarSpeedMult: number }
-  octeractAmbrosiaGeneration4: { ambrosiaBarSpeedMult: number }
-  octeractBonusTokens1: { lastCompletionBonusTokens: number }
-  octeractBonusTokens2: { tokenMultiplier: number }
-  octeractBonusTokens3: { firstCompletionBonusTokens: number }
-  octeractBonusTokens4: { initialTokenBonus: number }
-  octeractBlueberries: { blueberries: number }
-  octeractInfiniteShopUpgrades: { infinityVouchers: number }
-  octeractTalismanLevelCap1: { talismanLevelCapIncrease: number }
-  octeractTalismanLevelCap2: { talismanLevelCapIncrease: number }
-  octeractTalismanLevelCap3: { talismanLevelCapIncrease: number }
-  octeractTalismanLevelCap4: { talismanLevelCapIncrease: number }
-}
-
-export type OcteractUpgrades = keyof OcteractUpgradeRewards
+// Re-exported from @synergism/logic so existing call sites that import these
+// types from this module keep compiling unchanged.
+type OcteractUpgradeRewards = LogicOcteractUpgradeRewards
+export type OcteractUpgrades = LogicOcteractUpgrades
 
 interface OcteractUpgrade<T extends OcteractUpgrades, K extends keyof OcteractUpgradeRewards[T]> {
   level: number
@@ -88,8 +127,6 @@ interface OcteractUpgrade<T extends OcteractUpgrades, K extends keyof OcteractUp
   description(): string
 }
 
-const octeractBlueberryCostArr = [1, 1e3, 1e9, 1e27, 1e81, 1e111]
-
 export const octeractUpgrades: {
   [K in OcteractUpgrades]: OcteractUpgrade<K, keyof OcteractUpgradeRewards[K]>
 } = {
@@ -100,18 +137,8 @@ export const octeractUpgrades: {
     maxLevel: 1,
     costPerLevel: 1e-15,
     qualityOfLife: false,
-    costFormula: (level: number, baseCost: number) => {
-      return baseCost * (level + 1)
-    },
-    effect: (n, key) => {
-      if (key === 'quarkMult') {
-        return 1 + 0.25 * n
-      } else if (key === 'antSpeedMult') {
-        return 1 + 99999 * n
-      } else {
-        return 1 + 0.4 * n // octeractMult
-      }
-    },
+    costFormula: logicOctStarterCost,
+    effect: logicOctStarterEffect,
     effectDescription: (n: number) => {
       if (n > 0) {
         const quarkMult = getOcteractUpgradeEffect('octeractStarter', 'quarkMult')
@@ -136,12 +163,8 @@ export const octeractUpgrades: {
     maxLevel: 1e8,
     costPerLevel: 1e-8,
     qualityOfLife: false,
-    costFormula: (level: number, baseCost: number) => {
-      return baseCost * (Math.pow(level + 1, 6) - Math.pow(level, 6))
-    },
-    effect: (n: number) => {
-      return 1 + 0.01 * n // octeractMult
-    },
+    costFormula: logicOctGainCost,
+    effect: logicOctGainEffect,
     effectDescription: function(_n: number) {
       const effectValue = getOcteractUpgradeEffect('octeractGain', 'octeractMult')
       return i18next.t('octeract.data.octeractGain.effect', { n: formatAsPercentIncrease(effectValue, 2) })
@@ -153,15 +176,11 @@ export const octeractUpgrades: {
     level: 0,
     freeLevel: 0,
     octeractsInvested: 0,
-    costFormula: (level: number, baseCost: number) => {
-      return baseCost * Math.pow(10, Math.pow(level, 0.5) / 3)
-    },
+    costFormula: logicOctGain2Cost,
     maxLevel: -1,
     costPerLevel: 1e10,
     qualityOfLife: false,
-    effect: (n: number) => {
-      return 1 + 0.01 * n // octeractMult
-    },
+    effect: logicOctGain2Effect,
     effectDescription: function(_n: number) {
       const effectValue = getOcteractUpgradeEffect('octeractGain2', 'octeractMult')
       return i18next.t('octeract.data.octeractGain2.effect', { n: formatAsPercentIncrease(effectValue, 2) })
@@ -173,22 +192,11 @@ export const octeractUpgrades: {
     level: 0,
     freeLevel: 0,
     octeractsInvested: 0,
-    costFormula: (level: number, baseCost: number) => {
-      if (level < 1000) {
-        return baseCost * (Math.pow(level + 1, 7) - Math.pow(level, 7))
-      } else {
-        const fasterMult = (level >= 10000) ? (Math.pow(10, (level - 10000) / 250)) : 1
-        const fasterMult2 = (level >= 15000) ? (Math.pow(10, (level - 15000) / 250)) : 1
-        return baseCost * (Math.pow(1001, 7) - Math.pow(1000, 7)) * Math.pow(10, level / 1000) * fasterMult
-          * fasterMult2
-      }
-    },
+    costFormula: logicOctQuarkGainCost,
     maxLevel: 20000,
     costPerLevel: 1e-7,
     qualityOfLife: false,
-    effect: (n: number) => {
-      return 1 + 0.011 * n // quarkMult
-    },
+    effect: logicOctQuarkGainEffect,
     effectDescription: function(_n: number) {
       const effectValue = getOcteractUpgradeEffect('octeractQuarkGain', 'quarkMult')
       return i18next.t('octeract.data.octeractQuarkGain.effect', { n: formatAsPercentIncrease(effectValue, 2) })
@@ -200,18 +208,11 @@ export const octeractUpgrades: {
     level: 0,
     freeLevel: 0,
     octeractsInvested: 0,
-    costFormula: (level: number, baseCost: number) => {
-      return baseCost * Math.pow(1e20, level)
-    },
+    costFormula: logicOctQuarkGain2Cost,
     maxLevel: 5,
     costPerLevel: 1e22,
     qualityOfLife: false,
-    effect: (n: number) => {
-      return 1
-        + (1 / 10000) * Math.floor(octeractUpgrades.octeractQuarkGain.level / 111)
-          * n
-          * Math.floor(1 + Math.log10(Math.max(1, hepteracts.quark.BAL))) // quarkMult
-    },
+    effect: (n: number) => logicOctQuarkGain2Effect(n, octeractUpgrades.octeractQuarkGain.level, hepteracts.quark.BAL),
     effectDescription: (n: number) => {
       if (n > 0) {
         const quarkMult = getOcteractUpgradeEffect('octeractQuarkGain2', 'quarkMult')
@@ -233,15 +234,11 @@ export const octeractUpgrades: {
     level: 0,
     freeLevel: 0,
     octeractsInvested: 0,
-    costFormula: (level: number, baseCost: number) => {
-      return baseCost * Math.pow(10, level * 10)
-    },
+    costFormula: logicOctCorruptionCost,
     maxLevel: 2,
     costPerLevel: 10,
     qualityOfLife: false,
-    effect: (n: number) => {
-      return n // corruptionLevelCapIncrease
-    },
+    effect: logicOctCorruptionEffect,
     effectDescription: (n: number) => i18next.t('octeract.data.octeractCorruption.effect', { n }),
     name: () => i18next.t('octeract.data.octeractCorruption.name'),
     description: () => i18next.t('octeract.data.octeractCorruption.description')
@@ -250,15 +247,11 @@ export const octeractUpgrades: {
     level: 0,
     freeLevel: 0,
     octeractsInvested: 0,
-    costFormula: (level: number, baseCost: number) => {
-      return baseCost * Math.pow(2, level)
-    },
+    costFormula: logicOctGQCostReduceCost,
     maxLevel: 50,
     costPerLevel: 1e-9,
     qualityOfLife: false,
-    effect: (n: number) => {
-      return 1 - n / 100 // goldenQuarkCostMult
-    },
+    effect: logicOctGQCostReduceEffect,
     effectDescription: (n: number) => i18next.t('octeract.data.octeractGQCostReduce.effect', { n }),
     name: () => i18next.t('octeract.data.octeractGQCostReduce.name'),
     description: () => i18next.t('octeract.data.octeractGQCostReduce.description')
@@ -267,15 +260,11 @@ export const octeractUpgrades: {
     level: 0,
     freeLevel: 0,
     octeractsInvested: 0,
-    costFormula: (level: number, baseCost: number) => {
-      return baseCost * Math.pow(level + 1, 3)
-    },
+    costFormula: logicOctExportQuarksCost,
     maxLevel: 100,
     costPerLevel: 1,
     qualityOfLife: false,
-    effect: (n: number) => {
-      return 4 * n / 10 + 1 // exportQuarkMult
-    },
+    effect: logicOctExportQuarksEffect,
     effectDescription: (n: number) =>
       i18next.t('octeract.data.octeractExportQuarks.effect', { n: format(40 * n, 0, true) }),
     name: () => i18next.t('octeract.data.octeractExportQuarks.name'),
@@ -285,14 +274,10 @@ export const octeractUpgrades: {
     level: 0,
     freeLevel: 0,
     octeractsInvested: 0,
-    costFormula: (level: number, baseCost: number) => {
-      return baseCost * Math.pow(1.6, level)
-    },
+    costFormula: logicOctImprDailyCost,
     maxLevel: 50,
     costPerLevel: 1e-3,
-    effect: (n: number) => {
-      return n // extraGoldenQuarks
-    },
+    effect: logicOctImprDailyEffect,
     effectDescription: (n: number) => i18next.t('octeract.data.octeractImprovedDaily.effect', { n }),
     name: () => i18next.t('octeract.data.octeractImprovedDaily.name'),
     description: () => i18next.t('octeract.data.octeractImprovedDaily.description'),
@@ -302,14 +287,10 @@ export const octeractUpgrades: {
     level: 0,
     freeLevel: 0,
     octeractsInvested: 0,
-    costFormula: (level: number, baseCost: number) => {
-      return baseCost * Math.pow(2, level)
-    },
+    costFormula: logicOctImprDaily2Cost,
     maxLevel: 50,
     costPerLevel: 1e-2,
-    effect: (n: number) => {
-      return 1 + 0.01 * n // goldenQuarkMult
-    },
+    effect: logicOctImprDaily2Effect,
     effectDescription: function(_n: number) {
       const goldenQuarkMult = getOcteractUpgradeEffect('octeractImprovedDaily2', 'goldenQuarkMult')
       return i18next.t('octeract.data.octeractImprovedDaily2.effect', {
@@ -324,18 +305,10 @@ export const octeractUpgrades: {
     level: 0,
     freeLevel: 0,
     octeractsInvested: 0,
-    costFormula: (level: number, baseCost: number) => {
-      return baseCost * Math.pow(20, level)
-    },
+    costFormula: logicOctImprDaily3Cost,
     maxLevel: -1,
     costPerLevel: 1e20,
-    effect: (n, key) => {
-      if (key === 'goldenQuarkMult') {
-        return 1 + 0.005 * n
-      } else {
-        return n // extraGoldenQuarks
-      }
-    },
+    effect: logicOctImprDaily3Effect,
     effectDescription: (n: number) =>
       i18next.t('octeract.data.octeractImprovedDaily3.effect', { n: `${n} +${0.5 * n}%` }),
     name: () => i18next.t('octeract.data.octeractImprovedDaily3.name'),
@@ -346,14 +319,10 @@ export const octeractUpgrades: {
     level: 0,
     freeLevel: 0,
     octeractsInvested: 0,
-    costFormula: (level: number, baseCost: number) => {
-      return baseCost * Math.pow(1e3, level)
-    },
+    costFormula: logicOctImprQuarkHeptCost,
     maxLevel: 25,
     costPerLevel: 1 / 10,
-    effect: (n: number) => {
-      return n / 100
-    },
+    effect: logicOctImprQuarkHeptEffect,
     effectDescription: function(_n: number) {
       const quarkHeptExponent = getOcteractUpgradeEffect('octeractImprovedQuarkHept', 'quarkHeptExponent')
       return i18next.t('octeract.data.octeractImprovedQuarkHept.effect', { n: format(quarkHeptExponent, 2, true) })
@@ -366,14 +335,10 @@ export const octeractUpgrades: {
     level: 0,
     freeLevel: 0,
     octeractsInvested: 0,
-    costFormula: (level: number, baseCost: number) => {
-      return baseCost * Math.pow(level + 1, 3)
-    },
+    costFormula: logicOctImprGlobalSpeedCost,
     maxLevel: 1000,
     costPerLevel: 1e-5,
-    effect: (n: number) => {
-      return 1 + n * player.singularityCount / 100 // globalSpeedMult
-    },
+    effect: (n: number) => logicOctImprGlobalSpeedEffect(n, player.singularityCount),
     effectDescription: (n: number) => {
       const globalSpeedMult = getOcteractUpgradeEffect('octeractImprovedGlobalSpeed', 'globalSpeedMult')
       return i18next.t('octeract.data.octeractImprovedGlobalSpeed.effect', {
@@ -389,14 +354,10 @@ export const octeractUpgrades: {
     level: 0,
     freeLevel: 0,
     octeractsInvested: 0,
-    costFormula: (level: number, baseCost: number) => {
-      return baseCost * Math.pow(1e9, level / 100)
-    },
+    costFormula: logicOctImprAscSpeedCost,
     maxLevel: 100,
     costPerLevel: 100,
-    effect: (n: number) => {
-      return 1 + n * player.singularityCount / 2000 // ascensionSpeedMult
-    },
+    effect: (n: number) => logicOctImprAscSpeedEffect(n, player.singularityCount),
     effectDescription: (n: number) => {
       const ascensionSpeedMult = getOcteractUpgradeEffect('octeractImprovedAscensionSpeed', 'ascensionSpeedMult')
       return i18next.t('octeract.data.octeractImprovedAscensionSpeed.effect', {
@@ -412,14 +373,10 @@ export const octeractUpgrades: {
     level: 0,
     freeLevel: 0,
     octeractsInvested: 0,
-    costFormula: (level: number, baseCost: number) => {
-      return baseCost * Math.pow(1e12, level / 250)
-    },
+    costFormula: logicOctImprAscSpeed2Cost,
     maxLevel: 250,
     costPerLevel: 1e5,
-    effect: (n: number) => {
-      return 1 + n * player.singularityCount / 2000
-    },
+    effect: (n: number) => logicOctImprAscSpeed2Effect(n, player.singularityCount),
     effectDescription: (n: number) => {
       const ascensionSpeedMult = getOcteractUpgradeEffect('octeractImprovedAscensionSpeed2', 'ascensionSpeedMult')
       return i18next.t('octeract.data.octeractImprovedAscensionSpeed2.effect', {
@@ -435,18 +392,10 @@ export const octeractUpgrades: {
     level: 0,
     freeLevel: 0,
     octeractsInvested: 0,
-    costFormula: (level: number, baseCost: number) => {
-      return baseCost * Math.pow(level + 1, 3)
-    },
+    costFormula: logicOctImprFreeCost,
     maxLevel: 1,
     costPerLevel: 100,
-    effect: (n, key) => {
-      if (key === 'unlocked') {
-        return n > 0
-      } else {
-        return 0.6 * n // freeLevelPower
-      }
-    },
+    effect: logicOctImprFreeEffect,
     effectDescription: (n: number) => {
       if (n > 0) {
         return i18next.t('octeract.data.octeractImprovedFree.effectEnabled')
@@ -470,14 +419,10 @@ export const octeractUpgrades: {
     level: 0,
     freeLevel: 0,
     octeractsInvested: 0,
-    costFormula: (level: number, baseCost: number) => {
-      return baseCost * Math.pow(level + 1, 3)
-    },
+    costFormula: logicOctImprFree2Cost,
     maxLevel: 1,
     costPerLevel: 1e7,
-    effect: (n: number) => {
-      return 0.05 * n // freeLevelPowerIncrease
-    },
+    effect: logicOctImprFree2Effect,
     effectDescription: (n: number) =>
       i18next.t('octeract.data.octeractImprovedFree2.effect', { n: format(n / 20, 2, true) }),
     name: () => i18next.t('octeract.data.octeractImprovedFree2.name'),
@@ -488,14 +433,10 @@ export const octeractUpgrades: {
     level: 0,
     freeLevel: 0,
     octeractsInvested: 0,
-    costFormula: (level: number, baseCost: number) => {
-      return baseCost * Math.pow(level + 1, 3)
-    },
+    costFormula: logicOctImprFree3Cost,
     maxLevel: 1,
     costPerLevel: 1e17,
-    effect: (n: number) => {
-      return 0.05 * n // freeLevelPowerIncrease
-    },
+    effect: logicOctImprFree3Effect,
     effectDescription: (n: number) =>
       i18next.t('octeract.data.octeractImprovedFree3.effect', { n: format(n / 20, 2, true) }),
     name: () => i18next.t('octeract.data.octeractImprovedFree3.name'),
@@ -506,14 +447,10 @@ export const octeractUpgrades: {
     level: 0,
     freeLevel: 0,
     octeractsInvested: 0,
-    costFormula: (level: number, baseCost: number) => {
-      return baseCost * Math.pow(1e20, level / 40)
-    },
+    costFormula: logicOctImprFree4Cost,
     maxLevel: 40,
     costPerLevel: 1e20,
-    effect: (n: number) => {
-      return 0.001 * n + ((n > 0) ? 0.01 : 0) // freeLevelPowerIncrease
-    },
+    effect: logicOctImprFree4Effect,
     effectDescription: function(_n: number) {
       const freeLevelPowerIncrease = getOcteractUpgradeEffect('octeractImprovedFree4', 'freeLevelPowerIncrease')
       return i18next.t('octeract.data.octeractImprovedFree4.effect', { n: format(freeLevelPowerIncrease, 3, true) })
@@ -526,14 +463,10 @@ export const octeractUpgrades: {
     level: 0,
     freeLevel: 0,
     octeractsInvested: 0,
-    costFormula: (level: number, baseCost: number) => {
-      return baseCost * Math.pow(1e3, level)
-    },
+    costFormula: logicOctSingUpgradeCapCost,
     maxLevel: 10,
     costPerLevel: 1e10,
-    effect: (n: number) => {
-      return n
-    },
+    effect: logicOctSingUpgradeCapEffect,
     effectDescription: (n: number) => i18next.t('octeract.data.octeractSingUpgradeCap.effect', { n }),
     name: () => i18next.t('octeract.data.octeractSingUpgradeCap.name'),
     description: () => i18next.t('octeract.data.octeractSingUpgradeCap.description'),
@@ -543,18 +476,10 @@ export const octeractUpgrades: {
     level: 0,
     freeLevel: 0,
     octeractsInvested: 0,
-    costFormula: (level: number, baseCost: number) => {
-      if (level < 25) {
-        return baseCost * Math.pow(level + 1, 5)
-      } else {
-        return baseCost * 1e15 * Math.pow(10, level / 25 - 1)
-      }
-    },
+    costFormula: logicOctOfferings1Cost,
     maxLevel: -1,
     costPerLevel: 1e-15,
-    effect: (n: number) => {
-      return 1 + 0.01 * n // offeringMult
-    },
+    effect: logicOctOfferings1Effect,
     effectDescription: function(_n: number) {
       const offeringMult = getOcteractUpgradeEffect('octeractOfferings1', 'offeringMult')
       return i18next.t('octeract.data.octeractOfferings1.effect', { n: formatAsPercentIncrease(offeringMult, 2) })
@@ -567,18 +492,10 @@ export const octeractUpgrades: {
     level: 0,
     freeLevel: 0,
     octeractsInvested: 0,
-    costFormula: (level: number, baseCost: number) => {
-      if (level < 25) {
-        return baseCost * Math.pow(level + 1, 5)
-      } else {
-        return baseCost * 1e15 * Math.pow(10, level / 25 - 1)
-      }
-    },
+    costFormula: logicOctObtainium1Cost,
     maxLevel: -1,
     costPerLevel: 1e-15,
-    effect: (n: number) => {
-      return 1 + 0.01 * n // obtainiumMult
-    },
+    effect: logicOctObtainium1Effect,
     effectDescription: function(_n: number) {
       const obtainiumMult = getOcteractUpgradeEffect('octeractObtainium1', 'obtainiumMult')
       return i18next.t('octeract.data.octeractObtainium1.effect', { n: formatAsPercentIncrease(obtainiumMult, 2) })
@@ -591,14 +508,10 @@ export const octeractUpgrades: {
     level: 0,
     freeLevel: 0,
     octeractsInvested: 0,
-    costFormula: (level: number, baseCost: number) => {
-      return baseCost * Math.pow(level + 1, 3)
-    },
+    costFormula: logicOctAscensionsCost,
     maxLevel: 1000000,
     costPerLevel: 1,
-    effect: (n: number) => {
-      return (1 + n / 100) * (1 + 2 * Math.floor(n / 10) / 100) // ascensionCountMult
-    },
+    effect: logicOctAscensionsEffect,
     effectDescription: function(_n: number) {
       const ascensionCountMult = getOcteractUpgradeEffect('octeractAscensions', 'ascensionCountMult')
       return i18next.t('octeract.data.octeractAscensions.effect', {
@@ -613,14 +526,10 @@ export const octeractUpgrades: {
     level: 0,
     freeLevel: 0,
     octeractsInvested: 0,
-    costFormula: (level: number, baseCost: number) => {
-      return baseCost * Math.pow(10, Math.pow(level, 0.5) / 3)
-    },
+    costFormula: logicOctAscensions2Cost,
     maxLevel: -1,
     costPerLevel: 1e12,
-    effect: (n: number) => {
-      return (1 + n / 100) * (1 + 2 * Math.floor(n / 10) / 100) // ascensionCountMult
-    },
+    effect: logicOctAscensions2Effect,
     effectDescription: function(_n: number) {
       const ascensionCountMult = getOcteractUpgradeEffect('octeractAscensions2', 'ascensionCountMult')
       return i18next.t('octeract.data.octeractAscensions2.effect', {
@@ -635,17 +544,10 @@ export const octeractUpgrades: {
     level: 0,
     freeLevel: 0,
     octeractsInvested: 0,
-    costFormula: (level: number, baseCost: number) => {
-      return baseCost * Math.pow(40, level)
-    },
+    costFormula: logicOctAscOctGainCost,
     maxLevel: -1,
     costPerLevel: 1000,
-    effect: (n: number) => {
-      return Math.pow(
-        1 + n / 100,
-        1 + Math.floor(Math.log10(1 + player.ascensionCount))
-      ) // octeractMult
-    },
+    effect: (n: number) => logicOctAscOctGainEffect(n, player.ascensionCount),
     effectDescription: (n: number) => {
       const octeractMult = getOcteractUpgradeEffect('octeractAscensionsOcteractGain', 'octeractMult')
       return i18next.t('octeract.data.octeractAscensionsOcteractGain.effect', {
@@ -661,14 +563,10 @@ export const octeractUpgrades: {
     level: 0,
     freeLevel: 0,
     octeractsInvested: 0,
-    costFormula: (level: number, baseCost: number) => {
-      return baseCost * Math.pow(1e8, level)
-    },
+    costFormula: logicOctFastForwardCost,
     maxLevel: 2,
     costPerLevel: 1e8,
-    effect: (n: number) => {
-      return n // fastForwardLevel
-    },
+    effect: logicOctFastForwardEffect,
     effectDescription: (n: number) =>
       i18next.t('octeract.data.octeractFastForward.effect', { n100: format(2.5 * n, 2, true), n }),
     name: () => i18next.t('octeract.data.octeractFastForward.name'),
@@ -679,14 +577,10 @@ export const octeractUpgrades: {
     level: 0,
     freeLevel: 0,
     octeractsInvested: 0,
-    costFormula: (level: number, baseCost: number) => {
-      return baseCost * Math.pow(10, level)
-    },
+    costFormula: logicOctAutoPotionSpeedCost,
     maxLevel: -1,
     costPerLevel: 1e-10,
-    effect: (n: number) => {
-      return 1 + 4 * n / 100 // autoPotionSpeedMult
-    },
+    effect: logicOctAutoPotionSpeedEffect,
     effectDescription: (n: number) => i18next.t('octeract.data.octeractAutoPotionSpeed.effect', { n: 4 * n }),
     name: () => i18next.t('octeract.data.octeractAutoPotionSpeed.name'),
     description: () => i18next.t('octeract.data.octeractAutoPotionSpeed.description'),
@@ -696,14 +590,10 @@ export const octeractUpgrades: {
     level: 0,
     freeLevel: 0,
     octeractsInvested: 0,
-    costFormula: (level: number, baseCost: number) => {
-      return baseCost * Math.pow(10, level)
-    },
+    costFormula: logicOctAutoPotionEffCost,
     maxLevel: 100,
     costPerLevel: 1e-10 * Math.pow(10, 0.5),
-    effect: (n: number) => {
-      return 1 + 2 * n / 100 // autoPotionEfficiencyMult
-    },
+    effect: logicOctAutoPotionEffEffect,
     effectDescription: (n: number) => i18next.t('octeract.data.octeractAutoPotionEfficiency.effect', { n: 2 * n }),
     name: () => i18next.t('octeract.data.octeractAutoPotionEfficiency.name'),
     description: () => i18next.t('octeract.data.octeractAutoPotionEfficiency.description'),
@@ -713,15 +603,10 @@ export const octeractUpgrades: {
     level: 0,
     freeLevel: 0,
     octeractsInvested: 0,
-    costFormula: (level: number, baseCost: number) => {
-      const fasterMult = (level >= 10) ? (Math.pow(1e3, level - 10)) : 1
-      return baseCost * Math.pow(1e5, level) * fasterMult
-    },
+    costFormula: logicOctOneMindCost,
     maxLevel: 20,
     costPerLevel: 1e25,
-    effect: (n: number) => {
-      return 0.55 + n / 150 // ascendSpeedExponent
-    },
+    effect: logicOctOneMindEffect,
     effectDescription: function(_n: number) {
       const ascendSpeedExponent = getOcteractUpgradeEffect('octeractOneMindImprover', 'ascendSpeedExponent')
       return i18next.t('octeract.data.octeractOneMindImprover.effect', { n: format(ascendSpeedExponent, 3, true) })
@@ -734,15 +619,10 @@ export const octeractUpgrades: {
     level: 0,
     freeLevel: 0,
     octeractsInvested: 0,
-    costFormula: (level: number, baseCost: number) => {
-      const useLevel = level + 1
-      return baseCost * (Math.pow(10, useLevel) - Math.pow(10, useLevel - 1))
-    },
+    costFormula: logicOctAmbLuckCost,
     maxLevel: -1,
     costPerLevel: 1e60 / 9,
-    effect: (n: number) => {
-      return 4 * n // ambrosiaLuck
-    },
+    effect: logicOctAmbLuckEffect,
     effectDescription: (n: number) => i18next.t('octeract.data.octeractAmbrosiaLuck.effect', { n: format(4 * n) }),
     name: () => i18next.t('octeract.data.octeractAmbrosiaLuck.name'),
     description: () => i18next.t('octeract.data.octeractAmbrosiaLuck.description'),
@@ -752,14 +632,10 @@ export const octeractUpgrades: {
     level: 0,
     freeLevel: 0,
     octeractsInvested: 0,
-    costFormula: (level: number, baseCost: number) => {
-      return baseCost * (Math.pow(level + 1, 6) - Math.pow(level, 6))
-    },
+    costFormula: logicOctAmbLuck2Cost,
     maxLevel: 30,
     costPerLevel: 1,
-    effect: (n: number) => {
-      return 2 * n // ambrosiaLuck
-    },
+    effect: logicOctAmbLuck2Effect,
     effectDescription: (n: number) => i18next.t('octeract.data.octeractAmbrosiaLuck2.effect', { n: format(2 * n) }),
     name: () => i18next.t('octeract.data.octeractAmbrosiaLuck2.name'),
     description: () => i18next.t('octeract.data.octeractAmbrosiaLuck2.description'),
@@ -769,14 +645,10 @@ export const octeractUpgrades: {
     level: 0,
     freeLevel: 0,
     octeractsInvested: 0,
-    costFormula: (level: number, baseCost: number) => {
-      return baseCost * (Math.pow(level + 1, 8) - Math.pow(level, 8))
-    },
+    costFormula: logicOctAmbLuck3Cost,
     maxLevel: 30,
     costPerLevel: 1e30,
-    effect: (n: number) => {
-      return 3 * n // ambrosiaLuck
-    },
+    effect: logicOctAmbLuck3Effect,
     effectDescription: (n: number) => i18next.t('octeract.data.octeractAmbrosiaLuck3.effect', { n: format(3 * n) }),
     name: () => i18next.t('octeract.data.octeractAmbrosiaLuck3.name'),
     description: () => i18next.t('octeract.data.octeractAmbrosiaLuck3.description'),
@@ -786,15 +658,10 @@ export const octeractUpgrades: {
     level: 0,
     freeLevel: 0,
     octeractsInvested: 0,
-    costFormula: (level: number, baseCost: number) => {
-      const useLevel = level + 1
-      return baseCost * (Math.pow(3, useLevel) - Math.pow(3, useLevel - 1))
-    },
+    costFormula: logicOctAmbLuck4Cost,
     maxLevel: 50,
     costPerLevel: 1e70 / 2,
-    effect: (n: number) => {
-      return 5 * n // ambrosiaLuck
-    },
+    effect: logicOctAmbLuck4Effect,
     effectDescription: (n: number) => i18next.t('octeract.data.octeractAmbrosiaLuck4.effect', { n: format(5 * n) }),
     name: () => i18next.t('octeract.data.octeractAmbrosiaLuck4.name'),
     description: () => i18next.t('octeract.data.octeractAmbrosiaLuck4.description'),
@@ -804,15 +671,10 @@ export const octeractUpgrades: {
     level: 0,
     freeLevel: 0,
     octeractsInvested: 0,
-    costFormula: (level: number, baseCost: number) => {
-      const useLevel = level + 1
-      return baseCost * (Math.pow(10, useLevel) - Math.pow(10, useLevel - 1))
-    },
+    costFormula: logicOctAmbGenCost,
     maxLevel: -1,
     costPerLevel: 1e60 / 9,
-    effect: (n: number) => {
-      return 1 + n / 100 // ambrosiaBarSpeedMult
-    },
+    effect: logicOctAmbGenEffect,
     effectDescription: (n: number) => i18next.t('octeract.data.octeractAmbrosiaGeneration.effect', { n: format(n) }),
     name: () => i18next.t('octeract.data.octeractAmbrosiaGeneration.name'),
     description: () => i18next.t('octeract.data.octeractAmbrosiaGeneration.description'),
@@ -822,14 +684,10 @@ export const octeractUpgrades: {
     level: 0,
     freeLevel: 0,
     octeractsInvested: 0,
-    costFormula: (level: number, baseCost: number) => {
-      return baseCost * (Math.pow(level + 1, 6) - Math.pow(level, 6))
-    },
+    costFormula: logicOctAmbGen2Cost,
     maxLevel: 20,
     costPerLevel: 1,
-    effect: (n: number) => {
-      return 1 + n / 100 // ambrosiaBarSpeedMult
-    },
+    effect: logicOctAmbGen2Effect,
     effectDescription: (n: number) => i18next.t('octeract.data.octeractAmbrosiaGeneration2.effect', { n: format(n) }),
     name: () => i18next.t('octeract.data.octeractAmbrosiaGeneration2.name'),
     description: () => i18next.t('octeract.data.octeractAmbrosiaGeneration2.description'),
@@ -839,14 +697,10 @@ export const octeractUpgrades: {
     level: 0,
     freeLevel: 0,
     octeractsInvested: 0,
-    costFormula: (level: number, baseCost: number) => {
-      return baseCost * (Math.pow(level + 1, 8) - Math.pow(level, 8))
-    },
+    costFormula: logicOctAmbGen3Cost,
     maxLevel: 35,
     costPerLevel: 1e30,
-    effect: (n: number) => {
-      return 1 + n / 100 // ambrosiaBarSpeedMult
-    },
+    effect: logicOctAmbGen3Effect,
     effectDescription: (n: number) => i18next.t('octeract.data.octeractAmbrosiaGeneration3.effect', { n: format(n) }),
     name: () => i18next.t('octeract.data.octeractAmbrosiaGeneration3.name'),
     description: () => i18next.t('octeract.data.octeractAmbrosiaGeneration3.description'),
@@ -856,15 +710,10 @@ export const octeractUpgrades: {
     level: 0,
     freeLevel: 0,
     octeractsInvested: 0,
-    costFormula: (level: number, baseCost: number) => {
-      const useLevel = level + 1
-      return baseCost * (Math.pow(3, useLevel) - Math.pow(3, useLevel - 1))
-    },
+    costFormula: logicOctAmbGen4Cost,
     maxLevel: 50,
     costPerLevel: 1e70 / 2,
-    effect: (n: number) => {
-      return 1 + 2 * n / 100 // ambrosiaBarSpeedMult
-    },
+    effect: logicOctAmbGen4Effect,
     effectDescription: (n: number) =>
       i18next.t('octeract.data.octeractAmbrosiaGeneration4.effect', { n: format(2 * n) }),
     name: () => i18next.t('octeract.data.octeractAmbrosiaGeneration4.name'),
@@ -875,14 +724,10 @@ export const octeractUpgrades: {
     level: 0,
     freeLevel: 0,
     octeractsInvested: 0,
-    costFormula: (level: number, baseCost: number) => {
-      return baseCost * Math.pow(1e2, level)
-    },
+    costFormula: logicOctBonusTokens1Cost,
     maxLevel: 10,
     costPerLevel: 1e-5,
-    effect: (n: number) => {
-      return n // lastCompletionBonusTokens
-    },
+    effect: logicOctBonusTokens1Effect,
     effectDescription: (n: number) => i18next.t('octeract.data.octeractBonusTokens1.effect', { n: format(n) }),
     name: () => i18next.t('octeract.data.octeractBonusTokens1.name'),
     description: () => i18next.t('octeract.data.octeractBonusTokens1.description'),
@@ -892,14 +737,10 @@ export const octeractUpgrades: {
     level: 0,
     freeLevel: 0,
     octeractsInvested: 0,
-    costFormula: (level: number, baseCost: number) => {
-      return baseCost * Math.pow(1e8, level)
-    },
+    costFormula: logicOctBonusTokens2Cost,
     maxLevel: 5,
     costPerLevel: 1e8,
-    effect: (n: number) => {
-      return 1 + n / 100 // tokenMultiplier
-    },
+    effect: logicOctBonusTokens2Effect,
     effectDescription: (n: number) => i18next.t('octeract.data.octeractBonusTokens2.effect', { n: format(n) }),
     name: () => i18next.t('octeract.data.octeractBonusTokens2.name'),
     description: () => i18next.t('octeract.data.octeractBonusTokens2.description'),
@@ -909,14 +750,10 @@ export const octeractUpgrades: {
     level: 0,
     freeLevel: 0,
     octeractsInvested: 0,
-    costFormula: (level: number, baseCost: number) => {
-      return baseCost * Math.pow(1e10, level)
-    },
+    costFormula: logicOctBonusTokens3Cost,
     maxLevel: 5,
     costPerLevel: 1e40,
-    effect: (n: number) => {
-      return n // firstCompletionBonusTokens
-    },
+    effect: logicOctBonusTokens3Effect,
     effectDescription: (n: number) => i18next.t('octeract.data.octeractBonusTokens3.effect', { n: format(n) }),
     name: () => i18next.t('octeract.data.octeractBonusTokens3.name'),
     description: () => i18next.t('octeract.data.octeractBonusTokens3.description'),
@@ -926,14 +763,10 @@ export const octeractUpgrades: {
     level: 0,
     freeLevel: 0,
     octeractsInvested: 0,
-    costFormula: (level: number, baseCost: number) => {
-      return baseCost * Math.pow(4, level)
-    },
+    costFormula: logicOctBonusTokens4Cost,
     maxLevel: 50,
     costPerLevel: 1e75,
-    effect: (n: number) => {
-      return 2 * n // initialTokenBonus
-    },
+    effect: logicOctBonusTokens4Effect,
     effectDescription: (n: number) => i18next.t('octeract.data.octeractBonusTokens4.effect', { n: format(2 * n) }),
     name: () => i18next.t('octeract.data.octeractBonusTokens4.name'),
     description: () => i18next.t('octeract.data.octeractBonusTokens4.description'),
@@ -945,16 +778,8 @@ export const octeractUpgrades: {
     octeractsInvested: 0,
     maxLevel: 6,
     costPerLevel: 1,
-    costFormula: (level: number) => {
-      if (level === 6) {
-        return 0
-      } else {
-        return octeractBlueberryCostArr[level] // Base cost is not used here.
-      }
-    },
-    effect: (n: number) => {
-      return n // blueberries
-    },
+    costFormula: logicOctBlueberriesCost,
+    effect: logicOctBlueberriesEffect,
     effectDescription: (n: number) => i18next.t('octeract.data.octeractBlueberries.effect', { n: format(n) }),
     name: () => i18next.t('octeract.data.octeractBlueberries.name'),
     description: () => i18next.t('octeract.data.octeractBlueberries.description'),
@@ -966,12 +791,8 @@ export const octeractUpgrades: {
     octeractsInvested: 0,
     maxLevel: 80,
     costPerLevel: 1e30,
-    costFormula: (level: number, baseCost: number) => {
-      return baseCost * Math.pow(16, level)
-    },
-    effect: (n: number) => {
-      return n // infinityVouchers
-    },
+    costFormula: logicOctInfShopCost,
+    effect: logicOctInfShopEffect,
     effectDescription: (n: number) => i18next.t('octeract.data.octeractInfiniteShopUpgrades.effect', { n: format(n) }),
     name: () => i18next.t('octeract.data.octeractInfiniteShopUpgrades.name'),
     description: () => i18next.t('octeract.data.octeractInfiniteShopUpgrades.description'),
@@ -983,12 +804,8 @@ export const octeractUpgrades: {
     octeractsInvested: 0,
     maxLevel: 25,
     costPerLevel: 1e-5,
-    costFormula: (level: number, baseCost: number) => {
-      return baseCost * Math.pow(level + 1, 5)
-    },
-    effect: (n: number) => {
-      return n // talismanLevelCapIncrease
-    },
+    costFormula: logicOctTalismanCap1Cost,
+    effect: logicOctTalismanCap1Effect,
     effectDescription: (n: number) => i18next.t('octeract.data.octeractTalismanLevelCap1.effect', { n: format(n) }),
     name: () => i18next.t('octeract.data.octeractTalismanLevelCap1.name'),
     description: () => i18next.t('octeract.data.octeractTalismanLevelCap1.description'),
@@ -1000,12 +817,8 @@ export const octeractUpgrades: {
     octeractsInvested: 0,
     maxLevel: 35,
     costPerLevel: 1e10,
-    costFormula: (level: number, baseCost: number) => {
-      return baseCost * Math.pow(level + 1, 10)
-    },
-    effect: (n: number) => {
-      return n // talismanLevelCapIncrease
-    },
+    costFormula: logicOctTalismanCap2Cost,
+    effect: logicOctTalismanCap2Effect,
     effectDescription: (n: number) => i18next.t('octeract.data.octeractTalismanLevelCap2.effect', { n: format(n) }),
     name: () => i18next.t('octeract.data.octeractTalismanLevelCap2.name'),
     description: () => i18next.t('octeract.data.octeractTalismanLevelCap2.description'),
@@ -1017,12 +830,8 @@ export const octeractUpgrades: {
     octeractsInvested: 0,
     maxLevel: 40,
     costPerLevel: 1e20,
-    costFormula: (level: number, baseCost: number) => {
-      return baseCost * Math.pow(level + 1, 20)
-    },
-    effect: (n: number) => {
-      return n // talismanLevelCapIncrease
-    },
+    costFormula: logicOctTalismanCap3Cost,
+    effect: logicOctTalismanCap3Effect,
     effectDescription: (n: number) => i18next.t('octeract.data.octeractTalismanLevelCap3.effect', { n: format(n) }),
     name: () => i18next.t('octeract.data.octeractTalismanLevelCap3.name'),
     description: () => i18next.t('octeract.data.octeractTalismanLevelCap3.description'),
@@ -1034,12 +843,8 @@ export const octeractUpgrades: {
     octeractsInvested: 0,
     maxLevel: -1,
     costPerLevel: 1e40,
-    costFormula: (level: number, baseCost: number) => {
-      return baseCost * Math.pow(10, level)
-    },
-    effect: (n: number) => {
-      return n // talismanLevelCapIncrease
-    },
+    costFormula: logicOctTalismanCap4Cost,
+    effect: logicOctTalismanCap4Effect,
     effectDescription: (n: number) => i18next.t('octeract.data.octeractTalismanLevelCap4.effect', { n: format(n) }),
     name: () => i18next.t('octeract.data.octeractTalismanLevelCap4.name'),
     description: () => i18next.t('octeract.data.octeractTalismanLevelCap4.description'),
