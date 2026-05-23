@@ -1,3 +1,9 @@
+import {
+  type RangeLevelAndCost,
+  researchBaseCosts as logicResearchBaseCosts,
+  researchLevelCostRanges as logicResearchLevelCostRanges,
+  researchMaxLevels as logicResearchMaxLevels
+} from '@synergism/logic'
 import Decimal, { type DecimalSource } from 'break_infinity.js'
 import i18next from 'i18next'
 import { getAchievementReward } from './Achievements'
@@ -12,150 +18,10 @@ import { sortDecimalWithIndices, updateClassList } from './Utility'
 interface IResearchData {
   baseCost: Decimal
   maxLevel: number
-  // Some research (e.g. 200) can have custom growth (i.e. nonconstant)
-  // may as well specify in general.
   buyToLevel: (budget: Decimal, baseCost: Decimal, currLevel: number, maxLevel: number) => number
-  // A given levelsBuyable should correspond to a cost for that many levels
-  // It is generally difficult to calculate inverses since budget != cost for levels
-  // So we should choose functions for which it is easy to compute the inverse.
   costForLevels: (baseCost: Decimal, currLevel: number, buyTo: number) => Decimal
   unlocked: () => boolean
 }
-
-// TODO: Maybe we should just manually create this map? I was a bit lazy to port all the values
-// dprint-ignore
-const researchBaseCosts: DecimalSource[] = [
-  Number.POSITIVE_INFINITY,
-  1, 1, 1, 1, 1,
-  1, 1e2, 1e4, 1e6, 1e8,
-  2, 2e2, 2e4, 2e6, 2e8,
-  4e4, 4e8, 10, 1e5, 1e9,
-  100, 100, 1e4, 2e3, 2e5,
-  40, 200, 50, 5000, 20000000,
-  777, 7777, 50000, 500000, 5000000,
-  2e3, 2e6, 2e9, 1e5, 1e9,
-  1, 1, 5, 25, 125,
-  2, 5, 320, 1280, 2.5e9,
-  10, 2e3, 4e5, 8e7, 2e9,
-  5, 400, 1e4, 3e6, 9e8,
-  100, 2500, 100, 2000, 2e5,
-  1, 20, 3e3, 4e5, 5e7,
-  10, 40, 160, 1000, 10000,
-  4e9, 7e9, 1e10, 1.2e10, 1.5e10,
-  1e12, 1e13, 1e12, 4e12, 7e12,
-  1e13, 1e13, 4e13, 6e13, 1e14,
-  8e13, 1e14, 2e14, 2e14, 1e15,
-  4e12, 3e13, 8e13, 7.777e18, 7.777e20,
-  2e14, 3e14, 1e16, 3e16, 1e16,
-  1e17, 3e17, 5e16, 1.2e17, 1e18,
-  1e18, 2e18, 3e18, 4e18, 1e19,
-  1e19, 2e19, 1e21, 5e21, 1e22,
-  1e21, 1e22, 1e22, 1e20, 7.777e32,
-  5e8, 5e12, 5e16, 5e20, 5e24, /*ascension tier */
-  1e25, 2e25, 4e25, 8e25, 1e26,
-  4e26, 8e26, 1e27, 2e27, 1e28,
-  5e9, 5e15, 5e21, 5e27, 1e28, /*challenge 11 tier */
-  1e29, 2e29, 4e29, 8e29, 1e27,
-  2e30, 4e30, 8e30, 1e31, 2e31,
-  5e31, 1e32, 2e32, 4e32, 8e32, /*challenge 12 tier */
-  1e33, 2e33, 4e33, 8e33, 1e34,
-  3e34, 1e35, 3e35, 6e37, 1e36,
-  3e36, 1e37, 3e37, 1e38, 3e38, /*challenge 13 tier */
-  1e39, 3e39, 1e40, 3e40, 1e50,
-  3e41, 1e42, 3e42, 6e42, 1e43,
-  3e43, 1e44, 3e44, 1e45, 3e45, /*challenge 14 tier */
-  2e46, 6e46, 2e47, 6e47, 1e64,
-  6e48, 2e49, 1e50, 1e51, 4e56
-]
-
-// dprint-ignore
-const researchMaxLevels: DecimalSource[] = [
-  0, 1, 1, 1, 1, 1,
-  10, 10, 10, 10, 10,
-  10, 10, 10, 10, 10,
-  10, 10, 1, 1, 1,
-  25, 25, 25, 20, 20,
-  10, 10, 10, 10, 10,
-  12, 12, 10, 10, 10,
-  10, 10, 10, 1, 1,
-  1, 1, 1, 1, 1,
-  1, 1, 1, 1, 1,
-  10, 10, 10, 10, 10,
-  20, 20, 20, 20, 20,
-  1, 5, 4, 5, 5,
-  10, 10, 10, 10, 10,
-  1, 1, 1, 1, 1,
-  10, 15, 15, 15, 15,
-  10, 1, 20, 20, 20,
-  20, 20, 20, 20, 10,
-  20, 20, 20, 20, 1,
-  20, 7, 7, 3, 2,
-  10, 12, 10, 10, 1,
-  10, 10, 20, 25, 25,
-  15, 15, 15, 15, 30,
-  2, 10, 10, 100, 100,
-  25, 25, 25, 1, 5,
-  10, 10, 10, 10, 1,
-  10, 10, 10, 1, 1,
-  25, 25, 25, 15, 1,
-  10, 10, 10, 10, 1,
-  10, 1, 25, 10, 1,
-  25, 25, 1, 15, 1,
-  10, 10, 10, 1, 1,
-  10, 10, 10, 10, 1,
-  25, 25, 25, 100000, 1,
-  10, 10, 10, 1, 1,
-  10, 3, 6, 10, 5,
-  25, 25, 1, 15, 1,
-  20, 20, 20, 1, 1,
-  20, 1, 50, 50, 10,
-  25, 25, 25, 15, 100000
-]
-
-interface IResearchData {
-  baseCost: Decimal
-  maxLevel: number
-  // Some research (e.g. 200) can have custom growth (i.e. nonconstant)
-  // may as well specify in general.
-  buyToLevel: (budget: Decimal, baseCost: Decimal, currLevel: number, maxLevel: number) => number
-  // A given levelsBuyable should correspond to a cost for that many levels
-  // It is generally difficult to calculate inverses since budget != cost for levels
-  // So we should choose functions for which the inverse is analytical (see below functions)
-  costForLevels: (baseCost: Decimal, currLevel: number, buyTo: number) => Decimal
-  unlocked: () => boolean
-}
-
-// Requires degree != 0, should only be used for positive degree, though
-const polyBuyToLevel = (
-  degree: number
-): (budget: Decimal, baseCost: Decimal, currLevel: number, maxLevel: number) => number => {
-  return (budget: Decimal, baseCost: Decimal, currLevel: number, maxLevel: number) => {
-    const effectiveBudget = budget.add(baseCost.times(Math.pow(currLevel, degree)))
-    return Math.min(maxLevel, Decimal.floor(Decimal.pow(effectiveBudget.div(baseCost), 1 / degree)).toNumber())
-  }
-}
-
-// Requires degree != 0, should only be used for positive degree, though
-const polyCostForLevels = (degree: number): (baseCost: Decimal, currlevel: number, toBuy: number) => Decimal => {
-  return (baseCost: Decimal, currLevel: number, buyTo: number) => {
-    if (currLevel === buyTo) {
-      return new Decimal(0)
-    }
-    return baseCost.times(Math.pow(buyTo, degree) - Math.pow(currLevel, degree))
-  }
-}
-
-type RangeLevelAndCost = {
-  range: [number, number]
-  level: (budget: Decimal, baseCost: Decimal, currLevel: number, maxLevel: number) => number
-  cost: (baseCost: Decimal, currLevel: number, buyTo: number) => Decimal
-}
-
-// polyCostForLevels(1) implies constant cost per level, polyCostForLevels(2) implies linear growth in cost per level, etc.
-const researchLevelCostRanges: RangeLevelAndCost[] = [
-  { range: [0, 199], level: polyBuyToLevel(1), cost: polyCostForLevels(1) },
-  { range: [200, 200], level: polyBuyToLevel(2), cost: polyCostForLevels(2) }
-]
 
 type RangeCondition = {
   range: [number, number]
@@ -223,10 +89,10 @@ const createResearchDataMap = (
 }
 
 export const researchData = createResearchDataMap(
-  researchLevelCostRanges,
+  logicResearchLevelCostRanges,
   researchUnlockRanges,
-  researchBaseCosts,
-  researchMaxLevels
+  logicResearchBaseCosts,
+  logicResearchMaxLevels
 )
 
 export const isResearchUnlocked = (index: number): boolean => {
@@ -256,7 +122,7 @@ const getCostForResearchLevels = (index: number, buyTo: number): Decimal => {
   return costForLevelsFunc(baseCost.times(researchCostMulti), currLevel, buyTo)
 }
 
-export const researchOrderByCost: number[] = sortDecimalWithIndices(researchBaseCosts)
+export const researchOrderByCost: number[] = sortDecimalWithIndices(logicResearchBaseCosts)
 
 // For mode 'manual'
 export const updateResearchAuto = (index: number) => {

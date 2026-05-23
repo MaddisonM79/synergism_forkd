@@ -1,4 +1,15 @@
 import Decimal from 'break_infinity.js'
+import {
+  duplicationRuneSpiritEffects as logicDuplicationSpirit,
+  maxRuneUpgradePurchase as logicMaxRuneUpgradePurchase,
+  prismRuneSpiritEffects as logicPrismSpirit,
+  runeUpgradeEXPLeftToLevel as logicRuneUpgradeEXPLeftToLevel,
+  runeUpgradeEXPToLevel as logicRuneUpgradeEXPToLevel,
+  runeUpgradeLevelFromEXP as logicRuneUpgradeLevelFromEXP,
+  speedRuneSpiritEffects as logicSpeedSpirit,
+  superiorIntellectRuneSpiritEffects as logicSISpirit,
+  thriftRuneSpiritEffects as logicThriftSpirit
+} from '@synergism/logic'
 import i18next from 'i18next'
 import { awardAchievementGroup } from './Achievements'
 import { DOMCacheGetOrSet } from './Cache/DOM'
@@ -62,10 +73,7 @@ export const runeSpirits: { [K in RuneSpiritKeys]: RuneSpiritData<K> } = {
     runeEXP: new Decimal(0),
     costCoefficient: new Decimal(1e45),
     levelsPerOOM: 2,
-    effects: (level) => {
-      const globalSpeed = 1 + level / 1e9
-      return { globalSpeed }
-    },
+    effects: (level) => logicSpeedSpirit(level),
     effectsDescription: (level) => {
       const globalSpeed = runeSpirits.speed.effects(level).globalSpeed
       return i18next.t('runes.spirits.speed.globalSpeed', {
@@ -86,10 +94,7 @@ export const runeSpirits: { [K in RuneSpiritKeys]: RuneSpiritData<K> } = {
     runeEXP: new Decimal(0),
     costCoefficient: new Decimal(1e52),
     levelsPerOOM: 2,
-    effects: (level) => {
-      const wowCubes = 1 + level / 1e9
-      return { wowCubes }
-    },
+    effects: (level) => logicDuplicationSpirit(level),
     effectsDescription: (level) => {
       const wowCubes = runeSpirits.duplication.effects(level).wowCubes
       return i18next.t('runes.spirits.duplication.wowCubes', {
@@ -110,10 +115,7 @@ export const runeSpirits: { [K in RuneSpiritKeys]: RuneSpiritData<K> } = {
     runeEXP: new Decimal(0),
     costCoefficient: new Decimal(1e60),
     levelsPerOOM: 2,
-    effects: (level) => {
-      const crystalCaps = level / 1e9
-      return { crystalCaps }
-    },
+    effects: (level) => logicPrismSpirit(level),
     effectsDescription: (level) => {
       const crystalCaps = runeSpirits.prism.effects(level).crystalCaps
       return i18next.t('runes.spirits.prism.crystalCaps', {
@@ -134,10 +136,7 @@ export const runeSpirits: { [K in RuneSpiritKeys]: RuneSpiritData<K> } = {
     runeEXP: new Decimal(0),
     costCoefficient: new Decimal(1e72),
     levelsPerOOM: 2,
-    effects: (level) => {
-      const offerings = 1 + level / 1e9
-      return { offerings }
-    },
+    effects: (level) => logicThriftSpirit(level),
     effectsDescription: (level) => {
       const offerings = runeSpirits.thrift.effects(level).offerings
       return i18next.t('runes.spirits.thrift.offerings', {
@@ -158,10 +157,7 @@ export const runeSpirits: { [K in RuneSpiritKeys]: RuneSpiritData<K> } = {
     runeEXP: new Decimal(0),
     costCoefficient: new Decimal(1e85),
     levelsPerOOM: 2,
-    effects: (level) => {
-      const obtainium = 1 + level / 1e9
-      return { obtainium }
-    },
+    effects: (level) => logicSISpirit(level),
     effectsDescription: (level) => {
       const obtainium = runeSpirits.superiorIntellect.effects(level).obtainium
       return i18next.t('runes.spirits.superiorIntellect.obtainium', {
@@ -194,14 +190,16 @@ const getRuneSpiritEXPPerOffering = (spirit: RuneSpiritKeys): Decimal => {
   return runeSpirits[spirit].runeEXPPerOffering()
 }
 
-const computeEXPToLevel = (spirit: RuneSpiritKeys, level: number) => {
-  const levelPerOOM = runeSpirits[spirit].levelsPerOOM
-  return runeSpirits[spirit].costCoefficient.times(Decimal.pow(10, level / levelPerOOM).minus(1))
-}
+const computeEXPToLevel = (spirit: RuneSpiritKeys, level: number) =>
+  logicRuneUpgradeEXPToLevel(runeSpirits[spirit].costCoefficient, level, runeSpirits[spirit].levelsPerOOM)
 
-const computeEXPLeftToLevel = (spirit: RuneSpiritKeys, level: number) => {
-  return Decimal.max(0, computeEXPToLevel(spirit, level).minus(runeSpirits[spirit].runeEXP))
-}
+const computeEXPLeftToLevel = (spirit: RuneSpiritKeys, level: number) =>
+  logicRuneUpgradeEXPLeftToLevel(
+    runeSpirits[spirit].costCoefficient,
+    level,
+    runeSpirits[spirit].levelsPerOOM,
+    runeSpirits[spirit].runeEXP
+  )
 
 export const buySpiritLevels = (spirit: RuneSpiritKeys, budget: Decimal) => {
   if (!player.unlocks.spirits) {
@@ -245,16 +243,12 @@ const levelSpirit = (spirit: RuneSpiritKeys, timesLeveled: number, budget: Decim
 }
 
 const updateLevelsFromEXP = (spirit: RuneSpiritKeys) => {
-  const levelsPerOOM = runeSpirits[spirit].levelsPerOOM
-  const levels = Math.floor(
-    levelsPerOOM * Decimal.log10(runeSpirits[spirit].runeEXP.div(runeSpirits[spirit].costCoefficient).plus(1))
+  const { levels, needsFloatBump } = logicRuneUpgradeLevelFromEXP(
+    runeSpirits[spirit].runeEXP,
+    runeSpirits[spirit].costCoefficient,
+    runeSpirits[spirit].levelsPerOOM
   )
-  // Floating point imprecision fix
-  if (computeEXPLeftToLevel(spirit, levels + 1).eq(0)) {
-    runeSpirits[spirit].level = levels + 1
-  } else {
-    runeSpirits[spirit].level = levels
-  }
+  runeSpirits[spirit].level = needsFloatBump ? levels + 1 : levels
 
   if (spirit === 'speed') {
     awardAchievementGroup('speedSpirit')
@@ -267,45 +261,17 @@ export const updateAllSpiritLevelsFromEXP = () => {
   }
 }
 
-// Gives levels to buy, total EXP to that level, and offerings required to reach that level
-const maxSpiritLevelPurchaseInformation = (spirit: RuneSpiritKeys, budget: Decimal) => {
-  if (budget.lt(0)) {
-    return { levels: 0, expRequired: new Decimal(0), offerings: new Decimal(0) }
-  }
-
-  const runeEXPPerOffering = getRuneSpiritEXPPerOffering(spirit)
-  const totalEXPAvailable = budget.times(runeEXPPerOffering).add(runeSpirits[spirit].runeEXP)
-  const levelsPerOOM = runeSpirits[spirit].levelsPerOOM
-  const costCoeff = runeSpirits[spirit].costCoefficient
-
-  // Calculate max level we can reach with available EXP
-  // EXP formula: costCoeff * (10^(level/levelsPerOOM) - 1)
-  // Solving for level: level = levelsPerOOM * log10((EXP/costCoeff) + 1)
-  // Unlike Runes, we always call this function, BUT we have a set cap on levels we can buy at once
-  // (chosen by the player)
-  const upperLimit = player.runeSpiritBuyAmount
-  const maxLevel = Math.floor(levelsPerOOM * Decimal.log10(totalEXPAvailable.div(costCoeff).plus(1)))
-  const levelsGained = Math.min(upperLimit, Math.max(0, maxLevel - runeSpirits[spirit].level))
-
-  if (levelsGained === 0) {
-    // Can't afford any levels, return next level stuff
-    const nextLevelEXP = computeEXPToLevel(spirit, runeSpirits[spirit].level + 1)
-    const offeringsRequired = Decimal.max(
-      1,
-      nextLevelEXP.minus(runeSpirits[spirit].runeEXP).div(runeEXPPerOffering).ceil()
-    )
-    return { levels: 1, expRequired: nextLevelEXP, offerings: offeringsRequired }
-  }
-
-  // Return the levels we can gain and the EXP required for that many levels
-  const expRequired = computeEXPToLevel(spirit, runeSpirits[spirit].level + levelsGained)
-  // Need to be recomputed since offerings required is not necessarily equal to budget.
-  const offeringsRequired = Decimal.max(
-    1,
-    expRequired.minus(runeSpirits[spirit].runeEXP).div(runeEXPPerOffering).ceil()
-  )
-  return { levels: levelsGained, expRequired: expRequired, offerings: offeringsRequired }
-}
+const maxSpiritLevelPurchaseInformation = (spirit: RuneSpiritKeys, budget: Decimal) =>
+  logicMaxRuneUpgradePurchase({
+    costCoefficient: runeSpirits[spirit].costCoefficient,
+    levelsPerOOM: runeSpirits[spirit].levelsPerOOM,
+    currentLevel: runeSpirits[spirit].level,
+    currentRuneEXP: runeSpirits[spirit].runeEXP,
+    runeEXPPerOffering: getRuneSpiritEXPPerOffering(spirit),
+    budget,
+    upperLimit: player.runeSpiritBuyAmount,
+    minOfferingsFloor: new Decimal(1)
+  })
 
 export const updateRuneSpiritHTML = (spirit: RuneSpiritKeys) => {
   assert(G.currentTab === Tabs.Runes, 'current tab is not Runes')
