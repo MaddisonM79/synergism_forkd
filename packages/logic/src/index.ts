@@ -57,6 +57,18 @@ export {
   calculateToNextThreshold
 } from './mechanics/ambrosia'
 export type {
+  AntMasteryData,
+  CanBuyAntMasteryInput,
+  SelfSpeedFromMasteryInput
+} from './mechanics/antMasteries'
+export {
+  antMasteryData,
+  calculateSelfSpeedFromMastery,
+  canBuyAntMastery,
+  getBuyableAntMasteryLevels,
+  MAX_ANT_MASTERY_LEVEL
+} from './mechanics/antMasteries'
+export type {
   AvailableRebornELOInput,
   RebornELOStageModifiers,
   RebornELOStageModifiersInput,
