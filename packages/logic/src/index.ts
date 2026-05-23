@@ -94,6 +94,62 @@ export {
   singularityPerkELOLevels,
   singularityRebornSpeedMultModifier
 } from './mechanics/antRebornELO'
+export type {
+  AntSacrificeTalismanItemInput,
+  TalismanCraftItem
+} from './mechanics/antSacrificeRewards'
+export {
+  calculateAntSacrificeTalismanItem,
+  talismanItemRequiredELO,
+  talismanRewardMultipliers
+} from './mechanics/antSacrificeRewards'
+export type {
+  AcceleratorBoostsAntUpgradeEffect,
+  AntELOAntUpgradeEffect,
+  AntELOAntUpgradeInput,
+  AntSacrificeAntUpgradeEffect,
+  AntSpeedAntUpgradeEffect,
+  AntSpeedAntUpgradeInput,
+  AntUpgradeCostInput,
+  AntUpgradeMaxCostInput,
+  AntUpgradeMaxPurchasableInput,
+  AscensionScoreAntUpgradeEffect,
+  BuildingCostScaleAntUpgradeEffect,
+  CoinsAntUpgradeEffect,
+  CoinsAntUpgradeInput,
+  FreeRunesAntUpgradeEffect,
+  MortuusAntUpgradeEffect,
+  Mortuus2AntUpgradeEffect,
+  MultipliersAntUpgradeEffect,
+  ObtainiumAntUpgradeEffect,
+  OfferingsAntUpgradeEffect,
+  SalvageAntUpgradeEffect,
+  TaxesAntUpgradeEffect,
+  WowCubesAntUpgradeEffect
+} from './mechanics/antUpgrades'
+export {
+  acceleratorBoostsAntUpgradeEffect,
+  antELOAntUpgradeEffect,
+  antSacrificeAntUpgradeEffect,
+  antSpeedAntUpgradeEffect,
+  antUpgradeBaseCosts,
+  antUpgradeCostIncreaseExponents,
+  ascensionScoreAntUpgradeEffect,
+  buildingCostScaleAntUpgradeEffect,
+  coinsAntUpgradeEffect,
+  freeRunesAntUpgradeEffect,
+  getCostMaxAntUpgrades,
+  getCostNextAntUpgrade,
+  getMaxPurchasableAntUpgrades,
+  mortuusAntUpgradeEffect,
+  mortuus2AntUpgradeEffect,
+  multipliersAntUpgradeEffect,
+  obtainiumAntUpgradeEffect,
+  offeringsAntUpgradeEffect,
+  salvageAntUpgradeEffect,
+  taxesAntUpgradeEffect,
+  wowCubesAntUpgradeEffect
+} from './mechanics/antUpgrades'
 export type { CalculateAscensionCountInput } from './mechanics/ascensions'
 export { calculateAscensionCount } from './mechanics/ascensions'
 export type { AmbrosiaUpgradeNames, AmbrosiaUpgradeRewards } from './mechanics/blueberryUpgrades'
