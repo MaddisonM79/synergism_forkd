@@ -1,3 +1,19 @@
+import {
+  campaignAmbrosiaLuckBonus as logicCampaignAmbrosiaLuckBonus,
+  campaignAscensionScoreMultiplier as logicCampaignAscensionScoreMultiplier,
+  campaignBlueberrySpeedBonus as logicCampaignBlueberrySpeedBonus,
+  campaignBonusRune6 as logicCampaignBonusRune6,
+  campaignC15Bonus as logicCampaignC15Bonus,
+  campaignCubeBonus as logicCampaignCubeBonus,
+  campaignGoldenQuarkBonus as logicCampaignGoldenQuarkBonus,
+  campaignObtainiumBonus as logicCampaignObtainiumBonus,
+  campaignOcteractBonus as logicCampaignOcteractBonus,
+  campaignOfferingBonus as logicCampaignOfferingBonus,
+  campaignQuarkBonus as logicCampaignQuarkBonus,
+  campaignTaxMultiplier as logicCampaignTaxMultiplier,
+  campaignTimeThresholdReduction as logicCampaignTimeThresholdReduction,
+  campaignTutorialBonus as logicCampaignTutorialBonus
+} from '@synergism/logic'
 import i18next from 'i18next'
 import { awardAchievementGroup } from './Achievements'
 import { DOMCacheDelete, DOMCacheGetOrSet } from './Cache/DOM'
@@ -113,9 +129,6 @@ interface ICampaignData {
   isMeta: boolean
   cardinal: number
 }
-
-const timeThresholdReqs = [20, 100, 250, 500, 1000, 2000, 3500, 5000]
-const bonusRune6ThresholdReqs = [500, 750, 1000, 1250, 1500, 1750, 2000, 3000, 4000, 6000, 8000, 10000]
 
 export class CampaignManager {
   #currentCampaign: CampaignKeys | undefined
@@ -361,40 +374,25 @@ export class CampaignManager {
   }
 
   get tutorialBonus (): TutorialBonus {
-    return {
-      cubeBonus: 1 + 0.25 * +(campaignTokens > 0),
-      obtainiumBonus: 1 + 0.2 * +(campaignTokens > 0),
-      offeringBonus: 1 + 0.2 * +(campaignTokens > 0)
-    }
+    return logicCampaignTutorialBonus(campaignTokens)
   }
 
   get cubeBonus () {
-    return 1
-      + 0.4 * 1 / 25 * Math.min(campaignTokens, 25)
-      + 0.6 * (1 - Math.exp(-Math.max(campaignTokens - 25, 0) / 500))
-      + 1 * (1 - Math.exp(-Math.max(campaignTokens - 2500, 0) / 5000))
+    return logicCampaignCubeBonus(campaignTokens)
   }
 
   get obtainiumBonus () {
-    return 1
-      + 0.1 * 1 / 25 * Math.min(campaignTokens, 25)
-      + 0.4 * (1 - Math.exp(-Math.max(campaignTokens - 25, 0) / 500))
-      + 0.5 * (1 - Math.exp(-Math.max(campaignTokens - 2500, 0) / 5000))
+    return logicCampaignObtainiumBonus(campaignTokens)
   }
 
   get offeringBonus () {
-    return 1
-      + 0.1 * 1 / 25 * Math.min(campaignTokens, 25)
-      + 0.4 * (1 - Math.exp(-Math.max(campaignTokens - 25, 0) / 500))
-      + 0.5 * (1 - Math.exp(-Math.max(campaignTokens - 2500, 0) / 5000))
+    return logicCampaignOfferingBonus(campaignTokens)
   }
 
   get ascensionScoreMultiplier () {
-    return 1
-      + 0.2 * 1 / 100 * Math.min(campaignTokens, 100)
-      + 0.3 * (1 - Math.exp(-Math.max(campaignTokens - 100, 0) / 1000))
-      + 0.5 * (1 - Math.exp(-Math.max(campaignTokens - 2500, 0) / 5000))
+    return logicCampaignAscensionScoreMultiplier(campaignTokens)
   }
+
   /**
    * Returns the time threshold reduction for Prestige, Reincarnation and Ascension
    * Threshold is defined as having quadratic penalty if your reset lasts less than X seconds
@@ -402,87 +400,39 @@ export class CampaignManager {
    * the penalty is *(time/10)^2, reducing the threshold to 5 seconds would make the penalty *(time/5)^2
    */
   get timeThresholdReduction () {
-    for (let i = 0; i < timeThresholdReqs.length; i++) {
-      if (campaignTokens < timeThresholdReqs[i]) {
-        return i / 4
-      }
-    }
-    return 2
+    return logicCampaignTimeThresholdReduction(campaignTokens)
   }
 
   get quarkBonus () {
-    if (campaignTokens < 100) {
-      return 1
-    } else {
-      return 1
-        + 0.05 * Math.min(campaignTokens - 100, 100) / 100
-        + 0.05 * (1 - Math.exp(-Math.max(campaignTokens - 200, 0) / 3000))
-        + 0.1 * (1 - Math.exp(-Math.max(campaignTokens - 2500, 0) / 10000))
-    }
+    return logicCampaignQuarkBonus(campaignTokens)
   }
 
   get taxMultiplier () {
-    if (campaignTokens < 250) {
-      return 1
-    }
-    return 1
-      - 0.05 * 1 / 250 * Math.min(campaignTokens - 250, 250)
-      - 0.15 * (1 - Math.exp(-Math.max(campaignTokens - 500, 0) / 1250))
-      - 0.05 * (1 - Math.exp(-Math.max(campaignTokens - 4000, 0) / 5000))
+    return logicCampaignTaxMultiplier(campaignTokens)
   }
 
   get c15Bonus () {
-    if (campaignTokens < 250) {
-      return 1
-    }
-    return 1
-      + 0.05 * 1 / 250 * Math.min(campaignTokens - 250, 250)
-      + 0.95 * (1 - Math.exp(-Math.max(campaignTokens - 500, 0) / 1250))
+    return logicCampaignC15Bonus(campaignTokens)
   }
 
   get bonusRune6 () {
-    for (let i = 0; i < bonusRune6ThresholdReqs.length; i++) {
-      if (campaignTokens < bonusRune6ThresholdReqs[i]) {
-        return i
-      }
-    }
-    return 12
+    return logicCampaignBonusRune6(campaignTokens)
   }
 
   get goldenQuarkBonus () {
-    if (campaignTokens < 500) {
-      return 1
-    }
-    return 1
-      + 0.05 * 1 / 500 * Math.min(campaignTokens - 500, 500)
-      + 0.05 * (1 - Math.exp(-Math.max(campaignTokens - 1000, 0) / 2500))
+    return logicCampaignGoldenQuarkBonus(campaignTokens)
   }
 
   get octeractBonus () {
-    if (campaignTokens < 1000) {
-      return 1
-    }
-    return 1
-      + 0.1 * 1 / 1000 * Math.min(campaignTokens - 1000, 1000)
-      + 0.15 * (1 - Math.exp(-Math.max(campaignTokens - 2000, 0) / 4000))
+    return logicCampaignOcteractBonus(campaignTokens)
   }
 
   get ambrosiaLuckBonus () {
-    if (campaignTokens < 2000) {
-      return 0
-    }
-    return 10
-      + 40 * 1 / 2000 * Math.min(campaignTokens - 2000, 2000)
-      + 50 * (1 - Math.exp(-Math.max(campaignTokens - 4000, 0) / 2500))
+    return logicCampaignAmbrosiaLuckBonus(campaignTokens)
   }
 
   get blueberrySpeedBonus () {
-    if (campaignTokens < 2000) {
-      return 1
-    }
-    return 1
-      + 0.02 * 1 / 2000 * Math.min(campaignTokens - 2000, 2000)
-      + 0.03 * (1 - Math.exp(-Math.max(campaignTokens - 4000, 0) / 2000))
+    return logicCampaignBlueberrySpeedBonus(campaignTokens)
   }
 }
 
