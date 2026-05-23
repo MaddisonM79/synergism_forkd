@@ -143,6 +143,12 @@ export {
   getNextRegularChallenge
 } from './mechanics/challenges'
 export type {
+  CalculateCoinProductionInput,
+  CalculateCoinProductionResult,
+  PerCoinTierInput
+} from './mechanics/coinProduction'
+export { calculateCoinProduction } from './mechanics/coinProduction'
+export type {
   DroughtEffectInput,
   HyperchallengeEffectInput,
   IlliteracyEffectInput,
@@ -439,6 +445,8 @@ export {
   polymathTalismanEffects,
   wowSquareTalismanEffects
 } from './mechanics/talismanEffects'
+export type { CalculateTaxInput, CalculateTaxResult } from './mechanics/tax'
+export { calculateTax } from './mechanics/tax'
 export type {
   BuyTesseractBuildingInput,
   GetTesseractCostInput,
