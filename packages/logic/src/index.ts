@@ -397,6 +397,36 @@ export {
 } from './mechanics/runeLevels'
 export type { ShopCostInput } from './mechanics/shopCosts'
 export { shopCost } from './mechanics/shopCosts'
+export type { SingularityChallengeDataKeys, SingularityChallengeRewards } from './mechanics/singularityChallenges'
+export {
+  limitedAscensionsAchievementPointValue,
+  limitedAscensionsEffect,
+  limitedAscensionsSingularityRequirement,
+  limitedTimeAchievementPointValue,
+  limitedTimeEffect,
+  limitedTimeSingularityRequirement,
+  noAmbrosiaUpgradesAchievementPointValue,
+  noAmbrosiaUpgradesEffect,
+  noAmbrosiaUpgradesSingularityRequirement,
+  noOcteractsAchievementPointValue,
+  noOcteractsEffect,
+  noOcteractsSingularityRequirement,
+  noQuarkUpgradesAchievementPointValue,
+  noQuarkUpgradesEffect,
+  noQuarkUpgradesSingularityRequirement,
+  noSingularityUpgradesAchievementPointValue,
+  noSingularityUpgradesEffect,
+  noSingularityUpgradesSingularityRequirement,
+  oneChallengeCapAchievementPointValue,
+  oneChallengeCapEffect,
+  oneChallengeCapSingularityRequirement,
+  sadisticPrequelAchievementPointValue,
+  sadisticPrequelEffect,
+  sadisticPrequelSingularityRequirement,
+  taxmanLastStandAchievementPointValue,
+  taxmanLastStandEffect,
+  taxmanLastStandSingularityRequirement
+} from './mechanics/singularityChallenges'
 export type {
   CalculateNextSpikeInput,
   GoldenQuarkCostResult,
