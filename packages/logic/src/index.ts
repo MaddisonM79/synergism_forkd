@@ -225,10 +225,15 @@ export {
 } from './mechanics/talismanEffects'
 export type {
   ActualAntSpeedMultInput,
+  AscensionScoreBonusMultiplierInput,
   AscensionSpeedMultInput,
+  CalcCorruptionStuffInput,
+  CalcCorruptionStuffResult,
   CalculateAmbrosiaGenerationSpeedInput,
   CalculateAmbrosiaLuckInput,
   CalculateAntSacrificeMultiplierInput,
+  CalculateAscensionScoreInput,
+  CalculateAscensionScoreResult,
   CalculateAscensionSpeedExponentSpreadInput,
   CalculateCubeMultiplierWithTauInput,
   CalculateNegativeSalvageInput,
@@ -335,6 +340,7 @@ export {
   sumOfExaltCompletions
 } from './mechanics/singularityMilestones'
 export {
+  CalcCorruptionStuff,
   calculateActualAntSpeedMult,
   calculateAllCubeMultiplier,
   calculateAmbrosiaAdditiveLuckMult,
@@ -343,6 +349,7 @@ export {
   calculateAmbrosiaLuck,
   calculateAmbrosiaLuckRaw,
   calculateAntSacrificeMultiplier,
+  calculateAscensionScore,
   calculateAscensionSpeedExponentSpread,
   calculateAscensionSpeedMult,
   calculateBaseObtainium,
@@ -383,5 +390,6 @@ export {
   calculateTesseractMultiplier,
   calculateTotalCoinOwned,
   calculateTotalSalvage,
+  computeAscensionScoreBonusMultiplier,
   getReductionValue
 } from './mechanics/calculate'
