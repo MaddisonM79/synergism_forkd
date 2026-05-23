@@ -163,6 +163,16 @@ export type {
 } from './mechanics/quarks'
 export { quarkHandler } from './mechanics/quarks'
 export type {
+  GetCubeCostInput,
+  GetCubeCostResult,
+  GetCubeMaxInput
+} from './mechanics/cubeUpgrades'
+export {
+  getCubeCost,
+  getCubeMax,
+  getCubeUpgradeBaseCost
+} from './mechanics/cubeUpgrades'
+export type {
   AntiquitiesRuneInput,
   AntiquitiesRuneKey,
   DuplicationRuneKey,
