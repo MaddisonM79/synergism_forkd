@@ -1,11 +1,16 @@
+import {
+  actualGQUpgradeTotalLevels as logicActualGQUpgradeTotalLevels,
+  calculateEffectiveSingularities as logicCalcEffectiveSingularities,
+  calculateSingularityDebuff as logicCalcSingularityDebuff,
+  computeGQUpgradeMaxLevel as logicComputeGQUpgradeMaxLevel,
+  gqFreeLevelMultiplier as logicGqFreeLevelMultiplier,
+  gqUpgradeFreeLevelSoftcap as logicGqUpgradeFreeLevelSoftcap,
+  type SingularityDebuff
+} from '@synergism/logic'
 import i18next from 'i18next'
 import { getAmbrosiaUpgradeEffects } from './BlueberryUpgrades'
 import { DOMCacheGetOrSet } from './Cache/DOM'
-import {
-  calculateExalt4EffectiveSingularityMultiplier,
-  calculateGoldenQuarkCost,
-  calculateImmaculateAlchemyBonus
-} from './Calculate'
+import { calculateGoldenQuarkCost, calculateImmaculateAlchemyBonus } from './Calculate'
 import { updateMaxTokens, updateTokens } from './Campaign'
 import { getOcteractUpgradeEffect, octeractUpgrades } from './Octeracts'
 import { getGlobalBonus, getPersonalBonus, getQuarkBonus } from './Quark'
@@ -144,7 +149,6 @@ type GoldenQuarkUpgradeRewards = {
 
 export type SingularityDataKeys = keyof GoldenQuarkUpgradeRewards
 
-const overclockPerks = [50, 60, 75, 100, 125, 150, 175, 200, 225, 250]
 const tokenInheritanceTokens = [1, 10, 25, 40, 75, 100, 150, 200, 250, 300, 350, 400, 500, 600, 750]
 const singularityPenaltyThresholds = [11, 26, 37, 51, 101, 151, 201, 216, 230, 270]
 
@@ -2486,70 +2490,58 @@ export async function buyGQUpgradeLevel (
   revealStuff()
 }
 
+// Thin shim — sources the shop / cubeUpgrades[75] inputs.
 function computeFreeLevelMultiplier (): number {
-  return getShopUpgradeEffects('shopSingularityPotency', 'freeUpgradeMult') + 0.3 / 100 * player.cubeUpgrades[75]
+  return logicGqFreeLevelMultiplier(
+    getShopUpgradeEffects('shopSingularityPotency', 'freeUpgradeMult'),
+    player.cubeUpgrades[75]
+  )
 }
 
 export function computeGQUpgradeFreeLevelSoftcap (upgradeKey: SingularityDataKeys): number {
   const upgrade = goldenQuarkUpgrades[upgradeKey]
-  const freeLevelMult = computeFreeLevelMultiplier()
-  const baseRealFreeLevels = freeLevelMult * upgrade.freeLevel
-  return (
-    Math.min(upgrade.level, baseRealFreeLevels)
-    + Math.sqrt(Math.max(0, baseRealFreeLevels - upgrade.level))
-  )
+  return logicGqUpgradeFreeLevelSoftcap(upgrade.freeLevel, upgrade.level, computeFreeLevelMultiplier())
 }
 
 export function computeGQUpgradeMaxLevel (upgradeKey: SingularityDataKeys): number {
   const upgrade = goldenQuarkUpgrades[upgradeKey]
-  if (!upgrade.canExceedCap) {
-    return upgrade.maxLevel
-  } else {
-    let cap = upgrade.maxLevel
-    for (const perk of overclockPerks) {
-      if (player.highestSingularityCount >= perk) {
-        cap += 1
-      } else {
-        break
-      }
-    }
-    cap += getOcteractUpgradeEffect('octeractSingUpgradeCap', 'goldenQuarkUpgradeCapIncrease')
-    return cap
-  }
+  return logicComputeGQUpgradeMaxLevel({
+    canExceedCap: upgrade.canExceedCap,
+    maxLevel: upgrade.maxLevel,
+    highestSingularityCount: player.highestSingularityCount,
+    octeractSingUpgradeCapIncrease: getOcteractUpgradeEffect(
+      'octeractSingUpgradeCap',
+      'goldenQuarkUpgradeCapIncrease'
+    )
+  })
 }
 
 export function actualGQUpgradeTotalLevels (upgradeKey: SingularityDataKeys): number {
   const upgrade = goldenQuarkUpgrades[upgradeKey]
+  const improvedFreeUnlocked = getOcteractUpgradeEffect('octeractImprovedFree', 'unlocked')
+  // Sum the four improved-free exponents only when the gate is unlocked.
+  // Avoids paying for getOcteractUpgradeEffect lookups whose values logic
+  // wouldn't use anyway.
+  const improvedFreeExponent = improvedFreeUnlocked
+    ? getOcteractUpgradeEffect('octeractImprovedFree', 'freeLevelPower')
+      + getOcteractUpgradeEffect('octeractImprovedFree2', 'freeLevelPowerIncrease')
+      + getOcteractUpgradeEffect('octeractImprovedFree3', 'freeLevelPowerIncrease')
+      + getOcteractUpgradeEffect('octeractImprovedFree4', 'freeLevelPowerIncrease')
+    : 0
 
-  if (
-    (player.singularityChallenges.noSingularityUpgrades.enabled
-      || player.singularityChallenges.sadisticPrequel.enabled)
-    && !upgrade.qualityOfLife
-  ) {
-    return 0
-  }
-
-  if (
-    (player.singularityChallenges.limitedAscensions.enabled || player.singularityChallenges.limitedTime.enabled
-      || player.singularityChallenges.sadisticPrequel.enabled)
-    && upgradeKey === 'platonicDelta'
-  ) {
-    return 0
-  }
-
-  const actualFreeLevels = computeGQUpgradeFreeLevelSoftcap(upgradeKey)
-  const linearLevels = upgrade.level + actualFreeLevels
-  let polynomialLevels = 0
-
-  if (getOcteractUpgradeEffect('octeractImprovedFree', 'unlocked')) {
-    let exponent = getOcteractUpgradeEffect('octeractImprovedFree', 'freeLevelPower')
-    exponent += getOcteractUpgradeEffect('octeractImprovedFree2', 'freeLevelPowerIncrease')
-    exponent += getOcteractUpgradeEffect('octeractImprovedFree3', 'freeLevelPowerIncrease')
-    exponent += getOcteractUpgradeEffect('octeractImprovedFree4', 'freeLevelPowerIncrease')
-    polynomialLevels = Math.pow(upgrade.level * actualFreeLevels, exponent)
-  }
-
-  return Math.max(linearLevels, polynomialLevels)
+  return logicActualGQUpgradeTotalLevels({
+    level: upgrade.level,
+    freeLevel: upgrade.freeLevel,
+    qualityOfLife: upgrade.qualityOfLife,
+    isPlatonicDelta: upgradeKey === 'platonicDelta',
+    inNoSingularityUpgrades: player.singularityChallenges.noSingularityUpgrades.enabled,
+    inSadisticPrequel: player.singularityChallenges.sadisticPrequel.enabled,
+    inLimitedAscensions: player.singularityChallenges.limitedAscensions.enabled,
+    inLimitedTime: player.singularityChallenges.limitedTime.enabled,
+    freeLevelMult: computeFreeLevelMultiplier(),
+    improvedFreeUnlocked,
+    improvedFreeExponent
+  })
 }
 
 /**
@@ -3639,19 +3631,6 @@ export async function buyGoldenQuarks (): Promise<void> {
   )
 }
 
-type SingularityDebuffs =
-  | 'Offering'
-  | 'Obtainium'
-  | 'Salvage'
-  | 'Global Speed'
-  | 'Researches'
-  | 'Ant ELO'
-  | 'Ascension Speed'
-  | 'Cubes'
-  | 'Cube Upgrades'
-  | 'Platonic Costs'
-  | 'Hepteract Costs'
-
 const calculateSingularityReductions = () => {
   return (
     getShopUpgradeEffects('shopSingularityPenaltyDebuff', 'singularityPenaltyReducers')
@@ -3661,79 +3640,24 @@ const calculateSingularityReductions = () => {
   )
 }
 
+// Thin shim over @synergism/logic's pure effective-singularity formula. Reads
+// the noOcteracts / taxmanLastStand challenge state and platonic[15] off
+// player; the formula itself lives in mechanics/singularityPenalties.ts.
+//
+// `inExalt4` mirrors the legacy `calculateExalt4EffectiveSingularityMultiplier`
+// shim in Calculate.ts — `force` was hardcoded false at the original call site,
+// but `inExalt4` was sourced from player.singularityChallenges.noOcteracts.enabled.
 export const calculateEffectiveSingularities = (
   singularityCount: number = player.singularityCount
-): number => {
-  let effectiveSingularities = singularityCount
-  effectiveSingularities *= Math.min(4.75, (0.75 * singularityCount) / 10 + 1)
-
-  effectiveSingularities *= calculateExalt4EffectiveSingularityMultiplier(
-    player.singularityChallenges.noOcteracts.completions,
-    false
-  )
-
-  if (singularityCount > 10) {
-    effectiveSingularities *= 1.5
-    effectiveSingularities *= Math.min(
-      4,
-      (1.25 * singularityCount) / 10 - 0.25
-    )
-  }
-  if (singularityCount > 25) {
-    effectiveSingularities *= 2.5
-    effectiveSingularities *= Math.min(6, (1.5 * singularityCount) / 25 - 0.5)
-  }
-  if (singularityCount > 36) {
-    effectiveSingularities *= 4
-    effectiveSingularities *= Math.min(5, singularityCount / 18 - 1)
-    effectiveSingularities *= Math.pow(
-      1.1,
-      Math.min(singularityCount - 36, 64)
-    )
-  }
-  if (singularityCount > 50) {
-    effectiveSingularities *= 5
-    effectiveSingularities *= Math.min(8, (2 * singularityCount) / 50 - 1)
-    effectiveSingularities *= Math.pow(
-      1.1,
-      Math.min(singularityCount - 50, 50)
-    )
-  }
-  if (singularityCount > 100) {
-    effectiveSingularities *= 2
-    effectiveSingularities *= singularityCount / 25
-    effectiveSingularities *= Math.pow(1.1, singularityCount - 100)
-  }
-  if (singularityCount > 150) {
-    effectiveSingularities *= 2
-    effectiveSingularities *= Math.pow(1.05, singularityCount - 150)
-  }
-  if (singularityCount > 200) {
-    effectiveSingularities *= 1.5
-    effectiveSingularities *= Math.pow(1.275, singularityCount - 200)
-  }
-  if (singularityCount > 215) {
-    effectiveSingularities *= 1.25
-    effectiveSingularities *= Math.pow(1.2, singularityCount - 215)
-  }
-  if (singularityCount > 230) {
-    effectiveSingularities *= 2
-  }
-  if (singularityCount > 269) {
-    effectiveSingularities *= 3
-    effectiveSingularities *= Math.pow(3, singularityCount - 269)
-  }
-
-  if (
-    player.singularityChallenges.taxmanLastStand.enabled
-    && player.singularityChallenges.taxmanLastStand.completions >= 8
-    && player.platonicUpgrades[15] === 0
-  ) {
-    effectiveSingularities = Math.pow(effectiveSingularities, 3 / 2)
-  }
-
-  return effectiveSingularities
-}
+): number =>
+  logicCalcEffectiveSingularities({
+    singularityCount,
+    noOcteractsCompletions: player.singularityChallenges.noOcteracts.completions,
+    inExalt4: player.singularityChallenges.noOcteracts.enabled,
+    taxmanLastStandEnabled: player.singularityChallenges.taxmanLastStand.enabled,
+    taxmanLastStandCompletions: player.singularityChallenges.taxmanLastStand.completions,
+    platonicUpgrade15: player.platonicUpgrades[15]
+  })
 
 const calculateNextSpike = (
   singularityCount: number = player.singularityCount
@@ -3747,73 +3671,27 @@ const calculateNextSpike = (
   }
   return -1
 }
+
+// Thin shim over @synergism/logic's pure singularity-debuff calculator.
+// Sources the antiquities-rune toggle, the shop / ambrosia reductions, and
+// the horseshoe multiplier from the live web_ui state. `inExalt4` mirrors
+// the legacy Calculate.ts shim — sourced from player.singularityChallenges.noOcteracts.enabled.
 export const calculateSingularityDebuff = (
-  debuff: SingularityDebuffs,
+  debuff: SingularityDebuff,
   singularityCount: number = player.singularityCount
-) => {
-  if (singularityCount === 0 || runes.antiquities.level > 0) {
-    return (debuff === 'Salvage' || debuff === 'Ant ELO') ? 0 : 1
-  }
-
-  const constitutiveSingularityCount = singularityCount - calculateSingularityReductions()
-  if (constitutiveSingularityCount < 1) {
-    return 1
-  }
-
-  const effectiveSingularities = calculateEffectiveSingularities(
-    constitutiveSingularityCount
-  )
-
-  let baseDebuffMultiplier = 1
-  baseDebuffMultiplier *= getShopUpgradeEffects('shopHorseShoe', 'singularityPenaltyMult')
-
-  if (debuff === 'Offering') {
-    const extraMult = Math.pow(1.02, constitutiveSingularityCount)
-    return extraMult * baseDebuffMultiplier * (constitutiveSingularityCount < 150
-      ? 3 * (Math.sqrt(effectiveSingularities) + 1)
-      : Math.pow(effectiveSingularities, 2 / 3) / 400)
-  } else if (debuff === 'Salvage') {
-    return -(4 * constitutiveSingularityCount
-      + 4 * Math.max(0, constitutiveSingularityCount - 100)
-      + 4 * Math.max(0, constitutiveSingularityCount - 200)
-      + 3 * Math.max(0, constitutiveSingularityCount - 250)
-      + 3 * Math.max(0, constitutiveSingularityCount - 270)
-      + 2 * Math.max(0, constitutiveSingularityCount - 280))
-  } else if (debuff === 'Ant ELO') {
-    return -Math.min(1, 0.001 * constitutiveSingularityCount)
-  } else if (debuff === 'Global Speed') {
-    return baseDebuffMultiplier * (1 + Math.sqrt(effectiveSingularities) / 4)
-  } else if (debuff === 'Obtainium') {
-    const extraMult = Math.pow(1.02, constitutiveSingularityCount)
-    return extraMult * baseDebuffMultiplier * (constitutiveSingularityCount < 150
-      ? 3 * (Math.sqrt(effectiveSingularities) + 1)
-      : Math.pow(effectiveSingularities, 2 / 3) / 400)
-  } else if (debuff === 'Researches') {
-    return baseDebuffMultiplier * (1 + Math.sqrt(effectiveSingularities) / 2)
-  } else if (debuff === 'Ascension Speed') {
-    return baseDebuffMultiplier * (constitutiveSingularityCount < 150
-      ? 1 + Math.sqrt(effectiveSingularities) / 5
-      : 1 + Math.pow(effectiveSingularities, 0.75) / 10000)
-  } else if (debuff === 'Cubes') {
-    const extraMult = constitutiveSingularityCount > 100
-      ? 2 * Math.pow(1.03, constitutiveSingularityCount - 100)
-      : 2
-    return baseDebuffMultiplier * (constitutiveSingularityCount < 150
-      ? 3 * (1 + (Math.sqrt(effectiveSingularities) * extraMult) / 4)
-      : 1 + (Math.pow(effectiveSingularities, 0.75) * extraMult) / 1000)
-  } else if (debuff === 'Platonic Costs') {
-    return baseDebuffMultiplier * (constitutiveSingularityCount > 36
-      ? 1 + Math.pow(effectiveSingularities, 3 / 10) / 12
-      : 1)
-  } else if (debuff === 'Hepteract Costs') {
-    return baseDebuffMultiplier * (constitutiveSingularityCount > 50
-      ? 1 + Math.pow(effectiveSingularities, 11 / 50) / 25
-      : 1)
-  } else {
-    // Cube upgrades
-    return baseDebuffMultiplier * Math.cbrt(effectiveSingularities + 1)
-  }
-}
+) =>
+  logicCalcSingularityDebuff({
+    debuff,
+    singularityCount,
+    antiquitiesRuneActive: runes.antiquities.level > 0,
+    singularityReductions: calculateSingularityReductions(),
+    horseShoeMult: getShopUpgradeEffects('shopHorseShoe', 'singularityPenaltyMult'),
+    noOcteractsCompletions: player.singularityChallenges.noOcteracts.completions,
+    inExalt4: player.singularityChallenges.noOcteracts.enabled,
+    taxmanLastStandEnabled: player.singularityChallenges.taxmanLastStand.enabled,
+    taxmanLastStandCompletions: player.singularityChallenges.taxmanLastStand.completions,
+    platonicUpgrade15: player.platonicUpgrades[15]
+  })
 
 export const updateSingularityElevatorVisibility = (): void => {
   if (player.highestSingularityCount < 10) {

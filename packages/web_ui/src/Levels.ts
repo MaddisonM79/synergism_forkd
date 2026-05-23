@@ -1,23 +1,19 @@
+import {
+  getLevelMilestone as logicGetLevelMilestone,
+  getLevelReward as logicGetLevelReward,
+  type LevelMilestoneKey,
+  levelMilestones as logicLevelMilestones,
+  type LevelRewardKey,
+  levelRewards as logicLevelRewards,
+  salvageChallengeBuffEffect as logicSalvageChallengeBuffEffect
+} from '@synergism/logic'
 import i18next from 'i18next'
 import { achievementLevel } from './Achievements'
 import { DOMCacheGetOrSet } from './Cache/DOM'
 import { resetTimeThreshold } from './Calculate'
 import { format, formatAsPercentIncrease, player } from './Synergism'
 
-type SynergismLevelReward =
-  | 'quarks'
-  | 'salvage'
-  | 'obtainium'
-  | 'offerings'
-  | 'ants'
-  | 'wowCubes'
-  | 'wowTesseracts'
-  | 'wowHyperCubes'
-  | 'wowPlatonicCubes'
-  | 'wowHepteractCubes'
-  | 'wowOcteracts'
-  | 'ambrosiaLuck'
-  | 'redAmbrosiaLuck'
+type SynergismLevelReward = LevelRewardKey
 
 interface SynergismLevelRewardData {
   name: () => string
@@ -29,216 +25,75 @@ interface SynergismLevelRewardData {
   nameColor: string
 }
 
-export const synergismLevelRewards: Record<SynergismLevelReward, SynergismLevelRewardData> = {
-  salvage: {
-    name: () => i18next.t('achievements.levelRewards.salvage.name'),
-    description: () => i18next.t('achievements.levelRewards.salvage.description'),
-    effect: (lv: number) => {
-      let salvage = 0
-      let salavePerLevel = 1
-      let remainingLevels = lv
-      while (remainingLevels >= 100) {
-        salvage += salavePerLevel * 100
-        remainingLevels -= 100
-        salavePerLevel += 1
-      }
-      salvage += salavePerLevel * remainingLevels
-      return salvage
-    },
-    effectDescription: () => {
-      const salvage = getLevelReward('salvage')
-      return i18next.t('achievements.levelRewards.salvage.effect', {
-        salvage: format(salvage, 0, true)
-      })
-    },
-    minLevel: 0,
-    defaultValue: 0,
-    nameColor: 'green'
-  },
-  quarks: {
-    name: () => i18next.t('achievements.levelRewards.quarks.name'),
-    description: () => i18next.t('achievements.levelRewards.quarks.description'),
-    effect: (lv: number) => Math.pow(1.01, Math.floor(lv / 20)),
-    effectDescription: () => {
-      const multiplier = getLevelReward('quarks')
-      return i18next.t('achievements.levelRewards.quarks.effect', {
-        mult: formatAsPercentIncrease(multiplier, 2)
-      })
-    },
-    minLevel: 20,
-    defaultValue: 1,
-    nameColor: 'cyan'
-  },
-  offerings: {
-    name: () => i18next.t('achievements.levelRewards.offerings.name'),
-    description: () => i18next.t('achievements.levelRewards.offerings.description'),
-    effect: (lv: number) => Math.pow(1.01, lv) * Math.pow(1.02, Math.max(0, lv - 100)),
-    effectDescription: () => {
-      const multiplier = getLevelReward('offerings')
-      return i18next.t('achievements.levelRewards.offerings.effect', {
-        mult: formatAsPercentIncrease(multiplier, 2)
-      })
-    },
-    minLevel: 0,
-    defaultValue: 1,
-    nameColor: 'orange'
-  },
-  obtainium: {
-    name: () => i18next.t('achievements.levelRewards.obtainium.name'),
-    description: () => i18next.t('achievements.levelRewards.obtainium.description'),
-    effect: (lv: number) => Math.pow(1.01, lv - 15) * Math.pow(1.02, Math.max(0, lv - 100)),
-    effectDescription: () => {
-      const multiplier = getLevelReward('obtainium')
-      return i18next.t('achievements.levelRewards.obtainium.effect', {
-        mult: formatAsPercentIncrease(multiplier, 2)
-      })
-    },
-    minLevel: 15,
-    defaultValue: 1,
-    nameColor: 'pink'
-  },
-  ants: {
-    name: () => i18next.t('achievements.levelRewards.ants.name'),
-    description: () => i18next.t('achievements.levelRewards.ants.description'),
-    effect: (lv: number) => {
-      const first100Levels = Math.min(71, lv - 59) * 25
-      const next100Levels = Math.max(0, Math.min(100, lv - 100)) * 50
-      const remainingLevels = Math.max(0, lv - 200) * 100
-      return first100Levels + next100Levels + remainingLevels
-    },
-    effectDescription: () => {
-      const elo = getLevelReward('ants')
-      return i18next.t('achievements.levelRewards.ants.effect', {
-        elo: format(elo, 0, true)
-      })
-    },
-    minLevel: 60,
-    defaultValue: 1,
-    nameColor: 'burlywood'
-  },
-  wowCubes: {
-    name: () => i18next.t('achievements.levelRewards.wowCubes.name'),
-    description: () => i18next.t('achievements.levelRewards.wowCubes.description'),
-    effect: (lv: number) => (1 + (lv - 60) / 20) * Math.pow(1.07, Math.floor(lv / 10) - 6),
-    effectDescription: () => {
-      const multiplier = getLevelReward('wowCubes')
-      return i18next.t('achievements.levelRewards.wowCubes.effect', {
-        mult: formatAsPercentIncrease(multiplier, 2)
-      })
-    },
-    minLevel: 70,
-    defaultValue: 1,
-    nameColor: 'lightgrey'
-  },
-  wowTesseracts: {
-    name: () => i18next.t('achievements.levelRewards.wowTesseracts.name'),
-    description: () => i18next.t('achievements.levelRewards.wowTesseracts.description'),
-    effect: (lv: number) => (1 + (lv - 80) / 20) * Math.pow(1.07, Math.floor(lv / 10) - 8),
-    effectDescription: () => {
-      const multiplier = getLevelReward('wowTesseracts')
-      return i18next.t('achievements.levelRewards.wowTesseracts.effect', {
-        mult: formatAsPercentIncrease(multiplier, 2)
-      })
-    },
-    minLevel: 90,
-    defaultValue: 1,
-    nameColor: 'orchid'
-  },
-  wowHyperCubes: {
-    name: () => i18next.t('achievements.levelRewards.wowHyperCubes.name'),
-    description: () => i18next.t('achievements.levelRewards.wowHyperCubes.description'),
-    effect: (lv: number) => (1 + (lv - 100) / 20) * Math.pow(1.07, Math.floor(lv / 10) - 10),
-    effectDescription: () => {
-      const multiplier = getLevelReward('wowHyperCubes')
-      return i18next.t('achievements.levelRewards.wowHyperCubes.effect', {
-        mult: formatAsPercentIncrease(multiplier, 2)
-      })
-    },
-    minLevel: 110,
-    defaultValue: 1,
-    nameColor: 'crimson'
-  },
-  wowPlatonicCubes: {
-    name: () => i18next.t('achievements.levelRewards.wowPlatonicCubes.name'),
-    description: () => i18next.t('achievements.levelRewards.wowPlatonicCubes.description'),
-    effect: (lv: number) => (1 + (lv - 120) / 20) * Math.pow(1.07, Math.floor(lv / 10) - 12),
-    effectDescription: () => {
-      const multiplier = getLevelReward('wowPlatonicCubes')
-      return i18next.t('achievements.levelRewards.wowPlatonicCubes.effect', {
-        mult: formatAsPercentIncrease(multiplier, 2)
-      })
-    },
-    minLevel: 140,
-    defaultValue: 1,
-    nameColor: 'lightgoldenrodyellow'
-  },
-  wowHepteractCubes: {
-    name: () => i18next.t('achievements.levelRewards.wowHepteractCubes.name'),
-    description: () => i18next.t('achievements.levelRewards.wowHepteractCubes.description'),
-    effect: (lv: number) => (1 + (lv - 150) / 20) * Math.pow(1.07, Math.floor(lv / 10) - 15),
-    effectDescription: () => {
-      const multiplier = getLevelReward('wowHepteractCubes')
-      return i18next.t('achievements.levelRewards.wowHepteractCubes.effect', {
-        mult: formatAsPercentIncrease(multiplier, 2)
-      })
-    },
-    minLevel: 170,
-    defaultValue: 1,
-    nameColor: 'mediumpurple'
-  },
-  wowOcteracts: {
-    name: () => i18next.t('achievements.levelRewards.wowOcteracts.name'),
-    description: () => i18next.t('achievements.levelRewards.wowOcteracts.description'),
-    effect: (lv: number) => (1 + (lv - 209) / 20) * Math.pow(1.02, lv - 209),
-    effectDescription: () => {
-      const multiplier = getLevelReward('wowOcteracts')
-      return i18next.t('achievements.levelRewards.wowOcteracts.effect', {
-        mult: formatAsPercentIncrease(multiplier, 2)
-      })
-    },
-    minLevel: 210,
-    defaultValue: 1,
-    nameColor: 'turquoise'
-  },
-  ambrosiaLuck: {
-    name: () => i18next.t('achievements.levelRewards.ambrosiaLuck.name'),
-    description: () => i18next.t('achievements.levelRewards.ambrosiaLuck.description'),
-    effect: (lv: number) => 4 * (lv - 229),
-    effectDescription: () => {
-      const luck = getLevelReward('ambrosiaLuck')
-      return i18next.t('achievements.levelRewards.ambrosiaLuck.effect', {
-        luck: format(luck, 0, true)
-      })
-    },
-    minLevel: 230,
-    defaultValue: 0,
-    nameColor: 'lime'
-  },
-  redAmbrosiaLuck: {
-    name: () => i18next.t('achievements.levelRewards.redAmbrosiaLuck.name'),
-    description: () => i18next.t('achievements.levelRewards.redAmbrosiaLuck.description'),
-    effect: (lv: number) => lv - 259,
-    effectDescription: () => {
-      const luck = getLevelReward('redAmbrosiaLuck')
-      return i18next.t('achievements.levelRewards.redAmbrosiaLuck.effect', {
-        luck: format(luck, 0, true)
-      })
-    },
-    minLevel: 260,
-    defaultValue: 0,
-    nameColor: 'red'
+// Helper to assemble each reward entry: pure formula bits come from
+// @synergism/logic's levelRewards table, web_ui owns the i18n/colour-only
+// surface. The `effectDescription` closure reads `achievementLevel` indirectly
+// via the local getLevelReward shim below, so it always reflects the live
+// player state — matching the legacy behaviour.
+const mkRewardEntry = (
+  key: LevelRewardKey,
+  nameColor: string,
+  effectDescription: () => string
+): SynergismLevelRewardData => {
+  const logic = logicLevelRewards[key]
+  return {
+    name: () => i18next.t(`achievements.levelRewards.${key}.name`),
+    description: () => i18next.t(`achievements.levelRewards.${key}.description`),
+    effect: logic.effect,
+    effectDescription,
+    minLevel: logic.minLevel,
+    defaultValue: logic.defaultValue,
+    nameColor
   }
+}
+
+// Effect-description string for a percent-multiplier reward (1.23x → +23%).
+const percentIncreaseEffectDesc = (key: LevelRewardKey) => () =>
+  i18next.t(`achievements.levelRewards.${key}.effect`, {
+    mult: formatAsPercentIncrease(getLevelReward(key), 2)
+  })
+
+export const synergismLevelRewards: Record<SynergismLevelReward, SynergismLevelRewardData> = {
+  salvage: mkRewardEntry('salvage', 'green', () =>
+    i18next.t('achievements.levelRewards.salvage.effect', {
+      salvage: format(getLevelReward('salvage'), 0, true)
+    })),
+  quarks: mkRewardEntry('quarks', 'cyan', percentIncreaseEffectDesc('quarks')),
+  offerings: mkRewardEntry('offerings', 'orange', percentIncreaseEffectDesc('offerings')),
+  obtainium: mkRewardEntry('obtainium', 'pink', percentIncreaseEffectDesc('obtainium')),
+  ants: mkRewardEntry('ants', 'burlywood', () =>
+    i18next.t('achievements.levelRewards.ants.effect', {
+      elo: format(getLevelReward('ants'), 0, true)
+    })),
+  wowCubes: mkRewardEntry('wowCubes', 'lightgrey', percentIncreaseEffectDesc('wowCubes')),
+  wowTesseracts: mkRewardEntry('wowTesseracts', 'orchid', percentIncreaseEffectDesc('wowTesseracts')),
+  wowHyperCubes: mkRewardEntry('wowHyperCubes', 'crimson', percentIncreaseEffectDesc('wowHyperCubes')),
+  wowPlatonicCubes: mkRewardEntry(
+    'wowPlatonicCubes',
+    'lightgoldenrodyellow',
+    percentIncreaseEffectDesc('wowPlatonicCubes')
+  ),
+  wowHepteractCubes: mkRewardEntry('wowHepteractCubes', 'mediumpurple', percentIncreaseEffectDesc('wowHepteractCubes')),
+  wowOcteracts: mkRewardEntry('wowOcteracts', 'turquoise', percentIncreaseEffectDesc('wowOcteracts')),
+  ambrosiaLuck: mkRewardEntry('ambrosiaLuck', 'lime', () =>
+    i18next.t('achievements.levelRewards.ambrosiaLuck.effect', {
+      luck: format(getLevelReward('ambrosiaLuck'), 0, true)
+    })),
+  redAmbrosiaLuck: mkRewardEntry(
+    'redAmbrosiaLuck',
+    'red',
+    () =>
+      i18next.t('achievements.levelRewards.redAmbrosiaLuck.effect', {
+        luck: format(getLevelReward('redAmbrosiaLuck'), 0, true)
+      })
+  )
 }
 
 const synergismLevelReward = Object.keys(synergismLevelRewards) as SynergismLevelReward[]
 
-export const getLevelReward = (reward: SynergismLevelReward): number => {
-  if (achievementLevel >= synergismLevelRewards[reward].minLevel) {
-    return synergismLevelRewards[reward].effect(achievementLevel)
-  } else {
-    return synergismLevelRewards[reward].defaultValue
-  }
-}
+// Thin shim over @synergism/logic's getLevelReward — reads the live
+// `achievementLevel` and forwards.
+export const getLevelReward = (reward: SynergismLevelReward): number => logicGetLevelReward(reward, achievementLevel)
 
 const getLevelRewardDescription = (reward: SynergismLevelReward) => {
   const name = synergismLevelRewards[reward].name()
@@ -288,27 +143,11 @@ export const generateLevelRewardHTMLs = () => {
   }
 }
 
-type SynergismLevelMilestones =
-  | 'offeringTimerScaling'
-  | 'speedRune'
-  | 'duplicationRune'
-  | 'prismRune'
-  | 'thriftRune'
-  | 'SIRune'
-  | 'autoPrestige'
-  | 'tier1CrystalAutobuy'
-  | 'tier2CrystalAutobuy'
-  | 'tier3CrystalAutobuy'
-  | 'tier4CrystalAutobuy'
-  | 'tier5CrystalAutobuy'
-  | 'achievementTalismanUnlock'
-  | 'runeAutobuyImprover'
-  | 'achievementTalismanEnhancement'
-  | 'salvageChallengeBuff'
-  | 'antSpeed2Autobuyer'
-  | 'wowCubesAutobuyer'
-  | 'ascensionScoreAutobuyer'
-  | 'mortuus2Autobuyer'
+// Extends the logic-side `LevelMilestoneKey` with the one milestone whose
+// effect needs live player state (`salvageChallengeBuff`). All other entries
+// in the web_ui table delegate `effect` to logic; the salvage one calls into
+// `logicSalvageChallengeBuffEffect` with input sourced from `player`.
+type SynergismLevelMilestones = LevelMilestoneKey | 'salvageChallengeBuff'
 
 interface SynergismLevelMilestoneData {
   name: () => string
@@ -320,337 +159,179 @@ interface SynergismLevelMilestoneData {
   displayOrder: number
 }
 
+// Builds a milestone-table entry from the logic-side data. Web_ui supplies the
+// i18n closures (name/description/effectDescription) and the displayOrder; the
+// effect/levelReq/defaultValue come from the logic levelMilestones table. The
+// `effect` thunk wraps the pure formula with the live `achievementLevel`.
+const mkMilestoneEntry = (
+  key: LevelMilestoneKey,
+  displayOrder: number,
+  effectDescription: () => string
+): SynergismLevelMilestoneData => {
+  const logic = logicLevelMilestones[key]
+  return {
+    name: () => i18next.t(`achievements.levelMilestones.${key}.name`),
+    description: () => i18next.t(`achievements.levelMilestones.${key}.description`),
+    effect: () => logic.effect(achievementLevel),
+    defaultValue: logic.defaultValue,
+    effectDescription,
+    levelReq: logic.levelReq,
+    displayOrder
+  }
+}
+
+// Effect-description string for "is this milestone unlocked yet?" rewards.
+// Used by the 11 unlock-flag milestones (autoPrestige, tier1-5 crystal, etc.)
+// whose effect returns 1 when active.
+const unlockedFlagDesc = (key: LevelMilestoneKey) => () => {
+  const unlocked = getLevelMilestone(key) === 1
+  return i18next.t(`achievements.levelMilestones.${key}.effect`, {
+    unlocked: unlocked ? i18next.t('achievements.rewardTypes.unlocked') : i18next.t('achievements.rewardTypes.locked')
+  })
+}
+
+// Sources the live player-challenge state for the one impure milestone.
+const salvageChallengeBuffEffect = () =>
+  logicSalvageChallengeBuffEffect({
+    inAnyChallenge: player.currentChallenge.transcension !== 0
+      || player.currentChallenge.reincarnation !== 0
+      || player.currentChallenge.ascension !== 0,
+    inAscension15: player.currentChallenge.ascension === 15,
+    insideSingularityChallenge: player.insideSingularityChallenge
+  })
+
 const synergismLevelMilestones: Record<SynergismLevelMilestones, SynergismLevelMilestoneData> = {
-  offeringTimerScaling: {
-    name: () => i18next.t('achievements.levelMilestones.offeringTimerScaling.name'),
-    description: () => i18next.t('achievements.levelMilestones.offeringTimerScaling.description'),
-    effect: () => 1,
-    defaultValue: 0,
-    effectDescription: () => {
-      const mult = getLevelMilestone('offeringTimerScaling') === 1
-        ? Math.max(1, player.prestigecounter / resetTimeThreshold())
-        : 1
-      return i18next.t('achievements.levelMilestones.offeringTimerScaling.effect', {
-        mult: formatAsPercentIncrease(mult, 2)
-      })
-    },
-    levelReq: 5,
-    displayOrder: 1
-  },
+  offeringTimerScaling: mkMilestoneEntry('offeringTimerScaling', 1, () => {
+    const mult = getLevelMilestone('offeringTimerScaling') === 1
+      ? Math.max(1, player.prestigecounter / resetTimeThreshold())
+      : 1
+    return i18next.t('achievements.levelMilestones.offeringTimerScaling.effect', {
+      mult: formatAsPercentIncrease(mult, 2)
+    })
+  }),
   autoPrestige: {
-    name: () => i18next.t('achievements.levelMilestones.autoPrestige.name'),
-    description: () => i18next.t('achievements.levelMilestones.autoPrestige.description'),
-    effect: () => 1,
-    defaultValue: 0,
-    effectDescription: () => {
+    ...mkMilestoneEntry('autoPrestige', 2, () => {
       const autoPrestige = getLevelMilestone('autoPrestige') === 1
       return i18next.t('achievements.levelMilestones.autoPrestige.effect', {
         autoPrestige: autoPrestige
           ? i18next.t('achievements.rewardTypes.unlocked')
           : i18next.t('achievements.rewardTypes.locked')
       })
-    },
-    levelReq: 7,
-    displayOrder: 2
+    })
   },
-  speedRune: {
-    name: () => i18next.t('achievements.levelMilestones.speedRune.name'),
-    description: () => i18next.t('achievements.levelMilestones.speedRune.description'),
-    effect: () => {
-      return 0.5 * (achievementLevel - 19)
-    },
-    defaultValue: 0,
-    effectDescription: () => {
-      const speedRune = getLevelMilestone('speedRune')
-      return i18next.t('achievements.levelMilestones.speedRune.effect', {
-        speedRune: format(speedRune, 2, true)
+  speedRune: mkMilestoneEntry('speedRune', 3, () =>
+    i18next.t('achievements.levelMilestones.speedRune.effect', {
+      speedRune: format(getLevelMilestone('speedRune'), 2, true)
+    })),
+  duplicationRune: mkMilestoneEntry(
+    'duplicationRune',
+    4,
+    () =>
+      i18next.t('achievements.levelMilestones.duplicationRune.effect', {
+        duplicationRune: format(getLevelMilestone('duplicationRune'), 2, true)
       })
-    },
-    levelReq: 20,
-    displayOrder: 3
-  },
-  duplicationRune: {
-    name: () => i18next.t('achievements.levelMilestones.duplicationRune.name'),
-    description: () => i18next.t('achievements.levelMilestones.duplicationRune.description'),
-    effect: () => {
-      return 0.4 * (achievementLevel - 39)
-    },
-    defaultValue: 0,
-    effectDescription: () => {
-      const duplicationRune = getLevelMilestone('duplicationRune')
-      return i18next.t('achievements.levelMilestones.duplicationRune.effect', {
-        duplicationRune: format(duplicationRune, 2, true)
+  ),
+  prismRune: mkMilestoneEntry('prismRune', 5, () =>
+    i18next.t('achievements.levelMilestones.prismRune.effect', {
+      prismRune: format(getLevelMilestone('prismRune'), 2, true)
+    })),
+  thriftRune: mkMilestoneEntry('thriftRune', 6, () =>
+    i18next.t('achievements.levelMilestones.thriftRune.effect', {
+      thriftRune: format(getLevelMilestone('thriftRune'), 2, true)
+    })),
+  SIRune: mkMilestoneEntry('SIRune', 7, () =>
+    i18next.t('achievements.levelMilestones.SIRune.effect', {
+      siRune: format(getLevelMilestone('SIRune'), 2, true)
+    })),
+  // The five tier crystal autobuyers share the same `unlocked/locked` strings.
+  // They use the `autobuy` interpolation key (not `unlocked`), so they can't
+  // use the shared `unlockedFlagDesc` helper directly.
+  tier1CrystalAutobuy: mkMilestoneEntry('tier1CrystalAutobuy', 8, () => {
+    const autobuy = getLevelMilestone('tier1CrystalAutobuy') === 1
+    return i18next.t('achievements.levelMilestones.tier1CrystalAutobuy.effect', {
+      autobuy: autobuy ? i18next.t('achievements.rewardTypes.unlocked') : i18next.t('achievements.rewardTypes.locked')
+    })
+  }),
+  tier2CrystalAutobuy: mkMilestoneEntry('tier2CrystalAutobuy', 9, () => {
+    const autobuy = getLevelMilestone('tier2CrystalAutobuy') === 1
+    return i18next.t('achievements.levelMilestones.tier2CrystalAutobuy.effect', {
+      autobuy: autobuy ? i18next.t('achievements.rewardTypes.unlocked') : i18next.t('achievements.rewardTypes.locked')
+    })
+  }),
+  tier3CrystalAutobuy: mkMilestoneEntry('tier3CrystalAutobuy', 10, () => {
+    const autobuy = getLevelMilestone('tier3CrystalAutobuy') === 1
+    return i18next.t('achievements.levelMilestones.tier3CrystalAutobuy.effect', {
+      autobuy: autobuy ? i18next.t('achievements.rewardTypes.unlocked') : i18next.t('achievements.rewardTypes.locked')
+    })
+  }),
+  tier4CrystalAutobuy: mkMilestoneEntry('tier4CrystalAutobuy', 11, () => {
+    const autobuy = getLevelMilestone('tier4CrystalAutobuy') === 1
+    return i18next.t('achievements.levelMilestones.tier4CrystalAutobuy.effect', {
+      autobuy: autobuy ? i18next.t('achievements.rewardTypes.unlocked') : i18next.t('achievements.rewardTypes.locked')
+    })
+  }),
+  tier5CrystalAutobuy: mkMilestoneEntry('tier5CrystalAutobuy', 12, () => {
+    const autobuy = getLevelMilestone('tier5CrystalAutobuy') === 1
+    return i18next.t('achievements.levelMilestones.tier5CrystalAutobuy.effect', {
+      autobuy: autobuy ? i18next.t('achievements.rewardTypes.unlocked') : i18next.t('achievements.rewardTypes.locked')
+    })
+  }),
+  achievementTalismanUnlock: mkMilestoneEntry(
+    'achievementTalismanUnlock',
+    13,
+    unlockedFlagDesc('achievementTalismanUnlock')
+  ),
+  runeAutobuyImprover: mkMilestoneEntry(
+    'runeAutobuyImprover',
+    13.5,
+    () =>
+      i18next.t('achievements.levelMilestones.runeAutobuyImprover.effect', {
+        mult: formatAsPercentIncrease(getLevelMilestone('runeAutobuyImprover'), 0)
       })
-    },
-    levelReq: 40,
-    displayOrder: 4
-  },
-  prismRune: {
-    name: () => i18next.t('achievements.levelMilestones.prismRune.name'),
-    description: () => i18next.t('achievements.levelMilestones.prismRune.description'),
-    effect: () => {
-      return 0.3 * (achievementLevel - 59)
-    },
-    defaultValue: 0,
-    effectDescription: () => {
-      const prismRune = getLevelMilestone('prismRune')
-      return i18next.t('achievements.levelMilestones.prismRune.effect', {
-        prismRune: format(prismRune, 2, true)
+  ),
+  achievementTalismanEnhancement: mkMilestoneEntry(
+    'achievementTalismanEnhancement',
+    14,
+    () =>
+      i18next.t('achievements.levelMilestones.achievementTalismanEnhancement.effect', {
+        level: format(getLevelMilestone('achievementTalismanEnhancement'), 0, true)
       })
-    },
-    levelReq: 60,
-    displayOrder: 5
-  },
-  thriftRune: {
-    name: () => i18next.t('achievements.levelMilestones.thriftRune.name'),
-    description: () => i18next.t('achievements.levelMilestones.thriftRune.description'),
-    effect: () => {
-      return 0.2 * (achievementLevel - 79)
-    },
-    defaultValue: 0,
-    effectDescription: () => {
-      const thriftRune = getLevelMilestone('thriftRune')
-      return i18next.t('achievements.levelMilestones.thriftRune.effect', {
-        thriftRune: format(thriftRune, 2, true)
-      })
-    },
-    levelReq: 80,
-    displayOrder: 6
-  },
-  SIRune: {
-    name: () => i18next.t('achievements.levelMilestones.SIRune.name'),
-    description: () => i18next.t('achievements.levelMilestones.SIRune.description'),
-    effect: () => {
-      return 0.1 * (achievementLevel - 99)
-    },
-    defaultValue: 0,
-    effectDescription: () => {
-      const siRune = getLevelMilestone('SIRune')
-      return i18next.t('achievements.levelMilestones.SIRune.effect', {
-        siRune: format(siRune, 2, true)
-      })
-    },
-    levelReq: 100,
-    displayOrder: 7
-  },
-  tier1CrystalAutobuy: {
-    name: () => i18next.t('achievements.levelMilestones.tier1CrystalAutobuy.name'),
-    description: () => i18next.t('achievements.levelMilestones.tier1CrystalAutobuy.description'),
-    effect: () => 1,
-    defaultValue: 0,
-    effectDescription: () => {
-      const autobuy = getLevelMilestone('tier1CrystalAutobuy') === 1
-      return i18next.t('achievements.levelMilestones.tier1CrystalAutobuy.effect', {
-        autobuy: autobuy ? i18next.t('achievements.rewardTypes.unlocked') : i18next.t('achievements.rewardTypes.locked')
-      })
-    },
-    levelReq: 6,
-    displayOrder: 8
-  },
-  tier2CrystalAutobuy: {
-    name: () => i18next.t('achievements.levelMilestones.tier2CrystalAutobuy.name'),
-    description: () => i18next.t('achievements.levelMilestones.tier2CrystalAutobuy.description'),
-    effect: () => 1,
-    defaultValue: 0,
-    effectDescription: () => {
-      const autobuy = getLevelMilestone('tier2CrystalAutobuy') === 1
-      return i18next.t('achievements.levelMilestones.tier2CrystalAutobuy.effect', {
-        autobuy: autobuy ? i18next.t('achievements.rewardTypes.unlocked') : i18next.t('achievements.rewardTypes.locked')
-      })
-    },
-    levelReq: 9,
-    displayOrder: 9
-  },
-  tier3CrystalAutobuy: {
-    name: () => i18next.t('achievements.levelMilestones.tier3CrystalAutobuy.name'),
-    description: () => i18next.t('achievements.levelMilestones.tier3CrystalAutobuy.description'),
-    effect: () => 1,
-    defaultValue: 0,
-    effectDescription: () => {
-      const autobuy = getLevelMilestone('tier3CrystalAutobuy') === 1
-      return i18next.t('achievements.levelMilestones.tier3CrystalAutobuy.effect', {
-        autobuy: autobuy ? i18next.t('achievements.rewardTypes.unlocked') : i18next.t('achievements.rewardTypes.locked')
-      })
-    },
-    levelReq: 12,
-    displayOrder: 10
-  },
-  tier4CrystalAutobuy: {
-    name: () => i18next.t('achievements.levelMilestones.tier4CrystalAutobuy.name'),
-    description: () => i18next.t('achievements.levelMilestones.tier4CrystalAutobuy.description'),
-    effect: () => 1,
-    defaultValue: 0,
-    effectDescription: () => {
-      const autobuy = getLevelMilestone('tier4CrystalAutobuy') === 1
-      return i18next.t('achievements.levelMilestones.tier4CrystalAutobuy.effect', {
-        autobuy: autobuy ? i18next.t('achievements.rewardTypes.unlocked') : i18next.t('achievements.rewardTypes.locked')
-      })
-    },
-    levelReq: 15,
-    displayOrder: 11
-  },
-  tier5CrystalAutobuy: {
-    name: () => i18next.t('achievements.levelMilestones.tier5CrystalAutobuy.name'),
-    description: () => i18next.t('achievements.levelMilestones.tier5CrystalAutobuy.description'),
-    effect: () => 1,
-    defaultValue: 0,
-    effectDescription: () => {
-      const autobuy = getLevelMilestone('tier5CrystalAutobuy') === 1
-      return i18next.t('achievements.levelMilestones.tier5CrystalAutobuy.effect', {
-        autobuy: autobuy ? i18next.t('achievements.rewardTypes.unlocked') : i18next.t('achievements.rewardTypes.locked')
-      })
-    },
-    levelReq: 20,
-    displayOrder: 12
-  },
-  achievementTalismanUnlock: {
-    name: () => i18next.t('achievements.levelMilestones.achievementTalismanUnlock.name'),
-    description: () => i18next.t('achievements.levelMilestones.achievementTalismanUnlock.description'),
-    effect: () => 1,
-    defaultValue: 0,
-    effectDescription: () => {
-      const unlocked = getLevelMilestone('achievementTalismanUnlock') === 1
-      return i18next.t('achievements.levelMilestones.achievementTalismanUnlock.effect', {
-        unlocked: unlocked
-          ? i18next.t('achievements.rewardTypes.unlocked')
-          : i18next.t('achievements.rewardTypes.locked')
-      })
-    },
-    levelReq: 100,
-    displayOrder: 13
-  },
-  runeAutobuyImprover: {
-    name: () => i18next.t('achievements.levelMilestones.runeAutobuyImprover.name'),
-    description: () => i18next.t('achievements.levelMilestones.runeAutobuyImprover.description'),
-    effect: () => 1.1 + 0.01 * (achievementLevel - 130),
-    defaultValue: 1,
-    effectDescription: () => {
-      const mult = getLevelMilestone('runeAutobuyImprover')
-      return i18next.t('achievements.levelMilestones.runeAutobuyImprover.effect', {
-        mult: formatAsPercentIncrease(mult, 0)
-      })
-    },
-    levelReq: 130,
-    displayOrder: 13.5
-  },
-  achievementTalismanEnhancement: {
-    name: () => i18next.t('achievements.levelMilestones.achievementTalismanEnhancement.name'),
-    description: () => i18next.t('achievements.levelMilestones.achievementTalismanEnhancement.description'),
-    effect: () => achievementLevel,
-    defaultValue: 0,
-    effectDescription: () => {
-      const level = getLevelMilestone('achievementTalismanEnhancement')
-      return i18next.t('achievements.levelMilestones.achievementTalismanEnhancement.effect', {
-        level: format(level, 0, true)
-      })
-    },
-    levelReq: 160,
-    displayOrder: 14
-  },
+  ),
+  // salvageChallengeBuff is the one milestone whose effect needs player state.
+  // The structure mirrors mkMilestoneEntry but with the salvage-specific effect
+  // thunk inline.
   salvageChallengeBuff: {
     name: () => i18next.t('achievements.levelMilestones.salvageChallengeBuff.name'),
     description: () => i18next.t('achievements.levelMilestones.salvageChallengeBuff.description'),
-    effect: () => {
-      let baseVal = 25
-      if (
-        player.currentChallenge.transcension !== 0
-        || player.currentChallenge.reincarnation !== 0
-        || player.currentChallenge.ascension !== 0
-      ) {
-        baseVal *= 2
-      }
-      if (player.currentChallenge.ascension === 15) {
-        baseVal *= 2
-      }
-      if (player.insideSingularityChallenge) {
-        baseVal *= 3
-      }
-      return baseVal
-    },
+    effect: salvageChallengeBuffEffect,
     defaultValue: 0,
-    effectDescription: () => {
-      const salvage = getLevelMilestone('salvageChallengeBuff')
-      return i18next.t('achievements.levelMilestones.salvageChallengeBuff.effect', {
-        salvage: format(salvage, 0, true)
-      })
-    },
+    effectDescription: () =>
+      i18next.t('achievements.levelMilestones.salvageChallengeBuff.effect', {
+        salvage: format(getLevelMilestone('salvageChallengeBuff'), 0, true)
+      }),
     levelReq: 180,
     displayOrder: 15
   },
-  antSpeed2Autobuyer: {
-    name: () => i18next.t('achievements.levelMilestones.antSpeed2Autobuyer.name'),
-    description: () => i18next.t('achievements.levelMilestones.antSpeed2Autobuyer.description'),
-    effect: () => 1,
-    defaultValue: 0,
-    effectDescription: () => {
-      const unlocked = getLevelMilestone('antSpeed2Autobuyer') === 1
-      return i18next.t('achievements.levelMilestones.antSpeed2Autobuyer.effect', {
-        unlocked: unlocked
-          ? i18next.t('achievements.rewardTypes.unlocked')
-          : i18next.t('achievements.rewardTypes.locked')
-      })
-    },
-    levelReq: 65,
-    displayOrder: 16
-  },
-  wowCubesAutobuyer: {
-    name: () => i18next.t('achievements.levelMilestones.wowCubesAutobuyer.name'),
-    description: () => i18next.t('achievements.levelMilestones.wowCubesAutobuyer.description'),
-    effect: () => 1,
-    defaultValue: 0,
-    effectDescription: () => {
-      const unlocked = getLevelMilestone('wowCubesAutobuyer') === 1
-      return i18next.t('achievements.levelMilestones.wowCubesAutobuyer.effect', {
-        unlocked: unlocked
-          ? i18next.t('achievements.rewardTypes.unlocked')
-          : i18next.t('achievements.rewardTypes.locked')
-      })
-    },
-    levelReq: 80,
-    displayOrder: 17
-  },
-  ascensionScoreAutobuyer: {
-    name: () => i18next.t('achievements.levelMilestones.ascensionScoreAutobuyer.name'),
-    description: () => i18next.t('achievements.levelMilestones.ascensionScoreAutobuyer.description'),
-    effect: () => 1,
-    defaultValue: 0,
-    effectDescription: () => {
-      const unlocked = getLevelMilestone('ascensionScoreAutobuyer') === 1
-      return i18next.t('achievements.levelMilestones.ascensionScoreAutobuyer.effect', {
-        unlocked: unlocked
-          ? i18next.t('achievements.rewardTypes.unlocked')
-          : i18next.t('achievements.rewardTypes.locked')
-      })
-    },
-    levelReq: 80,
-    displayOrder: 18
-  },
-  mortuus2Autobuyer: {
-    name: () => i18next.t('achievements.levelMilestones.mortuus2Autobuyer.name'),
-    description: () => i18next.t('achievements.levelMilestones.mortuus2Autobuyer.description'),
-    effect: () => 1,
-    defaultValue: 0,
-    effectDescription: () => {
-      const unlocked = getLevelMilestone('mortuus2Autobuyer') === 1
-      return i18next.t('achievements.levelMilestones.mortuus2Autobuyer.effect', {
-        unlocked: unlocked
-          ? i18next.t('achievements.rewardTypes.unlocked')
-          : i18next.t('achievements.rewardTypes.locked')
-      })
-    },
-    levelReq: 225,
-    displayOrder: 19
-  }
+  antSpeed2Autobuyer: mkMilestoneEntry('antSpeed2Autobuyer', 16, unlockedFlagDesc('antSpeed2Autobuyer')),
+  wowCubesAutobuyer: mkMilestoneEntry('wowCubesAutobuyer', 17, unlockedFlagDesc('wowCubesAutobuyer')),
+  ascensionScoreAutobuyer: mkMilestoneEntry(
+    'ascensionScoreAutobuyer',
+    18,
+    unlockedFlagDesc('ascensionScoreAutobuyer')
+  ),
+  mortuus2Autobuyer: mkMilestoneEntry('mortuus2Autobuyer', 19, unlockedFlagDesc('mortuus2Autobuyer'))
 }
 
 const synergismLevelMilestone = Object.keys(synergismLevelMilestones) as SynergismLevelMilestones[]
 
+// Thin shim over @synergism/logic's getLevelMilestone, with a special case
+// for salvageChallengeBuff which lives in web_ui because its effect needs
+// live player-challenge state.
 export const getLevelMilestone = (milestone: SynergismLevelMilestones): number => {
-  if (achievementLevel >= synergismLevelMilestones[milestone].levelReq) {
-    return synergismLevelMilestones[milestone].effect()
-  } else {
-    return synergismLevelMilestones[milestone].defaultValue
+  if (milestone === 'salvageChallengeBuff') {
+    return achievementLevel >= 180 ? salvageChallengeBuffEffect() : 0
   }
+  return logicGetLevelMilestone(milestone, achievementLevel)
 }
 
 const getLevelMilestoneDescription = (milestone: SynergismLevelMilestones) => {

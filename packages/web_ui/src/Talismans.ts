@@ -3,12 +3,15 @@ import {
   chronosTalismanEffects as logicChronosTalismanEffects,
   cookieGrandmaTalismanEffects as logicCookieGrandmaTalismanEffects,
   exemptionTalismanEffects as logicExemptionTalismanEffects,
+  exponentialCostProgression as logicExponentialCostProgression,
   horseShoeTalismanEffects as logicHorseShoeTalismanEffects,
   metaphysicsTalismanEffects as logicMetaphysicsTalismanEffects,
   midasTalismanEffects as logicMidasTalismanEffects,
   mortuusTalismanEffects as logicMortuusTalismanEffects,
   plasticTalismanEffects as logicPlasticTalismanEffects,
   polymathTalismanEffects as logicPolymathTalismanEffects,
+  regularCostProgression as logicRegularCostProgression,
+  type TalismanCraftItems as LogicTalismanCraftItems,
   wowSquareTalismanEffects as logicWowSquareTalismanEffects
 } from '@synergism/logic'
 import Decimal from 'break_infinity.js'
@@ -36,14 +39,9 @@ interface TalismanFragmentCost {
   offerings: number
 }
 
-export type TalismanCraftItems =
-  | 'shard'
-  | 'commonFragment'
-  | 'uncommonFragment'
-  | 'rareFragment'
-  | 'epicFragment'
-  | 'legendaryFragment'
-  | 'mythicalFragment'
+// Re-exported from @synergism/logic so existing call sites that import
+// `TalismanCraftItems` from this module keep compiling unchanged.
+export type TalismanCraftItems = LogicTalismanCraftItems
 
 const talismanResourceCosts: Record<TalismanCraftItems, TalismanFragmentCost> = {
   shard: {
@@ -138,78 +136,10 @@ interface TalismanData<K extends TalismanKeys> {
   fragmentsInvested: Record<TalismanCraftItems, Decimal>
 }
 
-const regularCostProgression = (baseMult: Decimal, level: number): Record<TalismanCraftItems, Decimal> => {
-  let priceMult = baseMult
-  if (level >= 120) {
-    priceMult = priceMult.times((level - 90) / 30)
-  }
-  if (level >= 150) {
-    priceMult = priceMult.times((level - 120) / 30)
-  }
-  if (level >= 180) {
-    priceMult = priceMult.times((level - 170) / 10)
-  }
-
-  const shardCost = Decimal.pow(level, 3).times(1 / 8).plus(1).floor().times(priceMult)
-  const commonCost = level >= 30
-    ? Decimal.pow(level - 30, 3).times(1 / 32).plus(1).floor().times(priceMult)
-    : new Decimal(0)
-  const uncommonCost = level >= 60
-    ? Decimal.pow(level - 60, 3).times(1 / 384).plus(1).floor().times(priceMult)
-    : new Decimal(0)
-  const rareCost = level >= 90
-    ? Decimal.pow(level - 90, 3).times(1 / 500).plus(1).floor().times(priceMult)
-    : new Decimal(0)
-  const epicCost = level >= 120
-    ? Decimal.pow(level - 120, 3).times(1 / 375).plus(1).floor().times(priceMult)
-    : new Decimal(0)
-  const legendaryCost = level >= 150
-    ? Decimal.pow(level - 150, 3).times(1 / 192).plus(1).floor().times(priceMult)
-    : new Decimal(0)
-  const mythicalCost = level >= 150
-    ? Decimal.pow(level - 150, 3).times(1 / 1280).plus(1).floor().times(priceMult)
-    : new Decimal(0)
-
-  return {
-    'shard': Decimal.max(0, shardCost),
-    'commonFragment': Decimal.max(0, commonCost),
-    'uncommonFragment': Decimal.max(0, uncommonCost),
-    'rareFragment': Decimal.max(0, rareCost),
-    'epicFragment': Decimal.max(0, epicCost),
-    'legendaryFragment': Decimal.max(0, legendaryCost),
-    'mythicalFragment': Decimal.max(0, mythicalCost)
-  }
-}
-
-const exponentialCostProgression = (
-  baseMult: Decimal,
-  level: number,
-  ratio: number
-): Record<TalismanCraftItems, Decimal> => {
-  const baseMultDecimal = new Decimal(baseMult)
-
-  return {
-    shard: Decimal.pow(ratio, level).times(baseMultDecimal).times(100).floor(),
-    commonFragment: level >= 30
-      ? Decimal.pow(ratio, level - 30).times(baseMultDecimal).times(50).floor()
-      : new Decimal(0),
-    uncommonFragment: level >= 60
-      ? Decimal.pow(ratio, level - 60).times(baseMultDecimal).times(25).floor()
-      : new Decimal(0),
-    rareFragment: level >= 90
-      ? Decimal.pow(ratio, level - 90).times(baseMultDecimal).times(20).floor()
-      : new Decimal(0),
-    epicFragment: level >= 120
-      ? Decimal.pow(ratio, level - 120).times(baseMultDecimal).times(15).floor()
-      : new Decimal(0),
-    legendaryFragment: level >= 150
-      ? Decimal.pow(ratio, level - 150).times(baseMultDecimal).times(10).floor()
-      : new Decimal(0),
-    mythicalFragment: level >= 150
-      ? Decimal.pow(ratio, level - 150).times(baseMultDecimal).times(5).floor()
-      : new Decimal(0)
-  }
-}
+// Cost-progression formulas moved into @synergism/logic — these two aliases
+// preserve the legacy local-name call sites in the talisman data block below.
+const regularCostProgression = logicRegularCostProgression
+const exponentialCostProgression = logicExponentialCostProgression
 
 const universalTalismanMaxLevelIncreasers = () => {
   return (
