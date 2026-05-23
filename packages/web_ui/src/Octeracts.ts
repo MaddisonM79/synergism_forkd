@@ -1,3 +1,8 @@
+import {
+  actualOcteractUpgradeTotalLevels as logicActualOcteractUpgradeTotalLevels,
+  octeractFreeLevelMultiplier as logicOcteractFreeLevelMultiplier,
+  octeractFreeLevelSoftcap as logicOcteractFreeLevelSoftcap
+} from '@synergism/logic'
 import i18next from 'i18next'
 import { DOMCacheGetOrSet } from './Cache/DOM'
 import { calculateOcteractMultiplier } from './Calculate'
@@ -1074,33 +1079,25 @@ export const getOcteractUpgradeCostTNL = (upgradeKey: OcteractUpgrades): number 
   return upgrade.costFormula(upgrade.level, upgrade.costPerLevel)
 }
 
-const computeFreeLevelMultiplier = (): number => {
-  return 1 + 0.3 / 100 * player.cubeUpgrades[78]
-}
+// Thin shim — sources cubeUpgrades[78] for the multiplier.
+const computeFreeLevelMultiplier = (): number => logicOcteractFreeLevelMultiplier(player.cubeUpgrades[78])
 
-export const computeOcteractFreeLevelSoftcap = (upgradeKey: OcteractUpgrades): number => {
-  const freeLevelMult = computeFreeLevelMultiplier()
-  const upgrade = octeractUpgrades[upgradeKey]
-  return upgrade.freeLevel * freeLevelMult
-}
+export const computeOcteractFreeLevelSoftcap = (upgradeKey: OcteractUpgrades): number =>
+  logicOcteractFreeLevelSoftcap(octeractUpgrades[upgradeKey].freeLevel, computeFreeLevelMultiplier())
 
+// Thin shim over @synergism/logic. Sources level / freeLevel / qualityOfLife
+// off the upgrade snapshot and the noOcteracts / sadisticPrequel gate flags
+// off the player.
 export const actualOcteractUpgradeTotalLevels = (upgradeKey: OcteractUpgrades): number => {
   const upgrade = octeractUpgrades[upgradeKey]
-
-  if (
-    (player.singularityChallenges.noOcteracts.enabled || player.singularityChallenges.sadisticPrequel.enabled)
-    && !upgrade.qualityOfLife
-  ) {
-    return 0
-  }
-
-  const actualFreeLevels = computeOcteractFreeLevelSoftcap(upgradeKey)
-
-  if (upgrade.level >= actualFreeLevels) {
-    return actualFreeLevels + upgrade.level
-  } else {
-    return 2 * Math.sqrt(actualFreeLevels * upgrade.level)
-  }
+  return logicActualOcteractUpgradeTotalLevels({
+    level: upgrade.level,
+    freeLevel: upgrade.freeLevel,
+    qualityOfLife: upgrade.qualityOfLife,
+    cubeUpgrade78: player.cubeUpgrades[78],
+    inNoOcteracts: player.singularityChallenges.noOcteracts.enabled,
+    inSadisticPrequel: player.singularityChallenges.sadisticPrequel.enabled
+  })
 }
 
 export const upgradeOcteractToString = (upgradeKey: OcteractUpgrades): string => {

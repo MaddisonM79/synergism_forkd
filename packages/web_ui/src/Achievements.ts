@@ -1,3 +1,7 @@
+import {
+  achievementLevelFromPoints as logicAchievementLevelFromPoints,
+  toNextAchievementLevelEXP as logicToNextAchievementLevelEXP
+} from '@synergism/logic'
 import Decimal from 'break_infinity.js'
 import i18next from 'i18next'
 import { DOMCacheGetOrSet } from './Cache/DOM'
@@ -3585,11 +3589,7 @@ export const updateProgressiveCache = (ach: ProgressiveAchievements, sourcedFrom
 
 const updateAchievementLevel = (fromUpdatePoints = false) => {
   const oldLevel = achievementLevel
-  if (achievementPoints < 2500) {
-    achievementLevel = Math.floor(achievementPoints / 50)
-  } else {
-    achievementLevel = 50 + Math.floor((achievementPoints - 2500) / 100)
-  }
+  achievementLevel = logicAchievementLevelFromPoints(achievementPoints)
   displayLevelStuff()
   if (oldLevel < achievementLevel) {
     if (player.toggles[34] && !fromUpdatePoints) {
@@ -3613,13 +3613,7 @@ export function computeAchievementPoints (
   return points
 }
 
-export const toNextAchievementLevelEXP = () => {
-  if (achievementPoints < 2500) {
-    return 50 - (achievementPoints % 50)
-  } else {
-    return 100 - (achievementPoints % 100)
-  }
-}
+export const toNextAchievementLevelEXP = () => logicToNextAchievementLevelEXP(achievementPoints)
 
 export const getAchievementReward = (rewardType: AchievementRewards): number | boolean => {
   return achRewards[rewardType]()
