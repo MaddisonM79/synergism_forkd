@@ -1,3 +1,10 @@
+import {
+  droughtEffect as logicDroughtEffect,
+  hyperchallengeEffect as logicHyperchallengeEffect,
+  illiteracyEffect as logicIlliteracyEffect,
+  maxCorruptionLevel as logicMaxCorruptionLevel,
+  viscosityEffect as logicViscosityEffect
+} from '@synergism/logic'
 import Decimal from 'break_infinity.js'
 import i18next from 'i18next'
 import { z } from 'zod'
@@ -170,17 +177,17 @@ export class CorruptionLoadout {
   }
 
   #viscosityEffect () {
-    const base = G.viscosityPower[this.#levels.viscosity]
-    const multiplier = 1 + player.platonicUpgrades[6] / 30
-    return Math.min(base * multiplier, 1)
+    return logicViscosityEffect({
+      basePower: G.viscosityPower[this.#levels.viscosity],
+      platonicUpgrade6: player.platonicUpgrades[6]
+    })
   }
 
   #droughtEffect () {
-    let baseSalvageReduction = G.droughtSalvage[this.#levels.drought]
-    if (player.platonicUpgrades[13] > 0) {
-      baseSalvageReduction *= 0.5
-    }
-    return baseSalvageReduction
+    return logicDroughtEffect({
+      baseSalvage: G.droughtSalvage[this.#levels.drought],
+      platonicUpgrade13: player.platonicUpgrades[13]
+    })
   }
 
   #deflationEffect () {
@@ -192,11 +199,11 @@ export class CorruptionLoadout {
   }
 
   #illiteracyEffect () {
-    const base = G.illiteracyPower[this.#levels.illiteracy]
-    const multiplier = (player.obtainium.gte(1))
-      ? 1 + (1 / 100) * player.platonicUpgrades[9] * Math.min(100, Decimal.log10(player.obtainium))
-      : 1
-    return Math.min(base * multiplier, 1)
+    return logicIlliteracyEffect({
+      basePower: G.illiteracyPower[this.#levels.illiteracy],
+      platonicUpgrade9: player.platonicUpgrades[9],
+      obtainiumLog10OrNull: player.obtainium.gte(1) ? Decimal.log10(player.obtainium) : null
+    })
   }
 
   #recessionEffect () {
@@ -208,10 +215,10 @@ export class CorruptionLoadout {
   }
 
   #hyperchallengeEffect () {
-    const baseEffect = G.hyperchallengeMultiplier[this.#levels.hyperchallenge]
-    let divisor = 1
-    divisor *= 1 + 2 / 5 * player.platonicUpgrades[8]
-    return Math.max(1, baseEffect / divisor)
+    return logicHyperchallengeEffect({
+      baseEffect: G.hyperchallengeMultiplier[this.#levels.hyperchallenge],
+      platonicUpgrade8: player.platonicUpgrades[8]
+    })
   }
 
   corruptionEffects (corr: keyof Corruptions) {
@@ -402,40 +409,18 @@ export class CorruptionSaves {
   }
 }
 
-export const maxCorruptionLevel = () => {
-  let max = 0
-
-  if (player.challengecompletions[11] > 0) {
-    max += 5
-  }
-  if (player.challengecompletions[12] > 0) {
-    max += 2
-  }
-  if (player.challengecompletions[13] > 0) {
-    max += 2
-  }
-  if (player.challengecompletions[14] > 0) {
-    max += 2
-  }
-  if (player.platonicUpgrades[5] > 0) {
-    max += 1
-  }
-  if (player.platonicUpgrades[10] > 0) {
-    max += 1
-  }
-
-  // Overrides everything above.
-  if (getGQUpgradeEffect('platonicTau', 'unlocked')) {
-    max = Math.max(13, max)
-  }
-
-  if (getGQUpgradeEffect('corruptionFourteen', 'unlocked')) {
-    max += 1
-  }
-  max += getOcteractUpgradeEffect('octeractCorruption', 'corruptionLevelCapIncrease')
-
-  return max
-}
+export const maxCorruptionLevel = () =>
+  logicMaxCorruptionLevel({
+    challenge11Completions: player.challengecompletions[11],
+    challenge12Completions: player.challengecompletions[12],
+    challenge13Completions: player.challengecompletions[13],
+    challenge14Completions: player.challengecompletions[14],
+    platonicUpgrade5: player.platonicUpgrades[5],
+    platonicUpgrade10: player.platonicUpgrades[10],
+    platonicTauUnlocked: getGQUpgradeEffect('platonicTau', 'unlocked'),
+    corruptionFourteenUnlocked: getGQUpgradeEffect('corruptionFourteen', 'unlocked'),
+    octeractCorruptionCapIncrease: getOcteractUpgradeEffect('octeractCorruption', 'corruptionLevelCapIncrease')
+  })
 
 export const corrIcons: Record<keyof Corruptions, string> = {
   viscosity: '/CorruptViscosity.png',

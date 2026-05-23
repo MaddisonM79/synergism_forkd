@@ -173,6 +173,20 @@ export {
   getCubeUpgradeBaseCost
 } from './mechanics/cubeUpgrades'
 export type {
+  DroughtEffectInput,
+  HyperchallengeEffectInput,
+  IlliteracyEffectInput,
+  MaxCorruptionLevelInput,
+  ViscosityEffectInput
+} from './mechanics/corruptions'
+export {
+  droughtEffect,
+  hyperchallengeEffect,
+  illiteracyEffect,
+  maxCorruptionLevel,
+  viscosityEffect
+} from './mechanics/corruptions'
+export type {
   AntiquitiesRuneInput,
   AntiquitiesRuneKey,
   DuplicationRuneKey,
