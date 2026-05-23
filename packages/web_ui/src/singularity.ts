@@ -1,10 +1,15 @@
 import {
   actualGQUpgradeTotalLevels as logicActualGQUpgradeTotalLevels,
   calculateEffectiveSingularities as logicCalcEffectiveSingularities,
+  calculateNextSpike as logicCalculateNextSpike,
   calculateSingularityDebuff as logicCalcSingularityDebuff,
   computeGQUpgradeMaxLevel as logicComputeGQUpgradeMaxLevel,
+  goldenQuarkCost as logicGoldenQuarkCost,
   gqFreeLevelMultiplier as logicGqFreeLevelMultiplier,
+  gqUpgradeCostTNL as logicGqUpgradeCostTNL,
   gqUpgradeFreeLevelSoftcap as logicGqUpgradeFreeLevelSoftcap,
+  type GQUpgradeSpecialCostForm,
+  maxSingularityLookahead as logicMaxSingularityLookahead,
   type SingularityDebuff
 } from '@synergism/logic'
 import i18next from 'i18next'
@@ -150,7 +155,6 @@ type GoldenQuarkUpgradeRewards = {
 export type SingularityDataKeys = keyof GoldenQuarkUpgradeRewards
 
 const tokenInheritanceTokens = [1, 10, 25, 40, 75, 100, 150, 200, 250, 300, 350, 400, 500, 600, 750]
-const singularityPenaltyThresholds = [11, 26, 37, 51, 101, 151, 201, 216, 230, 270]
 
 export const updateSingularityPenalties = (): void => {
   const singularityCount = player.singularityCount
@@ -2349,49 +2353,19 @@ export function updateMobileGQHTML (k: SingularityDataKeys) {
 }
 
 /**
- * Get the cost for upgrading once. Returns 0 if maxed.
+ * Get the cost for upgrading once. Returns 0 if maxed. Thin shim over
+ * @synergism/logic's gqUpgradeCostTNL — sources the upgrade snapshot off
+ * the data table and the computed-max-level off the matching shim.
  */
 export function getGQUpgradeCostTNL (upgradeKey: SingularityDataKeys): number {
   const upgrade = goldenQuarkUpgrades[upgradeKey]
-  let costMultiplier = 1
-
-  if (computeGQUpgradeMaxLevel(upgradeKey) === upgrade.level) {
-    return 0
-  }
-
-  // Overcap
-  if (computeGQUpgradeMaxLevel(upgradeKey) > upgrade.maxLevel && upgrade.level >= upgrade.maxLevel) {
-    costMultiplier *= Math.pow(4, upgrade.level - upgrade.maxLevel + 1)
-  }
-
-  if (upgrade.specialCostForm === 'Exponential2') {
-    return (
-      upgrade.costPerLevel * Math.sqrt(costMultiplier) * Math.pow(2, upgrade.level)
-    )
-  }
-
-  if (upgrade.specialCostForm === 'Cubic') {
-    return (
-      upgrade.costPerLevel
-      * costMultiplier
-      * (Math.pow(upgrade.level + 1, 3) - Math.pow(upgrade.level, 3))
-    )
-  }
-
-  if (upgrade.specialCostForm === 'Quadratic') {
-    return (
-      upgrade.costPerLevel
-      * costMultiplier
-      * (Math.pow(upgrade.level + 1, 2) - Math.pow(upgrade.level, 2))
-    )
-  }
-
-  costMultiplier *= upgrade.maxLevel === -1 && upgrade.level >= 100 ? upgrade.level / 50 : 1
-  costMultiplier *= upgrade.maxLevel === -1 && upgrade.level >= 400 ? upgrade.level / 100 : 1
-
-  return computeGQUpgradeMaxLevel(upgradeKey) === upgrade.level
-    ? 0
-    : Math.ceil(upgrade.costPerLevel * (1 + upgrade.level) * costMultiplier)
+  return logicGqUpgradeCostTNL({
+    level: upgrade.level,
+    maxLevel: upgrade.maxLevel,
+    computedMaxLevel: computeGQUpgradeMaxLevel(upgradeKey),
+    costPerLevel: upgrade.costPerLevel,
+    specialCostForm: (upgrade.specialCostForm ?? null) as GQUpgradeSpecialCostForm
+  })
 }
 
 /**
@@ -3548,30 +3522,17 @@ const handlePerks = (singularityCount: number) => {
   }
 }
 
-export const calculateMaxSingularityLookahead = (nonZero: boolean): number => {
-  if (!nonZero) {
-    return 0
-  } else {
-    let maxLookahead = 1
-    maxLookahead += getGQUpgradeEffect('singFastForward', 'lookahead')
-    maxLookahead += getGQUpgradeEffect('singFastForward2', 'lookahead')
-    maxLookahead += getOcteractUpgradeEffect('octeractFastForward', 'lookahead')
-    return maxLookahead
-  }
-}
+// Thin shim — sources the three lookahead effects off GQ / octeract upgrades.
+export const calculateMaxSingularityLookahead = (nonZero: boolean): number =>
+  logicMaxSingularityLookahead({
+    nonZero,
+    singFastForwardLookahead: getGQUpgradeEffect('singFastForward', 'lookahead'),
+    singFastForward2Lookahead: getGQUpgradeEffect('singFastForward2', 'lookahead'),
+    octeractFastForwardLookahead: getOcteractUpgradeEffect('octeractFastForward', 'lookahead')
+  })
 
-export const getGoldenQuarkCost = (): {
-  cost: number
-  costReduction: number
-} => {
-  const cost = calculateGoldenQuarkCost()
-  const baseCost = 10000
-
-  return {
-    cost: cost,
-    costReduction: Math.max(0, baseCost - cost)
-  }
-}
+// Thin shim — sources the live GQ cost from Calculate.
+export const getGoldenQuarkCost = () => logicGoldenQuarkCost(calculateGoldenQuarkCost())
 
 export async function buyGoldenQuarks (): Promise<void> {
   const goldenQuarkCost = getGoldenQuarkCost()
@@ -3659,18 +3620,14 @@ export const calculateEffectiveSingularities = (
     platonicUpgrade15: player.platonicUpgrades[15]
   })
 
+// Thin shim — sources the singularity-reduction sum off the local helper.
 const calculateNextSpike = (
   singularityCount: number = player.singularityCount
-): number => {
-  const penaltyDebuff = calculateSingularityReductions()
-
-  for (const sing of singularityPenaltyThresholds) {
-    if (sing + penaltyDebuff > singularityCount) {
-      return sing + penaltyDebuff
-    }
-  }
-  return -1
-}
+): number =>
+  logicCalculateNextSpike({
+    singularityCount,
+    singularityReductions: calculateSingularityReductions()
+  })
 
 // Thin shim over @synergism/logic's pure singularity-debuff calculator.
 // Sources the antiquities-rune toggle, the shop / ambrosia reductions, and

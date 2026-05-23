@@ -238,6 +238,8 @@ export {
   calculateExalt6PenaltyPerSecond,
   calculateExalt6TimeLimit
 } from './mechanics/exaltPenalties'
+export type { GQUpgradeCostTNLInput, GQUpgradeSpecialCostForm } from './mechanics/gqUpgradeCost'
+export { gqUpgradeCostTNL } from './mechanics/gqUpgradeCost'
 export type { ActualGQUpgradeTotalLevelsInput, GqUpgradeMaxLevelInput } from './mechanics/gqUpgradeLevels'
 export {
   actualGQUpgradeTotalLevels,
@@ -385,6 +387,12 @@ export {
   runeLevelFromEXP,
   runeOfferingsToLevel
 } from './mechanics/runeLevels'
+export type {
+  CalculateNextSpikeInput,
+  GoldenQuarkCostResult,
+  MaxSingularityLookaheadInput
+} from './mechanics/singularityHelpers'
+export { calculateNextSpike, goldenQuarkCost, maxSingularityLookahead } from './mechanics/singularityHelpers'
 export type { CalculateBaseGoldenQuarksInput } from './mechanics/singularityMilestones'
 export {
   calculateBaseGoldenQuarks,
