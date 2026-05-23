@@ -1,3 +1,65 @@
+import {
+  blueberriesCostFormula as logicBlueberriesCostFormula,
+  blueberriesEffect as logicBlueberriesEffect,
+  blueberryGenerationSpeed2CostFormula as logicBlueberryGenerationSpeed2CostFormula,
+  blueberryGenerationSpeed2Effect as logicBlueberryGenerationSpeed2Effect,
+  blueberryGenerationSpeedCostFormula as logicBlueberryGenerationSpeedCostFormula,
+  blueberryGenerationSpeedEffect as logicBlueberryGenerationSpeedEffect,
+  conversionImprovement1CostFormula as logicConversionImprovement1CostFormula,
+  conversionImprovement1Effect as logicConversionImprovement1Effect,
+  conversionImprovement2CostFormula as logicConversionImprovement2CostFormula,
+  conversionImprovement2Effect as logicConversionImprovement2Effect,
+  conversionImprovement3CostFormula as logicConversionImprovement3CostFormula,
+  conversionImprovement3Effect as logicConversionImprovement3Effect,
+  freeCubeUpgradesCostFormula as logicFreeCubeUpgradesCostFormula,
+  freeCubeUpgradesEffect as logicFreeCubeUpgradesEffect,
+  freeLevelsRow2CostFormula as logicFreeLevelsRow2CostFormula,
+  freeLevelsRow2Effect as logicFreeLevelsRow2Effect,
+  freeLevelsRow3CostFormula as logicFreeLevelsRow3CostFormula,
+  freeLevelsRow3Effect as logicFreeLevelsRow3Effect,
+  freeLevelsRow4CostFormula as logicFreeLevelsRow4CostFormula,
+  freeLevelsRow4Effect as logicFreeLevelsRow4Effect,
+  freeLevelsRow5CostFormula as logicFreeLevelsRow5CostFormula,
+  freeLevelsRow5Effect as logicFreeLevelsRow5Effect,
+  freeObtainiumUpgradesCostFormula as logicFreeObtainiumUpgradesCostFormula,
+  freeObtainiumUpgradesEffect as logicFreeObtainiumUpgradesEffect,
+  freeOfferingUpgradesCostFormula as logicFreeOfferingUpgradesCostFormula,
+  freeOfferingUpgradesEffect as logicFreeOfferingUpgradesEffect,
+  freeSpeedUpgradesCostFormula as logicFreeSpeedUpgradesCostFormula,
+  freeSpeedUpgradesEffect as logicFreeSpeedUpgradesEffect,
+  freeTutorialLevelsCostFormula as logicFreeTutorialLevelsCostFormula,
+  freeTutorialLevelsEffect as logicFreeTutorialLevelsEffect,
+  infiniteShopUpgradesCostFormula as logicInfiniteShopUpgradesCostFormula,
+  infiniteShopUpgradesEffect as logicInfiniteShopUpgradesEffect,
+  redAmbrosiaAcceleratorCostFormula as logicRedAmbrosiaAcceleratorCostFormula,
+  redAmbrosiaAcceleratorEffect as logicRedAmbrosiaAcceleratorEffect,
+  redAmbrosiaCubeCostFormula as logicRedAmbrosiaCubeCostFormula,
+  redAmbrosiaCubeEffect as logicRedAmbrosiaCubeEffect,
+  redAmbrosiaCubeImproverCostFormula as logicRedAmbrosiaCubeImproverCostFormula,
+  redAmbrosiaCubeImproverEffect as logicRedAmbrosiaCubeImproverEffect,
+  redAmbrosiaFreeAccumulatorCostFormula as logicRedAmbrosiaFreeAccumulatorCostFormula,
+  redAmbrosiaFreeAccumulatorEffect as logicRedAmbrosiaFreeAccumulatorEffect,
+  type RedAmbrosiaNames as LogicRedAmbrosiaNames,
+  redAmbrosiaObtainiumCostFormula as logicRedAmbrosiaObtainiumCostFormula,
+  redAmbrosiaObtainiumEffect as logicRedAmbrosiaObtainiumEffect,
+  redAmbrosiaOfferingCostFormula as logicRedAmbrosiaOfferingCostFormula,
+  redAmbrosiaOfferingEffect as logicRedAmbrosiaOfferingEffect,
+  type RedAmbrosiaUpgradeRewards as LogicRedAmbrosiaUpgradeRewards,
+  redGenerationSpeedCostFormula as logicRedGenerationSpeedCostFormula,
+  redGenerationSpeedEffect as logicRedGenerationSpeedEffect,
+  redLuckCostFormula as logicRedLuckCostFormula,
+  redLuckEffect as logicRedLuckEffect,
+  regularLuck2CostFormula as logicRegularLuck2CostFormula,
+  regularLuck2Effect as logicRegularLuck2Effect,
+  regularLuckCostFormula as logicRegularLuckCostFormula,
+  regularLuckEffect as logicRegularLuckEffect,
+  salvageYinYangCostFormula as logicSalvageYinYangCostFormula,
+  salvageYinYangEffect as logicSalvageYinYangEffect,
+  tutorialCostFormula as logicTutorialCostFormula,
+  tutorialEffect as logicTutorialEffect,
+  viscountCostFormula as logicViscountCostFormula,
+  viscountEffect as logicViscountEffect
+} from '@synergism/logic'
 import i18next from 'i18next'
 import { DOMCacheGetOrSet } from './Cache/DOM'
 import { calculateRedAmbrosiaCubes, calculateRedAmbrosiaObtainium, calculateRedAmbrosiaOffering } from './Calculate'
@@ -5,39 +67,10 @@ import { format, formatAsPercentIncrease, player } from './Synergism'
 import { Alert, Prompt } from './UpdateHTML'
 import { isMobile } from './Utility'
 
-type RedAmbrosiaUpgradeRewards = {
-  tutorial: { cubeMult: number; obtainiumMult: number; offeringMult: number }
-  conversionImprovement1: { conversionImprovement: number }
-  conversionImprovement2: { conversionImprovement: number }
-  conversionImprovement3: { conversionImprovement: number }
-  freeTutorialLevels: { freeLevels: number }
-  freeLevelsRow2: { freeLevels: number }
-  freeLevelsRow3: { freeLevels: number }
-  freeLevelsRow4: { freeLevels: number }
-  freeLevelsRow5: { freeLevels: number }
-  blueberryGenerationSpeed: { blueberryGenerationSpeed: number }
-  regularLuck: { ambrosiaLuck: number }
-  redGenerationSpeed: { redAmbrosiaGenerationSpeed: number }
-  redLuck: { redAmbrosiaLuck: number }
-  redAmbrosiaCube: { unlockedRedAmbrosiaCube: boolean }
-  redAmbrosiaObtainium: { unlockRedAmbrosiaObtainium: boolean }
-  redAmbrosiaOffering: { unlockRedAmbrosiaOffering: boolean }
-  redAmbrosiaCubeImprover: { extraExponent: number }
-  viscount: { roleUnlock: boolean; quarkBonus: number; luckBonus: number; redLuckBonus: number }
-  infiniteShopUpgrades: { freeLevels: number }
-  redAmbrosiaAccelerator: { ambrosiaTimePerRedAmbrosia: number }
-  regularLuck2: { ambrosiaLuck: number }
-  blueberryGenerationSpeed2: { blueberryGenerationSpeed: number }
-  salvageYinYang: { positiveSalvage: number; negativeSalvage: number }
-  blueberries: { blueberries: number }
-  redAmbrosiaFreeAccumulator: { freeAccumulatorLevels: number; freeAccumulatorLevelCapIncrease: number }
-  freeOfferingUpgrades: { levels: number }
-  freeObtainiumUpgrades: { levels: number }
-  freeCubeUpgrades: { levels: number }
-  freeSpeedUpgrades: { levels: number }
-}
-
-export type RedAmbrosiaNames = keyof RedAmbrosiaUpgradeRewards
+// Re-exported from @synergism/logic so existing call sites that import these
+// types from this module keep compiling unchanged.
+type RedAmbrosiaUpgradeRewards = LogicRedAmbrosiaUpgradeRewards
+export type RedAmbrosiaNames = LogicRedAmbrosiaNames
 
 interface RedAmbrosiaUpgrade<T extends RedAmbrosiaNames, K extends keyof RedAmbrosiaUpgradeRewards[T]> {
   name: () => string
@@ -51,25 +84,14 @@ interface RedAmbrosiaUpgrade<T extends RedAmbrosiaNames, K extends keyof RedAmbr
   effectsDescription: (n: number) => string
 }
 
-const blueberryCostValues = [100_000, 1_400_000, 3_000_000, 3_250_000, 3_500_000]
-const redAmbrosiaFreeAccumulatorValues = [100, 400, 1_000, 3_000, 10_000, 25_000, 75_000, 150_000, 400_000, 1_000_000]
-const freeOfferingUpgradesValues = [1_000, 3_000, 9_000, 27_000, 81_000]
-const freeObtainiumUpgradesValues = [1_500, 4_500, 13_500, 40_500, 121_500]
-const freeCubeUpgradesValues = [10_000, 30_000, 90_000, 270_000, 810_000]
-const freeSpeedUpgradesValues = [15_000, 45_000, 135_000, 405_000, 1_215_000]
-
 export const redAmbrosiaUpgrades: {
   [K in RedAmbrosiaNames]: RedAmbrosiaUpgrade<K, keyof RedAmbrosiaUpgradeRewards[K]>
 } = {
   tutorial: {
     level: 0,
     redAmbrosiaInvested: 0,
-    costFormula: (_level: number, baseCost: number) => {
-      return baseCost // Level has no effect.
-    },
-    effects: (n: number) => {
-      return Math.pow(1.01, n) // It's all the same for each key
-    },
+    costFormula: logicTutorialCostFormula,
+    effects: logicTutorialEffect,
     effectsDescription: (_n: number) => {
       const val = getRedAmbrosiaUpgradeEffects('tutorial', 'cubeMult')
       return i18next.t('redAmbrosia.data.tutorial.effect', {
@@ -84,12 +106,8 @@ export const redAmbrosiaUpgrades: {
   conversionImprovement1: {
     level: 0,
     redAmbrosiaInvested: 0,
-    costFormula: (level: number, baseCost: number) => {
-      return baseCost * Math.pow(2, level)
-    },
-    effects: (n: number) => {
-      return -n // conversionImprovement
-    },
+    costFormula: logicConversionImprovement1CostFormula,
+    effects: logicConversionImprovement1Effect,
     effectsDescription: (n: number) => {
       return i18next.t('redAmbrosia.data.conversionImprovement1.effect', { amount: n })
     },
@@ -101,12 +119,8 @@ export const redAmbrosiaUpgrades: {
   conversionImprovement2: {
     level: 0,
     redAmbrosiaInvested: 0,
-    costFormula: (level: number, baseCost: number) => {
-      return baseCost * Math.pow(4, level)
-    },
-    effects: (n: number) => {
-      return -n // conversionImprovement
-    },
+    costFormula: logicConversionImprovement2CostFormula,
+    effects: logicConversionImprovement2Effect,
     effectsDescription: (n: number) => {
       return i18next.t('redAmbrosia.data.conversionImprovement2.effect', { amount: n })
     },
@@ -118,12 +132,8 @@ export const redAmbrosiaUpgrades: {
   conversionImprovement3: {
     level: 0,
     redAmbrosiaInvested: 0,
-    costFormula: (level: number, baseCost: number) => {
-      return baseCost * Math.pow(10, level)
-    },
-    effects: (n: number) => {
-      return -n // conversionImprovement
-    },
+    costFormula: logicConversionImprovement3CostFormula,
+    effects: logicConversionImprovement3Effect,
     effectsDescription: (n: number) => {
       return i18next.t('redAmbrosia.data.conversionImprovement3.effect', { amount: n })
     },
@@ -135,12 +145,8 @@ export const redAmbrosiaUpgrades: {
   freeTutorialLevels: {
     level: 0,
     redAmbrosiaInvested: 0,
-    costFormula: (level: number, baseCost: number) => {
-      return baseCost + level
-    },
-    effects: (n: number) => {
-      return n // freeLevels
-    },
+    costFormula: logicFreeTutorialLevelsCostFormula,
+    effects: logicFreeTutorialLevelsEffect,
     effectsDescription: (n: number) => {
       return i18next.t('redAmbrosia.data.freeTutorialLevels.effect', { amount: n })
     },
@@ -152,12 +158,8 @@ export const redAmbrosiaUpgrades: {
   freeLevelsRow2: {
     level: 0,
     redAmbrosiaInvested: 0,
-    costFormula: (level: number, baseCost: number) => {
-      return baseCost * Math.pow(2, level)
-    },
-    effects: (n: number) => {
-      return n // freeLevels
-    },
+    costFormula: logicFreeLevelsRow2CostFormula,
+    effects: logicFreeLevelsRow2Effect,
     effectsDescription: (n: number) => {
       return i18next.t('redAmbrosia.data.freeLevelsRow2.effect', { amount: n })
     },
@@ -169,12 +171,8 @@ export const redAmbrosiaUpgrades: {
   freeLevelsRow3: {
     level: 0,
     redAmbrosiaInvested: 0,
-    costFormula: (level: number, baseCost: number) => {
-      return baseCost * Math.pow(2, level)
-    },
-    effects: (n: number) => {
-      return n // freeLevels
-    },
+    costFormula: logicFreeLevelsRow3CostFormula,
+    effects: logicFreeLevelsRow3Effect,
     effectsDescription: (n: number) => {
       return i18next.t('redAmbrosia.data.freeLevelsRow3.effect', { amount: n })
     },
@@ -186,12 +184,8 @@ export const redAmbrosiaUpgrades: {
   freeLevelsRow4: {
     level: 0,
     redAmbrosiaInvested: 0,
-    costFormula: (level: number, baseCost: number) => {
-      return baseCost * Math.pow(2, level)
-    },
-    effects: (n: number) => {
-      return n // freeLevels
-    },
+    costFormula: logicFreeLevelsRow4CostFormula,
+    effects: logicFreeLevelsRow4Effect,
     effectsDescription: (n: number) => {
       return i18next.t('redAmbrosia.data.freeLevelsRow4.effect', { amount: n })
     },
@@ -203,12 +197,8 @@ export const redAmbrosiaUpgrades: {
   freeLevelsRow5: {
     level: 0,
     redAmbrosiaInvested: 0,
-    costFormula: (level: number, baseCost: number) => {
-      return baseCost * Math.pow(2, level)
-    },
-    effects: (n: number) => {
-      return n // freeLevels
-    },
+    costFormula: logicFreeLevelsRow5CostFormula,
+    effects: logicFreeLevelsRow5Effect,
     effectsDescription: (n: number) => {
       return i18next.t('redAmbrosia.data.freeLevelsRow5.effect', { amount: n })
     },
@@ -220,12 +210,8 @@ export const redAmbrosiaUpgrades: {
   blueberryGenerationSpeed: {
     level: 0,
     redAmbrosiaInvested: 0,
-    costFormula: (level: number, baseCost: number) => {
-      return baseCost * (level + 1)
-    },
-    effects: (n: number) => {
-      return 1 + n / 500 // blueberryGenerationSpeed
-    },
+    costFormula: logicBlueberryGenerationSpeedCostFormula,
+    effects: logicBlueberryGenerationSpeedEffect,
     effectsDescription: (_n: number) => {
       const val = getRedAmbrosiaUpgradeEffects('blueberryGenerationSpeed', 'blueberryGenerationSpeed')
       return i18next.t('redAmbrosia.data.blueberryGenerationSpeed.effect', { amount: formatAsPercentIncrease(val) })
@@ -238,12 +224,8 @@ export const redAmbrosiaUpgrades: {
   regularLuck: {
     level: 0,
     redAmbrosiaInvested: 0,
-    costFormula: (level: number, baseCost: number) => {
-      return baseCost * (level + 1)
-    },
-    effects: (n: number) => {
-      return 2 * n // ambrosiaLuck
-    },
+    costFormula: logicRegularLuckCostFormula,
+    effects: logicRegularLuckEffect,
     effectsDescription: (_n: number) => {
       const val = getRedAmbrosiaUpgradeEffects('regularLuck', 'ambrosiaLuck')
       return i18next.t('redAmbrosia.data.regularLuck.effect', { amount: val })
@@ -256,12 +238,8 @@ export const redAmbrosiaUpgrades: {
   redGenerationSpeed: {
     level: 0,
     redAmbrosiaInvested: 0,
-    costFormula: (level: number, baseCost: number) => {
-      return baseCost * (level + 1)
-    },
-    effects: (n: number) => {
-      return 1 + 3 * n / 1000 // redAmbrosiaGenerationSpeed
-    },
+    costFormula: logicRedGenerationSpeedCostFormula,
+    effects: logicRedGenerationSpeedEffect,
     effectsDescription: (_n: number) => {
       const val = getRedAmbrosiaUpgradeEffects('redGenerationSpeed', 'redAmbrosiaGenerationSpeed')
       return i18next.t('redAmbrosia.data.redGenerationSpeed.effect', { amount: formatAsPercentIncrease(val) })
@@ -274,12 +252,8 @@ export const redAmbrosiaUpgrades: {
   redLuck: {
     level: 0,
     redAmbrosiaInvested: 0,
-    costFormula: (level: number, baseCost: number) => {
-      return baseCost * (level + 1)
-    },
-    effects: (n: number) => {
-      return n // redAmbrosiaLuck
-    },
+    costFormula: logicRedLuckCostFormula,
+    effects: logicRedLuckEffect,
     effectsDescription: (_n: number) => {
       const val = getRedAmbrosiaUpgradeEffects('redLuck', 'redAmbrosiaLuck')
       return i18next.t('redAmbrosia.data.redLuck.effect', { amount: val })
@@ -292,12 +266,8 @@ export const redAmbrosiaUpgrades: {
   redAmbrosiaCube: {
     level: 0,
     redAmbrosiaInvested: 0,
-    costFormula: (level: number, baseCost: number) => {
-      return baseCost * (level + 1)
-    },
-    effects: (n: number) => {
-      return n > 0
-    },
+    costFormula: logicRedAmbrosiaCubeCostFormula,
+    effects: logicRedAmbrosiaCubeEffect,
     effectsDescription: (n: number) => {
       const exponent = 0.4 + getRedAmbrosiaUpgradeEffects('redAmbrosiaCubeImprover', 'extraExponent')
       if (n > 0) {
@@ -320,12 +290,8 @@ export const redAmbrosiaUpgrades: {
   redAmbrosiaObtainium: {
     level: 0,
     redAmbrosiaInvested: 0,
-    costFormula: (level: number, baseCost: number) => {
-      return baseCost * (level + 1)
-    },
-    effects: (n: number) => {
-      return n > 0 // unlockRedAmbrosiaObtainium
-    },
+    costFormula: logicRedAmbrosiaObtainiumCostFormula,
+    effects: logicRedAmbrosiaObtainiumEffect,
     effectsDescription: (n: number) => {
       if (n > 0) {
         const obtainiumMult = calculateRedAmbrosiaObtainium()
@@ -344,12 +310,8 @@ export const redAmbrosiaUpgrades: {
   redAmbrosiaOffering: {
     level: 0,
     redAmbrosiaInvested: 0,
-    costFormula: (level: number, baseCost: number) => {
-      return baseCost * (level + 1)
-    },
-    effects: (n: number) => {
-      return n > 0 // unlockRedAmbrosiaOffering
-    },
+    costFormula: logicRedAmbrosiaOfferingCostFormula,
+    effects: logicRedAmbrosiaOfferingEffect,
     effectsDescription: (n: number) => {
       if (n > 0) {
         const offeringMult = calculateRedAmbrosiaOffering()
@@ -367,12 +329,8 @@ export const redAmbrosiaUpgrades: {
   redAmbrosiaCubeImprover: {
     level: 0,
     redAmbrosiaInvested: 0,
-    costFormula: (level: number, baseCost: number) => {
-      return baseCost * (level + 1)
-    },
-    effects: (n: number) => {
-      return 0.01 * n // extraExponent
-    },
+    costFormula: logicRedAmbrosiaCubeImproverCostFormula,
+    effects: logicRedAmbrosiaCubeImproverEffect,
     effectsDescription: (_n: number) => {
       const extraExponent = getRedAmbrosiaUpgradeEffects('redAmbrosiaCubeImprover', 'extraExponent')
       return i18next.t('redAmbrosia.data.redAmbrosiaCubeImprover.effect', {
@@ -387,20 +345,8 @@ export const redAmbrosiaUpgrades: {
   viscount: {
     level: 0,
     redAmbrosiaInvested: 0,
-    costFormula: (level: number, baseCost: number) => {
-      return baseCost * (level + 1)
-    },
-    effects: (n, key) => {
-      if (key === 'roleUnlock') {
-        return n > 0
-      } else if (key === 'quarkBonus') {
-        return 1 + 0.1 * n
-      } else if (key === 'luckBonus') {
-        return 125 * n
-      } else {
-        return 25 * n // redLuckBonus
-      }
-    },
+    costFormula: logicViscountCostFormula,
+    effects: logicViscountEffect,
     effectsDescription: (n: number) => {
       return i18next.t('redAmbrosia.data.viscount.effect', { mark: n > 0 ? '✔' : '❌' })
     },
@@ -412,12 +358,8 @@ export const redAmbrosiaUpgrades: {
   infiniteShopUpgrades: {
     level: 0,
     redAmbrosiaInvested: 0,
-    costFormula: (level: number, baseCost: number) => {
-      return baseCost + 100 * level
-    },
-    effects: (n: number) => {
-      return n // freeLevels
-    },
+    costFormula: logicInfiniteShopUpgradesCostFormula,
+    effects: logicInfiniteShopUpgradesEffect,
     effectsDescription: (n: number) => {
       return i18next.t('redAmbrosia.data.infiniteShopUpgrades.effect', { amount: n })
     },
@@ -429,12 +371,8 @@ export const redAmbrosiaUpgrades: {
   redAmbrosiaAccelerator: {
     level: 0,
     redAmbrosiaInvested: 0,
-    costFormula: (_level: number, baseCost: number) => {
-      return baseCost
-    },
-    effects: (n: number) => {
-      return 0.02 * n + 1 * +(n > 0) // ambrosiaTimePerRedAmbrosia
-    },
+    costFormula: logicRedAmbrosiaAcceleratorCostFormula,
+    effects: logicRedAmbrosiaAcceleratorEffect,
     effectsDescription: (_n: number) => {
       const ambrosiaTimePerRedAmbrosia = getRedAmbrosiaUpgradeEffects(
         'redAmbrosiaAccelerator',
@@ -452,12 +390,8 @@ export const redAmbrosiaUpgrades: {
   regularLuck2: {
     level: 0,
     redAmbrosiaInvested: 0,
-    costFormula: (_level: number, baseCost: number) => {
-      return baseCost
-    },
-    effects: (n: number) => {
-      return 2 * n // ambrosiaLuck
-    },
+    costFormula: logicRegularLuck2CostFormula,
+    effects: logicRegularLuck2Effect,
     effectsDescription: (_n: number) => {
       const ambrosiaLuck = getRedAmbrosiaUpgradeEffects('regularLuck2', 'ambrosiaLuck')
       return i18next.t('redAmbrosia.data.regularLuck2.effect', { amount: ambrosiaLuck })
@@ -470,12 +404,8 @@ export const redAmbrosiaUpgrades: {
   blueberryGenerationSpeed2: {
     level: 0,
     redAmbrosiaInvested: 0,
-    costFormula: (_level: number, baseCost: number) => {
-      return baseCost
-    },
-    effects: (n: number) => {
-      return 1 + n / 1000 // blueberryGenerationSpeed
-    },
+    costFormula: logicBlueberryGenerationSpeed2CostFormula,
+    effects: logicBlueberryGenerationSpeed2Effect,
     effectsDescription: (_n: number) => {
       const val = getRedAmbrosiaUpgradeEffects('blueberryGenerationSpeed2', 'blueberryGenerationSpeed')
       return i18next.t('redAmbrosia.data.blueberryGenerationSpeed2.effect', { amount: formatAsPercentIncrease(val) })
@@ -488,24 +418,8 @@ export const redAmbrosiaUpgrades: {
   salvageYinYang: {
     level: 0,
     redAmbrosiaInvested: 0,
-    costFormula: (level: number, baseCost: number) => {
-      return baseCost * (level + 1)
-    },
-    effects: (n, key) => {
-      if (key === 'positiveSalvage') {
-        if (player.singularityChallenges.taxmanLastStand.enabled) {
-          return 0
-        } else {
-          return 10 * n
-        }
-      } else {
-        if (player.singularityChallenges.taxmanLastStand.enabled) {
-          return 0
-        } else {
-          return -10 * n // negativeSalvage
-        }
-      }
-    },
+    costFormula: logicSalvageYinYangCostFormula,
+    effects: (n, key) => logicSalvageYinYangEffect(n, key, player.singularityChallenges.taxmanLastStand.enabled),
     effectsDescription: (n: number) => {
       const bonus = player.singularityChallenges.taxmanLastStand.enabled ? 0 : 10 * n
       return i18next.t('redAmbrosia.data.salvageYinYang.effect', { amount: bonus })
@@ -518,12 +432,8 @@ export const redAmbrosiaUpgrades: {
   blueberries: {
     level: 0,
     redAmbrosiaInvested: 0,
-    costFormula: (level: number, _baseCost: number) => {
-      return blueberryCostValues[level] ?? 0
-    },
-    effects: (n: number) => {
-      return n // blueberries
-    },
+    costFormula: logicBlueberriesCostFormula,
+    effects: logicBlueberriesEffect,
     effectsDescription: (n: number) => {
       return i18next.t('redAmbrosia.data.blueberries.effect', { amount: n })
     },
@@ -535,16 +445,8 @@ export const redAmbrosiaUpgrades: {
   redAmbrosiaFreeAccumulator: {
     level: 0,
     redAmbrosiaInvested: 0,
-    costFormula: (level: number, _baseCost: number) => {
-      return redAmbrosiaFreeAccumulatorValues[level] ?? 0
-    },
-    effects: (n, key) => {
-      if (key === 'freeAccumulatorLevels') {
-        return n / 1000 + 0.01 * +(n > 0)
-      } else {
-        return 0.1 * n // freeAccumulatorLevelCapIncrease
-      }
-    },
+    costFormula: logicRedAmbrosiaFreeAccumulatorCostFormula,
+    effects: logicRedAmbrosiaFreeAccumulatorEffect,
     effectsDescription: (_n: number) => {
       const freeLevels = getRedAmbrosiaUpgradeEffects('redAmbrosiaFreeAccumulator', 'freeAccumulatorLevels')
       const capIncrease = getRedAmbrosiaUpgradeEffects('redAmbrosiaFreeAccumulator', 'freeAccumulatorLevelCapIncrease')
@@ -561,12 +463,8 @@ export const redAmbrosiaUpgrades: {
   freeOfferingUpgrades: {
     level: 0,
     redAmbrosiaInvested: 0,
-    costFormula: (level: number, _baseCost: number) => {
-      return freeOfferingUpgradesValues[level] ?? 0
-    },
-    effects: (n: number) => {
-      return n // levels
-    },
+    costFormula: logicFreeOfferingUpgradesCostFormula,
+    effects: logicFreeOfferingUpgradesEffect,
     effectsDescription: (n: number) => {
       return i18next.t('redAmbrosia.data.freeOfferingUpgrades.effect', { amount: n })
     },
@@ -578,12 +476,8 @@ export const redAmbrosiaUpgrades: {
   freeObtainiumUpgrades: {
     level: 0,
     redAmbrosiaInvested: 0,
-    costFormula: (level: number, _baseCost: number) => {
-      return freeObtainiumUpgradesValues[level] ?? 0
-    },
-    effects: (n: number) => {
-      return n // levels
-    },
+    costFormula: logicFreeObtainiumUpgradesCostFormula,
+    effects: logicFreeObtainiumUpgradesEffect,
     effectsDescription: (n: number) => {
       return i18next.t('redAmbrosia.data.freeObtainiumUpgrades.effect', { amount: n })
     },
@@ -595,12 +489,8 @@ export const redAmbrosiaUpgrades: {
   freeCubeUpgrades: {
     level: 0,
     redAmbrosiaInvested: 0,
-    costFormula: (level: number, _baseCost: number) => {
-      return freeCubeUpgradesValues[level] ?? 0
-    },
-    effects: (n: number) => {
-      return n // levels
-    },
+    costFormula: logicFreeCubeUpgradesCostFormula,
+    effects: logicFreeCubeUpgradesEffect,
     effectsDescription: (n: number) => {
       return i18next.t('redAmbrosia.data.freeCubeUpgrades.effect', { amount: n })
     },
@@ -612,12 +502,8 @@ export const redAmbrosiaUpgrades: {
   freeSpeedUpgrades: {
     level: 0,
     redAmbrosiaInvested: 0,
-    costFormula: (level: number, _baseCost: number) => {
-      return freeSpeedUpgradesValues[level] ?? 0
-    },
-    effects: (n: number) => {
-      return n // levels
-    },
+    costFormula: logicFreeSpeedUpgradesCostFormula,
+    effects: logicFreeSpeedUpgradesEffect,
     effectsDescription: (n: number) => {
       return i18next.t('redAmbrosia.data.freeSpeedUpgrades.effect', { amount: n })
     },
