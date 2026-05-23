@@ -1,3 +1,4 @@
+import { quarkHandler as logicQuarkHandler } from '@synergism/logic'
 import i18next from 'i18next'
 import { DOMCacheGetOrSet } from './Cache/DOM'
 import { calculateCubeQuarkMultiplier, calculateQuarkMultiplier } from './Calculate'
@@ -5,42 +6,18 @@ import { apiBaseUrl } from './Config'
 import { getOcteractUpgradeEffect } from './Octeracts'
 import { format, player } from './Synergism'
 
-const quarkResearches = [99, 100, 125, 180, 195]
-
-export const quarkHandler = () => {
-  let maxTime = 90000 // In Seconds
-  if (player.researches[195] > 0) {
-    maxTime += 18000 * player.researches[195] // Research 8x20
-  }
-
-  // Part 2: Calculate quark gain per hour
-  let baseQuarkPerHour = 5
-
-  for (const el of quarkResearches) {
-    baseQuarkPerHour += player.researches[el]
-  }
-
-  baseQuarkPerHour *= getOcteractUpgradeEffect('octeractExportQuarks', 'exportQuarkMult')
-
-  const quarkPerHour = baseQuarkPerHour
-
-  // Part 3: Calculates capacity of quarks on export
-  const capacity = Math.floor(quarkPerHour * maxTime / 3600)
-
-  // Part 4: Calculate how many quarks are to be gained.
-  const quarkGain = Math.floor(player.quarkstimer * quarkPerHour / 3600)
-
-  // Part 5 [June 9, 2021]: Calculate bonus awarded to cube quarks.
-  const cubeMult = calculateCubeQuarkMultiplier()
-  // Return maxTime, quarkPerHour, capacity and quarkGain as object
-  return {
-    maxTime,
-    perHour: quarkPerHour,
-    capacity,
-    gain: quarkGain,
-    cubeMult
-  }
-}
+export const quarkHandler = () =>
+  logicQuarkHandler({
+    research195: player.researches[195],
+    researchesSum: player.researches[99]
+      + player.researches[100]
+      + player.researches[125]
+      + player.researches[180]
+      + player.researches[195],
+    exportQuarkMult: getOcteractUpgradeEffect('octeractExportQuarks', 'exportQuarkMult'),
+    quarksTimer: player.quarkstimer,
+    cubeMult: calculateCubeQuarkMultiplier()
+  })
 
 let bonus = 0
 let personalQuarkBonus = 0

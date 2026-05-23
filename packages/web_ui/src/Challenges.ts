@@ -1,4 +1,13 @@
-import { CalcECC as logicCalcECC } from '@synergism/logic'
+import {
+  autoAscensionChallengeSweepUnlock as logicAutoAscChallengeSweepUnlock,
+  CalcECC as logicCalcECC,
+  challenge15ScoreMultiplier as logicChallenge15ScoreMultiplier,
+  challengeRequirement as logicChallengeRequirement,
+  challengeScoreDisplay as logicChallengeScoreDisplay,
+  getMaxChallenges as logicGetMaxChallenges,
+  getNextAscensionChallenge as logicGetNextAscChallenge,
+  getNextRegularChallenge as logicGetNextRegularChallenge
+} from '@synergism/logic'
 import Decimal from 'break_infinity.js'
 import i18next from 'i18next'
 import { DOMCacheGetOrSet } from './Cache/DOM'
@@ -58,93 +67,27 @@ export type Challenge15RewardsInformation = {
 
 export type Challenge15RewardObject = Record<Challenge15Rewards, Challenge15RewardsInformation>
 
-const challengeScoreArray1 = [0, 8, 10, 12, 15, 20, 60, 80, 120, 180, 300]
-const challengeScoreArray2 = [0, 10, 12, 15, 20, 30, 80, 120, 180, 300, 450]
-const challengeScoreArray3 = [0, 20, 30, 50, 100, 200, 250, 300, 400, 500, 750]
-const challengeScoreArray4 = [0, 10000, 10000, 10000, 10000, 10000, 2000, 3000, 4000, 5000, 7500]
-
-export const getMaxChallenges = (i: number) => {
-  let maxChallenge = 0
-  // Transcension Challenges
-  if (i <= 5) {
-    if (player.singularityChallenges.oneChallengeCap.enabled) {
-      return 1
-    }
-    // Start with base 25 max completions
-    maxChallenge = 25
-    // Check Research 5x5 ('Infinite' T. Challenges)
-    if (player.researches[105] > 0) {
-      return 9001
-    }
-    // Max T. Challenge depends on researches 3x16 to 3x20
-    maxChallenge += 5 * player.researches[65 + i]
-    return maxChallenge
-  }
-  // Reincarnation Challenges
-  if (i <= 10 && i > 5) {
-    if (player.singularityChallenges.oneChallengeCap.enabled) {
-      return 1
-    }
-    // Start with base of 40 max completions
-    maxChallenge = 40
-    // Cube Upgrade 2x9: +4/level
-    maxChallenge += 4 * player.cubeUpgrades[29]
-    // Shop Upgrade "Challenge Extension": +2/level
-    maxChallenge += getShopUpgradeEffects('challengeExtension', 'reincarnationChallengeCap')
-    // Platonic Upgrade 5 (ALPHA): +10
-    if (player.platonicUpgrades[5] > 0) {
-      maxChallenge += 10
-    }
-    // Platonic Upgrade 10 (BETA): +10
-    if (player.platonicUpgrades[10] > 0) {
-      maxChallenge += 10
-    }
-    // Platonic Upgrade 15 (OMEGA): +30
-    if (player.platonicUpgrades[15] > 0) {
-      maxChallenge += 30
-    }
-
-    maxChallenge += getGQUpgradeEffect('singChallengeExtension', 'reincarnationCapIncrease')
-    maxChallenge += getGQUpgradeEffect('singChallengeExtension2', 'reincarnationCapIncrease')
-    maxChallenge += getGQUpgradeEffect('singChallengeExtension3', 'reincarnationCapIncrease')
-
-    maxChallenge += getSingularityChallengeEffect('oneChallengeCap', 'capIncrease')
-    maxChallenge += getSingularityChallengeEffect('oneChallengeCap', 'reinCapIncrease2')
-    return maxChallenge
-  }
-  // Ascension Challenge
-  if (i <= 15 && i > 10) {
-    // Challenge 15 does not have 'completions'
-    if (i === 15) {
-      return 0
-    }
-    if (player.singularityChallenges.oneChallengeCap.enabled) {
-      return 1
-    }
-    // Start with base of 30 max completions
-    maxChallenge = 30
-    // Platonic Upgrade 5 (ALPHA): +5
-    if (player.platonicUpgrades[5] > 0) {
-      maxChallenge += 5
-    }
-    // Platonic Upgrade 10 (BETA): +5
-    if (player.platonicUpgrades[10] > 0) {
-      maxChallenge += 5
-    }
-    // Platonic Upgrade 15 (OMEGA): +20
-    if (player.platonicUpgrades[15] > 0) {
-      maxChallenge += 20
-    }
-
-    maxChallenge += getGQUpgradeEffect('singChallengeExtension', 'ascensionCapIncrease')
-    maxChallenge += getGQUpgradeEffect('singChallengeExtension2', 'ascensionCapIncrease')
-    maxChallenge += getGQUpgradeEffect('singChallengeExtension3', 'ascensionCapIncrease')
-    maxChallenge += getSingularityChallengeEffect('oneChallengeCap', 'ascCapIncrease2')
-    return maxChallenge
-  }
-
-  return maxChallenge
-}
+export const getMaxChallenges = (i: number) =>
+  logicGetMaxChallenges({
+    challenge: i,
+    oneChallengeCapEnabled: player.singularityChallenges.oneChallengeCap.enabled,
+    infiniteTranscendResearch: player.researches[105],
+    transcendResearchForChallenge: player.researches[65 + i],
+    cubeUpgrade29: player.cubeUpgrades[29],
+    challengeExtensionCap: getShopUpgradeEffects('challengeExtension', 'reincarnationChallengeCap'),
+    gqReincarnationCapIncrease: getGQUpgradeEffect('singChallengeExtension', 'reincarnationCapIncrease')
+      + getGQUpgradeEffect('singChallengeExtension2', 'reincarnationCapIncrease')
+      + getGQUpgradeEffect('singChallengeExtension3', 'reincarnationCapIncrease'),
+    singReincarnationCapIncrease: getSingularityChallengeEffect('oneChallengeCap', 'capIncrease')
+      + getSingularityChallengeEffect('oneChallengeCap', 'reinCapIncrease2'),
+    gqAscensionCapIncrease: getGQUpgradeEffect('singChallengeExtension', 'ascensionCapIncrease')
+      + getGQUpgradeEffect('singChallengeExtension2', 'ascensionCapIncrease')
+      + getGQUpgradeEffect('singChallengeExtension3', 'ascensionCapIncrease'),
+    singAscensionCapIncrease: getSingularityChallengeEffect('oneChallengeCap', 'ascCapIncrease2'),
+    platonicUpgrade5: player.platonicUpgrades[5],
+    platonicUpgrade10: player.platonicUpgrades[10],
+    platonicUpgrade15: player.platonicUpgrades[15]
+  })
 
 export const challengeDisplay = (i: number, changefocus = true) => {
   let quarksMultiplier = 1
@@ -322,27 +265,7 @@ export const challengeDisplay = (i: number, changefocus = true) => {
     d.textContent = i18next.t('challenges.15.noGoal')
   }
 
-  let scoreDisplay = 0
-  if (i <= 5) {
-    if (player.highestchallengecompletions[i] >= 9000) {
-      scoreDisplay = challengeScoreArray4[i]
-    } else if (player.highestchallengecompletions[i] >= 750) {
-      scoreDisplay = challengeScoreArray3[i]
-    } else if (player.highestchallengecompletions[i] >= 75) {
-      scoreDisplay = challengeScoreArray2[i]
-    } else {
-      scoreDisplay = challengeScoreArray1[i]
-    }
-  }
-  if (i > 5 && i <= 10) {
-    if (player.highestchallengecompletions[i] >= 60) {
-      scoreDisplay = challengeScoreArray3[i]
-    } else if (player.highestchallengecompletions[i] >= 25) {
-      scoreDisplay = challengeScoreArray2[i]
-    } else {
-      scoreDisplay = challengeScoreArray1[i]
-    }
-  }
+  const scoreDisplay = logicChallengeScoreDisplay(i, player.highestchallengecompletions[i])
   if (changefocus) {
     j.textContent = ''
   }
@@ -443,146 +366,30 @@ export const highestChallengeRewards = (chalNum: number, highestValue: number) =
   }
 }
 
-// Works to mitigate the difficulty of calculating challenge multipliers when considering softcapping
-const calculateChallengeRequirementMultiplier = (
-  type: 'transcend' | 'reincarnation' | 'ascension',
-  completions: number,
-  special = 0
-) => {
-  let requirementMultiplier = Math.max(
-    1,
-    G.hyperchallengeMultiplier[player.corruptions.used.hyperchallenge] / (1 + player.platonicUpgrades[8] / 2.5)
-  )
-  if (type === 'ascension') {
-    // Normalize back to 1 if looking at ascension challenges in particular.
-    requirementMultiplier = 1
-  }
-  switch (type) {
-    case 'transcend':
-      requirementMultiplier *= G.challenge15Rewards.transcendChallengeReduction.value
-      if (completions >= 75) {
-        requirementMultiplier *= Math.pow(1 + completions, 12) / Math.pow(75, 8)
-      } else {
-        requirementMultiplier *= Math.pow(1 + completions, 2)
-      }
-
-      if (completions >= 1000) {
-        requirementMultiplier *= 10 * Math.pow(completions / 1000, 3)
-      }
-      if (completions >= 9000) {
-        requirementMultiplier *= 1337
-      }
-      if (completions >= 9001) {
-        requirementMultiplier *= completions - 8999
-      }
-      return requirementMultiplier
-    case 'reincarnation':
-      if (completions >= 100 && (special === 9 || special === 10)) {
-        requirementMultiplier *= Math.pow(1.05, (completions - 100) * (1 + (completions - 100) / 20))
-      }
-      if (completions >= 90) {
-        if (special === 6) {
-          requirementMultiplier *= 100
-        } else if (special === 7) {
-          requirementMultiplier *= 50
-        } else if (special === 8) {
-          requirementMultiplier *= 10
-        } else {
-          requirementMultiplier *= 4
-        }
-      }
-      if (completions >= 80) {
-        if (special === 6) {
-          requirementMultiplier *= 50
-        } else if (special === 7) {
-          requirementMultiplier *= 20
-        } else if (special === 8) {
-          requirementMultiplier *= 4
-        } else {
-          requirementMultiplier *= 2
-        }
-      }
-      if (completions >= 70) {
-        if (special === 6) {
-          // Multiplier is reduced significantly for challenges requiring mythos shards
-          requirementMultiplier *= 20
-        } else if (special === 7) {
-          requirementMultiplier *= 10
-        } else if (special === 8) {
-          requirementMultiplier *= 2
-        } else {
-          requirementMultiplier *= 1
-        }
-      }
-      if (completions >= 60) {
-        if (special === 9 || special === 10) {
-          requirementMultiplier *= Math.pow(
-            1000,
-            (completions - 60)
-              * (1 + getShopUpgradeEffects('challengeTome', 'c9c10ScalingReduction')
-                + getShopUpgradeEffects('challengeTome2', 'c9c10ScalingReduction'))
-              / 10
-          )
-        }
-      }
-      if (completions >= 25) {
-        requirementMultiplier *= Math.pow(1 + completions, 5) / 625
-      }
-      if (completions < 25) {
-        requirementMultiplier *= Math.min(Math.pow(1 + completions, 2), Math.pow(1.3797, completions))
-      }
-      requirementMultiplier *= G.challenge15Rewards.reincarnationChallengeReduction.value
-      return requirementMultiplier
-    case 'ascension':
-      if (special !== 15) {
-        if (completions >= 10) {
-          requirementMultiplier *= 2 * (1 + completions) - 10
-        } else {
-          requirementMultiplier *= 1 + completions
-        }
-      } else {
-        requirementMultiplier *= Math.pow(1000, completions)
-      }
-      return requirementMultiplier
-    default: {
-      throw new Error(`Unhandled challenge type: ${type satisfies never}`)
-    }
-  }
-}
-
-/**
- * Works to mitigate the difficulty of calculating challenge reward multipliers when considering softcapping
- */
 // Re-export of @synergism/logic's pure CalcECC. ECC stands for "Effective
 // Challenge Completions" — three piecewise linear curves keyed by tier.
 export const CalcECC = logicCalcECC
 
 export const challengeRequirement = (challenge: number, completion: number, special = 0) => {
-  const base = G.challengeBaseRequirements[challenge - 1]
-  if (challenge <= 5) {
-    return Decimal.pow(10, base * calculateChallengeRequirementMultiplier('transcend', completion, special))
-  } else if (challenge <= 10) {
-    let c10Reduction = 0
-    if (challenge === 10) {
-      c10Reduction =
-        1e8 * (player.researches[140] + player.researches[155] + player.researches[170] + player.researches[185])
-        + getShopUpgradeEffects('challengeTome', 'c10RequirementReduction')
-        + getShopUpgradeEffects('challengeTome2', 'c10RequirementReduction')
-    }
-    return Decimal.pow(
-      10,
-      (base - c10Reduction) * calculateChallengeRequirementMultiplier('reincarnation', completion, special)
-    )
-  } else if (challenge <= 14) {
-    return calculateChallengeRequirementMultiplier('ascension', completion, special)
-  } else if (challenge === 15) {
-    return Decimal.pow(
-      10,
-      1 * Math.pow(10, 30) * calculateChallengeRequirementMultiplier('ascension', completion, special)
-    )
-  } else {
-    return 0
-  }
+  const c10Reduction = challenge === 10
+    ? 1e8 * (player.researches[140] + player.researches[155] + player.researches[170] + player.researches[185])
+      + getShopUpgradeEffects('challengeTome', 'c10RequirementReduction')
+      + getShopUpgradeEffects('challengeTome2', 'c10RequirementReduction')
+    : 0
+
+  return logicChallengeRequirement({
+    challenge,
+    completion,
+    special,
+    challengeBaseRequirement: G.challengeBaseRequirements[challenge - 1],
+    c10RequirementReduction: c10Reduction,
+    hyperchallengeMultiplier: G.hyperchallengeMultiplier[player.corruptions.used.hyperchallenge],
+    platonicUpgrade8: player.platonicUpgrades[8],
+    challenge15TranscendReduction: G.challenge15Rewards.transcendChallengeReduction.value,
+    challenge15ReincarnationReduction: G.challenge15Rewards.reincarnationChallengeReduction.value,
+    challengeTomeC9C10ScalingReduction: getShopUpgradeEffects('challengeTome', 'c9c10ScalingReduction'),
+    challengeTome2C9C10ScalingReduction: getShopUpgradeEffects('challengeTome2', 'c9c10ScalingReduction')
+  })
 }
 
 // Challenge State Machine
@@ -594,9 +401,6 @@ type SweepStates =
   | { kind: 'active'; index: number; explored: Set<number> }
   | { kind: 'c15_wait' } // Happens when you can autoGain c15 Exponent
   | { kind: 'finished' } // Challenges 1-10 are all completely maxed
-
-// 1-5 are transcension, 6-10 reincarnation
-const NUM_ELIGIBLE_CHALLENGES = 10
 
 let currentSweepState: SweepStates = { kind: 'idle' }
 
@@ -770,10 +574,11 @@ export function tickChallengeSweep (dt: number): void {
   }
 }
 
-export const autoAscensionChallengeSweepUnlock = () => {
-  return player.highestSingularityCount >= 101 // I believe this is a perk...
-    && getShopUpgradeEffects('instantChallenge2', 'unlocked')
-}
+export const autoAscensionChallengeSweepUnlock = () =>
+  logicAutoAscChallengeSweepUnlock(
+    player.highestSingularityCount,
+    getShopUpgradeEffects('instantChallenge2', 'unlocked')
+  )
 
 const challenge15AutoExponentCheck = () => {
   return autoAscensionChallengeSweepUnlock()
@@ -785,52 +590,34 @@ const challenge15AutoExponentCheck = () => {
     && player.ascensionCounterRealReal >= Math.max(0.1, player.autoAscendThreshold - 5)
 }
 
-export const challenge15ScoreMultiplier = () => {
-  return (
-    player.campaigns.c15Bonus // Campaign Bonus to c15
-    * (1 + 5 / 10000 * hepteractEffective('challenge')) // Challenge Hepteract
-    * (1 + 0.25 * player.platonicUpgrades[15]) // Omega Upgrade
-  )
-}
+export const challenge15ScoreMultiplier = () =>
+  logicChallenge15ScoreMultiplier({
+    c15Bonus: player.campaigns.c15Bonus,
+    challengeHepteractEffective: hepteractEffective('challenge'),
+    platonicUpgrade15: player.platonicUpgrades[15]
+  })
 
 // "Regular" just means not ascension challenge
 export const getNextRegularChallenge = (startIndex: number, explored: Set<number>) => {
-  let challenge = startIndex
-  for (let i = 0; i < NUM_ELIGIBLE_CHALLENGES; i++) {
-    if (
-      !explored.has(challenge)
-      && player.highestchallengecompletions[challenge] < getMaxChallenges(challenge)
-      && player.autoChallengeToggles[challenge]
-    ) {
-      return challenge
-    }
-    challenge++
-    if (challenge > NUM_ELIGIBLE_CHALLENGES) {
-      challenge = 1
-    }
-  }
-
-  // No challenge found!
-  return -1
+  const maxChallenges: number[] = []
+  for (let i = 1; i <= 10; i++) maxChallenges[i] = getMaxChallenges(i)
+  return logicGetNextRegularChallenge({
+    startIndex,
+    explored,
+    maxChallenges,
+    highestCompletions: player.highestchallengecompletions,
+    autoChallengeToggles: player.autoChallengeToggles
+  })
 }
 
 // Ascension Challenge 'next' Check. We don't have access to explored so we can't just use the same logic again. Sad!
 export const getNextAscensionChallenge = (startIndex: number) => {
-  let nextChallenge = startIndex
-
-  for (let i = 0; i < 5; i++) {
-    nextChallenge++
-    if (nextChallenge > 15) {
-      nextChallenge = 11
-    }
-    if (
-      player.autoChallengeToggles[nextChallenge]
-      && (player.highestchallengecompletions[nextChallenge] < getMaxChallenges(nextChallenge) || nextChallenge === 15)
-    ) {
-      return nextChallenge
-    }
-  }
-
-  // This returns the same as startIndex if no valid Challenges are found.
-  return nextChallenge
+  const maxChallenges: number[] = []
+  for (let i = 11; i <= 14; i++) maxChallenges[i] = getMaxChallenges(i)
+  return logicGetNextAscChallenge({
+    startIndex,
+    maxChallenges,
+    highestCompletions: player.highestchallengecompletions,
+    autoChallengeToggles: player.autoChallengeToggles
+  })
 }

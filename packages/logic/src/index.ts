@@ -137,7 +137,55 @@ export {
   multiplierHepteractEffects,
   quarkHepteractEffects
 } from './mechanics/cubes/hepteracts'
-export { CalcECC } from './mechanics/challenges'
+export type {
+  Challenge15ScoreMultiplierInput,
+  ChallengeRequirementInput,
+  ChallengeRequirementMultiplierInput,
+  ChallengeType,
+  GetMaxChallengesInput,
+  GetNextAscensionChallengeInput,
+  GetNextRegularChallengeInput
+} from './mechanics/challenges'
+export {
+  autoAscensionChallengeSweepUnlock,
+  CalcECC,
+  calculateChallengeRequirementMultiplier,
+  challenge15ScoreMultiplier,
+  challengeRequirement,
+  challengeScoreDisplay,
+  getMaxChallenges,
+  getNextAscensionChallenge,
+  getNextRegularChallenge
+} from './mechanics/challenges'
+export type {
+  QuarkHandlerInput,
+  QuarkHandlerResult
+} from './mechanics/quarks'
+export { quarkHandler } from './mechanics/quarks'
+export type {
+  GetCubeCostInput,
+  GetCubeCostResult,
+  GetCubeMaxInput
+} from './mechanics/cubeUpgrades'
+export {
+  getCubeCost,
+  getCubeMax,
+  getCubeUpgradeBaseCost
+} from './mechanics/cubeUpgrades'
+export type {
+  DroughtEffectInput,
+  HyperchallengeEffectInput,
+  IlliteracyEffectInput,
+  MaxCorruptionLevelInput,
+  ViscosityEffectInput
+} from './mechanics/corruptions'
+export {
+  droughtEffect,
+  hyperchallengeEffect,
+  illiteracyEffect,
+  maxCorruptionLevel,
+  viscosityEffect
+} from './mechanics/corruptions'
 export type {
   AntiquitiesRuneInput,
   AntiquitiesRuneKey,
@@ -206,10 +254,15 @@ export {
 } from './mechanics/talismanEffects'
 export type {
   ActualAntSpeedMultInput,
+  AscensionScoreBonusMultiplierInput,
   AscensionSpeedMultInput,
+  CalcCorruptionStuffInput,
+  CalcCorruptionStuffResult,
   CalculateAmbrosiaGenerationSpeedInput,
   CalculateAmbrosiaLuckInput,
   CalculateAntSacrificeMultiplierInput,
+  CalculateAscensionScoreInput,
+  CalculateAscensionScoreResult,
   CalculateAscensionSpeedExponentSpreadInput,
   CalculateCubeMultiplierWithTauInput,
   CalculateNegativeSalvageInput,
@@ -316,6 +369,7 @@ export {
   sumOfExaltCompletions
 } from './mechanics/singularityMilestones'
 export {
+  CalcCorruptionStuff,
   calculateActualAntSpeedMult,
   calculateAllCubeMultiplier,
   calculateAmbrosiaAdditiveLuckMult,
@@ -324,6 +378,7 @@ export {
   calculateAmbrosiaLuck,
   calculateAmbrosiaLuckRaw,
   calculateAntSacrificeMultiplier,
+  calculateAscensionScore,
   calculateAscensionSpeedExponentSpread,
   calculateAscensionSpeedMult,
   calculateBaseObtainium,
@@ -364,5 +419,6 @@ export {
   calculateTesseractMultiplier,
   calculateTotalCoinOwned,
   calculateTotalSalvage,
+  computeAscensionScoreBonusMultiplier,
   getReductionValue
 } from './mechanics/calculate'

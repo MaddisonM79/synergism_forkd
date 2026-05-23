@@ -467,3 +467,237 @@ export function calculateTotalCoinOwned(input: CalculateTotalCoinOwnedInput): nu
     + input.fourthOwnedCoin
     + input.fifthOwnedCoin
 }
+
+// ─── Ascension score bonus multiplier ──────────────────────────────────────
+
+export interface AscensionScoreBonusMultiplierInput {
+  /** G.challenge15Rewards.score.value — defaults 1 until C15 unlocks. */
+  challenge15ScoreReward: number
+  /** calculateAscensionScorePlatonicBlessing() output. */
+  platonicBlessingMult: number
+  /** player.campaigns.ascensionScoreMultiplier. */
+  campaignAscensionScoreMult: number
+  /** getRuneEffects('finiteDescent', 'ascensionScore'). */
+  finiteDescentAscensionScore: number
+  /** player.cubeUpgrades[21] — only contributes if > 0 (`1 + 0.05*n`). */
+  cubeUpgrade21: number
+  /** player.cubeUpgrades[31]. Same `1 + 0.05*n` shape. */
+  cubeUpgrade31: number
+  /** player.cubeUpgrades[41]. Same `1 + 0.05*n` shape. */
+  cubeUpgrade41: number
+  /** +getAchievementReward('ascensionScore') — coerced to number in web_ui. */
+  ascensionScoreAchievementReward: number
+  /** getGQUpgradeEffect('masterPack', 'ascensionScoreMult'). */
+  masterPackAscensionScoreMult: number
+  /**
+   * Pass 0 if no event active; pass `calculateEventBuff(BuffType.AscensionScore)`
+   * when G.isEvent. The web_ui side guards on G.isEvent before computing this.
+   */
+  eventBuff: number
+}
+
+/**
+ * Bonus multiplier applied on top of (baseScore * corruptionMultiplier) inside
+ * calculateAscensionScore. Verbatim from web_ui's private
+ * computeAscensionScoreBonusMultiplier.
+ */
+export function computeAscensionScoreBonusMultiplier(input: AscensionScoreBonusMultiplierInput): number {
+  let multiplier = 1
+  multiplier *= input.challenge15ScoreReward
+  multiplier *= input.platonicBlessingMult
+  multiplier *= input.campaignAscensionScoreMult
+  multiplier *= input.finiteDescentAscensionScore
+  if (input.cubeUpgrade21 > 0) multiplier *= 1 + 0.05 * input.cubeUpgrade21
+  if (input.cubeUpgrade31 > 0) multiplier *= 1 + 0.05 * input.cubeUpgrade31
+  if (input.cubeUpgrade41 > 0) multiplier *= 1 + 0.05 * input.cubeUpgrade41
+  multiplier *= input.ascensionScoreAchievementReward
+  multiplier *= input.masterPackAscensionScoreMult
+  multiplier *= 1 + input.eventBuff
+  return multiplier
+}
+
+// ─── Ascension score ───────────────────────────────────────────────────────
+
+// Score weights for transcend tier (i=1..5) at thresholds {0, 75, 750, 9000}
+// and reincarnation tier (i=6..10) at thresholds {0, 25, 60}. These mirror
+// the same constants used by challengeScoreDisplay, kept local to keep this
+// function self-contained.
+const baseScoreArray = [0, 8, 10, 12, 15, 20, 60, 80, 120, 180, 300]
+const tier2ScoreArray = [0, 10, 12, 15, 20, 30, 80, 120, 180, 300, 450]
+const tier3ScoreArray = [0, 20, 30, 50, 100, 200, 250, 300, 400, 500, 750]
+const tier4ScoreArray = [0, 10000, 10000, 10000, 10000, 10000, 2000, 3000, 4000, 5000, 7500]
+
+export interface CalculateAscensionScoreInput {
+  /**
+   * player.highestchallengecompletions, indexed 0..10. Indices 1..10 are read;
+   * the rest are ignored. (Index 0 exists in the player object but isn't a
+   * real challenge.)
+   */
+  highestChallengeCompletions: readonly number[]
+  /**
+   * player.cubeUpgrades[56]. Added to the per-completion baseScore for
+   * challenges 1, 2, and 3 only — the "Cube 7x6" bonus.
+   */
+  cubeUpgrade56: number
+  /**
+   * player.cubeUpgrades[39]. Contributes 0.005/level to the C10 exponent
+   * (1.03 base + cu39 + plat 5/10). Maxes the base out at 1.0425.
+   */
+  cubeUpgrade39: number
+  /** player.platonicUpgrades[5] — ALPHA. +0.0025 to C10 exponent. */
+  platonicUpgrade5: number
+  /** player.platonicUpgrades[10] — BETA. +0.0025 to C10 exponent. */
+  platonicUpgrade10: number
+  /** player.corruptions.used.totalCorruptionAscensionMultiplier. */
+  corruptionMultiplier: number
+  /** getAntUpgradeEffect(AntUpgrades.AscensionScore).ascensionScoreBase. */
+  antUpgradeAscensionScoreBase: number
+  /** getGQUpgradeEffect('expertPack', 'ascensionScoreMult'). */
+  expertPackAscensionScoreMult: number
+  /** Output of computeAscensionScoreBonusMultiplier — passed in to keep this pure. */
+  bonusMultiplier: number
+}
+
+export interface CalculateAscensionScoreResult {
+  baseScore: number
+  corruptionMultiplier: number
+  bonusMultiplier: number
+  effectiveScore: number
+}
+
+/**
+ * Pre-cube ascension score. Sums per-challenge contributions across the four
+ * score-array bands, multiplies by the C10 exponent power, then applies
+ * corruption × bonus multipliers. The `effectiveScore > 1e23` softcap
+ * (`sqrt(score) * sqrt(1e23)`) and the final `expertPack` mult are preserved
+ * verbatim from web_ui.
+ */
+export function calculateAscensionScore(input: CalculateAscensionScoreInput): CalculateAscensionScoreResult {
+  let baseScore = 0
+  // Per-challenge baseline gets bumped on challenges 1/2/3 by cubeUpgrade[56].
+  const challengeScoreArrays1 = baseScoreArray.slice()
+  challengeScoreArrays1[1] += input.cubeUpgrade56
+  challengeScoreArrays1[2] += input.cubeUpgrade56
+  challengeScoreArrays1[3] += input.cubeUpgrade56
+
+  for (let i = 1; i <= 10; i++) {
+    const completions = input.highestChallengeCompletions[i]
+    baseScore += challengeScoreArrays1[i] * completions
+    if (i <= 5 && completions >= 75) {
+      baseScore += tier2ScoreArray[i] * (completions - 75)
+      if (completions >= 750) {
+        baseScore += tier3ScoreArray[i] * (completions - 750)
+      }
+      if (completions >= 9000) {
+        baseScore += tier4ScoreArray[i] * (completions - 9000)
+      }
+    }
+    if (i <= 10 && i > 5 && completions >= 25) {
+      baseScore += tier2ScoreArray[i] * (completions - 25)
+      if (completions >= 60) {
+        baseScore += tier3ScoreArray[i] * (completions - 60)
+      }
+    }
+  }
+
+  baseScore += input.antUpgradeAscensionScoreBase
+
+  // C10 exponent: 1.03 + 0.005*cu39 + 0.0025*(plat5+plat10), raised to the
+  // power of how many times you've beaten C10. Maxes ~1.0425.
+  baseScore *= Math.pow(
+    1.03 + 0.005 * input.cubeUpgrade39 + 0.0025 * (input.platonicUpgrade5 + input.platonicUpgrade10),
+    input.highestChallengeCompletions[10]
+  )
+
+  let effectiveScore = baseScore * input.corruptionMultiplier * input.bonusMultiplier
+  if (effectiveScore > 1e23) {
+    effectiveScore = Math.pow(effectiveScore, 0.5) * Math.pow(1e23, 0.5)
+  }
+  effectiveScore *= input.expertPackAscensionScoreMult
+
+  return {
+    baseScore,
+    corruptionMultiplier: input.corruptionMultiplier,
+    bonusMultiplier: input.bonusMultiplier,
+    effectiveScore
+  }
+}
+
+// ─── CalcCorruptionStuff: cube/tess/hyper/platonic/hept gains per ascension ─
+
+export interface CalcCorruptionStuffInput {
+  /** Output of calculateAscensionScore. */
+  scores: CalculateAscensionScoreResult
+  /** calculateCubeMultiplierWithTau() — pre-floor cube gain multiplier. */
+  cubeMultiplier: number
+  /** calculateTesseractMultiplier() — pre-base tess multiplier. */
+  tesseractMultiplier: number
+  /** calculateHypercubeMultiplier(). */
+  hypercubeMultiplier: number
+  /** calculatePlatonicMultiplier(). */
+  platonicMultiplier: number
+  /** calculateHepteractMultiplier(). */
+  hepteractMultiplier: number
+  /**
+   * G.challenge15Rewards.hepteractsUnlocked.value — 0 or 1 (number). Gates
+   * hepteract gain. Original web_ui code uses this in a `&&` truthy context.
+   */
+  hepteractsUnlocked: number
+  /** player.singularityCount — floor for tesseract gain. */
+  singularityCount: number
+}
+
+export interface CalcCorruptionStuffResult {
+  wowCubes: number
+  wowTesseracts: number
+  wowHypercubes: number
+  wowPlatonicCubes: number
+  wowHepteracts: number
+  baseScore: number
+  bonusMultiplier: number
+  corruptionMultiplier: number
+  effectiveScore: number
+}
+
+/**
+ * Cube gains for the current ascension, gated on effectiveScore thresholds:
+ *
+ *   tesseract  base 1, +0.5 once score ≥ 1e5
+ *   hypercube  unlocked at score ≥ 1e9
+ *   platonic   unlocked at score ≥ 2.666e12
+ *   hepteract  unlocked at score ≥ 1.666e17 AND hepteractsUnlocked flag
+ *
+ * Each final count is floored and clamped to 1e300. Tesseracts also have a
+ * `max(singularityCount, …)` floor — the singularity perks guarantee
+ * minimum tess per ascension.
+ */
+export function CalcCorruptionStuff(input: CalcCorruptionStuffInput): CalcCorruptionStuffResult {
+  const effectiveScore = input.scores.effectiveScore
+
+  const cubeGain = input.cubeMultiplier
+
+  let tesseractGain = 1
+  if (effectiveScore >= 100000) tesseractGain += 0.5
+  tesseractGain *= input.tesseractMultiplier
+
+  let hypercubeGain = effectiveScore >= 1e9 ? 1 : 0
+  hypercubeGain *= input.hypercubeMultiplier
+
+  let platonicGain = effectiveScore >= 2.666e12 ? 1 : 0
+  platonicGain *= input.platonicMultiplier
+
+  let hepteractGain = input.hepteractsUnlocked && effectiveScore >= 1.666e17 ? 1 : 0
+  hepteractGain *= input.hepteractMultiplier
+
+  return {
+    wowCubes: Math.min(1e300, Math.floor(cubeGain)),
+    wowTesseracts: Math.min(1e300, Math.max(input.singularityCount, Math.floor(tesseractGain))),
+    wowHypercubes: Math.min(1e300, Math.floor(hypercubeGain)),
+    wowPlatonicCubes: Math.min(1e300, Math.floor(platonicGain)),
+    wowHepteracts: Math.min(1e300, Math.floor(hepteractGain)),
+    baseScore: Math.floor(input.scores.baseScore),
+    bonusMultiplier: input.scores.bonusMultiplier,
+    corruptionMultiplier: input.scores.corruptionMultiplier,
+    effectiveScore: Math.floor(effectiveScore)
+  }
+}

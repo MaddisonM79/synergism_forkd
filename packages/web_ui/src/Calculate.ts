@@ -1,8 +1,10 @@
 import {
+  CalcCorruptionStuff as logicCalcCorruptionStuff,
   calculateAcceleratorMultiplier as logicCalcAcceleratorMultiplier,
   calculateActualAntSpeedMult as logicCalcActualAntSpeedMult,
   calculateAllCubeMultiplier as logicCalcAllCubeMultiplier,
   calculateAmbrosiaAdditiveLuckMult as logicCalcAmbrosiaAdditiveLuckMult,
+  calculateAscensionScore as logicCalcAscensionScore,
   calculateAmbrosiaCubeMult as logicCalcAmbrosiaCubeMult,
   calculateAmbrosiaGenerationOcteractUpgrade as logicCalcAmbrosiaGenerationOcteractUpgrade,
   calculateAmbrosiaGenerationSingularityUpgrade as logicCalcAmbrosiaGenerationSingularityUpgrade,
@@ -90,6 +92,7 @@ import {
   calculateTotalOcteractQuarkBonus as logicCalcTotalOcteractQuarkBonus,
   calculateToNextThreshold as logicCalcToNextThreshold,
   calculateTotalSalvage as logicCalcTotalSalvage,
+  computeAscensionScoreBonusMultiplier as logicComputeAscScoreBonusMult,
   derpsmithCornucopiaBonus as logicDerpsmithCornucopiaBonus,
   inheritanceTokens as logicInheritanceTokens,
   singularityBonusTokenMult as logicSingularityBonusTokenMult,
@@ -165,34 +168,6 @@ import { Globals as G } from './Variables'
 
 const posSalvagePerkSings = [230, 245, 260, 275, 290]
 const negSalvagePerkSings = [75, 85, 105, 125, 155, 185, 215, 245, 260, 275]
-
-const challengeScoreArrays2 = [0, 10, 12, 15, 20, 30, 80, 120, 180, 300, 450]
-const challengeScoreArrays3 = [
-  0,
-  20,
-  30,
-  50,
-  100,
-  200,
-  250,
-  300,
-  400,
-  500,
-  750
-]
-const challengeScoreArrays4 = [
-  0,
-  10000,
-  10000,
-  10000,
-  10000,
-  10000,
-  2000,
-  3000,
-  4000,
-  5000,
-  7500
-]
 
 export const calculateAllCubeMultiplier = () => logicCalcAllCubeMultiplier(allCubeStats.map(s => s.stat()))
 export const calculateCubeMultiplier = () => logicCalcCubeMultiplier(allWowCubeStats.map(s => s.stat()))
@@ -847,170 +822,44 @@ export const calculateCubicSumData = (
     own function (specifically: calc of effective score and other global multipliers) to make it easy.
 */
 
-const computeAscensionScoreBonusMultiplier = () => {
-  let multiplier = 1
-  multiplier *= G.challenge15Rewards.score.value
-  multiplier *= calculateAscensionScorePlatonicBlessing()
-  multiplier *= player.campaigns.ascensionScoreMultiplier
-  multiplier *= getRuneEffects('finiteDescent', 'ascensionScore')
-  if (player.cubeUpgrades[21] > 0) {
-    multiplier *= 1 + 0.05 * player.cubeUpgrades[21]
-  }
-  if (player.cubeUpgrades[31] > 0) {
-    multiplier *= 1 + 0.05 * player.cubeUpgrades[31]
-  }
-  if (player.cubeUpgrades[41] > 0) {
-    multiplier *= 1 + 0.05 * player.cubeUpgrades[41]
-  }
-  multiplier *= +getAchievementReward('ascensionScore')
-  multiplier *= getGQUpgradeEffect('masterPack', 'ascensionScoreMult')
-  if (G.isEvent) {
-    multiplier *= 1 + calculateEventBuff(BuffType.AscensionScore)
-  }
+const computeAscensionScoreBonusMultiplier = () =>
+  logicComputeAscScoreBonusMult({
+    challenge15ScoreReward: G.challenge15Rewards.score.value,
+    platonicBlessingMult: calculateAscensionScorePlatonicBlessing(),
+    campaignAscensionScoreMult: player.campaigns.ascensionScoreMultiplier,
+    finiteDescentAscensionScore: getRuneEffects('finiteDescent', 'ascensionScore'),
+    cubeUpgrade21: player.cubeUpgrades[21],
+    cubeUpgrade31: player.cubeUpgrades[31],
+    cubeUpgrade41: player.cubeUpgrades[41],
+    ascensionScoreAchievementReward: +getAchievementReward('ascensionScore'),
+    masterPackAscensionScoreMult: getGQUpgradeEffect('masterPack', 'ascensionScoreMult'),
+    eventBuff: G.isEvent ? calculateEventBuff(BuffType.AscensionScore) : 0
+  })
 
-  return multiplier
-}
+export const calculateAscensionScore = () =>
+  logicCalcAscensionScore({
+    highestChallengeCompletions: player.highestchallengecompletions,
+    cubeUpgrade56: player.cubeUpgrades[56],
+    cubeUpgrade39: player.cubeUpgrades[39],
+    platonicUpgrade5: player.platonicUpgrades[5],
+    platonicUpgrade10: player.platonicUpgrades[10],
+    corruptionMultiplier: player.corruptions.used.totalCorruptionAscensionMultiplier,
+    antUpgradeAscensionScoreBase: getAntUpgradeEffect(AntUpgrades.AscensionScore).ascensionScoreBase,
+    expertPackAscensionScoreMult: getGQUpgradeEffect('expertPack', 'ascensionScoreMult'),
+    bonusMultiplier: computeAscensionScoreBonusMultiplier()
+  })
 
-export const calculateAscensionScore = () => {
-  let baseScore = 0
-  const corruptionMultiplier = player.corruptions.used.totalCorruptionAscensionMultiplier
-  let effectiveScore = 0
-
-  // let bonusLevel = getGQUpgradeEffect('corruptionFifteen')
-  // bonusLevel += +player.singularityChallenges.oneChallengeCap.rewards.freeCorruptionLevel
-
-  // Init Arrays with challenge values :)
-  const challengeScoreArrays1 = [0, 8, 10, 12, 15, 20, 60, 80, 120, 180, 300]
-
-  challengeScoreArrays1[1] += player.cubeUpgrades[56]
-  challengeScoreArrays1[2] += player.cubeUpgrades[56]
-  challengeScoreArrays1[3] += player.cubeUpgrades[56]
-
-  // Iterate challenges 1 through 10 and award base score according to the array values
-  // Transcend Challenge: First Threshold at 75 completions, second at 750
-  // Reincarnation Challenge: First at 25, second at 60. It probably should be higher but Platonic is a dumb dumb
-  for (let i = 1; i <= 10; i++) {
-    baseScore += challengeScoreArrays1[i] * player.highestchallengecompletions[i]
-    if (i <= 5 && player.highestchallengecompletions[i] >= 75) {
-      baseScore += challengeScoreArrays2[i] * (player.highestchallengecompletions[i] - 75)
-      if (player.highestchallengecompletions[i] >= 750) {
-        baseScore += challengeScoreArrays3[i]
-          * (player.highestchallengecompletions[i] - 750)
-      }
-      if (player.highestchallengecompletions[i] >= 9000) {
-        baseScore += challengeScoreArrays4[i]
-          * (player.highestchallengecompletions[i] - 9000)
-      }
-    }
-    if (i <= 10 && i > 5 && player.highestchallengecompletions[i] >= 25) {
-      baseScore += challengeScoreArrays2[i] * (player.highestchallengecompletions[i] - 25)
-      if (player.highestchallengecompletions[i] >= 60) {
-        baseScore += challengeScoreArrays3[i]
-          * (player.highestchallengecompletions[i] - 60)
-      }
-    }
-  }
-
-  baseScore += getAntUpgradeEffect(AntUpgrades.AscensionScore).ascensionScoreBase
-
-  // Calculation of Challenge 10 Exponent (It gives a constant multiplier per completion)
-  // 1.03 +
-  // 0.005 from Cube 3x9 +
-  // 0.0025 from Platonic ALPHA (Plat 1x5)
-  // 0.005 from Platonic BETA (Plat 2x5)
-  // Max: 1.0425
-  baseScore *= Math.pow(
-    1.03
-      + 0.005 * player.cubeUpgrades[39]
-      + 0.0025 * (player.platonicUpgrades[5] + player.platonicUpgrades[10]),
-    player.highestchallengecompletions[10]
-  )
-  // Corruption Multiplier is the product of all Corruption Score multipliers based on used corruptions
-  // let bonusVal = getGQUpgradeEffect('advancedPack')
-  //   ? 0.33
-  //   : 0
-  // bonusVal += +player.singularityChallenges.oneChallengeCap.rewards.corrScoreIncrease
-  // bonusVal += 0.3 * player.cubeUpgrades[74]
-
-  const bonusMultiplier = computeAscensionScoreBonusMultiplier()
-
-  effectiveScore = baseScore * corruptionMultiplier * bonusMultiplier
-  if (effectiveScore > 1e23) {
-    effectiveScore = Math.pow(effectiveScore, 0.5) * Math.pow(1e23, 0.5)
-  }
-
-  effectiveScore *= getGQUpgradeEffect('expertPack', 'ascensionScoreMult')
-
-  return {
-    baseScore,
-    corruptionMultiplier,
-    bonusMultiplier,
-    effectiveScore
-  }
-}
-
-export const CalcCorruptionStuff = () => {
-  const scores = calculateAscensionScore()
-
-  const baseScore = scores.baseScore
-  const corruptionMultiplier = scores.corruptionMultiplier
-  const bonusMultiplier = scores.bonusMultiplier
-  const effectiveScore = scores.effectiveScore
-
-  // Calculation of Cubes :)
-  const cubeGain = calculateCubeMultiplierWithTau()
-
-  // Calculation of Tesseracts :))
-  let tesseractGain = 1
-  if (effectiveScore >= 100000) {
-    tesseractGain += 0.5
-  }
-  tesseractGain *= calculateTesseractMultiplier()
-
-  // Calculation of Hypercubes :)))
-  let hypercubeGain = effectiveScore >= 1e9 ? 1 : 0
-  hypercubeGain *= calculateHypercubeMultiplier()
-
-  // Calculation of Platonic Cubes :))))
-  let platonicGain = effectiveScore >= 2.666e12 ? 1 : 0
-  platonicGain *= calculatePlatonicMultiplier()
-
-  // Calculation of Hepteracts :)))))
-  let hepteractGain = G.challenge15Rewards.hepteractsUnlocked.value
-      && effectiveScore >= 1.666e17
-    ? 1
-    : 0
-  hepteractGain *= calculateHepteractMultiplier()
-
-  return {
-    wowCubes: Math.min(1e300, Math.floor(cubeGain)),
-    wowTesseracts: Math.min(1e300, Math.max(player.singularityCount, Math.floor(tesseractGain))),
-    wowHypercubes: Math.min(1e300, Math.floor(hypercubeGain)),
-    wowPlatonicCubes: Math.min(1e300, Math.floor(platonicGain)),
-    wowHepteracts: Math.min(1e300, Math.floor(hepteractGain)),
-    baseScore: Math.floor(baseScore),
-    bonusMultiplier: bonusMultiplier,
-    corruptionMultiplier: corruptionMultiplier,
-    effectiveScore: Math.floor(effectiveScore)
-  }
-  /*return [
-    // WTF IS THIS...
-    // Also, I don't think the first element of this array is used anywhere. So stupid
-    cubeGain,
-    Math.floor(baseScore),
-    corruptionMultiplier,
-    Math.floor(effectiveScore),
-    Math.min(1e300, Math.floor(cubeGain)),
-    Math.min(
-      1e300,
-      Math.max(player.singularityCount, Math.floor(tesseractGain))
-    ),
-    Math.min(1e300, Math.floor(hypercubeGain)),
-    Math.min(1e300, Math.floor(platonicGain)),
-    Math.min(1e300, Math.floor(hepteractGain)),
-    bonusMultiplier
-  ]*/
-}
+export const CalcCorruptionStuff = () =>
+  logicCalcCorruptionStuff({
+    scores: calculateAscensionScore(),
+    cubeMultiplier: calculateCubeMultiplierWithTau(),
+    tesseractMultiplier: calculateTesseractMultiplier(),
+    hypercubeMultiplier: calculateHypercubeMultiplier(),
+    platonicMultiplier: calculatePlatonicMultiplier(),
+    hepteractMultiplier: calculateHepteractMultiplier(),
+    hepteractsUnlocked: G.challenge15Rewards.hepteractsUnlocked.value,
+    singularityCount: player.singularityCount
+  })
 
 export const calculateAscensionCount = () =>
   logicCalcAscensionCount({
