@@ -375,6 +375,16 @@ export {
   thriftRuneEffects,
   topHatRuneEffects
 } from './mechanics/runeEffects'
+export type { UniversalRuneEXPMultInput } from './mechanics/runeEXPMultiplier'
+export { universalRuneEXPMult } from './mechanics/runeEXPMultiplier'
+export type { MaxRuneLevelPurchaseInput, MaxRuneLevelPurchaseResult } from './mechanics/runeLevels'
+export {
+  maxRuneLevelPurchase,
+  runeEXPLeftToLevel,
+  runeEXPToLevel,
+  runeLevelFromEXP,
+  runeOfferingsToLevel
+} from './mechanics/runeLevels'
 export type { CalculateBaseGoldenQuarksInput } from './mechanics/singularityMilestones'
 export {
   calculateBaseGoldenQuarks,

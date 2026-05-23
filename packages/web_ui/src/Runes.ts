@@ -4,11 +4,17 @@ import {
   finiteDescentRuneEffects as logicFiniteDescentRuneEffects,
   horseShoeRuneEffects as logicHorseShoeRuneEffects,
   infiniteAscentRuneEffects as logicInfiniteAscentRuneEffects,
+  maxRuneLevelPurchase as logicMaxRuneLevelPurchase,
   prismRuneEffects as logicPrismRuneEffects,
+  runeEXPLeftToLevel as logicRuneEXPLeftToLevel,
+  runeEXPToLevel as logicRuneEXPToLevel,
+  runeLevelFromEXP as logicRuneLevelFromEXP,
+  runeOfferingsToLevel as logicRuneOfferingsToLevel,
   speedRuneEffects as logicSpeedRuneEffects,
   superiorIntellectRuneEffects as logicSuperiorIntellectRuneEffects,
   thriftRuneEffects as logicThriftRuneEffects,
-  topHatRuneEffects as logicTopHatRuneEffects
+  topHatRuneEffects as logicTopHatRuneEffects,
+  universalRuneEXPMult as logicUniversalRuneEXPMult
 } from '@synergism/logic'
 import { calculateOfferings, calculateSalvageRuneEXPMultiplier } from './Calculate'
 import { format, formatAsPercentIncrease, player } from './Synergism'
@@ -303,50 +309,22 @@ export const SIEffectiveRuneLevelMult = () => {
   return runeEffectivenessStatsSI.reduce((x, y) => x * y.stat(), 1)
 }
 
-const universalRuneEXPMult = (purchasedLevels: number): Decimal => {
-  // recycleMult accounted for all recycle chance, but inversed so it's a multiplier instead
-  const recycleMultiplier = calculateSalvageRuneEXPMultiplier()
-
-  // Rune multiplier that is summed instead of added
-  /* TODO: Replace the effects of these upgrades with new ones
-    const allRuneExpAdditiveMultiplier = sumContents([
-        // Challenge 3 completions
-        (1 / 100) * player.highestchallengecompletions[3],
-        // Reincarnation 2x1
-        1 * player.upgrades[66]
-      ])
-    }*/
-  const allRuneExpAdditiveMultiplier = (
-    // Base amount multiplied per offering
-    1
-    // +1 if C1 completion
-    + Math.min(1, player.highestchallengecompletions[1])
-    // +0.10 per C1 completion
-    + (0.4 / 10) * player.highestchallengecompletions[1]
-    // Research 5x2
-    + 0.6 * player.researches[22]
-    // Research 5x3
-    + 0.3 * player.researches[23]
-    // Particle upgrade 3x1
-    + (player.upgrades[71] * purchasedLevels) / 25
-  )
-
-  // Rune multiplier that gets applied to all runes
-  const allRuneExpMultiplier = [
-    // Research 4x16
-    1 + player.researches[91] / 20,
-    // Research 4x17
-    1 + player.researches[92] / 20,
-    // Cube Upgrade Bonus
-    1 + (player.ascensionCounter / 1000) * player.cubeUpgrades[32],
-    // Constant Upgrade Multiplier
-    1 + (1 / 10) * player.constantUpgrades[8],
-    // Challenge 15 reward multiplier
-    G.challenge15Rewards.runeExp.value
-  ].reduce((x, y) => x.times(y), new Decimal('1'))
-
-  return allRuneExpMultiplier.times(allRuneExpAdditiveMultiplier).times(recycleMultiplier)
-}
+// Thin shim over @synergism/logic — sources every player/G input.
+const universalRuneEXPMult = (purchasedLevels: number): Decimal =>
+  logicUniversalRuneEXPMult({
+    purchasedLevels,
+    c1Completions: player.highestchallengecompletions[1],
+    research22: player.researches[22],
+    research23: player.researches[23],
+    upgrade71: player.upgrades[71],
+    research91: player.researches[91],
+    research92: player.researches[92],
+    ascensionCounter: player.ascensionCounter,
+    cubeUpgrade32: player.cubeUpgrades[32],
+    constantUpgrade8: player.constantUpgrades[8],
+    challenge15RuneExpReward: G.challenge15Rewards.runeExp.value,
+    salvageRuneEXPMultiplier: calculateSalvageRuneEXPMultiplier()
+  })
 
 export const runes: { [K in RuneKeys]: RuneData<K, keyof RuneTypeMap[K]> } = {
   speed: {
@@ -761,49 +739,34 @@ const getRuneEXPPerOffering = (rune: RuneKeys): Decimal => {
   return runes[rune].runeEXPPerOffering(runes[rune].level)
 }
 
-const computeEXPToLevel = (rune: RuneKeys, level: number) => {
-  const levelPerOOM = getLevelsPerOOM(rune)
-  return runes[rune].costCoefficient.times(Decimal.pow(10, level / levelPerOOM).minus(1))
-}
+// Thin shims over @synergism/logic — source the rune's costCoefficient /
+// levelsPerOOM / runeEXP off the data table.
+const computeEXPToLevel = (rune: RuneKeys, level: number) =>
+  logicRuneEXPToLevel(runes[rune].costCoefficient, level, getLevelsPerOOM(rune))
 
-const computeEXPLeftToLevel = (rune: RuneKeys, level: number) => {
-  return Decimal.max(0, computeEXPToLevel(rune, level).minus(runes[rune].runeEXP))
-}
+const computeEXPLeftToLevel = (rune: RuneKeys, level: number) =>
+  logicRuneEXPLeftToLevel(runes[rune].costCoefficient, level, getLevelsPerOOM(rune), runes[rune].runeEXP)
 
-const computeOfferingsToLevel = (rune: RuneKeys, level: number) => {
-  return Decimal.max(1, computeEXPLeftToLevel(rune, level).div(getRuneEXPPerOffering(rune)).ceil())
-}
+const computeOfferingsToLevel = (rune: RuneKeys, level: number) =>
+  logicRuneOfferingsToLevel(
+    runes[rune].costCoefficient,
+    level,
+    getLevelsPerOOM(rune),
+    runes[rune].runeEXP,
+    getRuneEXPPerOffering(rune)
+  )
 
 // Gives levels to buy, total EXP to that level, and offerings required to reach that level
-const maxRuneLevelPurchaseInformation = (rune: RuneKeys, budget: Decimal) => {
-  if (!runes[rune].isUnlocked() || budget.lt(0)) {
-    return { levels: 0, expRequired: new Decimal(0), offerings: new Decimal(0) }
-  }
-
-  const runeEXPPerOffering = getRuneEXPPerOffering(rune)
-  const totalEXPAvailable = budget.times(runeEXPPerOffering).add(runes[rune].runeEXP)
-  const levelsPerOOM = getLevelsPerOOM(rune)
-  const costCoeff = runes[rune].costCoefficient
-
-  // Calculate max level we can reach with available EXP
-  // EXP formula: costCoeff * (10^(level/levelsPerOOM) - 1)
-  // Solving for level: level = levelsPerOOM * log10((EXP/costCoeff) + 1)
-  const maxLevel = Math.floor(levelsPerOOM * Decimal.log10(totalEXPAvailable.div(costCoeff).plus(1)))
-  const levelsGained = Math.max(0, maxLevel - runes[rune].level)
-
-  if (levelsGained === 0) {
-    // Can't afford any levels, return next level stuff
-    const nextLevelEXP = computeEXPToLevel(rune, runes[rune].level + 1)
-    const offeringsRequired = Decimal.max(1, nextLevelEXP.minus(runes[rune].runeEXP).div(runeEXPPerOffering).ceil())
-    return { levels: 1, expRequired: nextLevelEXP, offerings: offeringsRequired }
-  }
-
-  // Return the levels we can gain and the EXP required for that many levels
-  const expRequired = computeEXPToLevel(rune, runes[rune].level + levelsGained)
-  // Need to be recomputed since offerings required is not necessarily equal to budget.
-  const offeringsRequired = Decimal.max(1, expRequired.minus(runes[rune].runeEXP).div(runeEXPPerOffering).ceil())
-  return { levels: levelsGained, expRequired: expRequired, offerings: offeringsRequired }
-}
+const maxRuneLevelPurchaseInformation = (rune: RuneKeys, budget: Decimal) =>
+  logicMaxRuneLevelPurchase({
+    costCoefficient: runes[rune].costCoefficient,
+    levelsPerOOM: getLevelsPerOOM(rune),
+    currentLevel: runes[rune].level,
+    currentRuneEXP: runes[rune].runeEXP,
+    runeEXPPerOffering: getRuneEXPPerOffering(rune),
+    budget,
+    isUnlocked: runes[rune].isUnlocked()
+  })
 
 const levelRune = (rune: RuneKeys, timesLeveled: number, budget: Decimal) => {
   let budgetUsed: Decimal
@@ -833,9 +796,9 @@ const setRuneLevel = (rune: RuneKeys, level: number) => {
 }
 
 const updateLevelsFromEXP = (rune: RuneKeys) => {
-  const levelsPerOOM = getLevelsPerOOM(rune)
-  const levels = Math.floor(levelsPerOOM * Decimal.log10(runes[rune].runeEXP.div(runes[rune].costCoefficient).plus(1)))
-  // Floating point imprecision fix
+  const levels = logicRuneLevelFromEXP(runes[rune].runeEXP, runes[rune].costCoefficient, getLevelsPerOOM(rune))
+  // Floating point imprecision fix — the closed-form floor can undershoot
+  // by exactly one when runeEXP is sitting right on a level boundary.
   if (computeEXPLeftToLevel(rune, levels + 1).eq(0)) {
     runes[rune].level = levels + 1
   } else {
