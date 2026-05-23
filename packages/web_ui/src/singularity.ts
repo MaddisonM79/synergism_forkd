@@ -1,16 +1,98 @@
 import {
   actualGQUpgradeTotalLevels as logicActualGQUpgradeTotalLevels,
+  advancedPackEffect as logicAdvancedPackEffect,
   calculateEffectiveSingularities as logicCalcEffectiveSingularities,
   calculateNextSpike as logicCalculateNextSpike,
   calculateSingularityDebuff as logicCalcSingularityDebuff,
   computeGQUpgradeMaxLevel as logicComputeGQUpgradeMaxLevel,
+  cookies2Effect as logicCookies2Effect,
+  cookies3Effect as logicCookies3Effect,
+  cookies4Effect as logicCookies4Effect,
+  cookies5Effect as logicCookies5Effect,
+  cookiesEffect as logicCookiesEffect,
+  corruptionFifteenEffect as logicCorruptionFifteenEffect,
+  corruptionFourteenEffect as logicCorruptionFourteenEffect,
+  divinePackEffect as logicDivinePackEffect,
+  expertPackEffect as logicExpertPackEffect,
+  favoriteUpgradeEffect as logicFavoriteUpgradeEffect,
   goldenQuarkCost as logicGoldenQuarkCost,
+  goldenQuarks1Effect as logicGoldenQuarks1Effect,
+  goldenQuarks2Effect as logicGoldenQuarks2Effect,
+  goldenQuarks3Effect as logicGoldenQuarks3Effect,
+  type GoldenQuarkUpgradeRewards as LogicGoldenQuarkUpgradeRewards,
+  gqAscensionsEffect as logicGqAscensionsEffect,
+  gqBlueberriesEffect as logicGqBlueberriesEffect,
   gqFreeLevelMultiplier as logicGqFreeLevelMultiplier,
+  gqSingAmbrosiaGeneration2Effect as logicGqSingAmbrosiaGeneration2Effect,
+  gqSingAmbrosiaGeneration3Effect as logicGqSingAmbrosiaGeneration3Effect,
+  gqSingAmbrosiaGeneration4Effect as logicGqSingAmbrosiaGeneration4Effect,
+  gqSingAmbrosiaGenerationEffect as logicGqSingAmbrosiaGenerationEffect,
+  gqSingAmbrosiaLuck2Effect as logicGqSingAmbrosiaLuck2Effect,
+  gqSingAmbrosiaLuck3Effect as logicGqSingAmbrosiaLuck3Effect,
+  gqSingAmbrosiaLuck4Effect as logicGqSingAmbrosiaLuck4Effect,
+  gqSingAmbrosiaLuckEffect as logicGqSingAmbrosiaLuckEffect,
+  gqSingInfiniteShopUpgradesEffect as logicGqSingInfiniteShopUpgradesEffect,
   gqUpgradeCostTNL as logicGqUpgradeCostTNL,
   gqUpgradeFreeLevelSoftcap as logicGqUpgradeFreeLevelSoftcap,
   type GQUpgradeSpecialCostForm,
+  halfMindEffect as logicHalfMindEffect,
+  intermediatePackEffect as logicIntermediatePackEffect,
+  masterPackEffect as logicMasterPackEffect,
   maxSingularityLookahead as logicMaxSingularityLookahead,
-  type SingularityDebuff
+  octeractUnlockEffect as logicOcteractUnlockEffect,
+  offeringAutomaticEffect as logicOfferingAutomaticEffect,
+  oneMindEffect as logicOneMindEffect,
+  platonicAlphaEffect as logicPlatonicAlphaEffect,
+  platonicDeltaEffect as logicPlatonicDeltaEffect,
+  platonicPhiEffect as logicPlatonicPhiEffect,
+  platonicTauEffect as logicPlatonicTauEffect,
+  potionBuff2Effect as logicPotionBuff2Effect,
+  potionBuff3Effect as logicPotionBuff3Effect,
+  potionBuffEffect as logicPotionBuffEffect,
+  singAscensionSpeed2Effect as logicSingAscensionSpeed2Effect,
+  singAscensionSpeedEffect as logicSingAscensionSpeedEffect,
+  singBonusTokens1Effect as logicSingBonusTokens1Effect,
+  singBonusTokens2Effect as logicSingBonusTokens2Effect,
+  singBonusTokens3Effect as logicSingBonusTokens3Effect,
+  singBonusTokens4Effect as logicSingBonusTokens4Effect,
+  singChallengeExtension2Effect as logicSingChallengeExtension2Effect,
+  singChallengeExtension3Effect as logicSingChallengeExtension3Effect,
+  singChallengeExtensionEffect as logicSingChallengeExtensionEffect,
+  singCitadel2Effect as logicSingCitadel2Effect,
+  singCitadelEffect as logicSingCitadelEffect,
+  singCubes1Effect as logicSingCubes1Effect,
+  singCubes2Effect as logicSingCubes2Effect,
+  singCubes3Effect as logicSingCubes3Effect,
+  singFastForward2Effect as logicSingFastForward2Effect,
+  singFastForwardEffect as logicSingFastForwardEffect,
+  singObtainium1Effect as logicSingObtainium1Effect,
+  singObtainium2Effect as logicSingObtainium2Effect,
+  singObtainium3Effect as logicSingObtainium3Effect,
+  singOcteractGain2Effect as logicSingOcteractGain2Effect,
+  singOcteractGain3Effect as logicSingOcteractGain3Effect,
+  singOcteractGain4Effect as logicSingOcteractGain4Effect,
+  singOcteractGain5Effect as logicSingOcteractGain5Effect,
+  singOcteractGainEffect as logicSingOcteractGainEffect,
+  singOcteractPatreonBonusEffect as logicSingOcteractPatreonBonusEffect,
+  singOfferings1Effect as logicSingOfferings1Effect,
+  singOfferings2Effect as logicSingOfferings2Effect,
+  singOfferings3Effect as logicSingOfferings3Effect,
+  singQuarkHepteract2Effect as logicSingQuarkHepteract2Effect,
+  singQuarkHepteract3Effect as logicSingQuarkHepteract3Effect,
+  singQuarkHepteractEffect as logicSingQuarkHepteractEffect,
+  singQuarkImprover1Effect as logicSingQuarkImprover1Effect,
+  singTalismanBonusRunes1Effect as logicSingTalismanBonusRunes1Effect,
+  singTalismanBonusRunes2Effect as logicSingTalismanBonusRunes2Effect,
+  singTalismanBonusRunes3Effect as logicSingTalismanBonusRunes3Effect,
+  singTalismanBonusRunes4Effect as logicSingTalismanBonusRunes4Effect,
+  type SingularityDataKeys as LogicSingularityDataKeys,
+  type SingularityDebuff,
+  starterPackEffect as logicStarterPackEffect,
+  ultimatePenEffect as logicUltimatePenEffect,
+  wowPass2Effect as logicWowPass2Effect,
+  wowPass3Effect as logicWowPass3Effect,
+  wowPass4Effect as logicWowPass4Effect,
+  wowPassEffect as logicWowPassEffect
 } from '@synergism/logic'
 import i18next from 'i18next'
 import { getAmbrosiaUpgradeEffects } from './BlueberryUpgrades'
@@ -27,132 +109,10 @@ import { format, formatAsPercentIncrease, player } from './Synergism'
 import { Alert, Confirm, Prompt, revealStuff } from './UpdateHTML'
 import { isMobile, toOrdinal } from './Utility'
 
-type GoldenQuarkUpgradeRewards = {
-  goldenQuarks1: { goldenQuarkMult: number }
-  goldenQuarks2: { goldenQuarkCostMult: number }
-  goldenQuarks3: { exportGQPerHour: number }
-  starterPack: {
-    obtainiumMult: number
-    offeringMult: number
-    cubeMult: number
-  }
-  cookies: { unlocked: boolean }
-  cookies2: { unlocked: boolean }
-  cookies3: { unlocked: boolean }
-  cookies4: { unlocked: boolean }
-  cookies5: { unlocked: boolean }
-  ascensions: { ascensionCountMult: number }
-  corruptionFourteen: { unlocked: boolean }
-  corruptionFifteen: { freeCorruptionLevel: number }
-  singOfferings1: { offeringMult: number }
-  singOfferings2: { offeringMult: number }
-  singOfferings3: { offeringMult: number }
-  singObtainium1: { obtainiumMult: number }
-  singObtainium2: { obtainiumMult: number }
-  singObtainium3: { obtainiumMult: number }
-  singCubes1: { cubeMult: number }
-  singCubes2: { cubeMult: number }
-  singCubes3: { cubeMult: number }
-  singCitadel: {
-    offeringMult: number
-    obtainiumMult: number
-    cubeMult: number
-  }
-  singCitadel2: {
-    offeringMult: number
-    obtainiumMult: number
-    cubeMult: number
-    citadel1FreeLevels: number
-  }
-  octeractUnlock: { unlocked: boolean }
-  singOcteractPatreonBonus: { octeractMult: number }
-  offeringAutomatic: { unlocked: boolean }
-  intermediatePack: {
-    globalSpeedMult: number
-    ascensionSpeedMult: number
-    packQuarkAdd: number
-  }
-  advancedPack: {
-    packQuarkAdd: number
-    corruptionScoreIncrease: number
-  }
-  expertPack: {
-    packQuarkAdd: number
-    ascensionScoreMult: number
-    addCodeAscensionTimeMult: number
-  }
-  masterPack: {
-    packQuarkAdd: number
-    ascensionScoreMult: number
-  }
-  divinePack: {
-    packQuarkAdd: number
-    octeractMult: number
-  }
-  wowPass: { unlocked: boolean }
-  wowPass2: { unlocked: boolean }
-  wowPass3: { unlocked: boolean }
-  wowPass4: { unlocked: boolean }
-  potionBuff: { potionPowerMult: number }
-  potionBuff2: { potionPowerMult: number }
-  potionBuff3: { potionPowerMult: number }
-  singChallengeExtension: {
-    reincarnationCapIncrease: number
-    ascensionCapIncrease: number
-  }
-  singChallengeExtension2: {
-    reincarnationCapIncrease: number
-    ascensionCapIncrease: number
-  }
-  singChallengeExtension3: {
-    reincarnationCapIncrease: number
-    ascensionCapIncrease: number
-  }
-  singQuarkImprover1: { quarkMult: number }
-  singQuarkHepteract: { quarkHeptExponent: number }
-  singQuarkHepteract2: { quarkHeptExponent: number }
-  singQuarkHepteract3: { quarkHeptExponent: number }
-  singOcteractGain: { octeractMult: number }
-  singOcteractGain2: { octeractMult: number }
-  singOcteractGain3: { octeractMult: number }
-  singOcteractGain4: { octeractMult: number }
-  singOcteractGain5: { octeractMult: number }
-  platonicTau: {
-    unlocked: boolean
-    tauPower: number
-  }
-  platonicAlpha: { unlocked: boolean }
-  platonicDelta: { cubeMult: number }
-  platonicPhi: { dailyCodes: number }
-  singFastForward: { lookahead: number }
-  singFastForward2: { lookahead: number }
-  singAscensionSpeed: { exponentSpread: number }
-  singAscensionSpeed2: { exponentSpread: number }
-  ultimatePen: { platonicPowers: boolean }
-  halfMind: { unlocked: boolean }
-  oneMind: { unlocked: boolean }
-  blueberries: { blueberries: number }
-  singAmbrosiaLuck: { ambrosiaLuck: number }
-  singAmbrosiaLuck2: { ambrosiaLuck: number }
-  singAmbrosiaLuck3: { ambrosiaLuck: number }
-  singAmbrosiaLuck4: { ambrosiaLuck: number }
-  singAmbrosiaGeneration: { ambrosiaBarSpeedMult: number }
-  singAmbrosiaGeneration2: { ambrosiaBarSpeedMult: number }
-  singAmbrosiaGeneration3: { ambrosiaBarSpeedMult: number }
-  singAmbrosiaGeneration4: { ambrosiaBarSpeedMult: number }
-  singBonusTokens1: { firstCompletionBonusTokens: number }
-  singBonusTokens2: { tokenMultiplier: number }
-  singBonusTokens3: { lastCompletionBonusTokens: number }
-  singBonusTokens4: { initialTokenBonus: number }
-  singInfiniteShopUpgrades: { infinityVouchers: number }
-  singTalismanBonusRunes1: { talismanRuneEffect: number }
-  singTalismanBonusRunes2: { talismanRuneEffect: number }
-  singTalismanBonusRunes3: { talismanRuneEffect: number }
-  singTalismanBonusRunes4: { talismanRuneEffect: number }
-  favoriteUpgrade: { quarkMult: number }
-}
-
-export type SingularityDataKeys = keyof GoldenQuarkUpgradeRewards
+// Re-exported from @synergism/logic so existing call sites that import
+// these types from this module keep compiling unchanged.
+type GoldenQuarkUpgradeRewards = LogicGoldenQuarkUpgradeRewards
+export type SingularityDataKeys = LogicSingularityDataKeys
 
 const tokenInheritanceTokens = [1, 10, 25, 40, 75, 100, 150, 200, 250, 300, 350, 400, 500, 600, 750]
 
@@ -323,9 +283,7 @@ export const goldenQuarkUpgrades: {
     costPerLevel: 12,
     minimumSingularity: 0,
     specialCostForm: 'Default',
-    effect: (n: number) => {
-      return 1 + 0.1 * n
-    },
+    effect: logicGoldenQuarks1Effect,
     effectDescription: function() {
       const goldenQuarkMult = getGQUpgradeEffect('goldenQuarks1', 'goldenQuarkMult')
       return i18next.t('singularity.data.goldenQuarks1.effect', {
@@ -349,9 +307,7 @@ export const goldenQuarkUpgrades: {
     costPerLevel: 60,
     minimumSingularity: 0,
     specialCostForm: 'Default',
-    effect: (n: number) => {
-      return n > 250 ? 1 / Math.log2(n / 62.5) : 1 - Math.min(0.5, n / 500)
-    },
+    effect: logicGoldenQuarks2Effect,
     effectDescription: function() {
       const goldenQuarkCostMult = getGQUpgradeEffect('goldenQuarks2', 'goldenQuarkCostMult')
       const percentageValue = 100 * (1 - goldenQuarkCostMult)
@@ -376,9 +332,7 @@ export const goldenQuarkUpgrades: {
     costPerLevel: 1000,
     minimumSingularity: 0,
     specialCostForm: 'Default',
-    effect: (n: number) => {
-      return (n * (n + 1)) / 2
-    },
+    effect: logicGoldenQuarks3Effect,
     effectDescription: function() {
       const exportGQPerHour = getGQUpgradeEffect('goldenQuarks3', 'exportGQPerHour')
       return i18next.t('singularity.data.goldenQuarks3.effect', {
@@ -402,16 +356,7 @@ export const goldenQuarkUpgrades: {
     costPerLevel: 10,
     minimumSingularity: 0,
     specialCostForm: 'Default',
-    effect: (n, key) => {
-      if (key === 'obtainiumMult') {
-        return 1 + 5 * n
-      }
-      if (key === 'offeringMult') {
-        return 1 + 5 * n
-      } else {
-        return 1 + 4 * n // cubeMult
-      }
-    },
+    effect: logicStarterPackEffect,
     effectDescription: () => {
       const n = getGQUpgradeEffect('starterPack', 'obtainiumMult') // simply need to check that one is >1
       return i18next.t(
@@ -433,9 +378,7 @@ export const goldenQuarkUpgrades: {
     costPerLevel: 350,
     minimumSingularity: 0,
     specialCostForm: 'Default',
-    effect: (n: number) => {
-      return n > 0
-    },
+    effect: logicWowPassEffect,
     effectDescription: () => {
       const unlocked = getGQUpgradeEffect('wowPass', 'unlocked')
       return i18next.t(
@@ -455,9 +398,7 @@ export const goldenQuarkUpgrades: {
     costPerLevel: 100,
     minimumSingularity: 0,
     specialCostForm: 'Default',
-    effect: (n: number) => {
-      return n > 0
-    },
+    effect: logicCookiesEffect,
     effectDescription: () => {
       const unlocked = getGQUpgradeEffect('cookies', 'unlocked')
       return i18next.t(
@@ -477,9 +418,7 @@ export const goldenQuarkUpgrades: {
     costPerLevel: 500,
     minimumSingularity: 0,
     specialCostForm: 'Default',
-    effect: (n: number) => {
-      return n > 0
-    },
+    effect: logicCookies2Effect,
     effectDescription: () => {
       const unlocked = getGQUpgradeEffect('cookies2', 'unlocked')
       return i18next.t(
@@ -499,9 +438,7 @@ export const goldenQuarkUpgrades: {
     costPerLevel: 24999,
     minimumSingularity: 0,
     specialCostForm: 'Default',
-    effect: (n: number) => {
-      return n > 0
-    },
+    effect: logicCookies3Effect,
     effectDescription: () => {
       const unlocked = getGQUpgradeEffect('cookies3', 'unlocked')
       return i18next.t(
@@ -521,9 +458,7 @@ export const goldenQuarkUpgrades: {
     costPerLevel: 499999,
     minimumSingularity: 0,
     specialCostForm: 'Default',
-    effect: (n: number) => {
-      return n > 0
-    },
+    effect: logicCookies4Effect,
     effectDescription: () => {
       const unlocked = getGQUpgradeEffect('cookies4', 'unlocked')
       return i18next.t(
@@ -543,9 +478,7 @@ export const goldenQuarkUpgrades: {
     costPerLevel: 1.66e15,
     minimumSingularity: 209,
     specialCostForm: 'Default',
-    effect: (n: number) => {
-      return n > 0
-    },
+    effect: logicCookies5Effect,
     effectDescription: () => {
       const unlocked = getGQUpgradeEffect('cookies5', 'unlocked')
       return i18next.t(
@@ -565,9 +498,7 @@ export const goldenQuarkUpgrades: {
     costPerLevel: 5,
     minimumSingularity: 0,
     specialCostForm: 'Default',
-    effect: (n: number) => {
-      return (1 + (2 * n) / 100) * (1 + Math.floor(n / 10) / 100)
-    },
+    effect: logicGqAscensionsEffect,
     effectDescription: () => {
       const ascensionCountMult = getGQUpgradeEffect('ascensions', 'ascensionCountMult')
       return i18next.t('singularity.data.ascensions.effect', {
@@ -587,9 +518,7 @@ export const goldenQuarkUpgrades: {
     costPerLevel: 1000,
     minimumSingularity: 0,
     specialCostForm: 'Default',
-    effect: (n: number) => {
-      return n > 0
-    },
+    effect: logicCorruptionFourteenEffect,
     effectDescription: () => {
       const unlocked = getGQUpgradeEffect('corruptionFourteen', 'unlocked')
       return i18next.t(
@@ -612,9 +541,7 @@ export const goldenQuarkUpgrades: {
     costPerLevel: 40000,
     minimumSingularity: 0,
     specialCostForm: 'Default',
-    effect: (n: number) => {
-      return n
-    },
+    effect: logicCorruptionFifteenEffect,
     effectDescription: () => {
       const freeCorruptionLevel = getGQUpgradeEffect('corruptionFifteen', 'freeCorruptionLevel')
       return i18next.t(
@@ -637,9 +564,7 @@ export const goldenQuarkUpgrades: {
     costPerLevel: 1,
     minimumSingularity: 0,
     specialCostForm: 'Default',
-    effect: (n: number) => {
-      return 1 + 0.02 * n
-    },
+    effect: logicSingOfferings1Effect,
     effectDescription: () => {
       const offeringMult = getGQUpgradeEffect('singOfferings1', 'offeringMult')
       return i18next.t('singularity.data.singOfferings1.effect', {
@@ -659,9 +584,7 @@ export const goldenQuarkUpgrades: {
     costPerLevel: 25,
     minimumSingularity: 0,
     specialCostForm: 'Default',
-    effect: (n: number) => {
-      return 1 + 0.08 * n
-    },
+    effect: logicSingOfferings2Effect,
     effectDescription: () => {
       const offeringMult = getGQUpgradeEffect('singOfferings2', 'offeringMult')
       return i18next.t('singularity.data.singOfferings2.effect', {
@@ -681,9 +604,7 @@ export const goldenQuarkUpgrades: {
     costPerLevel: 500,
     minimumSingularity: 0,
     specialCostForm: 'Default',
-    effect: (n: number) => {
-      return 1 + 0.04 * n
-    },
+    effect: logicSingOfferings3Effect,
     effectDescription: () => {
       const offeringMult = getGQUpgradeEffect('singOfferings3', 'offeringMult')
       return i18next.t('singularity.data.singOfferings3.effect', {
@@ -703,9 +624,7 @@ export const goldenQuarkUpgrades: {
     costPerLevel: 1,
     minimumSingularity: 0,
     specialCostForm: 'Default',
-    effect: (n: number) => {
-      return 1 + 0.02 * n
-    },
+    effect: logicSingObtainium1Effect,
     effectDescription: () => {
       const obtainiumMult = getGQUpgradeEffect('singObtainium1', 'obtainiumMult')
       return i18next.t('singularity.data.singObtainium1.effect', {
@@ -725,9 +644,7 @@ export const goldenQuarkUpgrades: {
     costPerLevel: 25,
     minimumSingularity: 0,
     specialCostForm: 'Default',
-    effect: (n: number) => {
-      return 1 + 0.08 * n
-    },
+    effect: logicSingObtainium2Effect,
     effectDescription: () => {
       const obtainiumMult = getGQUpgradeEffect('singObtainium2', 'obtainiumMult')
       return i18next.t('singularity.data.singObtainium2.effect', {
@@ -747,9 +664,7 @@ export const goldenQuarkUpgrades: {
     costPerLevel: 500,
     minimumSingularity: 0,
     specialCostForm: 'Default',
-    effect: (n: number) => {
-      return 1 + 0.04 * n
-    },
+    effect: logicSingObtainium3Effect,
     effectDescription: () => {
       const obtainiumMult = getGQUpgradeEffect('singObtainium3', 'obtainiumMult')
       return i18next.t('singularity.data.singObtainium3.effect', {
@@ -769,9 +684,7 @@ export const goldenQuarkUpgrades: {
     costPerLevel: 1,
     minimumSingularity: 0,
     specialCostForm: 'Default',
-    effect: (n: number) => {
-      return 1 + 0.006 * n
-    },
+    effect: logicSingCubes1Effect,
     effectDescription: () => {
       const cubeMult = getGQUpgradeEffect('singCubes1', 'cubeMult')
       return i18next.t('singularity.data.singCubes1.effect', {
@@ -791,9 +704,7 @@ export const goldenQuarkUpgrades: {
     costPerLevel: 25,
     minimumSingularity: 0,
     specialCostForm: 'Default',
-    effect: (n: number) => {
-      return 1 + 0.08 * n
-    },
+    effect: logicSingCubes2Effect,
     effectDescription: () => {
       const cubeMult = getGQUpgradeEffect('singCubes2', 'cubeMult')
       return i18next.t('singularity.data.singCubes2.effect', {
@@ -813,9 +724,7 @@ export const goldenQuarkUpgrades: {
     costPerLevel: 500,
     minimumSingularity: 0,
     specialCostForm: 'Default',
-    effect: (n: number) => {
-      return 1 + 0.04 * n
-    },
+    effect: logicSingCubes3Effect,
     effectDescription: () => {
       const cubeMult = getGQUpgradeEffect('singCubes3', 'cubeMult')
       return i18next.t('singularity.data.singCubes3.effect', {
@@ -835,9 +744,7 @@ export const goldenQuarkUpgrades: {
     costPerLevel: 500000,
     minimumSingularity: 100,
     specialCostForm: 'Default',
-    effect: (n: number) => {
-      return (1 + 0.02 * n) * (1 + Math.floor(n / 10) / 100)
-    },
+    effect: logicSingCitadelEffect,
     effectDescription: () => {
       const citadelMult = getGQUpgradeEffect('singCitadel', 'cubeMult')
       return i18next.t('singularity.data.singCitadel.effect', {
@@ -857,12 +764,7 @@ export const goldenQuarkUpgrades: {
     costPerLevel: 1e14,
     minimumSingularity: 204,
     specialCostForm: 'Quadratic',
-    effect: (n, key) => {
-      if (key === 'citadel1FreeLevels') {
-        return n
-      }
-      return (1 + 0.02 * n) * (1 + Math.floor(n / 10) / 100) // other keys!
-    },
+    effect: logicSingCitadel2Effect,
     effectDescription: () => {
       const citadelMult = getGQUpgradeEffect('singCitadel2', 'cubeMult')
       return i18next.t('singularity.data.singCitadel2.effect', {
@@ -882,9 +784,7 @@ export const goldenQuarkUpgrades: {
     costPerLevel: 8888,
     minimumSingularity: 8,
     specialCostForm: 'Default',
-    effect: (n: number) => {
-      return n > 0
-    },
+    effect: logicOcteractUnlockEffect,
     effectDescription: () => {
       const unlocked = getGQUpgradeEffect('octeractUnlock', 'unlocked')
       return i18next.t(
@@ -904,10 +804,7 @@ export const goldenQuarkUpgrades: {
     costPerLevel: 9999,
     minimumSingularity: 12,
     specialCostForm: 'Default',
-    effect: (n: number) => {
-      const quarkBonus = getQuarkBonus()
-      return (n > 0) ? 1 + quarkBonus / 100 : 1
-    },
+    effect: (n: number) => logicSingOcteractPatreonBonusEffect(n, getQuarkBonus()),
     effectDescription: () => {
       const octeractMult = getGQUpgradeEffect('singOcteractPatreonBonus', 'octeractMult')
       return i18next.t('singularity.data.singOcteractPatreonBonus.effect', {
@@ -929,9 +826,7 @@ export const goldenQuarkUpgrades: {
     costPerLevel: 1e14,
     minimumSingularity: 222,
     specialCostForm: 'Default',
-    effect: (n: number) => {
-      return n > 0
-    },
+    effect: logicOfferingAutomaticEffect,
     effectDescription: () => i18next.t('singularity.data.offeringAutomatic.effect'),
     name: () => i18next.t('singularity.data.offeringAutomatic.name'),
     description: () => i18next.t('singularity.data.offeringAutomatic.description')
@@ -946,15 +841,7 @@ export const goldenQuarkUpgrades: {
     costPerLevel: 1,
     minimumSingularity: 4,
     specialCostForm: 'Default',
-    effect: (n, key) => {
-      if (key === 'globalSpeedMult') {
-        return n > 0 ? 2 : 1
-      } else if (key === 'ascensionSpeedMult') {
-        return n > 0 ? 1.5 : 1
-      } else {
-        return n > 0 ? 0.02 : 0 // packQuarkAdd
-      }
-    },
+    effect: logicIntermediatePackEffect,
     effectDescription: () => {
       const globalSpeedMult = getGQUpgradeEffect('intermediatePack', 'globalSpeedMult')
       return i18next.t(
@@ -974,13 +861,7 @@ export const goldenQuarkUpgrades: {
     costPerLevel: 200,
     minimumSingularity: 9,
     specialCostForm: 'Default',
-    effect: (n, key) => {
-      if (key === 'corruptionScoreIncrease') {
-        return n > 0 ? 0.33 : 0
-      } else {
-        return n > 0 ? 0.04 : 0 // packQuarkAdd
-      }
-    },
+    effect: logicAdvancedPackEffect,
     effectDescription: () => {
       const corruptionScoreIncrease = getGQUpgradeEffect('advancedPack', 'corruptionScoreIncrease')
       return i18next.t(
@@ -1000,15 +881,7 @@ export const goldenQuarkUpgrades: {
     costPerLevel: 800,
     minimumSingularity: 16,
     specialCostForm: 'Default',
-    effect: (n, key) => {
-      if (key === 'addCodeAscensionTimeMult') {
-        return n > 0 ? 1.2 : 1
-      } else if (key === 'ascensionScoreMult') {
-        return n > 0 ? 1.5 : 1
-      } else {
-        return n > 0 ? 0.06 : 0 // packQuarkAdd
-      }
-    },
+    effect: logicExpertPackEffect,
     effectDescription: () => {
       const addCodeAscensionTimeMult = getGQUpgradeEffect('expertPack', 'addCodeAscensionTimeMult')
       return i18next.t(
@@ -1028,13 +901,7 @@ export const goldenQuarkUpgrades: {
     costPerLevel: 3200,
     minimumSingularity: 25,
     specialCostForm: 'Default',
-    effect: (n, key) => {
-      if (key === 'ascensionScoreMult') {
-        return n > 0 ? 2 : 1
-      } else {
-        return n > 0 ? 0.08 : 0 // packQuarkAdd
-      }
-    },
+    effect: logicMasterPackEffect,
     effectDescription: () => {
       const ascensionScoreMult = getGQUpgradeEffect('masterPack', 'ascensionScoreMult')
       return i18next.t(
@@ -1054,22 +921,7 @@ export const goldenQuarkUpgrades: {
     costPerLevel: 12800,
     minimumSingularity: 36,
     specialCostForm: 'Default',
-    effect: (n, key) => {
-      if (key === 'octeractMult') {
-        if (n === 0) {
-          return 1
-        } else {
-          const corruptions = player.corruptions.used
-          const octMult = Object.values(corruptions.loadout).reduce(
-            (acc, curr) => acc * (curr === 16 ? 1.4 : (curr === 15 ? 1.3 : (curr === 14 ? 1.25 : 1))),
-            1
-          )
-          return octMult
-        }
-      } else {
-        return n > 0 ? 0.1 : 0 // packQuarkAdd
-      }
-    },
+    effect: (n, key) => logicDivinePackEffect(n, key, Object.values(player.corruptions.used.loadout)),
     effectDescription: () => {
       const octeractMult = getGQUpgradeEffect('divinePack', 'octeractMult')
       return i18next.t(
@@ -1092,9 +944,7 @@ export const goldenQuarkUpgrades: {
     costPerLevel: 12500,
     minimumSingularity: 9,
     specialCostForm: 'Default',
-    effect: (n: number) => {
-      return n > 0
-    },
+    effect: logicWowPass2Effect,
     effectDescription: () => {
       const unlocked = getGQUpgradeEffect('wowPass2', 'unlocked')
       return i18next.t(
@@ -1114,9 +964,7 @@ export const goldenQuarkUpgrades: {
     costPerLevel: 3e7 - 1,
     minimumSingularity: 83,
     specialCostForm: 'Default',
-    effect: (n: number) => {
-      return n > 0
-    },
+    effect: logicWowPass3Effect,
     effectDescription: () => {
       const unlocked = getGQUpgradeEffect('wowPass3', 'unlocked')
       return i18next.t(
@@ -1136,9 +984,7 @@ export const goldenQuarkUpgrades: {
     costPerLevel: 999,
     minimumSingularity: 4,
     specialCostForm: 'Default',
-    effect: (n: number) => {
-      return Math.max(1, 10 * Math.pow(n, 2))
-    },
+    effect: logicPotionBuffEffect,
     effectDescription: () => {
       const potionPowerMult = getGQUpgradeEffect('potionBuff', 'potionPowerMult')
       return i18next.t('singularity.data.potionBuff.effect', {
@@ -1158,9 +1004,7 @@ export const goldenQuarkUpgrades: {
     costPerLevel: 1e8,
     minimumSingularity: 119,
     specialCostForm: 'Default',
-    effect: (n: number) => {
-      return Math.max(1, 2 * n)
-    },
+    effect: logicPotionBuff2Effect,
     effectDescription: () => {
       const potionPowerMult = getGQUpgradeEffect('potionBuff2', 'potionPowerMult')
       return i18next.t('singularity.data.potionBuff2.effect', {
@@ -1180,9 +1024,7 @@ export const goldenQuarkUpgrades: {
     costPerLevel: 1e12,
     minimumSingularity: 191,
     specialCostForm: 'Default',
-    effect: (n: number) => {
-      return Math.max(1, 1 + 0.5 * n)
-    },
+    effect: logicPotionBuff3Effect,
     effectDescription: () => {
       const potionPowerMult = getGQUpgradeEffect('potionBuff3', 'potionPowerMult')
       return i18next.t('singularity.data.potionBuff3.effect', {
@@ -1202,12 +1044,7 @@ export const goldenQuarkUpgrades: {
     costPerLevel: 999,
     minimumSingularity: 11,
     specialCostForm: 'Default',
-    effect: (n, key) => {
-      if (key === 'ascensionCapIncrease') {
-        return n
-      }
-      return 2 * n // reincarnationCapIncrease
-    },
+    effect: logicSingChallengeExtensionEffect,
     effectDescription: () => {
       const reincarnationCapIncrease = getGQUpgradeEffect('singChallengeExtension', 'reincarnationCapIncrease')
       const ascensionCapIncrease = getGQUpgradeEffect('singChallengeExtension', 'ascensionCapIncrease')
@@ -1229,12 +1066,7 @@ export const goldenQuarkUpgrades: {
     costPerLevel: 29999,
     minimumSingularity: 26,
     specialCostForm: 'Default',
-    effect: (n, key) => {
-      if (key === 'ascensionCapIncrease') {
-        return n
-      }
-      return 2 * n // reincarnationCapIncrease
-    },
+    effect: logicSingChallengeExtension2Effect,
     effectDescription: () => {
       const reincarnationCapIncrease = getGQUpgradeEffect('singChallengeExtension2', 'reincarnationCapIncrease')
       const ascensionCapIncrease = getGQUpgradeEffect('singChallengeExtension2', 'ascensionCapIncrease')
@@ -1256,12 +1088,7 @@ export const goldenQuarkUpgrades: {
     costPerLevel: 749999,
     minimumSingularity: 51,
     specialCostForm: 'Default',
-    effect: (n, key) => {
-      if (key === 'ascensionCapIncrease') {
-        return n
-      }
-      return 2 * n // reincarnationCapIncrease
-    },
+    effect: logicSingChallengeExtension3Effect,
     effectDescription: () => {
       const reincarnationCapIncrease = getGQUpgradeEffect('singChallengeExtension3', 'reincarnationCapIncrease')
       const ascensionCapIncrease = getGQUpgradeEffect('singChallengeExtension3', 'ascensionCapIncrease')
@@ -1283,9 +1110,7 @@ export const goldenQuarkUpgrades: {
     costPerLevel: 1,
     minimumSingularity: 173,
     specialCostForm: 'Exponential2',
-    effect: (n: number) => {
-      return 1 + n / 200
-    },
+    effect: logicSingQuarkImprover1Effect,
     effectDescription: () => {
       const quarkMult = getGQUpgradeEffect('singQuarkImprover1', 'quarkMult')
       return i18next.t('singularity.data.singQuarkImprover1.effect', {
@@ -1305,9 +1130,7 @@ export const goldenQuarkUpgrades: {
     costPerLevel: 14999,
     minimumSingularity: 5,
     specialCostForm: 'Quadratic',
-    effect: (n: number) => {
-      return n / 100
-    },
+    effect: logicSingQuarkHepteractEffect,
     effectDescription: () => {
       const quarkHeptExponent = getGQUpgradeEffect('singQuarkHepteract', 'quarkHeptExponent')
       return i18next.t('singularity.data.singQuarkHepteract.effect', {
@@ -1327,9 +1150,7 @@ export const goldenQuarkUpgrades: {
     costPerLevel: 449999,
     minimumSingularity: 30,
     specialCostForm: 'Cubic',
-    effect: (n: number) => {
-      return n / 100
-    },
+    effect: logicSingQuarkHepteract2Effect,
     effectDescription: () => {
       const quarkHeptExponent = getGQUpgradeEffect('singQuarkHepteract2', 'quarkHeptExponent')
       return i18next.t('singularity.data.singQuarkHepteract2.effect', {
@@ -1349,9 +1170,7 @@ export const goldenQuarkUpgrades: {
     costPerLevel: 13370000,
     minimumSingularity: 61,
     specialCostForm: 'Exponential2',
-    effect: (n: number) => {
-      return n / 200
-    },
+    effect: logicSingQuarkHepteract3Effect,
     effectDescription: () => {
       const quarkHeptExponent = getGQUpgradeEffect('singQuarkHepteract3', 'quarkHeptExponent')
       return i18next.t('singularity.data.singQuarkHepteract3.effect', {
@@ -1371,9 +1190,7 @@ export const goldenQuarkUpgrades: {
     costPerLevel: 20000,
     minimumSingularity: 36,
     specialCostForm: 'Default',
-    effect: (n: number) => {
-      return 1 + 0.0125 * n
-    },
+    effect: logicSingOcteractGainEffect,
     effectDescription: () => {
       const octeractMult = getGQUpgradeEffect('singOcteractGain', 'octeractMult')
       return i18next.t('singularity.data.singOcteractGain.effect', {
@@ -1393,9 +1210,7 @@ export const goldenQuarkUpgrades: {
     costPerLevel: 40000,
     minimumSingularity: 36,
     specialCostForm: 'Default',
-    effect: (n: number) => {
-      return 1 + 0.05 * n
-    },
+    effect: logicSingOcteractGain2Effect,
     effectDescription: () => {
       const octeractMult = getGQUpgradeEffect('singOcteractGain2', 'octeractMult')
       return i18next.t('singularity.data.singOcteractGain2.effect', {
@@ -1415,9 +1230,7 @@ export const goldenQuarkUpgrades: {
     costPerLevel: 250000,
     minimumSingularity: 55,
     specialCostForm: 'Default',
-    effect: (n: number) => {
-      return 1 + 0.025 * n
-    },
+    effect: logicSingOcteractGain3Effect,
     effectDescription: () => {
       const octeractMult = getGQUpgradeEffect('singOcteractGain3', 'octeractMult')
       return i18next.t('singularity.data.singOcteractGain3.effect', {
@@ -1437,9 +1250,7 @@ export const goldenQuarkUpgrades: {
     costPerLevel: 750000,
     minimumSingularity: 77,
     specialCostForm: 'Default',
-    effect: (n: number) => {
-      return 1 + 0.02 * n
-    },
+    effect: logicSingOcteractGain4Effect,
     effectDescription: () => {
       const octeractMult = getGQUpgradeEffect('singOcteractGain4', 'octeractMult')
       return i18next.t('singularity.data.singOcteractGain4.effect', {
@@ -1459,9 +1270,7 @@ export const goldenQuarkUpgrades: {
     costPerLevel: 7777777,
     minimumSingularity: 100,
     specialCostForm: 'Default',
-    effect: (n: number) => {
-      return 1 + 0.01 * n
-    },
+    effect: logicSingOcteractGain5Effect,
     effectDescription: () => {
       const octeractMult = getGQUpgradeEffect('singOcteractGain5', 'octeractMult')
       return i18next.t('singularity.data.singOcteractGain5.effect', {
@@ -1481,12 +1290,7 @@ export const goldenQuarkUpgrades: {
     costPerLevel: 100000,
     minimumSingularity: 29,
     specialCostForm: 'Default',
-    effect: (n, key) => {
-      if (key === 'tauPower') {
-        return n > 0 ? 1.01 : 1
-      }
-      return n > 0 // unlocked
-    },
+    effect: logicPlatonicTauEffect,
     effectDescription: () => {
       const unlocked = getGQUpgradeEffect('platonicTau', 'unlocked')
       return i18next.t(
@@ -1506,9 +1310,7 @@ export const goldenQuarkUpgrades: {
     costPerLevel: 2e7,
     minimumSingularity: 70,
     specialCostForm: 'Default',
-    effect: (n: number) => {
-      return n > 0
-    },
+    effect: logicPlatonicAlphaEffect,
     effectDescription: () => {
       const unlocked = getGQUpgradeEffect('platonicAlpha', 'unlocked')
       return i18next.t(
@@ -1528,10 +1330,12 @@ export const goldenQuarkUpgrades: {
     costPerLevel: 5e9,
     minimumSingularity: 110,
     specialCostForm: 'Default',
-    effect: (n) => {
-      const speedMult = getShopUpgradeEffects('shopSingularitySpeedup', 'singularityUpgradeSpeedMult')
-      return n > 0 ? 1 + Math.min((player.singularityCounter + 1) * speedMult / (3600 * 24), 9) : 1
-    },
+    effect: (n: number) =>
+      logicPlatonicDeltaEffect(
+        n,
+        player.singularityCounter,
+        getShopUpgradeEffects('shopSingularitySpeedup', 'singularityUpgradeSpeedMult')
+      ),
     effectDescription: () => {
       const cubeMult = getGQUpgradeEffect('platonicDelta', 'cubeMult')
       return i18next.t(
@@ -1551,10 +1355,12 @@ export const goldenQuarkUpgrades: {
     costPerLevel: 2e11,
     minimumSingularity: 149,
     specialCostForm: 'Default',
-    effect: (n: number) => {
-      const speedMult = getShopUpgradeEffects('shopSingularitySpeedup', 'singularityUpgradeSpeedMult')
-      return n > 0 ? Math.floor(5 * Math.min(player.singularityCounter * speedMult / (3600 * 24), 10)) : 0
-    },
+    effect: (n: number) =>
+      logicPlatonicPhiEffect(
+        n,
+        player.singularityCounter,
+        getShopUpgradeEffects('shopSingularitySpeedup', 'singularityUpgradeSpeedMult')
+      ),
     effectDescription: () => {
       const level = player.goldenQuarkUpgrades.platonicPhi.level
       return i18next.t(
@@ -1574,9 +1380,7 @@ export const goldenQuarkUpgrades: {
     costPerLevel: 7e6 - 1,
     minimumSingularity: 50,
     specialCostForm: 'Default',
-    effect: (n) => {
-      return n
-    },
+    effect: logicSingFastForwardEffect,
     effectDescription: () => {
       const lookahead = getGQUpgradeEffect('singFastForward', 'lookahead')
       return i18next.t(
@@ -1596,9 +1400,7 @@ export const goldenQuarkUpgrades: {
     costPerLevel: 1e11 - 1,
     minimumSingularity: 147,
     specialCostForm: 'Default',
-    effect: (n: number) => {
-      return n
-    },
+    effect: logicSingFastForward2Effect,
     effectDescription: () => {
       const lookahead = getGQUpgradeEffect('singFastForward2', 'lookahead')
       return i18next.t(
@@ -1618,9 +1420,7 @@ export const goldenQuarkUpgrades: {
     costPerLevel: 1e10,
     minimumSingularity: 128,
     specialCostForm: 'Default',
-    effect: (n: number) => {
-      return (n > 0) ? 0.03 : 0
-    },
+    effect: logicSingAscensionSpeedEffect,
     effectDescription: () => {
       const exponentSpread = getGQUpgradeEffect('singAscensionSpeed', 'exponentSpread')
       return i18next.t('singularity.data.singAscensionSpeed.effect', {
@@ -1641,9 +1441,7 @@ export const goldenQuarkUpgrades: {
     costPerLevel: 1e12,
     minimumSingularity: 147,
     specialCostForm: 'Exponential2',
-    effect: (n: number) => {
-      return 0.001 * n
-    },
+    effect: logicSingAscensionSpeed2Effect,
     effectDescription: () => {
       const exponentSpread = getGQUpgradeEffect('singAscensionSpeed2', 'exponentSpread')
       return i18next.t('singularity.data.singAscensionSpeed2.effect', {
@@ -1663,9 +1461,7 @@ export const goldenQuarkUpgrades: {
     costPerLevel: 2.22e26,
     minimumSingularity: 300,
     specialCostForm: 'Default',
-    effect: (n: number) => {
-      return n > 0
-    },
+    effect: logicUltimatePenEffect,
     effectDescription: () => {
       const platonicPowers = getGQUpgradeEffect('ultimatePen', 'platonicPowers')
       return i18next.t('singularity.data.ultimatePen.effect', {
@@ -1688,9 +1484,7 @@ export const goldenQuarkUpgrades: {
     costPerLevel: 1.66e12,
     minimumSingularity: 150,
     specialCostForm: 'Default',
-    effect: (n: number) => {
-      return n > 0
-    },
+    effect: logicHalfMindEffect,
     effectDescription: () => {
       const unlocked = getGQUpgradeEffect('halfMind', 'unlocked')
       return i18next.t(
@@ -1710,9 +1504,7 @@ export const goldenQuarkUpgrades: {
     costPerLevel: 1.66e13,
     minimumSingularity: 162,
     specialCostForm: 'Default',
-    effect: (n: number) => {
-      return n > 0
-    },
+    effect: logicOneMindEffect,
     effectDescription: () => {
       const unlocked = getGQUpgradeEffect('oneMind', 'unlocked')
       return i18next.t(
@@ -1732,9 +1524,7 @@ export const goldenQuarkUpgrades: {
     costPerLevel: 66666666666,
     minimumSingularity: 147,
     specialCostForm: 'Default',
-    effect: (n: number) => {
-      return n > 0
-    },
+    effect: logicWowPass4Effect,
     effectDescription: () => {
       const unlocked = getGQUpgradeEffect('wowPass4', 'unlocked')
       return i18next.t(
@@ -1754,9 +1544,7 @@ export const goldenQuarkUpgrades: {
     costPerLevel: 1e16,
     minimumSingularity: 215,
     specialCostForm: 'Exponential2',
-    effect: (n: number) => {
-      return n
-    },
+    effect: logicGqBlueberriesEffect,
     effectDescription: () => {
       const blueberries = getGQUpgradeEffect('blueberries', 'blueberries')
       return i18next.t('singularity.data.blueberries.effect', { n: blueberries })
@@ -1774,9 +1562,7 @@ export const goldenQuarkUpgrades: {
     costPerLevel: 1e9,
     minimumSingularity: 187,
     specialCostForm: 'Exponential2',
-    effect: (n: number) => {
-      return 4 * n
-    },
+    effect: logicGqSingAmbrosiaLuckEffect,
     effectDescription: () => {
       const ambrosiaLuck = getGQUpgradeEffect('singAmbrosiaLuck', 'ambrosiaLuck')
       return i18next.t('singularity.data.singAmbrosiaLuck.effect', {
@@ -1796,9 +1582,7 @@ export const goldenQuarkUpgrades: {
     costPerLevel: 4e5,
     minimumSingularity: 50,
     specialCostForm: 'Default',
-    effect: (n: number) => {
-      return 2 * n
-    },
+    effect: logicGqSingAmbrosiaLuck2Effect,
     effectDescription: () => {
       const ambrosiaLuck = getGQUpgradeEffect('singAmbrosiaLuck2', 'ambrosiaLuck')
       return i18next.t('singularity.data.singAmbrosiaLuck2.effect', {
@@ -1818,9 +1602,7 @@ export const goldenQuarkUpgrades: {
     costPerLevel: 2e8,
     minimumSingularity: 119,
     specialCostForm: 'Default',
-    effect: (n: number) => {
-      return 3 * n
-    },
+    effect: logicGqSingAmbrosiaLuck3Effect,
     effectDescription: () => {
       const ambrosiaLuck = getGQUpgradeEffect('singAmbrosiaLuck3', 'ambrosiaLuck')
       return i18next.t('singularity.data.singAmbrosiaLuck3.effect', {
@@ -1840,9 +1622,7 @@ export const goldenQuarkUpgrades: {
     costPerLevel: 1e19,
     minimumSingularity: 256,
     specialCostForm: 'Default',
-    effect: (n: number) => {
-      return 5 * n
-    },
+    effect: logicGqSingAmbrosiaLuck4Effect,
     effectDescription: () => {
       const ambrosiaLuck = getGQUpgradeEffect('singAmbrosiaLuck4', 'ambrosiaLuck')
       return i18next.t('singularity.data.singAmbrosiaLuck4.effect', {
@@ -1862,9 +1642,7 @@ export const goldenQuarkUpgrades: {
     costPerLevel: 1e9,
     minimumSingularity: 187,
     specialCostForm: 'Exponential2',
-    effect: (n: number) => {
-      return 1 + n / 100
-    },
+    effect: logicGqSingAmbrosiaGenerationEffect,
     effectDescription: () => {
       const ambrosiaBarSpeedMult = getGQUpgradeEffect('singAmbrosiaGeneration', 'ambrosiaBarSpeedMult')
       return i18next.t('singularity.data.singAmbrosiaGeneration.effect', {
@@ -1884,9 +1662,7 @@ export const goldenQuarkUpgrades: {
     costPerLevel: 8e5,
     minimumSingularity: 50,
     specialCostForm: 'Default',
-    effect: (n: number) => {
-      return 1 + n / 100
-    },
+    effect: logicGqSingAmbrosiaGeneration2Effect,
     effectDescription: () => {
       const ambrosiaBarSpeedMult = getGQUpgradeEffect('singAmbrosiaGeneration2', 'ambrosiaBarSpeedMult')
       return i18next.t('singularity.data.singAmbrosiaGeneration2.effect', {
@@ -1906,9 +1682,7 @@ export const goldenQuarkUpgrades: {
     costPerLevel: 3e8,
     minimumSingularity: 119,
     specialCostForm: 'Default',
-    effect: (n: number) => {
-      return 1 + n / 100
-    },
+    effect: logicGqSingAmbrosiaGeneration3Effect,
     effectDescription: () => {
       const ambrosiaBarSpeedMult = getGQUpgradeEffect('singAmbrosiaGeneration3', 'ambrosiaBarSpeedMult')
       return i18next.t('singularity.data.singAmbrosiaGeneration3.effect', {
@@ -1928,9 +1702,7 @@ export const goldenQuarkUpgrades: {
     costPerLevel: 1e19,
     minimumSingularity: 256,
     specialCostForm: 'Default',
-    effect: (n: number) => {
-      return 1 + (2 * n) / 100
-    },
+    effect: logicGqSingAmbrosiaGeneration4Effect,
     effectDescription: () => {
       const ambrosiaBarSpeedMult = getGQUpgradeEffect('singAmbrosiaGeneration4', 'ambrosiaBarSpeedMult')
       return i18next.t('singularity.data.singAmbrosiaGeneration4.effect', {
@@ -1950,9 +1722,7 @@ export const goldenQuarkUpgrades: {
     costPerLevel: 25,
     minimumSingularity: 1,
     specialCostForm: 'Exponential2',
-    effect: (n: number) => {
-      return n
-    },
+    effect: logicSingBonusTokens1Effect,
     effectDescription: () => {
       const firstCompletionBonusTokens = getGQUpgradeEffect('singBonusTokens1', 'firstCompletionBonusTokens')
       return i18next.t('singularity.data.singBonusTokens1.effect', {
@@ -1972,9 +1742,7 @@ export const goldenQuarkUpgrades: {
     costPerLevel: 10000,
     minimumSingularity: 25,
     specialCostForm: 'Exponential2',
-    effect: (n: number) => {
-      return 1 + n / 100
-    },
+    effect: logicSingBonusTokens2Effect,
     effectDescription: () => {
       const tokenMultiplier = getGQUpgradeEffect('singBonusTokens2', 'tokenMultiplier')
       return i18next.t('singularity.data.singBonusTokens2.effect', {
@@ -1994,9 +1762,7 @@ export const goldenQuarkUpgrades: {
     costPerLevel: 1e8,
     minimumSingularity: 100,
     specialCostForm: 'Exponential2',
-    effect: (n: number) => {
-      return 2 * n
-    },
+    effect: logicSingBonusTokens3Effect,
     effectDescription: () => {
       const lastCompletionBonusTokens = getGQUpgradeEffect('singBonusTokens3', 'lastCompletionBonusTokens')
       return i18next.t('singularity.data.singBonusTokens3.effect', {
@@ -2016,9 +1782,7 @@ export const goldenQuarkUpgrades: {
     costPerLevel: 1e13,
     minimumSingularity: 166,
     specialCostForm: 'Exponential2',
-    effect: (n: number) => {
-      return 5 * n
-    },
+    effect: logicSingBonusTokens4Effect,
     effectDescription: () => {
       const initialTokenBonus = getGQUpgradeEffect('singBonusTokens4', 'initialTokenBonus')
       return i18next.t('singularity.data.singBonusTokens4.effect', {
@@ -2038,9 +1802,7 @@ export const goldenQuarkUpgrades: {
     costPerLevel: 1e18,
     minimumSingularity: 233,
     specialCostForm: 'Default',
-    effect: (n: number) => {
-      return n
-    },
+    effect: logicGqSingInfiniteShopUpgradesEffect,
     effectDescription: () => {
       const infinityVouchers = getGQUpgradeEffect('singInfiniteShopUpgrades', 'infinityVouchers')
       return i18next.t('singularity.data.singInfiniteShopUpgrades.effect', {
@@ -2060,9 +1822,7 @@ export const goldenQuarkUpgrades: {
     costPerLevel: 25,
     minimumSingularity: 1,
     specialCostForm: 'Default',
-    effect: (n: number) => {
-      return n / 100
-    },
+    effect: logicSingTalismanBonusRunes1Effect,
     effectDescription: () => {
       const talismanRuneEffect = getGQUpgradeEffect('singTalismanBonusRunes1', 'talismanRuneEffect')
       return i18next.t('singularity.data.singTalismanBonusRunes1.effect', {
@@ -2082,9 +1842,7 @@ export const goldenQuarkUpgrades: {
     costPerLevel: 10000,
     minimumSingularity: 27,
     specialCostForm: 'Default',
-    effect: (n: number) => {
-      return n / 100
-    },
+    effect: logicSingTalismanBonusRunes2Effect,
     effectDescription: () => {
       const talismanRuneEffect = getGQUpgradeEffect('singTalismanBonusRunes2', 'talismanRuneEffect')
       return i18next.t('singularity.data.singTalismanBonusRunes2.effect', {
@@ -2104,9 +1862,7 @@ export const goldenQuarkUpgrades: {
     costPerLevel: 1e8,
     minimumSingularity: 99,
     specialCostForm: 'Default',
-    effect: (n: number) => {
-      return n / 100
-    },
+    effect: logicSingTalismanBonusRunes3Effect,
     effectDescription: () => {
       const talismanRuneEffect = getGQUpgradeEffect('singTalismanBonusRunes3', 'talismanRuneEffect')
       return i18next.t('singularity.data.singTalismanBonusRunes3.effect', {
@@ -2126,9 +1882,7 @@ export const goldenQuarkUpgrades: {
     costPerLevel: 3e15,
     minimumSingularity: 211,
     specialCostForm: 'Default',
-    effect: (n: number) => {
-      return n / 100
-    },
+    effect: logicSingTalismanBonusRunes4Effect,
     effectDescription: () => {
       const talismanRuneEffect = getGQUpgradeEffect('singTalismanBonusRunes4', 'talismanRuneEffect')
       return i18next.t('singularity.data.singTalismanBonusRunes4.effect', {
@@ -2160,9 +1914,10 @@ export const goldenQuarkUpgrades: {
         +(redAmbrosiaUpgrades.infiniteShopUpgrades.level >= redAmbrosiaUpgrades.infiniteShopUpgrades.maxLevel)
       const upgrade9 =
         +(redAmbrosiaUpgrades.blueberryGenerationSpeed2.level >= redAmbrosiaUpgrades.blueberryGenerationSpeed2.maxLevel)
-      const sumOfUpgrades = upgrade1 + upgrade2 + upgrade3 + upgrade4 + upgrade5 + upgrade6 + upgrade7 + upgrade8
-        + upgrade9
-      return 1 + n / 5000 * (sumOfUpgrades + 6)
+      return logicFavoriteUpgradeEffect(
+        n,
+        upgrade1 + upgrade2 + upgrade3 + upgrade4 + upgrade5 + upgrade6 + upgrade7 + upgrade8 + upgrade9
+      )
     },
     name: () => i18next.t('singularity.data.favoriteUpgrade.name'),
     description: () => {

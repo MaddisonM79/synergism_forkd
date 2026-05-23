@@ -1,4 +1,90 @@
-import { shopCost as logicShopCost } from '@synergism/logic'
+import {
+  type QuarkShopUpgradeRewards as LogicQuarkShopUpgradeRewards,
+  shopAmbrosiaAcceleratorEffect as logicShopAmbrosiaAcceleratorEffect,
+  shopAmbrosiaGeneration1Effect as logicShopAmbrosiaGeneration1Effect,
+  shopAmbrosiaGeneration2Effect as logicShopAmbrosiaGeneration2Effect,
+  shopAmbrosiaGeneration3Effect as logicShopAmbrosiaGeneration3Effect,
+  shopAmbrosiaGeneration4Effect as logicShopAmbrosiaGeneration4Effect,
+  shopAmbrosiaLuck1Effect as logicShopAmbrosiaLuck1Effect,
+  shopAmbrosiaLuck2Effect as logicShopAmbrosiaLuck2Effect,
+  shopAmbrosiaLuck3Effect as logicShopAmbrosiaLuck3Effect,
+  shopAmbrosiaLuck4Effect as logicShopAmbrosiaLuck4Effect,
+  shopAmbrosiaLuckMultiplier4Effect as logicShopAmbrosiaLuckMultiplier4Effect,
+  shopAmbrosiaUltraEffect as logicShopAmbrosiaUltraEffect,
+  shopAntSpeedEffect as logicShopAntSpeedEffect,
+  shopAutoWarpEffect as logicShopAutoWarpEffect,
+  shopCalculator2Effect as logicShopCalculator2Effect,
+  shopCalculator3Effect as logicShopCalculator3Effect,
+  shopCalculator4Effect as logicShopCalculator4Effect,
+  shopCalculator5Effect as logicShopCalculator5Effect,
+  shopCalculator6Effect as logicShopCalculator6Effect,
+  shopCalculator7Effect as logicShopCalculator7Effect,
+  shopCalculatorEffect as logicShopCalculatorEffect,
+  shopCashGrab2Effect as logicShopCashGrab2Effect,
+  shopCashGrabEffect as logicShopCashGrabEffect,
+  shopCashGrabUltraEffect as logicShopCashGrabUltraEffect,
+  shopChallenge15AutoEffect as logicShopChallenge15AutoEffect,
+  shopChallengeExtensionEffect as logicShopChallengeExtensionEffect,
+  shopChallengeTome2Effect as logicShopChallengeTome2Effect,
+  shopChallengeTomeEffect as logicShopChallengeTomeEffect,
+  shopChronometer2Effect as logicShopChronometer2Effect,
+  shopChronometer3Effect as logicShopChronometer3Effect,
+  shopChronometerEffect as logicShopChronometerEffect,
+  shopChronometerInfinityEffect as logicShopChronometerInfinityEffect,
+  shopChronometerSEffect as logicShopChronometerSEffect,
+  shopChronometerZEffect as logicShopChronometerZEffect,
+  shopConstantEXEffect as logicShopConstantEXEffect,
+  shopCost as logicShopCost,
+  shopCubeToQuarkAllEffect as logicShopCubeToQuarkAllEffect,
+  shopCubeToQuarkEffect as logicShopCubeToQuarkEffect,
+  shopExtraWarpEffect as logicShopExtraWarpEffect,
+  shopEXUltraEffect as logicShopEXUltraEffect,
+  shopHorseShoeEffect as logicShopHorseShoeEffect,
+  shopHypercubeToQuarkEffect as logicShopHypercubeToQuarkEffect,
+  shopImprovedDaily2Effect as logicShopImprovedDaily2Effect,
+  shopImprovedDaily3Effect as logicShopImprovedDaily3Effect,
+  shopImprovedDaily4Effect as logicShopImprovedDaily4Effect,
+  shopImprovedDailyEffect as logicShopImprovedDailyEffect,
+  shopImproveQuarkHept2Effect as logicShopImproveQuarkHept2Effect,
+  shopImproveQuarkHept3Effect as logicShopImproveQuarkHept3Effect,
+  shopImproveQuarkHept4Effect as logicShopImproveQuarkHept4Effect,
+  shopImproveQuarkHept5Effect as logicShopImproveQuarkHept5Effect,
+  shopImproveQuarkHeptEffect as logicShopImproveQuarkHeptEffect,
+  shopInfiniteAscentEffect as logicShopInfiniteAscentEffect,
+  shopInfiniteShopUpgradesEffect as logicShopInfiniteShopUpgradesEffect,
+  shopInstantChallenge2Effect as logicShopInstantChallenge2Effect,
+  shopInstantChallengeEffect as logicShopInstantChallengeEffect,
+  shopObtainiumAutoEffect as logicShopObtainiumAutoEffect,
+  shopObtainiumEX2Effect as logicShopObtainiumEX2Effect,
+  shopObtainiumEX3Effect as logicShopObtainiumEX3Effect,
+  shopObtainiumEXEffect as logicShopObtainiumEXEffect,
+  shopObtainiumPotionEffect as logicShopObtainiumPotionEffect,
+  shopOcteractAmbrosiaLuckEffect as logicShopOcteractAmbrosiaLuckEffect,
+  shopOfferingAutoEffect as logicShopOfferingAutoEffect,
+  shopOfferingEX2Effect as logicShopOfferingEX2Effect,
+  shopOfferingEX3Effect as logicShopOfferingEX3Effect,
+  shopOfferingEXEffect as logicShopOfferingEXEffect,
+  shopOfferingPotionEffect as logicShopOfferingPotionEffect,
+  shopPanthemaEffect as logicShopPanthemaEffect,
+  shopPowderAutoEffect as logicShopPowderAutoEffect,
+  shopPowderEXEffect as logicShopPowderEXEffect,
+  shopRedLuck1Effect as logicShopRedLuck1Effect,
+  shopRedLuck2Effect as logicShopRedLuck2Effect,
+  shopRedLuck3Effect as logicShopRedLuck3Effect,
+  shopSadisticRuneEffect as logicShopSadisticRuneEffect,
+  shopSeasonPass2Effect as logicShopSeasonPass2Effect,
+  shopSeasonPass3Effect as logicShopSeasonPass3Effect,
+  shopSeasonPassEffect as logicShopSeasonPassEffect,
+  shopSeasonPassInfinityEffect as logicShopSeasonPassInfinityEffect,
+  shopSeasonPassLostEffect as logicShopSeasonPassLostEffect,
+  shopSeasonPassYEffect as logicShopSeasonPassYEffect,
+  shopSeasonPassZEffect as logicShopSeasonPassZEffect,
+  shopSingularityPenaltyDebuffEffect as logicShopSingularityPenaltyDebuffEffect,
+  shopSingularityPotencyEffect as logicShopSingularityPotencyEffect,
+  shopSingularitySpeedupEffect as logicShopSingularitySpeedupEffect,
+  shopTalismanEffect as logicShopTalismanEffect,
+  shopTesseractToQuarkEffect as logicShopTesseractToQuarkEffect
+} from '@synergism/logic'
 import Decimal from 'break_infinity.js'
 import i18next from 'i18next'
 import { getAmbrosiaUpgradeEffects } from './BlueberryUpgrades'
@@ -30,102 +116,9 @@ export enum shopUpgradeTypes {
   UPGRADE = 'upgrade'
 }
 
-type QuarkShopUpgradeRewards = {
-  offeringPotion: { skipSeconds: number }
-  obtainiumPotion: { skipSeconds: number }
-  offeringEX: { offeringMult: number }
-  offeringEX2: { offeringMult: number }
-  offeringEX3: { offeringMult: number; baseOfferings: number }
-  obtainiumEX: { obtainiumMult: number }
-  obtainiumEX2: { obtainiumMult: number }
-  obtainiumEX3: { obtainiumMult: number; immaculateObtainiuMult: number }
-  offeringAuto: { autoRune: boolean; autoRuneSpeedMult: number }
-  obtainiumAuto: { autoResearch: boolean; researchCostMult: number }
-  cashGrab: { obtainiumMult: number; offeringMult: number }
-  cashGrab2: { obtainiumMult: number; offeringMult: number }
-  shopTalisman: { talismanUnlocked: boolean }
-  infiniteAscent: { runeUnlocked: boolean }
-  shopSadisticRune: { runeUnlocked: boolean }
-  antSpeed: { antELO: number }
-  instantChallenge: { unlocked: boolean; extraCompPerTick: number }
-  instantChallenge2: { unlocked: boolean; extraCompPerTick: number }
-  challengeExtension: { reincarnationChallengeCap: number }
-  challengeTome: { c10RequirementReduction: number; c9c10ScalingReduction: number }
-  challengeTome2: { c10RequirementReduction: number; c9c10ScalingReduction: number }
-  challenge15Auto: { unlocked: boolean }
-  seasonPass: { wowCubeMult: number; wowTesseractMult: number }
-  seasonPass2: { wowHypercubeMult: number; wowPlatonicMult: number }
-  seasonPass3: { wowHepteractMult: number; wowOcteractMult: number }
-  // Octeract Multipliers *ignore* Cube Multipliers. I still think this is probably a flawed design choice...
-  seasonPassY: { globalCubeMult: number; wowOcteractMult: number }
-  seasonPassZ: { globalCubeMult: number; wowOcteractMult: number }
-  seasonPassLost: { wowOcteractMult: number }
-  seasonPassInfinity: { globalCubeMult: number; wowOcteractMult: number }
-  calculator: { addQuarkMult: number; autoAnswer: boolean; autoFill: boolean }
-  calculator2: { addCodeCapacity: number; addQuarkMult: number }
-  calculator3: { addRewardVarianceMultiplier: number; ascensionTimerAdd: number }
-  calculator4: { addCodeIntervalMult: number; addCodeCapacity: number }
-  calculator5: { importGQTimerAdd: number; addCodeCapacity: number }
-  calculator6: { octeractTimerAdd: number; addCodeCapacity: number }
-  calculator7: { blueberryTimerAdd: number; addCodeCapacity: number }
-  chronometer: { ascensionSpeedMult: number }
-  chronometer2: { ascensionSpeedMult: number }
-  chronometer3: { ascensionSpeedMult: number }
-  chronometerZ: { ascensionSpeedMult: number }
-  shopChronometerS: { ascensionSpeedMult: number; globalSpeedMult: number }
-  chronometerInfinity: { ascensionSpeedMult: number; exponentSpread: number }
-  improveQuarkHept: { quarkHeptExponent: number }
-  improveQuarkHept2: { quarkHeptExponent: number }
-  improveQuarkHept3: { quarkHeptExponent: number }
-  improveQuarkHept4: { quarkHeptExponent: number }
-  improveQuarkHept5: { quarkHeptExponent: number }
-  cubeToQuark: { cubeQuarkMult: number }
-  tesseractToQuark: { tesseractQuarkMult: number }
-  hypercubeToQuark: { hypercubeQuarkMult: number }
-  cubeToQuarkAll: { quarkMult: number }
-  shopImprovedDaily: { dailyCodeQuarkMult: number }
-  shopImprovedDaily2: { freeSingularityUpgrades: number; dailyCodeGoldenQuarkMult: number }
-  shopImprovedDaily3: { freeSingularityUpgrades: number; dailyCodeGoldenQuarkMult: number }
-  shopImprovedDaily4: { freeSingularityUpgrades: number; dailyCodeGoldenQuarkMult: number }
-  constantEX: { maxPercentIncrease: number }
-  powderEX: { orbToPowderConversionMult: number }
-  powderAuto: { automaticPowderFraction: number }
-  autoWarp: { unlocked: boolean }
-  extraWarp: { additionalWarps: number }
-  shopAmbrosiaGeneration1: { ambrosiaGenerationMult: number }
-  shopAmbrosiaGeneration2: { ambrosiaGenerationMult: number }
-  shopAmbrosiaGeneration3: { ambrosiaGenerationMult: number }
-  shopAmbrosiaGeneration4: { ambrosiaGenerationMult: number }
-  shopAmbrosiaAccelerator: { ambrosiaPointRequirementMult: number }
-  shopAmbrosiaLuck1: { ambrosiaLuck: number }
-  shopAmbrosiaLuck2: { ambrosiaLuck: number }
-  shopAmbrosiaLuck3: { ambrosiaLuck: number }
-  shopAmbrosiaLuck4: { ambrosiaLuck: number }
-  shopAmbrosiaLuckMultiplier4: { additiveAmbrosiaLuckMult: number }
-  shopOcteractAmbrosiaLuck: { ambrosiaLuck: number }
-  shopAmbrosiaUltra: { ambrosiaLuck: number }
-  shopRedLuck1: { redLuck: number; luckConversionRatio: number }
-  shopRedLuck2: { redLuck: number; luckConversionRatio: number }
-  shopRedLuck3: { redLuck: number; luckConversionRatio: number }
-  shopHorseShoe: { bonusHorseLevels: number; singularityPenaltyMult: number }
-  shopInfiniteShopUpgrades: { infiniteVouchers: number }
-  shopSingularityPenaltyDebuff: { singularityPenaltyReducers: number }
-  shopCashGrabUltra: { ambrosiaGenerationMult: number; cubesMult: number; quarkMult: number }
-  shopEXUltra: { offeringMult: number; obtainiumMult: number; cubeMult: number }
-  shopSingularitySpeedup: { singularityUpgradeSpeedMult: number }
-  shopSingularityPotency: { freeUpgradeMult: number }
-  shopPanthema: {
-    offeringMult: number
-    obtainiumMult: number
-    cubeMult: number
-    quarkMult: number
-    ascensionSpeedMult: number
-    ambrosiaGenerationMult: number
-    ambrosiaLuck: number
-    redLuck: number
-    infinityMetaBoost: number
-  }
-}
+// Re-exported from @synergism/logic so existing call sites that import this
+// type from Shop.ts keep compiling unchanged.
+type QuarkShopUpgradeRewards = LogicQuarkShopUpgradeRewards
 
 export type ShopUpgradeNames = keyof QuarkShopUpgradeRewards
 
@@ -250,7 +243,7 @@ export const shopUpgrades: { [K in ShopUpgradeNames]: IShopData<K, keyof QuarkSh
   offeringPotion: {
     name: () => i18next.t('shop.names.offeringPotion'),
     description: () => i18next.t('shop.upgradeDescriptions.offeringPotion'),
-    effects: () => 7200, // skipSeconds
+    effects: logicShopOfferingPotionEffect,
     effectDescription: () => {
       const amount = format(
         calculatePotionValue(player.prestigecounter, calculateOfferingsDecimal(), calculateBaseOfferings()),
@@ -275,7 +268,7 @@ export const shopUpgrades: { [K in ShopUpgradeNames]: IShopData<K, keyof QuarkSh
   obtainiumPotion: {
     name: () => i18next.t('shop.names.obtainiumPotion'),
     description: () => i18next.t('shop.upgradeDescriptions.obtainiumPotion'),
-    effects: () => 7200, // skipSeconds
+    effects: logicShopObtainiumPotionEffect,
     effectDescription: () => {
       const amount = format(
         calculatePotionValue(player.reincarnationcounter, calculateObtainium(), calculateBaseObtainium()),
@@ -305,11 +298,7 @@ export const shopUpgrades: { [K in ShopUpgradeNames]: IShopData<K, keyof QuarkSh
   offeringEX: {
     name: () => i18next.t('shop.names.offeringEX'),
     description: () => i18next.t('shop.upgradeDescriptions.offeringEX'),
-    effects: (n) => {
-      const offeringMult = 1 + 0.06 * n
-      const extraMult = Math.pow(1.08, Math.floor(n / 10))
-      return offeringMult * extraMult // offeringMult
-    },
+    effects: logicShopOfferingEXEffect,
     effectDescription () {
       const effect = getShopUpgradeEffects('offeringEX', 'offeringMult')
       return i18next.t('shop.upgradeEffects.offeringEX', { amount: formatAsPercentIncrease(effect) })
@@ -327,13 +316,7 @@ export const shopUpgrades: { [K in ShopUpgradeNames]: IShopData<K, keyof QuarkSh
   offeringAuto: {
     name: () => i18next.t('shop.names.offeringAuto'),
     description: () => i18next.t('shop.upgradeDescriptions.offeringAuto'),
-    effects: (n, key) => {
-      if (key === 'autoRune') {
-        return n > 0
-      }
-
-      return 1 + 0.01 * n // autoRuneSpeedMult
-    },
+    effects: logicShopOfferingAutoEffect,
     effectDescription () {
       const autoRune = getShopUpgradeEffects('offeringAuto', 'autoRune')
       const autoRuneSpeedMult = getShopUpgradeEffects('offeringAuto', 'autoRuneSpeedMult')
@@ -355,11 +338,7 @@ export const shopUpgrades: { [K in ShopUpgradeNames]: IShopData<K, keyof QuarkSh
   obtainiumEX: {
     name: () => i18next.t('shop.names.obtainiumEX'),
     description: () => i18next.t('shop.upgradeDescriptions.obtainiumEX'),
-    effects: (n: number) => {
-      const obtainiumMult = 1 + 0.06 * n
-      const extraMult = Math.pow(1.08, Math.floor(n / 10))
-      return obtainiumMult * extraMult // obtainiumMult
-    },
+    effects: logicShopObtainiumEXEffect,
     effectDescription () {
       const effect = getShopUpgradeEffects('obtainiumEX', 'obtainiumMult')
       return i18next.t('shop.upgradeEffects.obtainiumEX', { amount: formatAsPercentIncrease(effect, 0) })
@@ -377,13 +356,7 @@ export const shopUpgrades: { [K in ShopUpgradeNames]: IShopData<K, keyof QuarkSh
   obtainiumAuto: {
     name: () => i18next.t('shop.names.obtainiumAuto'),
     description: () => i18next.t('shop.upgradeDescriptions.obtainiumAuto'),
-    effects: (n, key) => {
-      if (key === 'autoResearch') {
-        return n > 0
-      }
-
-      return 1 - 0.001 * n // researchCostMult
-    },
+    effects: logicShopObtainiumAutoEffect,
     effectDescription () {
       const researchCostMult = getShopUpgradeEffects('obtainiumAuto', 'researchCostMult')
       return i18next.t('shop.upgradeEffects.obtainiumAuto', {
@@ -403,13 +376,7 @@ export const shopUpgrades: { [K in ShopUpgradeNames]: IShopData<K, keyof QuarkSh
   instantChallenge: {
     name: () => i18next.t('shop.names.instantChallenge'),
     description: () => i18next.t('shop.upgradeDescriptions.instantChallenge'),
-    effects: (n, key) => {
-      if (key === 'unlocked') {
-        return n > 0
-      }
-
-      return 10 * n // extraCompPerTick
-    },
+    effects: logicShopInstantChallengeEffect,
     effectDescription () {
       return i18next.t('shop.upgradeEffects.instantChallenge')
     },
@@ -426,7 +393,7 @@ export const shopUpgrades: { [K in ShopUpgradeNames]: IShopData<K, keyof QuarkSh
   antSpeed: {
     name: () => i18next.t('shop.names.antSpeed'),
     description: () => i18next.t('shop.upgradeDescriptions.antSpeed'),
-    effects: (n) => 4 * n, // antELO
+    effects: logicShopAntSpeedEffect,
     effectDescription () {
       const effect = getShopUpgradeEffects('antSpeed', 'antELO')
       return i18next.t('shop.upgradeEffects.antSpeed', { amount: format(effect) })
@@ -445,7 +412,7 @@ export const shopUpgrades: { [K in ShopUpgradeNames]: IShopData<K, keyof QuarkSh
   cashGrab: {
     name: () => i18next.t('shop.names.cashGrab'),
     description: () => i18next.t('shop.upgradeDescriptions.cashGrab'),
-    effects: (n) => 1 + 0.01 * n, // obtainiumMult, offeringMult
+    effects: logicShopCashGrabEffect,
     effectDescription () {
       const obtainiumMult = getShopUpgradeEffects('cashGrab', 'obtainiumMult')
       return i18next.t('shop.upgradeEffects.cashGrab', { amount: formatAsPercentIncrease(obtainiumMult, 0) })
@@ -464,7 +431,7 @@ export const shopUpgrades: { [K in ShopUpgradeNames]: IShopData<K, keyof QuarkSh
   shopTalisman: {
     name: () => i18next.t('shop.names.shopTalisman'),
     description: () => i18next.t('shop.upgradeDescriptions.shopTalisman'),
-    effects: (n) => n > 0 || PCoinUpgradeEffects.INSTANT_UNLOCK_1 > 0,
+    effects: (n: number) => logicShopTalismanEffect(n, PCoinUpgradeEffects.INSTANT_UNLOCK_1 > 0),
     effectDescription () {
       return i18next.t('shop.upgradeEffects.shopTalisman')
     },
@@ -483,7 +450,7 @@ export const shopUpgrades: { [K in ShopUpgradeNames]: IShopData<K, keyof QuarkSh
   seasonPass: {
     name: () => i18next.t('shop.names.seasonPass'),
     description: () => i18next.t('shop.upgradeDescriptions.seasonPass'),
-    effects: (n) => 1 + 0.0225 * n, // wowCubeMult, wowTesseractMult
+    effects: logicShopSeasonPassEffect,
     effectDescription: () => {
       const effects = getShopUpgradeEffects('seasonPass', 'wowCubeMult')
       return i18next.t('shop.upgradeEffects.seasonPass', { amount: formatAsPercentIncrease(effects) })
@@ -501,7 +468,7 @@ export const shopUpgrades: { [K in ShopUpgradeNames]: IShopData<K, keyof QuarkSh
   challengeExtension: {
     name: () => i18next.t('shop.names.challengeExtension'),
     description: () => i18next.t('shop.upgradeDescriptions.challengeExtension'),
-    effects: (n) => 2 * n, // reincarnationChallengeCap
+    effects: logicShopChallengeExtensionEffect,
     effectDescription () {
       const effect = getShopUpgradeEffects('challengeExtension', 'reincarnationChallengeCap')
       return i18next.t('shop.upgradeEffects.challengeExtension', { amount: format(effect) })
@@ -519,13 +486,7 @@ export const shopUpgrades: { [K in ShopUpgradeNames]: IShopData<K, keyof QuarkSh
   challengeTome: {
     name: () => i18next.t('shop.names.challengeTome'),
     description: () => i18next.t('shop.upgradeDescriptions.challengeTome'),
-    effects: (n, key) => {
-      if (key === 'c10RequirementReduction') {
-        return 2e7 * n
-      }
-
-      return -n / 100 // c9c10ScalingReduction
-    },
+    effects: logicShopChallengeTomeEffect,
     effectDescription () {
       const c10RequirementReduction = getShopUpgradeEffects('challengeTome', 'c10RequirementReduction')
       const c9c10ScalingReduction = getShopUpgradeEffects('challengeTome', 'c9c10ScalingReduction')
@@ -547,13 +508,7 @@ export const shopUpgrades: { [K in ShopUpgradeNames]: IShopData<K, keyof QuarkSh
   cubeToQuark: {
     name: () => i18next.t('shop.names.cubeToQuark'),
     description: () => i18next.t('shop.upgradeDescriptions.cubeToQuark'),
-    effects: (n) => {
-      if (n >= 1) {
-        return 1.5 + 0.5 * (1 - Math.pow(0.9, n - 1))
-      } else {
-        return 1 // cubeQuarkMult
-      }
-    },
+    effects: logicShopCubeToQuarkEffect,
     effectDescription () {
       const cubeQuarkMult = getShopUpgradeEffects('cubeToQuark', 'cubeQuarkMult')
       return i18next.t('shop.upgradeEffects.cubeToQuark', { amount: formatAsPercentIncrease(cubeQuarkMult, 1) })
@@ -571,13 +526,7 @@ export const shopUpgrades: { [K in ShopUpgradeNames]: IShopData<K, keyof QuarkSh
   tesseractToQuark: {
     name: () => i18next.t('shop.names.tesseractToQuark'),
     description: () => i18next.t('shop.upgradeDescriptions.tesseractToQuark'),
-    effects: (n) => {
-      if (n >= 1) {
-        return 1.5 + 0.5 * (1 - Math.pow(0.9, n - 1))
-      } else {
-        return 1 // tesseractQuarkMult
-      }
-    },
+    effects: logicShopTesseractToQuarkEffect,
     effectDescription () {
       const tesseractQuarkMult = getShopUpgradeEffects('tesseractToQuark', 'tesseractQuarkMult')
       return i18next.t('shop.upgradeEffects.tesseractToQuark', {
@@ -597,13 +546,7 @@ export const shopUpgrades: { [K in ShopUpgradeNames]: IShopData<K, keyof QuarkSh
   hypercubeToQuark: {
     name: () => i18next.t('shop.names.hypercubeToQuark'),
     description: () => i18next.t('shop.upgradeDescriptions.hypercubeToQuark'),
-    effects: (n) => {
-      if (n >= 1) {
-        return 1.5 + 0.5 * (1 - Math.pow(0.9, n - 1))
-      } else {
-        return 1 // hypercubeQuarkMult
-      }
-    },
+    effects: logicShopHypercubeToQuarkEffect,
     effectDescription () {
       const hypercubeQuarkMult = getShopUpgradeEffects('hypercubeToQuark', 'hypercubeQuarkMult')
       return i18next.t('shop.upgradeEffects.hypercubeToQuark', {
@@ -623,7 +566,7 @@ export const shopUpgrades: { [K in ShopUpgradeNames]: IShopData<K, keyof QuarkSh
   seasonPass2: {
     name: () => i18next.t('shop.names.seasonPass2'),
     description: () => i18next.t('shop.upgradeDescriptions.seasonPass2'),
-    effects: (n) => 1 + 0.015 * n, // wowHypercubeMult, wowPlatonicMult,
+    effects: logicShopSeasonPass2Effect,
     effectDescription () {
       const effects = getShopUpgradeEffects('seasonPass2', 'wowHypercubeMult')
       return i18next.t('shop.upgradeEffects.seasonPass2', {
@@ -643,7 +586,7 @@ export const shopUpgrades: { [K in ShopUpgradeNames]: IShopData<K, keyof QuarkSh
   seasonPass3: {
     name: () => i18next.t('shop.names.seasonPass3'),
     description: () => i18next.t('shop.upgradeDescriptions.seasonPass3'),
-    effects: (n) => 1 + 0.015 * n, // wowHepteractMult, wowOcteractMult
+    effects: logicShopSeasonPass3Effect,
     effectDescription () {
       const effects = getShopUpgradeEffects('seasonPass3', 'wowHepteractMult')
       return i18next.t('shop.upgradeEffects.seasonPass3', {
@@ -663,7 +606,7 @@ export const shopUpgrades: { [K in ShopUpgradeNames]: IShopData<K, keyof QuarkSh
   chronometer: {
     name: () => i18next.t('shop.names.chronometer'),
     description: () => i18next.t('shop.upgradeDescriptions.chronometer'),
-    effects: (n) => 1 + 0.012 * n, // ascensionSpeedMult
+    effects: logicShopChronometerEffect,
     effectDescription () {
       const effect = getShopUpgradeEffects('chronometer', 'ascensionSpeedMult')
       return i18next.t('shop.upgradeEffects.chronometer', { amount: formatAsPercentIncrease(effect, 1) })
@@ -681,7 +624,7 @@ export const shopUpgrades: { [K in ShopUpgradeNames]: IShopData<K, keyof QuarkSh
   infiniteAscent: {
     name: () => i18next.t('shop.names.infiniteAscent'),
     description: () => i18next.t('shop.upgradeDescriptions.infiniteAscent'),
-    effects: (n) => n > 0 || PCoinUpgradeEffects.INSTANT_UNLOCK_2 > 0, // runeUnlocked
+    effects: (n: number) => logicShopInfiniteAscentEffect(n, PCoinUpgradeEffects.INSTANT_UNLOCK_2 > 0),
     effectDescription () {
       return i18next.t('shop.upgradeEffects.infiniteAscent')
     },
@@ -700,15 +643,7 @@ export const shopUpgrades: { [K in ShopUpgradeNames]: IShopData<K, keyof QuarkSh
   calculator: {
     name: () => i18next.t('shop.names.calculator'),
     description: () => i18next.t('shop.upgradeDescriptions.calculator'),
-    effects: (n, key) => {
-      if (key === 'autoAnswer') {
-        return n > 0
-      } else if (key === 'addQuarkMult') {
-        return 1 + 0.14 * n
-      } else {
-        return n === 5 // autoFill
-      }
-    },
+    effects: logicShopCalculatorEffect,
     effectDescription () {
       const addQuarkMult = getShopUpgradeEffects('calculator', 'addQuarkMult')
       const autoAnswer = getShopUpgradeEffects('calculator', 'autoAnswer')
@@ -732,13 +667,7 @@ export const shopUpgrades: { [K in ShopUpgradeNames]: IShopData<K, keyof QuarkSh
   calculator2: {
     name: () => i18next.t('shop.names.calculator2'),
     description: () => i18next.t('shop.upgradeDescriptions.calculator2'),
-    effects: (n, key) => {
-      if (key === 'addCodeCapacity') {
-        return 2 * n
-      }
-
-      return n === 12 ? 1.25 : 1 // addQuarkMult
-    },
+    effects: logicShopCalculator2Effect,
     effectDescription () {
       const addCodeCapacity = getShopUpgradeEffects('calculator2', 'addCodeCapacity')
       const addQuarkMult = getShopUpgradeEffects('calculator2', 'addQuarkMult')
@@ -760,13 +689,7 @@ export const shopUpgrades: { [K in ShopUpgradeNames]: IShopData<K, keyof QuarkSh
   calculator3: {
     name: () => i18next.t('shop.names.calculator3'),
     description: () => i18next.t('shop.upgradeDescriptions.calculator3'),
-    effects: (n, key) => {
-      if (key === 'addRewardVarianceMultiplier') {
-        return 1 - n / 10
-      }
-
-      return 60 * n // ascensionTimerAdd
-    },
+    effects: logicShopCalculator3Effect,
     effectDescription () {
       const addRewardVarianceMultiplier = getShopUpgradeEffects('calculator3', 'addRewardVarianceMultiplier')
       const ascensionTimerAdd = getShopUpgradeEffects('calculator3', 'ascensionTimerAdd')
@@ -788,13 +711,7 @@ export const shopUpgrades: { [K in ShopUpgradeNames]: IShopData<K, keyof QuarkSh
   calculator4: {
     name: () => i18next.t('shop.names.calculator4'),
     description: () => i18next.t('shop.upgradeDescriptions.calculator4'),
-    effects: (n, key) => {
-      if (key === 'addCodeIntervalMult') {
-        return 1 - n / 25
-      }
-
-      return n === 10 ? 32 : 0 // addCodeCapacity
-    },
+    effects: logicShopCalculator4Effect,
     effectDescription () {
       const addCodeIntervalMult = getShopUpgradeEffects('calculator4', 'addCodeIntervalMult')
       const addCodeCapacity = getShopUpgradeEffects('calculator4', 'addCodeCapacity')
@@ -816,13 +733,7 @@ export const shopUpgrades: { [K in ShopUpgradeNames]: IShopData<K, keyof QuarkSh
   calculator5: {
     name: () => i18next.t('shop.names.calculator5'),
     description: () => i18next.t('shop.upgradeDescriptions.calculator5'),
-    effects: (n, key) => {
-      if (key === 'importGQTimerAdd') {
-        return 6 * n
-      }
-
-      return Math.floor(n / 10) + (n === 100 ? 6 : 0) // addCodeCapacity
-    },
+    effects: logicShopCalculator5Effect,
     effectDescription () {
       const importGQTimerAdd = getShopUpgradeEffects('calculator5', 'importGQTimerAdd')
       const addCodeCapacity = getShopUpgradeEffects('calculator5', 'addCodeCapacity')
@@ -844,13 +755,7 @@ export const shopUpgrades: { [K in ShopUpgradeNames]: IShopData<K, keyof QuarkSh
   calculator6: {
     name: () => i18next.t('shop.names.calculator6'),
     description: () => i18next.t('shop.upgradeDescriptions.calculator6'),
-    effects: (n, key) => {
-      if (key === 'octeractTimerAdd') {
-        return n
-      }
-
-      return n === 100 ? 24 : 0
-    },
+    effects: logicShopCalculator6Effect,
     effectDescription () {
       const octeractTimerAdd = getShopUpgradeEffects('calculator6', 'octeractTimerAdd')
       const addCodeCapacity = getShopUpgradeEffects('calculator6', 'addCodeCapacity')
@@ -872,7 +777,7 @@ export const shopUpgrades: { [K in ShopUpgradeNames]: IShopData<K, keyof QuarkSh
   constantEX: {
     name: () => i18next.t('shop.names.constantEX'),
     description: () => i18next.t('shop.upgradeDescriptions.constantEX'),
-    effects: (n) => n, // maxPercentIncrease
+    effects: logicShopConstantEXEffect,
     effectDescription () {
       const effect = getShopUpgradeEffects('constantEX', 'maxPercentIncrease')
       return i18next.t('shop.upgradeEffects.constantEX', { amount: format(effect, 0, true) })
@@ -890,7 +795,7 @@ export const shopUpgrades: { [K in ShopUpgradeNames]: IShopData<K, keyof QuarkSh
   powderEX: {
     name: () => i18next.t('shop.names.powderEX'),
     description: () => i18next.t('shop.upgradeDescriptions.powderEX'),
-    effects: (n) => 1 + 0.02 * n, // orbToPowderConversionMult
+    effects: logicShopPowderEXEffect,
     effectDescription () {
       const effect = getShopUpgradeEffects('powderEX', 'orbToPowderConversionMult')
       return i18next.t('shop.upgradeEffects.powderEX', { amount: formatAsPercentIncrease(effect, 0) })
@@ -910,7 +815,7 @@ export const shopUpgrades: { [K in ShopUpgradeNames]: IShopData<K, keyof QuarkSh
   chronometer2: {
     name: () => i18next.t('shop.names.chronometer2'),
     description: () => i18next.t('shop.upgradeDescriptions.chronometer2'),
-    effects: (n: number) => 1 + 0.006 * n, // ascensionSpeedMult
+    effects: logicShopChronometer2Effect,
     effectDescription () {
       const effect = getShopUpgradeEffects('chronometer2', 'ascensionSpeedMult')
       return i18next.t('shop.upgradeEffects.chronometer2', { amount: formatAsPercentIncrease(effect, 1) })
@@ -930,7 +835,7 @@ export const shopUpgrades: { [K in ShopUpgradeNames]: IShopData<K, keyof QuarkSh
   chronometer3: {
     name: () => i18next.t('shop.names.chronometer3'),
     description: () => i18next.t('shop.upgradeDescriptions.chronometer3'),
-    effects: (n) => 1 + 0.015 * n, // ascensionSpeedMult
+    effects: logicShopChronometer3Effect,
     effectDescription () {
       const effect = getShopUpgradeEffects('chronometer3', 'ascensionSpeedMult')
       return i18next.t('shop.upgradeEffects.chronometer3', { amount: formatAsPercentIncrease(effect, 1) })
@@ -948,7 +853,7 @@ export const shopUpgrades: { [K in ShopUpgradeNames]: IShopData<K, keyof QuarkSh
   seasonPassY: {
     name: () => i18next.t('shop.names.seasonPassY'),
     description: () => i18next.t('shop.upgradeDescriptions.seasonPassY'),
-    effects: (n) => 1 + 0.0075 * n, // globalCubeMult, wowOcteractMult
+    effects: logicShopSeasonPassYEffect,
     effectDescription () {
       const effects = getShopUpgradeEffects('seasonPassY', 'globalCubeMult')
       return i18next.t('shop.upgradeEffects.seasonPassY', {
@@ -970,7 +875,7 @@ export const shopUpgrades: { [K in ShopUpgradeNames]: IShopData<K, keyof QuarkSh
   seasonPassZ: {
     name: () => i18next.t('shop.names.seasonPassZ'),
     description: () => i18next.t('shop.upgradeDescriptions.seasonPassZ'),
-    effects: (n) => 1 + 0.01 * n * player.singularityCount, // globalCubeMult, wowOcteractMult,
+    effects: (n: number) => logicShopSeasonPassZEffect(n, player.singularityCount),
     effectDescription () {
       const effects = getShopUpgradeEffects('seasonPassZ', 'globalCubeMult')
       return i18next.t('shop.upgradeEffects.seasonPassZ', {
@@ -990,13 +895,7 @@ export const shopUpgrades: { [K in ShopUpgradeNames]: IShopData<K, keyof QuarkSh
   challengeTome2: {
     name: () => i18next.t('shop.names.challengeTome2'),
     description: () => i18next.t('shop.upgradeDescriptions.challengeTome2'),
-    effects: (n, key) => {
-      if (key === 'c10RequirementReduction') {
-        return 2e7 * n
-      }
-
-      return -n / 100 // c9c10ScalingReduction
-    },
+    effects: logicShopChallengeTome2Effect,
     effectDescription () {
       const c10RequirementReduction = getShopUpgradeEffects('challengeTome2', 'c10RequirementReduction')
       const c9c10ScalingReduction = getShopUpgradeEffects('challengeTome2', 'c9c10ScalingReduction')
@@ -1018,13 +917,7 @@ export const shopUpgrades: { [K in ShopUpgradeNames]: IShopData<K, keyof QuarkSh
   instantChallenge2: {
     name: () => i18next.t('shop.names.instantChallenge2'),
     description: () => i18next.t('shop.upgradeDescriptions.instantChallenge2'),
-    effects: (n, key) => {
-      if (key === 'unlocked') {
-        return n > 0
-      }
-
-      return n * player.highestSingularityCount // extraCompPerTick
-    },
+    effects: (n, key) => logicShopInstantChallenge2Effect(n, key, player.highestSingularityCount),
     effectDescription () {
       const effects = getShopUpgradeEffects('instantChallenge2', 'extraCompPerTick')
       return i18next.t('shop.upgradeEffects.instantChallenge2', { amount: format(effects) })
@@ -1042,7 +935,7 @@ export const shopUpgrades: { [K in ShopUpgradeNames]: IShopData<K, keyof QuarkSh
   cubeToQuarkAll: {
     name: () => i18next.t('shop.names.cubeToQuarkAll'),
     description: () => i18next.t('shop.upgradeDescriptions.cubeToQuarkAll'),
-    effects: (n) => 1 + 0.002 * n, // quarkMult
+    effects: logicShopCubeToQuarkAllEffect,
     effectDescription () {
       const effects = getShopUpgradeEffects('cubeToQuarkAll', 'quarkMult')
       return i18next.t('shop.upgradeEffects.cubeToQuarkAll', {
@@ -1062,7 +955,7 @@ export const shopUpgrades: { [K in ShopUpgradeNames]: IShopData<K, keyof QuarkSh
   cashGrab2: {
     name: () => i18next.t('shop.names.cashGrab2'),
     description: () => i18next.t('shop.upgradeDescriptions.cashGrab2'),
-    effects: (n) => 1 + 0.005 * n, // obtainiumMult, offeringMult
+    effects: logicShopCashGrab2Effect,
     effectDescription () {
       const effects = getShopUpgradeEffects('cashGrab2', 'obtainiumMult')
       return i18next.t('shop.upgradeEffects.cashGrab2', { amount: formatAsPercentIncrease(effects, 1) })
@@ -1080,7 +973,7 @@ export const shopUpgrades: { [K in ShopUpgradeNames]: IShopData<K, keyof QuarkSh
   chronometerZ: {
     name: () => i18next.t('shop.names.chronometerZ'),
     description: () => i18next.t('shop.upgradeDescriptions.chronometerZ'),
-    effects: (n: number) => 1 + 0.001 * n * player.singularityCount, // ascensionSpeedMult
+    effects: (n: number) => logicShopChronometerZEffect(n, player.singularityCount),
     effectDescription () {
       const effect = getShopUpgradeEffects('chronometerZ', 'ascensionSpeedMult')
       return i18next.t('shop.upgradeEffects.chronometerZ', { amount: formatAsPercentIncrease(effect, 1) })
@@ -1098,7 +991,7 @@ export const shopUpgrades: { [K in ShopUpgradeNames]: IShopData<K, keyof QuarkSh
   offeringEX2: {
     name: () => i18next.t('shop.names.offeringEX2'),
     description: () => i18next.t('shop.upgradeDescriptions.offeringEX2'),
-    effects: (n) => 1 + 0.01 * n * player.singularityCount, // offeringMult
+    effects: (n: number) => logicShopOfferingEX2Effect(n, player.singularityCount),
     effectDescription () {
       const effect = getShopUpgradeEffects('offeringEX2', 'offeringMult')
       return i18next.t('shop.upgradeEffects.offeringEX2', { amount: formatAsPercentIncrease(effect, 0) })
@@ -1116,7 +1009,7 @@ export const shopUpgrades: { [K in ShopUpgradeNames]: IShopData<K, keyof QuarkSh
   obtainiumEX2: {
     name: () => i18next.t('shop.names.obtainiumEX2'),
     description: () => i18next.t('shop.upgradeDescriptions.obtainiumEX2'),
-    effects: (n) => 1 + 0.01 * n * player.singularityCount, // obtainiumMult
+    effects: (n: number) => logicShopObtainiumEX2Effect(n, player.singularityCount),
     effectDescription () {
       const effect = getShopUpgradeEffects('obtainiumEX2', 'obtainiumMult')
       return i18next.t('shop.upgradeEffects.obtainiumEX2', { amount: formatAsPercentIncrease(effect, 0) })
@@ -1134,7 +1027,7 @@ export const shopUpgrades: { [K in ShopUpgradeNames]: IShopData<K, keyof QuarkSh
   powderAuto: {
     name: () => i18next.t('shop.names.powderAuto'),
     description: () => i18next.t('shop.upgradeDescriptions.powderAuto'),
-    effects: (n) => 0.01 * n, // automaticPowderFraction
+    effects: logicShopPowderAutoEffect,
     effectDescription () {
       const effect = getShopUpgradeEffects('powderAuto', 'automaticPowderFraction')
       return i18next.t('shop.upgradeEffects.powderAuto', { amount: formatAsPercentIncrease(1 + effect, 0) })
@@ -1152,7 +1045,7 @@ export const shopUpgrades: { [K in ShopUpgradeNames]: IShopData<K, keyof QuarkSh
   seasonPassLost: {
     name: () => i18next.t('shop.names.seasonPassLost'),
     description: () => i18next.t('shop.upgradeDescriptions.seasonPassLost'),
-    effects: (n) => 1 + 0.001 * n, // wowOcteractMult
+    effects: logicShopSeasonPassLostEffect,
     effectDescription () {
       const effect = getShopUpgradeEffects('seasonPassLost', 'wowOcteractMult')
       return i18next.t('shop.upgradeEffects.seasonPassLost', { amount: formatAsPercentIncrease(effect, 1) })
@@ -1170,7 +1063,7 @@ export const shopUpgrades: { [K in ShopUpgradeNames]: IShopData<K, keyof QuarkSh
   challenge15Auto: {
     name: () => i18next.t('shop.names.challenge15Auto'),
     description: () => i18next.t('shop.upgradeDescriptions.challenge15Auto'),
-    effects: (n) => n > 0, // unlocked
+    effects: logicShopChallenge15AutoEffect,
     effectDescription () {
       return i18next.t('shop.upgradeEffects.challenge15Auto')
     },
@@ -1187,7 +1080,7 @@ export const shopUpgrades: { [K in ShopUpgradeNames]: IShopData<K, keyof QuarkSh
   extraWarp: {
     name: () => i18next.t('shop.names.extraWarp'),
     description: () => i18next.t('shop.upgradeDescriptions.extraWarp'),
-    effects: (n) => n, // additionalWarps
+    effects: logicShopExtraWarpEffect,
     effectDescription () {
       const effects = getShopUpgradeEffects('extraWarp', 'additionalWarps')
       return i18next.t('shop.upgradeEffects.extraWarp', { amount: effects })
@@ -1205,7 +1098,7 @@ export const shopUpgrades: { [K in ShopUpgradeNames]: IShopData<K, keyof QuarkSh
   autoWarp: {
     name: () => i18next.t('shop.names.autoWarp'),
     description: () => i18next.t('shop.upgradeDescriptions.autoWarp'),
-    effects: (n) => n > 0, // unlocked
+    effects: logicShopAutoWarpEffect,
     effectDescription () {
       return i18next.t('shop.upgradeEffects.autoWarp')
     },
@@ -1222,7 +1115,7 @@ export const shopUpgrades: { [K in ShopUpgradeNames]: IShopData<K, keyof QuarkSh
   improveQuarkHept: {
     name: () => i18next.t('shop.names.improveQuarkHept'),
     description: () => i18next.t('shop.upgradeDescriptions.improveQuarkHept'),
-    effects: (n) => 0.01 * n, // quarkHeptExponent
+    effects: logicShopImproveQuarkHeptEffect,
     effectDescription () {
       const effects = getShopUpgradeEffects('improveQuarkHept', 'quarkHeptExponent')
       return i18next.t('shop.upgradeEffects.improveQuarkHept', { amount: format(effects, 2, true) })
@@ -1242,7 +1135,7 @@ export const shopUpgrades: { [K in ShopUpgradeNames]: IShopData<K, keyof QuarkSh
   improveQuarkHept2: {
     name: () => i18next.t('shop.names.improveQuarkHept2'),
     description: () => i18next.t('shop.upgradeDescriptions.improveQuarkHept2'),
-    effects: (n) => 0.01 * n, // quarkHeptExponent
+    effects: logicShopImproveQuarkHept2Effect,
     effectDescription () {
       const effects = getShopUpgradeEffects('improveQuarkHept2', 'quarkHeptExponent')
       return i18next.t('shop.upgradeEffects.improveQuarkHept2', { amount: format(effects, 2, true) })
@@ -1260,7 +1153,7 @@ export const shopUpgrades: { [K in ShopUpgradeNames]: IShopData<K, keyof QuarkSh
   improveQuarkHept3: {
     name: () => i18next.t('shop.names.improveQuarkHept3'),
     description: () => i18next.t('shop.upgradeDescriptions.improveQuarkHept3'),
-    effects: (n) => 0.01 * n, // quarkHeptExponent
+    effects: logicShopImproveQuarkHept3Effect,
     effectDescription () {
       const effects = getShopUpgradeEffects('improveQuarkHept3', 'quarkHeptExponent')
       return i18next.t('shop.upgradeEffects.improveQuarkHept3', { amount: format(effects, 2, true) })
@@ -1278,7 +1171,7 @@ export const shopUpgrades: { [K in ShopUpgradeNames]: IShopData<K, keyof QuarkSh
   improveQuarkHept4: {
     name: () => i18next.t('shop.names.improveQuarkHept4'),
     description: () => i18next.t('shop.upgradeDescriptions.improveQuarkHept4'),
-    effects: (n) => 0.01 * n, // quarkHeptExponent
+    effects: logicShopImproveQuarkHept4Effect,
     effectDescription () {
       const effects = getShopUpgradeEffects('improveQuarkHept4', 'quarkHeptExponent')
       return i18next.t('shop.upgradeEffects.improveQuarkHept4', { amount: format(effects, 2, true) })
@@ -1296,7 +1189,7 @@ export const shopUpgrades: { [K in ShopUpgradeNames]: IShopData<K, keyof QuarkSh
   shopImprovedDaily: {
     name: () => i18next.t('shop.names.shopImprovedDaily'),
     description: () => i18next.t('shop.upgradeDescriptions.shopImprovedDaily'),
-    effects: (n) => 1 + 0.05 * n, // dailyCodeQuarkMult
+    effects: logicShopImprovedDailyEffect,
     effectDescription () {
       const effects = getShopUpgradeEffects('shopImprovedDaily', 'dailyCodeQuarkMult')
       return i18next.t('shop.upgradeEffects.shopImprovedDaily', {
@@ -1318,13 +1211,7 @@ export const shopUpgrades: { [K in ShopUpgradeNames]: IShopData<K, keyof QuarkSh
   shopImprovedDaily2: {
     name: () => i18next.t('shop.names.shopImprovedDaily2'),
     description: () => i18next.t('shop.upgradeDescriptions.shopImprovedDaily2'),
-    effects: (n, key) => {
-      if (key === 'freeSingularityUpgrades') {
-        return n
-      }
-
-      return 1 + 0.2 * n // dailyCodeGoldenQuarkMult
-    },
+    effects: logicShopImprovedDaily2Effect,
     effectDescription () {
       const dailyCodeGoldenQuarkMult = getShopUpgradeEffects('shopImprovedDaily2', 'dailyCodeGoldenQuarkMult')
       const freeSingularityUpgrades = getShopUpgradeEffects('shopImprovedDaily2', 'freeSingularityUpgrades')
@@ -1346,13 +1233,7 @@ export const shopUpgrades: { [K in ShopUpgradeNames]: IShopData<K, keyof QuarkSh
   shopImprovedDaily3: {
     name: () => i18next.t('shop.names.shopImprovedDaily3'),
     description: () => i18next.t('shop.upgradeDescriptions.shopImprovedDaily3'),
-    effects: (n, key) => {
-      if (key === 'freeSingularityUpgrades') {
-        return n
-      }
-
-      return 1 + 0.15 * n // dailyCodeGoldenQuarkMult
-    },
+    effects: logicShopImprovedDaily3Effect,
     effectDescription () {
       const dailyCodeGoldenQuarkMult = getShopUpgradeEffects('shopImprovedDaily3', 'dailyCodeGoldenQuarkMult')
       const freeSingularityUpgrades = getShopUpgradeEffects('shopImprovedDaily3', 'freeSingularityUpgrades')
@@ -1374,13 +1255,7 @@ export const shopUpgrades: { [K in ShopUpgradeNames]: IShopData<K, keyof QuarkSh
   shopImprovedDaily4: {
     name: () => i18next.t('shop.names.shopImprovedDaily4'),
     description: () => i18next.t('shop.upgradeDescriptions.shopImprovedDaily4'),
-    effects: (n, key) => {
-      if (key === 'freeSingularityUpgrades') {
-        return n
-      }
-
-      return 1 + n // dailyCodeGoldenQuarkMult
-    },
+    effects: logicShopImprovedDaily4Effect,
     effectDescription () {
       const dailyCodeGoldenQuarkMult = getShopUpgradeEffects('shopImprovedDaily4', 'dailyCodeGoldenQuarkMult')
       const freeSingularityUpgrades = getShopUpgradeEffects('shopImprovedDaily4', 'freeSingularityUpgrades')
@@ -1402,13 +1277,7 @@ export const shopUpgrades: { [K in ShopUpgradeNames]: IShopData<K, keyof QuarkSh
   offeringEX3: {
     name: () => i18next.t('shop.names.offeringEX3'),
     description: () => i18next.t('shop.upgradeDescriptions.offeringEX3'),
-    effects: (n, key) => {
-      if (key === 'offeringMult') {
-        return Math.pow(1.012, n)
-      }
-
-      return Math.floor(n / 25) // baseOfferings
-    },
+    effects: logicShopOfferingEX3Effect,
     effectDescription () {
       const offeringMult = getShopUpgradeEffects('offeringEX3', 'offeringMult')
       const baseOfferings = getShopUpgradeEffects('offeringEX3', 'baseOfferings')
@@ -1430,13 +1299,7 @@ export const shopUpgrades: { [K in ShopUpgradeNames]: IShopData<K, keyof QuarkSh
   obtainiumEX3: {
     name: () => i18next.t('shop.names.obtainiumEX3'),
     description: () => i18next.t('shop.upgradeDescriptions.obtainiumEX3'),
-    effects: (n, key) => {
-      if (key === 'obtainiumMult') {
-        return Math.pow(1.012, n)
-      }
-
-      return Math.pow(1.06, Math.floor(n / 25)) // immaculateObtainiuMult
-    },
+    effects: logicShopObtainiumEX3Effect,
     effectDescription () {
       const obtainiumMult = getShopUpgradeEffects('obtainiumEX3', 'obtainiumMult')
       const immaculateObtainiuMult = getShopUpgradeEffects('obtainiumEX3', 'immaculateObtainiuMult')
@@ -1458,7 +1321,7 @@ export const shopUpgrades: { [K in ShopUpgradeNames]: IShopData<K, keyof QuarkSh
   improveQuarkHept5: {
     name: () => i18next.t('shop.names.improveQuarkHept5'),
     description: () => i18next.t('shop.upgradeDescriptions.improveQuarkHept5'),
-    effects: (n) => 0.0001 * n, // quarkHeptExponent
+    effects: logicShopImproveQuarkHept5Effect,
     effectDescription () {
       const effects = getShopUpgradeEffects('improveQuarkHept5', 'quarkHeptExponent')
       return i18next.t('shop.upgradeEffects.improveQuarkHept5', { amount: format(effects, 4, true) })
@@ -1476,13 +1339,7 @@ export const shopUpgrades: { [K in ShopUpgradeNames]: IShopData<K, keyof QuarkSh
   chronometerInfinity: {
     name: () => i18next.t('shop.names.chronometerInfinity'),
     description: () => i18next.t('shop.upgradeDescriptions.chronometerInfinity'),
-    effects: (n, key) => {
-      if (key === 'ascensionSpeedMult') {
-        return Math.pow(1.006, n)
-      }
-
-      return 0.001 * Math.floor(n / 40) // exponentSpread
-    },
+    effects: logicShopChronometerInfinityEffect,
     effectDescription () {
       const ascensionSpeedMult = getShopUpgradeEffects('chronometerInfinity', 'ascensionSpeedMult')
       const exponentSpread = getShopUpgradeEffects('chronometerInfinity', 'exponentSpread')
@@ -1504,13 +1361,7 @@ export const shopUpgrades: { [K in ShopUpgradeNames]: IShopData<K, keyof QuarkSh
   seasonPassInfinity: {
     name: () => i18next.t('shop.names.seasonPassInfinity'),
     description: () => i18next.t('shop.upgradeDescriptions.seasonPassInfinity'),
-    effects: (n, key) => {
-      if (key === 'globalCubeMult') {
-        return Math.pow(1.012, n)
-      }
-
-      return Math.pow(1.012, n * 1.25) // wowOcteractMult
-    },
+    effects: logicShopSeasonPassInfinityEffect,
     effectDescription () {
       const globalCubeMult = getShopUpgradeEffects('seasonPassInfinity', 'globalCubeMult')
       const wowOcteractMult = getShopUpgradeEffects('seasonPassInfinity', 'wowOcteractMult')
@@ -1532,7 +1383,7 @@ export const shopUpgrades: { [K in ShopUpgradeNames]: IShopData<K, keyof QuarkSh
   shopSingularityPenaltyDebuff: {
     name: () => i18next.t('shop.names.shopSingularityPenaltyDebuff'),
     description: () => i18next.t('shop.upgradeDescriptions.shopSingularityPenaltyDebuff'),
-    effects: (n) => n, // singularityPenaltyReducers
+    effects: logicShopSingularityPenaltyDebuffEffect,
     effectDescription () {
       const effects = getShopUpgradeEffects('shopSingularityPenaltyDebuff', 'singularityPenaltyReducers')
       return i18next.t('shop.upgradeEffects.shopSingularityPenaltyDebuff', {
@@ -1553,7 +1404,7 @@ export const shopUpgrades: { [K in ShopUpgradeNames]: IShopData<K, keyof QuarkSh
   shopAmbrosiaLuckMultiplier4: {
     name: () => i18next.t('shop.names.shopAmbrosiaLuckMultiplier4'),
     description: () => i18next.t('shop.upgradeDescriptions.shopAmbrosiaLuckMultiplier4'),
-    effects: (n) => 0.01 * n, // additiveAmbrosiaLuckMult
+    effects: logicShopAmbrosiaLuckMultiplier4Effect,
     effectDescription () {
       const effects = getShopUpgradeEffects('shopAmbrosiaLuckMultiplier4', 'additiveAmbrosiaLuckMult')
       return i18next.t('shop.upgradeEffects.shopAmbrosiaLuckMultiplier4', {
@@ -1573,13 +1424,7 @@ export const shopUpgrades: { [K in ShopUpgradeNames]: IShopData<K, keyof QuarkSh
   calculator7: {
     name: () => i18next.t('shop.names.calculator7'),
     description: () => i18next.t('shop.upgradeDescriptions.calculator7'),
-    effects: (n, key) => {
-      if (key === 'blueberryTimerAdd') {
-        return n
-      }
-
-      return n === 50 ? 48 : 0 // addCodeCapacity
-    },
+    effects: logicShopCalculator7Effect,
     effectDescription () {
       const blueberryTimerAdd = getShopUpgradeEffects('calculator7', 'blueberryTimerAdd')
       const addCodeCapacity = getShopUpgradeEffects('calculator7', 'addCodeCapacity')
@@ -1601,7 +1446,7 @@ export const shopUpgrades: { [K in ShopUpgradeNames]: IShopData<K, keyof QuarkSh
   shopOcteractAmbrosiaLuck: {
     name: () => i18next.t('shop.names.shopOcteractAmbrosiaLuck'),
     description: () => i18next.t('shop.upgradeDescriptions.shopOcteractAmbrosiaLuck'),
-    effects: (n) => n * (1 + Math.floor(Math.max(0, Math.log10(player.wowOcteracts)))), // ambrosiaLuck
+    effects: (n: number) => logicShopOcteractAmbrosiaLuckEffect(n, player.wowOcteracts),
     effectDescription () {
       const effects = getShopUpgradeEffects('shopOcteractAmbrosiaLuck', 'ambrosiaLuck')
       return i18next.t('shop.upgradeEffects.shopOcteractAmbrosiaLuck', { amount: format(effects) })
@@ -1619,7 +1464,7 @@ export const shopUpgrades: { [K in ShopUpgradeNames]: IShopData<K, keyof QuarkSh
   shopAmbrosiaGeneration1: {
     name: () => i18next.t('shop.names.shopAmbrosiaGeneration1'),
     description: () => i18next.t('shop.upgradeDescriptions.shopAmbrosiaGeneration1'),
-    effects: (n) => 1 + 0.01 * n, // ambrosiaGenerationMult
+    effects: logicShopAmbrosiaGeneration1Effect,
     effectDescription () {
       const effect = getShopUpgradeEffects('shopAmbrosiaGeneration1', 'ambrosiaGenerationMult')
       return i18next.t('shop.upgradeEffects.shopAmbrosiaGeneration1', { amount: formatAsPercentIncrease(effect, 0) })
@@ -1637,7 +1482,7 @@ export const shopUpgrades: { [K in ShopUpgradeNames]: IShopData<K, keyof QuarkSh
   shopAmbrosiaGeneration2: {
     name: () => i18next.t('shop.names.shopAmbrosiaGeneration2'),
     description: () => i18next.t('shop.upgradeDescriptions.shopAmbrosiaGeneration2'),
-    effects: (n) => 1 + 0.01 * n, // ambrosiaGenerationMult
+    effects: logicShopAmbrosiaGeneration2Effect,
     effectDescription () {
       const effect = getShopUpgradeEffects('shopAmbrosiaGeneration2', 'ambrosiaGenerationMult')
       return i18next.t('shop.upgradeEffects.shopAmbrosiaGeneration2', { amount: formatAsPercentIncrease(effect, 0) })
@@ -1655,7 +1500,7 @@ export const shopUpgrades: { [K in ShopUpgradeNames]: IShopData<K, keyof QuarkSh
   shopAmbrosiaGeneration3: {
     name: () => i18next.t('shop.names.shopAmbrosiaGeneration3'),
     description: () => i18next.t('shop.upgradeDescriptions.shopAmbrosiaGeneration3'),
-    effects: (n) => 1 + 0.01 * n, // ambrosiaGenerationMult
+    effects: logicShopAmbrosiaGeneration3Effect,
     effectDescription () {
       const effect = getShopUpgradeEffects('shopAmbrosiaGeneration3', 'ambrosiaGenerationMult')
       return i18next.t('shop.upgradeEffects.shopAmbrosiaGeneration3', { amount: formatAsPercentIncrease(effect, 0) })
@@ -1673,7 +1518,7 @@ export const shopUpgrades: { [K in ShopUpgradeNames]: IShopData<K, keyof QuarkSh
   shopAmbrosiaGeneration4: {
     name: () => i18next.t('shop.names.shopAmbrosiaGeneration4'),
     description: () => i18next.t('shop.upgradeDescriptions.shopAmbrosiaGeneration4'),
-    effects: (n) => 1 + 0.001 * n, // ambrosiaGenerationMult
+    effects: logicShopAmbrosiaGeneration4Effect,
     effectDescription () {
       const effect = getShopUpgradeEffects('shopAmbrosiaGeneration4', 'ambrosiaGenerationMult')
       return i18next.t('shop.upgradeEffects.shopAmbrosiaGeneration4', { amount: formatAsPercentIncrease(effect, 1) })
@@ -1691,7 +1536,7 @@ export const shopUpgrades: { [K in ShopUpgradeNames]: IShopData<K, keyof QuarkSh
   shopAmbrosiaLuck1: {
     name: () => i18next.t('shop.names.shopAmbrosiaLuck1'),
     description: () => i18next.t('shop.upgradeDescriptions.shopAmbrosiaLuck1'),
-    effects: (n) => 2 * n, // ambrosiaLuck
+    effects: logicShopAmbrosiaLuck1Effect,
     effectDescription () {
       const effect = getShopUpgradeEffects('shopAmbrosiaLuck1', 'ambrosiaLuck')
       return i18next.t('shop.upgradeEffects.shopAmbrosiaLuck1', { amount: format(effect) })
@@ -1709,7 +1554,7 @@ export const shopUpgrades: { [K in ShopUpgradeNames]: IShopData<K, keyof QuarkSh
   shopAmbrosiaLuck2: {
     name: () => i18next.t('shop.names.shopAmbrosiaLuck2'),
     description: () => i18next.t('shop.upgradeDescriptions.shopAmbrosiaLuck2'),
-    effects: (n) => 2 * n, // ambrosiaLuck
+    effects: logicShopAmbrosiaLuck2Effect,
     effectDescription () {
       const effect = getShopUpgradeEffects('shopAmbrosiaLuck2', 'ambrosiaLuck')
       return i18next.t('shop.upgradeEffects.shopAmbrosiaLuck2', { amount: format(effect) })
@@ -1727,7 +1572,7 @@ export const shopUpgrades: { [K in ShopUpgradeNames]: IShopData<K, keyof QuarkSh
   shopAmbrosiaLuck3: {
     name: () => i18next.t('shop.names.shopAmbrosiaLuck3'),
     description: () => i18next.t('shop.upgradeDescriptions.shopAmbrosiaLuck3'),
-    effects: (n) => 2 * n, // ambrosiaLuck
+    effects: logicShopAmbrosiaLuck3Effect,
     effectDescription () {
       const effect = getShopUpgradeEffects('shopAmbrosiaLuck3', 'ambrosiaLuck')
       return i18next.t('shop.upgradeEffects.shopAmbrosiaLuck3', { amount: format(effect) })
@@ -1745,7 +1590,7 @@ export const shopUpgrades: { [K in ShopUpgradeNames]: IShopData<K, keyof QuarkSh
   shopAmbrosiaLuck4: {
     name: () => i18next.t('shop.names.shopAmbrosiaLuck4'),
     description: () => i18next.t('shop.upgradeDescriptions.shopAmbrosiaLuck4'),
-    effects: (n) => 0.6 * n, // ambrosiaLuck
+    effects: logicShopAmbrosiaLuck4Effect,
     effectDescription () {
       const effect = getShopUpgradeEffects('shopAmbrosiaLuck4', 'ambrosiaLuck')
       return i18next.t('shop.upgradeEffects.shopAmbrosiaLuck4', { amount: format(effect, 1, true) })
@@ -1763,13 +1608,7 @@ export const shopUpgrades: { [K in ShopUpgradeNames]: IShopData<K, keyof QuarkSh
   shopRedLuck1: {
     name: () => i18next.t('shop.names.shopRedLuck1'),
     description: () => i18next.t('shop.upgradeDescriptions.shopRedLuck1'),
-    effects: (n, key) => {
-      if (key === 'redLuck') {
-        return 0.05 * n
-      }
-
-      return -0.01 * Math.floor(n / 20) // luckConversionRatio
-    },
+    effects: logicShopRedLuck1Effect,
     effectDescription () {
       const redLuck = getShopUpgradeEffects('shopRedLuck1', 'redLuck')
       const luckConversionRatio = getShopUpgradeEffects('shopRedLuck1', 'luckConversionRatio')
@@ -1791,13 +1630,7 @@ export const shopUpgrades: { [K in ShopUpgradeNames]: IShopData<K, keyof QuarkSh
   shopRedLuck2: {
     name: () => i18next.t('shop.names.shopRedLuck2'),
     description: () => i18next.t('shop.upgradeDescriptions.shopRedLuck2'),
-    effects: (n, key) => {
-      if (key === 'redLuck') {
-        return 0.075 * n
-      }
-
-      return -0.01 * Math.floor(n / 20) // luckConversionRatio
-    },
+    effects: logicShopRedLuck2Effect,
     effectDescription () {
       const redLuck = getShopUpgradeEffects('shopRedLuck2', 'redLuck')
       const luckConversionRatio = getShopUpgradeEffects('shopRedLuck2', 'luckConversionRatio')
@@ -1819,13 +1652,7 @@ export const shopUpgrades: { [K in ShopUpgradeNames]: IShopData<K, keyof QuarkSh
   shopRedLuck3: {
     name: () => i18next.t('shop.names.shopRedLuck3'),
     description: () => i18next.t('shop.upgradeDescriptions.shopRedLuck3'),
-    effects: (n, key) => {
-      if (key === 'redLuck') {
-        return 0.1 * n
-      }
-
-      return -0.01 * Math.floor(n / 20) // luckConversionRatio
-    },
+    effects: logicShopRedLuck3Effect,
     effectDescription () {
       const redLuck = getShopUpgradeEffects('shopRedLuck3', 'redLuck')
       const luckConversionRatio = getShopUpgradeEffects('shopRedLuck3', 'luckConversionRatio')
@@ -1848,17 +1675,7 @@ export const shopUpgrades: { [K in ShopUpgradeNames]: IShopData<K, keyof QuarkSh
   shopCashGrabUltra: {
     name: () => i18next.t('shop.names.shopCashGrabUltra'),
     description: () => i18next.t('shop.upgradeDescriptions.shopCashGrabUltra'),
-    effects: (n, key) => {
-      const ratio = Math.min(1, Math.cbrt(player.lifetimeAmbrosia / 1e7))
-
-      if (key === 'ambrosiaGenerationMult') {
-        return 1 + 0.15 * n * ratio
-      } else if (key === 'cubesMult') {
-        return 1 + 1.2 * n * ratio
-      }
-
-      return 1 + 0.08 * n * ratio // quarkMult
-    },
+    effects: (n, key) => logicShopCashGrabUltraEffect(n, key, player.lifetimeAmbrosia),
     effectDescription () {
       const ambrosiaGenerationMult = getShopUpgradeEffects('shopCashGrabUltra', 'ambrosiaGenerationMult')
       const cubesMult = getShopUpgradeEffects('shopCashGrabUltra', 'cubesMult')
@@ -1882,10 +1699,8 @@ export const shopUpgrades: { [K in ShopUpgradeNames]: IShopData<K, keyof QuarkSh
   shopAmbrosiaAccelerator: {
     name: () => i18next.t('shop.names.shopAmbrosiaAccelerator'),
     description: () => i18next.t('shop.upgradeDescriptions.shopAmbrosiaAccelerator'),
-    effects: (n) => {
-      const ex5Comps = player.singularityChallenges.noAmbrosiaUpgrades.completions
-      return 1 - 0.006 * n * ex5Comps // ambrosiaPointRequirementMult
-    },
+    effects: (n: number) =>
+      logicShopAmbrosiaAcceleratorEffect(n, player.singularityChallenges.noAmbrosiaUpgrades.completions),
     effectDescription () {
       const effects = getShopUpgradeEffects('shopAmbrosiaAccelerator', 'ambrosiaPointRequirementMult')
       return i18next.t('shop.upgradeEffects.shopAmbrosiaAccelerator', {
@@ -1905,10 +1720,7 @@ export const shopUpgrades: { [K in ShopUpgradeNames]: IShopData<K, keyof QuarkSh
   shopEXUltra: {
     name: () => i18next.t('shop.names.shopEXUltra'),
     description: () => i18next.t('shop.upgradeDescriptions.shopEXUltra'),
-    effects: (n) => {
-      const ambrosiaMult = Math.min(125 * n, player.lifetimeAmbrosia / 1000) / 1000
-      return 1 + ambrosiaMult // offeringMult, obtainiumMult, cubeMult
-    },
+    effects: (n: number) => logicShopEXUltraEffect(n, player.lifetimeAmbrosia),
     effectDescription () {
       const effects = getShopUpgradeEffects('shopEXUltra', 'offeringMult')
       return i18next.t('shop.upgradeEffects.shopEXUltra', { amount: formatAsPercentIncrease(effects) })
@@ -1926,9 +1738,7 @@ export const shopUpgrades: { [K in ShopUpgradeNames]: IShopData<K, keyof QuarkSh
   shopChronometerS: {
     name: () => i18next.t('shop.names.shopChronometerS'),
     description: () => i18next.t('shop.upgradeDescriptions.shopChronometerS'),
-    effects: (n) => {
-      return Math.pow(1.01, n * Math.max(0, player.singularityCount - 200)) // ascensionSpeedMult, globalSpeedMult
-    },
+    effects: (n: number) => logicShopChronometerSEffect(n, player.singularityCount),
     effectDescription () {
       const effects = getShopUpgradeEffects('shopChronometerS', 'ascensionSpeedMult')
       return i18next.t('shop.upgradeEffects.shopChronometerS', {
@@ -1948,10 +1758,7 @@ export const shopUpgrades: { [K in ShopUpgradeNames]: IShopData<K, keyof QuarkSh
   shopAmbrosiaUltra: {
     name: () => i18next.t('shop.names.shopAmbrosiaUltra'),
     description: () => i18next.t('shop.upgradeDescriptions.shopAmbrosiaUltra'),
-    effects: (n) => {
-      const totalExaltChallengeCompletions = sumOfExaltCompletions()
-      return 2 * n * totalExaltChallengeCompletions // ambrosiaLuck
-    },
+    effects: (n: number) => logicShopAmbrosiaUltraEffect(n, sumOfExaltCompletions()),
     effectDescription () {
       const effects = getShopUpgradeEffects('shopAmbrosiaUltra', 'ambrosiaLuck')
       return i18next.t('shop.upgradeEffects.shopAmbrosiaUltra', { amount: format(effects) })
@@ -1969,7 +1776,7 @@ export const shopUpgrades: { [K in ShopUpgradeNames]: IShopData<K, keyof QuarkSh
   shopSingularitySpeedup: {
     name: () => i18next.t('shop.names.shopSingularitySpeedup'),
     description: () => i18next.t('shop.upgradeDescriptions.shopSingularitySpeedup'),
-    effects: (n) => n > 0 ? 50 : 1, // singularityUpgradeSpeedMult
+    effects: logicShopSingularitySpeedupEffect,
     effectDescription () {
       const effects = getShopUpgradeEffects('shopSingularitySpeedup', 'singularityUpgradeSpeedMult')
       return i18next.t('shop.upgradeEffects.shopSingularitySpeedup', {
@@ -1989,7 +1796,7 @@ export const shopUpgrades: { [K in ShopUpgradeNames]: IShopData<K, keyof QuarkSh
   shopSingularityPotency: {
     name: () => i18next.t('shop.names.shopSingularityPotency'),
     description: () => i18next.t('shop.upgradeDescriptions.shopSingularityPotency'),
-    effects: (n) => n > 0 ? 3.66 : 1, // freeUpgradeMult
+    effects: logicShopSingularityPotencyEffect,
     effectDescription () {
       const effects = getShopUpgradeEffects('shopSingularityPotency', 'freeUpgradeMult')
       return i18next.t('shop.upgradeEffects.shopSingularityPotency', {
@@ -2009,7 +1816,7 @@ export const shopUpgrades: { [K in ShopUpgradeNames]: IShopData<K, keyof QuarkSh
   shopSadisticRune: {
     name: () => i18next.t('shop.names.shopSadisticRune'),
     description: () => i18next.t('shop.upgradeDescriptions.shopSadisticRune'),
-    effects: (n) => n > 0, // runeUnlocked
+    effects: logicShopSadisticRuneEffect,
     effectDescription () {
       return i18next.t('shop.upgradeEffects.shopSadisticRune')
     },
@@ -2026,10 +1833,7 @@ export const shopUpgrades: { [K in ShopUpgradeNames]: IShopData<K, keyof QuarkSh
   shopInfiniteShopUpgrades: {
     name: () => i18next.t('shop.names.shopInfiniteShopUpgrades'),
     description: () => i18next.t('shop.upgradeDescriptions.shopInfiniteShopUpgrades'),
-    effects: (n) => {
-      const totalExaltChallengeCompletions = sumOfExaltCompletions()
-      return Math.floor(0.01 * n * totalExaltChallengeCompletions) // infiniteVouchers
-    },
+    effects: (n: number) => logicShopInfiniteShopUpgradesEffect(n, sumOfExaltCompletions()),
     effectDescription () {
       const effects = getShopUpgradeEffects('shopInfiniteShopUpgrades', 'infiniteVouchers')
       return i18next.t('shop.upgradeEffects.shopInfiniteShopUpgrades', {
@@ -2049,14 +1853,7 @@ export const shopUpgrades: { [K in ShopUpgradeNames]: IShopData<K, keyof QuarkSh
   shopHorseShoe: {
     name: () => i18next.t('shop.names.shopHorseShoe'),
     description: () => i18next.t('shop.upgradeDescriptions.shopHorseShoe'),
-    effects: (n, key) => {
-      if (key === 'bonusHorseLevels') {
-        return 3 * n
-      }
-
-      const horseShoeLevel = getRuneEffectiveLevel('horseShoe')
-      return 1 - Math.min(300, horseShoeLevel * n) / 1000 // singularityPenaltyMult
-    },
+    effects: (n, key) => logicShopHorseShoeEffect(n, key, getRuneEffectiveLevel('horseShoe')),
     effectDescription () {
       const bonusHorseLevels = getShopUpgradeEffects('shopHorseShoe', 'bonusHorseLevels')
       const singularityPenaltyMult = getShopUpgradeEffects('shopHorseShoe', 'singularityPenaltyMult')
@@ -2078,31 +1875,18 @@ export const shopUpgrades: { [K in ShopUpgradeNames]: IShopData<K, keyof QuarkSh
   shopPanthema: {
     name: () => i18next.t('shop.names.shopPanthema'),
     description: () => i18next.t('shop.upgradeDescriptions.shopPanthema'),
-    effects: (n, key) => {
-      const infinityBoost = 1 + 0.01 * n * shopUpgradeTypeInfo[ShopUpgradeGroups.InfinityUpgrades].bonusLevels()
-
-      if (key === 'infinityMetaBoost') {
-        return infinityBoost
-      } else if (key === 'offeringMult') {
-        return 1 + 0.01 * n * shopUpgradeTypeInfo[ShopUpgradeGroups.Offering].bonusLevels() * infinityBoost
-      } else if (key === 'obtainiumMult') {
-        return 1 + 0.01 * n * shopUpgradeTypeInfo[ShopUpgradeGroups.Obtainium].bonusLevels() * infinityBoost
-      } else if (key === 'cubeMult') {
-        return 1 + 0.005 * n * shopUpgradeTypeInfo[ShopUpgradeGroups.Cubes].bonusLevels() * infinityBoost
-      } else if (key === 'ascensionSpeedMult') {
-        return 1 + 0.005 * n * shopUpgradeTypeInfo[ShopUpgradeGroups.Speed].bonusLevels() * infinityBoost
-      } else if (key === 'quarkMult') {
-        return 1 + 0.001 * n * shopUpgradeTypeInfo[ShopUpgradeGroups.Quark].bonusLevels() * infinityBoost
-      } else if (key === 'ambrosiaGenerationMult') {
-        return 1 + 0.001 * n * shopUpgradeTypeInfo[ShopUpgradeGroups.AmbrosiaGeneration].bonusLevels() * infinityBoost
-      } else if (key === 'ambrosiaLuck') {
-        return 0.2 * n * shopUpgradeTypeInfo[ShopUpgradeGroups.AmbrosiaLuck].bonusLevels() * infinityBoost
-      } else if (key === 'redLuck') {
-        return 0.05 * n * shopUpgradeTypeInfo[ShopUpgradeGroups.RedAmbrosiaLuck].bonusLevels() * infinityBoost
-      }
-
-      throw new TypeError(`unknown effect ${key}`)
-    },
+    effects: (n, key) =>
+      logicShopPanthemaEffect(n, key, {
+        offering: shopUpgradeTypeInfo[ShopUpgradeGroups.Offering].bonusLevels(),
+        obtainium: shopUpgradeTypeInfo[ShopUpgradeGroups.Obtainium].bonusLevels(),
+        cubes: shopUpgradeTypeInfo[ShopUpgradeGroups.Cubes].bonusLevels(),
+        speed: shopUpgradeTypeInfo[ShopUpgradeGroups.Speed].bonusLevels(),
+        quark: shopUpgradeTypeInfo[ShopUpgradeGroups.Quark].bonusLevels(),
+        ambrosiaLuck: shopUpgradeTypeInfo[ShopUpgradeGroups.AmbrosiaLuck].bonusLevels(),
+        redAmbrosiaLuck: shopUpgradeTypeInfo[ShopUpgradeGroups.RedAmbrosiaLuck].bonusLevels(),
+        ambrosiaGeneration: shopUpgradeTypeInfo[ShopUpgradeGroups.AmbrosiaGeneration].bonusLevels(),
+        infinityUpgrades: shopUpgradeTypeInfo[ShopUpgradeGroups.InfinityUpgrades].bonusLevels()
+      }),
     effectDescription () {
       const offeringMult = getShopUpgradeEffects('shopPanthema', 'offeringMult')
       const infinityMetaBoost = getShopUpgradeEffects('shopPanthema', 'infinityMetaBoost')
