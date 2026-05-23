@@ -610,6 +610,19 @@ export type {
   ParticleBuildingIndex
 } from './mechanics/particleBuildings'
 export { buyParticleBuilding, getParticleCost } from './mechanics/particleBuildings'
+export type {
+  CheckPlatonicUpgradeInput,
+  PlatonicResourceKey,
+  PlatonicUpgradeAffordability,
+  PlatonicUpgradeBaseCost,
+  PlatonicUpgradePriceMultiplierInput
+} from './mechanics/platonicUpgradeCosts'
+export {
+  checkPlatonicUpgradeAffordability,
+  platonicResources,
+  platonicUpgradeBaseCosts,
+  platonicUpgradePriceMultiplier
+} from './mechanics/platonicUpgradeCosts'
 export type { CalculatePotionValueInput, PotionBonusResult } from './mechanics/potionBonuses'
 export {
   calculateObtainiumPotionBaseObtainium,
