@@ -56,6 +56,32 @@ export {
   calculateSingularityMilestoneBlueberries,
   calculateToNextThreshold
 } from './mechanics/ambrosia'
+export type {
+  AvailableRebornELOInput,
+  RebornELOStageModifiers,
+  RebornELOStageModifiersInput,
+  RebornELOTranche,
+  SingularityPerkELOInput,
+  TotalProductionForRebornELOInput
+} from './mechanics/antRebornELO'
+export {
+  calculateAvailableRebornELO,
+  calculateLeftoverRebornELO,
+  calculateRebornELOThresholds,
+  calculateSingularityPerkELO,
+  calculateStageRebornSpeedMult,
+  calculateToNextRebornELOThreshold,
+  calculateTotalProductionForRebornELO,
+  perRebornELOStageModifiers,
+  quarkMultiplierPerRebornELOThreshold,
+  rebornELOStageModifiers,
+  rebornELOThresholdTranches,
+  rebornSpeedPerkLevels,
+  singularityELOBonusMult,
+  singularityELOBonusMultLevels,
+  singularityPerkELOLevels,
+  singularityRebornSpeedMultModifier
+} from './mechanics/antRebornELO'
 export type { CalculateAscensionCountInput } from './mechanics/ascensions'
 export { calculateAscensionCount } from './mechanics/ascensions'
 export type { AmbrosiaUpgradeNames, AmbrosiaUpgradeRewards } from './mechanics/blueberryUpgrades'
