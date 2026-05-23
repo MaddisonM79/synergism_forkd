@@ -253,6 +253,8 @@ export {
   gqFreeLevelMultiplier,
   gqUpgradeFreeLevelSoftcap
 } from './mechanics/gqUpgradeLevels'
+export type { HepteractEffectiveInput } from './mechanics/hepteractValues'
+export { hepteractCap, hepteractEffective, hepteractFinalCap } from './mechanics/hepteractValues'
 export type { LevelMilestoneData, LevelMilestoneKey, SalvageChallengeBuffInput } from './mechanics/levelMilestones'
 export {
   achievementTalismanEnhancementEffect,
@@ -393,6 +395,8 @@ export {
   runeLevelFromEXP,
   runeOfferingsToLevel
 } from './mechanics/runeLevels'
+export type { ShopCostInput } from './mechanics/shopCosts'
+export { shopCost } from './mechanics/shopCosts'
 export type {
   CalculateNextSpikeInput,
   GoldenQuarkCostResult,

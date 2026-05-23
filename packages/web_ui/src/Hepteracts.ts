@@ -1,14 +1,17 @@
-import Decimal from 'break_infinity.js'
 import {
   abyssHepteractEffects as logicAbyssEffects,
   acceleratorBoostHepteractEffects as logicAcceleratorBoostEffects,
   acceleratorHepteractEffects as logicAcceleratorEffects,
   challengeHepteractEffects as logicChallengeEffects,
   chronosHepteractEffects as logicChronosEffects,
+  hepteractCap as logicHepteractCap,
+  hepteractEffective as logicHepteractEffective,
+  hepteractFinalCap as logicHepteractFinalCap,
   hyperrealismHepteractEffects as logicHyperrealismEffects,
   multiplierHepteractEffects as logicMultiplierEffects,
   quarkHepteractEffects as logicQuarkEffects
 } from '@synergism/logic'
+import Decimal from 'break_infinity.js'
 import i18next from 'i18next'
 import { DOMCacheGetOrSet } from './Cache/DOM'
 import {
@@ -291,14 +294,17 @@ export const getHepteractEffects = <K extends HepteractKeys>(hept: K): Hepteract
   return hepteracts[hept].EFFECTS(heptAmount)
 }
 
-const getHepteractCap = (hept: HepteractKeys): number => {
-  return Math.pow(2, hepteracts[hept].TIMES_CAP_EXTENDED) * hepteracts[hept].BASE_CAP
-}
+// Thin shim — sources BASE_CAP and TIMES_CAP_EXTENDED off the hept data.
+const getHepteractCap = (hept: HepteractKeys): number =>
+  logicHepteractCap(hepteracts[hept].BASE_CAP, hepteracts[hept].TIMES_CAP_EXTENDED)
 
-export const getFinalHepteractCap = (hept: HepteractKeys): number => {
-  const specialMultiplier = getSingularityChallengeEffect('limitedAscensions', 'hepteractCap') ? 2 : 1
-  return getHepteractCap(hept) * specialMultiplier
-}
+// Thin shim — sources the Exalt 3 (limitedAscensions) hepteractCap reward flag.
+export const getFinalHepteractCap = (hept: HepteractKeys): number =>
+  logicHepteractFinalCap(
+    hepteracts[hept].BASE_CAP,
+    hepteracts[hept].TIMES_CAP_EXTENDED,
+    getSingularityChallengeEffect('limitedAscensions', 'hepteractCap')
+  )
 
 const getCraftableHepteractAmount = (hept: HepteractKeys) => {
   const craftCostMulti = calculateSingularityDebuff('Hepteract Costs')
@@ -603,25 +609,15 @@ export const resetHepteracts = (tier: keyof typeof resetTiers) => {
   }
 }
 
-export const hepteractEffective = (hept: HepteractKeys) => {
-  // Quark Hept now uses a custom (nonpolynomial) formula, so just return val
-  if (hept === 'quark') {
-    return hepteracts[hept].BAL
-  }
-
-  const rawHeptAmount = hepteracts[hept].BAL
-  let effectiveValue = Math.min(rawHeptAmount, hepteracts[hept].LIMIT)
-  const exponent = hepteracts[hept].DR + hepteracts[hept].DR_INCREASE()
-
-  if (rawHeptAmount > hepteracts[hept].LIMIT) {
-    effectiveValue *= Math.pow(
-      rawHeptAmount / hepteracts[hept].LIMIT,
-      exponent
-    )
-  }
-
-  return effectiveValue
-}
+// Thin shim — sources BAL/LIMIT/DR off the hept data and resolves
+// DR_INCREASE() into a scalar before calling logic.
+export const hepteractEffective = (hept: HepteractKeys) =>
+  logicHepteractEffective({
+    rawAmount: hepteracts[hept].BAL,
+    limit: hepteracts[hept].LIMIT,
+    drExponent: hepteracts[hept].DR + hepteracts[hept].DR_INCREASE(),
+    isQuark: hept === 'quark'
+  })
 
 export const hepteractDescriptions = (hept: HepteractKeys) => {
   DOMCacheGetOrSet('hepteractUnlockedText').style.display = 'block'

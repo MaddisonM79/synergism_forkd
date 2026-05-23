@@ -1,3 +1,4 @@
+import { shopCost as logicShopCost } from '@synergism/logic'
 import Decimal from 'break_infinity.js'
 import i18next from 'i18next'
 import { getAmbrosiaUpgradeEffects } from './BlueberryUpgrades'
@@ -237,7 +238,7 @@ interface IShopData<T extends ShopUpgradeNames, K extends keyof QuarkShopUpgrade
   maxLevel: number
   type: shopUpgradeTypes
   refundMinimumLevel: number
-  upgradeTypes: ShopUpgradeGroups[],
+  upgradeTypes: ShopUpgradeGroups[]
   freeUpgradeMultiplier?: number
 }
 
@@ -548,7 +549,7 @@ export const shopUpgrades: { [K in ShopUpgradeNames]: IShopData<K, keyof QuarkSh
     description: () => i18next.t('shop.upgradeDescriptions.cubeToQuark'),
     effects: (n) => {
       if (n >= 1) {
-        return 1.5 + 0.5 * (1 - Math.pow(0.9, n - 1)) 
+        return 1.5 + 0.5 * (1 - Math.pow(0.9, n - 1))
       } else {
         return 1 // cubeQuarkMult
       }
@@ -572,14 +573,16 @@ export const shopUpgrades: { [K in ShopUpgradeNames]: IShopData<K, keyof QuarkSh
     description: () => i18next.t('shop.upgradeDescriptions.tesseractToQuark'),
     effects: (n) => {
       if (n >= 1) {
-        return 1.5 + 0.5 * (1 - Math.pow(0.9, n - 1)) 
+        return 1.5 + 0.5 * (1 - Math.pow(0.9, n - 1))
       } else {
         return 1 // tesseractQuarkMult
       }
     },
     effectDescription () {
       const tesseractQuarkMult = getShopUpgradeEffects('tesseractToQuark', 'tesseractQuarkMult')
-      return i18next.t('shop.upgradeEffects.tesseractToQuark', { amount: formatAsPercentIncrease(tesseractQuarkMult, 1) })
+      return i18next.t('shop.upgradeEffects.tesseractToQuark', {
+        amount: formatAsPercentIncrease(tesseractQuarkMult, 1)
+      })
     },
     isUnlocked: () => player.highestchallengecompletions[11] > 0 || player.highestSingularityCount > 0,
     price: 3500,
@@ -596,14 +599,16 @@ export const shopUpgrades: { [K in ShopUpgradeNames]: IShopData<K, keyof QuarkSh
     description: () => i18next.t('shop.upgradeDescriptions.hypercubeToQuark'),
     effects: (n) => {
       if (n >= 1) {
-        return 1.5 + 0.5 * (1 - Math.pow(0.9, n - 1)) 
+        return 1.5 + 0.5 * (1 - Math.pow(0.9, n - 1))
       } else {
         return 1 // hypercubeQuarkMult
       }
     },
     effectDescription () {
       const hypercubeQuarkMult = getShopUpgradeEffects('hypercubeToQuark', 'hypercubeQuarkMult')
-      return i18next.t('shop.upgradeEffects.hypercubeToQuark', { amount: formatAsPercentIncrease(hypercubeQuarkMult, 1) })
+      return i18next.t('shop.upgradeEffects.hypercubeToQuark', {
+        amount: formatAsPercentIncrease(hypercubeQuarkMult, 1)
+      })
     },
     isUnlocked: () => player.highestchallengecompletions[13] > 0 || player.highestSingularityCount > 0,
     price: 5000,
@@ -1838,7 +1843,7 @@ export const shopUpgrades: { [K in ShopUpgradeNames]: IShopData<K, keyof QuarkSh
     resetOnSingularity: resetNever,
     refundMinimumLevel: 0,
     upgradeTypes: [ShopUpgradeGroups.RedAmbrosiaLuck],
-    freeUpgradeMultiplier: 2,
+    freeUpgradeMultiplier: 2
   },
   shopCashGrabUltra: {
     name: () => i18next.t('shop.names.shopCashGrabUltra'),
@@ -2250,19 +2255,16 @@ export const updateShopLevels = () => {
   }
 }
 
-export const getShopCosts = (input: ShopUpgradeNames) => {
-  if (
-    shopUpgrades[input].type === shopUpgradeTypes.CONSUMABLE
-    || shopUpgrades[input].maxLevel === 1
-  ) {
-    return shopUpgrades[input].price
-  } else {
-    const priceIncreaseMult = player.shopUpgrades[input]
-    return (
-      shopUpgrades[input].price + shopUpgrades[input].priceIncrease * priceIncreaseMult
-    )
-  }
-}
+// Thin shim — sources upgrade snapshot off the shop data table and the
+// player's currently-owned level.
+export const getShopCosts = (input: ShopUpgradeNames) =>
+  logicShopCost({
+    isConsumable: shopUpgrades[input].type === shopUpgradeTypes.CONSUMABLE,
+    maxLevel: shopUpgrades[input].maxLevel,
+    price: shopUpgrades[input].price,
+    priceIncrease: shopUpgrades[input].priceIncrease,
+    currentLevel: player.shopUpgrades[input]
+  })
 
 export const createShopHTML = (input: ShopUpgradeNames) => {
   const name = shopUpgrades[input].name()
