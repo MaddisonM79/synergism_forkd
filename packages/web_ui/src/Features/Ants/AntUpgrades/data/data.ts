@@ -1,7 +1,24 @@
+import {
+  acceleratorBoostsAntUpgradeEffect as logicAcceleratorBoosts,
+  antELOAntUpgradeEffect as logicAntELO,
+  antSacrificeAntUpgradeEffect as logicAntSacrifice,
+  antSpeedAntUpgradeEffect as logicAntSpeed,
+  ascensionScoreAntUpgradeEffect as logicAscensionScore,
+  buildingCostScaleAntUpgradeEffect as logicBuildingCostScale,
+  coinsAntUpgradeEffect as logicCoins,
+  freeRunesAntUpgradeEffect as logicFreeRunes,
+  mortuusAntUpgradeEffect as logicMortuus,
+  mortuus2AntUpgradeEffect as logicMortuus2,
+  multipliersAntUpgradeEffect as logicMultipliers,
+  obtainiumAntUpgradeEffect as logicObtainium,
+  offeringsAntUpgradeEffect as logicOfferings,
+  salvageAntUpgradeEffect as logicSalvage,
+  taxesAntUpgradeEffect as logicTaxes,
+  wowCubesAntUpgradeEffect as logicWowCubes
+} from '@synergism/logic'
 import Decimal from 'break_infinity.js'
 import i18next from 'i18next'
 import { getAchievementReward } from '../../../../Achievements'
-import { calculateSigmoidExponential } from '../../../../Calculate'
 import { getLevelMilestone } from '../../../../Levels'
 import { AntSacrificeTiers } from '../../../../Reset'
 import { format, formatAsPercentIncrease, player } from '../../../../Synergism'
@@ -26,14 +43,12 @@ export const antUpgradeData: { [K in AntUpgrades]: AntUpgradeData<K> } = {
       baseMul += player.researches[162] / 1000 // Research 7x12
       return i18next.t('ants.upgrades.antSpeed.description', { x: format(baseMul, 3, true) })
     },
-    effect: (n: number) => {
-      let baseMul = 1.1
-      baseMul += player.researches[101] / 1000 // Research 5x1
-      baseMul += player.researches[162] / 1000 // Research 7x12
-      return {
-        antSpeed: Decimal.pow(baseMul, n)
-      }
-    },
+    effect: (n: number) =>
+      logicAntSpeed({
+        level: n,
+        research101: player.researches[101],
+        research162: player.researches[162]
+      }),
     effectDescription: () => {
       const antSpeed = getAntUpgradeEffect(AntUpgrades.AntSpeed).antSpeed
       return i18next.t('ants.upgrades.antSpeed.effect', { x: format(antSpeed, 2, true) })
@@ -52,20 +67,12 @@ export const antUpgradeData: { [K in AntUpgrades]: AntUpgradeData<K> } = {
     name: () => i18next.t('ants.upgrades.coins.name'),
     intro: () => i18next.t('ants.upgrades.coins.intro'),
     description: () => i18next.t('ants.upgrades.coins.description'),
-    effect: (n: number) => {
-      let divisor = 1
-      if (player.currentChallenge.ascension === 15) {
-        divisor = 100 + 9900 * (1000 + n) / (1000 + n ** 2)
-      }
-      const baseExponent = 999999 + calculateSigmoidExponential(49000001, n / 3000)
-      const bonusExponent = 250 * n
-      const exponent = (baseExponent + bonusExponent) / divisor
-      const coinMult = Decimal.max(1, Decimal.pow(player.ants.crumbs, exponent))
-      return {
-        crumbToCoinExp: exponent,
-        coinMultiplier: coinMult
-      }
-    },
+    effect: (n: number) =>
+      logicCoins({
+        level: n,
+        ascensionChallenge: player.currentChallenge.ascension,
+        crumbs: player.ants.crumbs
+      }),
     effectDescription: () => {
       const crumbToCoinExp = getAntUpgradeEffect(AntUpgrades.Coins).crumbToCoinExp
       const overallEffect = Decimal.max(1, Decimal.pow(player.ants.crumbs, crumbToCoinExp))
@@ -87,11 +94,7 @@ export const antUpgradeData: { [K in AntUpgrades]: AntUpgradeData<K> } = {
     name: () => i18next.t('ants.upgrades.taxes.name'),
     intro: () => i18next.t('ants.upgrades.taxes.intro'),
     description: () => i18next.t('ants.upgrades.taxes.description'),
-    effect: (n: number) => {
-      return {
-        taxReduction: 0.005 + 0.995 * Math.pow(0.99, n)
-      }
-    },
+    effect: (n: number) => logicTaxes(n),
     effectDescription: () => {
       const taxReduction = getAntUpgradeEffect(AntUpgrades.Taxes).taxReduction
       return i18next.t('ants.upgrades.taxes.effect', { x: formatAsPercentIncrease(taxReduction, 4) })
@@ -110,11 +113,7 @@ export const antUpgradeData: { [K in AntUpgrades]: AntUpgradeData<K> } = {
     name: () => i18next.t('ants.upgrades.acceleratorBoosts.name'),
     intro: () => i18next.t('ants.upgrades.acceleratorBoosts.intro'),
     description: () => i18next.t('ants.upgrades.acceleratorBoosts.description'),
-    effect: (n: number) => {
-      return {
-        acceleratorBoostMult: calculateSigmoidExponential(20, n / 1000)
-      }
-    },
+    effect: (n: number) => logicAcceleratorBoosts(n),
     effectDescription: () => {
       const acceleratorBoostMult = getAntUpgradeEffect(AntUpgrades.AcceleratorBoosts).acceleratorBoostMult
       return i18next.t('ants.upgrades.acceleratorBoosts.effect', {
@@ -135,11 +134,7 @@ export const antUpgradeData: { [K in AntUpgrades]: AntUpgradeData<K> } = {
     name: () => i18next.t('ants.upgrades.multipliers.name'),
     intro: () => i18next.t('ants.upgrades.multipliers.intro'),
     description: () => i18next.t('ants.upgrades.multipliers.description'),
-    effect: (n: number) => {
-      return {
-        multiplierMult: calculateSigmoidExponential(40, n / 1000)
-      }
-    },
+    effect: (n: number) => logicMultipliers(n),
     effectDescription: () => {
       const multiplierMult = getAntUpgradeEffect(AntUpgrades.Multipliers).multiplierMult
       return i18next.t('ants.upgrades.multipliers.effect', { x: formatAsPercentIncrease(multiplierMult, 2) })
@@ -158,11 +153,7 @@ export const antUpgradeData: { [K in AntUpgrades]: AntUpgradeData<K> } = {
     name: () => i18next.t('ants.upgrades.offerings.name'),
     intro: () => i18next.t('ants.upgrades.offerings.intro'),
     description: () => i18next.t('ants.upgrades.offerings.description'),
-    effect: (n: number) => {
-      return {
-        offeringMult: Math.pow(1 + n / 10, 0.5)
-      }
-    },
+    effect: (n: number) => logicOfferings(n),
     effectDescription: () => {
       const offeringMult = getAntUpgradeEffect(AntUpgrades.Offerings).offeringMult
       return i18next.t('ants.upgrades.offerings.effect', { x: formatAsPercentIncrease(offeringMult, 2) })
@@ -181,14 +172,7 @@ export const antUpgradeData: { [K in AntUpgrades]: AntUpgradeData<K> } = {
     name: () => i18next.t('ants.upgrades.buildingCostScale.name'),
     intro: () => i18next.t('ants.upgrades.buildingCostScale.intro'),
     description: () => i18next.t('ants.upgrades.buildingCostScale.description'),
-    effect: (n: number) => {
-      const scalePercent = 3 * n
-      const buildingPowerMult = 1 + n / 100
-      return {
-        buildingCostScale: scalePercent / 100,
-        buildingPowerMult
-      }
-    },
+    effect: (n: number) => logicBuildingCostScale(n),
     effectDescription: () => {
       const effects = getAntUpgradeEffect(AntUpgrades.BuildingCostScale)
       const effect1 = i18next.t('ants.upgrades.buildingCostScale.effect', {
@@ -213,11 +197,7 @@ export const antUpgradeData: { [K in AntUpgrades]: AntUpgradeData<K> } = {
     name: () => i18next.t('ants.upgrades.salvage.name'),
     intro: () => i18next.t('ants.upgrades.salvage.intro'),
     description: () => i18next.t('ants.upgrades.salvage.description'),
-    effect: (n: number) => {
-      return {
-        salvage: 120 * (1 - Math.pow(0.995, n))
-      }
-    },
+    effect: (n: number) => logicSalvage(n),
     effectDescription: () => {
       const salvage = getAntUpgradeEffect(AntUpgrades.Salvage).salvage
       return i18next.t('ants.upgrades.salvage.effect', { x: format(salvage, 2) })
@@ -236,11 +216,7 @@ export const antUpgradeData: { [K in AntUpgrades]: AntUpgradeData<K> } = {
     name: () => i18next.t('ants.upgrades.freeRunes.name'),
     intro: () => i18next.t('ants.upgrades.freeRunes.intro'),
     description: () => i18next.t('ants.upgrades.freeRunes.description'),
-    effect: (n: number) => {
-      return {
-        freeRuneLevel: 3000 * (1 - Math.pow(1 - 1 / 3000, n))
-      }
-    },
+    effect: (n: number) => logicFreeRunes(n),
     effectDescription: () => {
       const freeRuneLevel = getAntUpgradeEffect(AntUpgrades.FreeRunes).freeRuneLevel
       return i18next.t('ants.upgrades.freeRunes.effect', { x: format(freeRuneLevel, 0, true) })
@@ -259,11 +235,7 @@ export const antUpgradeData: { [K in AntUpgrades]: AntUpgradeData<K> } = {
     name: () => i18next.t('ants.upgrades.obtainium.name'),
     intro: () => i18next.t('ants.upgrades.obtainium.intro'),
     description: () => i18next.t('ants.upgrades.obtainium.description'),
-    effect: (n: number) => {
-      return {
-        obtainiumMult: Math.pow(1 + n / 10, 0.5)
-      }
-    },
+    effect: (n: number) => logicObtainium(n),
     effectDescription: () => {
       const obtainiumMult = getAntUpgradeEffect(AntUpgrades.Obtainium).obtainiumMult
       return i18next.t('ants.upgrades.obtainium.effect', { x: formatAsPercentIncrease(obtainiumMult, 2) })
@@ -282,12 +254,7 @@ export const antUpgradeData: { [K in AntUpgrades]: AntUpgradeData<K> } = {
     name: () => i18next.t('ants.upgrades.antSacrifice.name'),
     intro: () => i18next.t('ants.upgrades.antSacrifice.intro'),
     description: () => i18next.t('ants.upgrades.antSacrifice.description'),
-    effect: (n: number) => {
-      return {
-        antSacrificeMultiplier: Math.pow(1 + n / 10, 0.5),
-        elo: Math.round(5 * Math.min(200, n))
-      }
-    },
+    effect: (n: number) => logicAntSacrifice(n),
     effectDescription: () => {
       const effects = getAntUpgradeEffect(AntUpgrades.AntSacrifice)
       const effect1 = i18next.t('ants.upgrades.antSacrifice.effect', {
@@ -310,12 +277,7 @@ export const antUpgradeData: { [K in AntUpgrades]: AntUpgradeData<K> } = {
     name: () => i18next.t('ants.upgrades.mortuus.name'),
     intro: () => i18next.t('ants.upgrades.mortuus.intro'),
     description: () => i18next.t('ants.upgrades.mortuus.description'),
-    effect: (n: number) => {
-      return {
-        talismanUnlock: n > 0,
-        globalSpeed: 2 - Math.pow(0.99, n)
-      }
-    },
+    effect: (n: number) => logicMortuus(n),
     effectDescription: () => {
       const effects = getAntUpgradeEffect(AntUpgrades.Mortuus)
       const effect1 = i18next.t('ants.upgrades.mortuus.effect', { checkMark: effects.talismanUnlock ? '✔️' : '❌' })
@@ -336,19 +298,12 @@ export const antUpgradeData: { [K in AntUpgrades]: AntUpgradeData<K> } = {
     name: () => i18next.t('ants.upgrades.antSpeed2.name'),
     intro: () => i18next.t('ants.upgrades.antSpeed2.intro'),
     description: () => i18next.t('ants.upgrades.antSpeed2.description'),
-    effect: (n: number) => {
-      const antSacrificeLimitCount = n + 200 * Math.min(1, n)
-      const upgradeImprover = Math.min(n, +getAchievementReward('antSpeed2UpgradeImprover'))
-      const effectiveSacs = Math.min(
-        antSacrificeLimitCount + upgradeImprover,
-        player.ants.antSacrificeCount + upgradeImprover
-      )
-      const antELO = effectiveSacs
-      return {
-        antELO: antELO,
-        antSacrificeLimitCount: antSacrificeLimitCount
-      }
-    },
+    effect: (n: number) =>
+      logicAntELO({
+        level: n,
+        antSacrificeCount: player.ants.antSacrificeCount,
+        antSpeed2UpgradeImprover: +getAchievementReward('antSpeed2UpgradeImprover')
+      }),
     effectDescription: () => {
       const effects = getAntUpgradeEffect(AntUpgrades.AntELO)
       const effect1 = i18next.t('ants.upgrades.antSpeed2.effect', { x: format(effects.antELO, 2, true) })
@@ -371,16 +326,7 @@ export const antUpgradeData: { [K in AntUpgrades]: AntUpgradeData<K> } = {
     name: () => i18next.t('ants.upgrades.mortuus2.name'),
     intro: () => i18next.t('ants.upgrades.mortuus2.intro'),
     description: () => i18next.t('ants.upgrades.mortuus2.description'),
-    effect: (n: number) => {
-      const talismanMaxLevels = Math.min(1200, Math.floor(n / 2))
-      const talismanEffectBuff = 1 + 0.65 * (1 - Math.pow(0.999, n)) + 0.005 * Math.min(20, n)
-      const ascensionSpeed = 1 + 0.5 * (1 - Math.pow(0.996, n))
-      return {
-        talismanLevelIncreaser: talismanMaxLevels,
-        talismanEffectBuff: talismanEffectBuff,
-        ascensionSpeed: ascensionSpeed
-      }
-    },
+    effect: (n: number) => logicMortuus2(n),
     effectDescription: () => {
       const effects = getAntUpgradeEffect(AntUpgrades.Mortuus2)
       const effect1 = i18next.t('ants.upgrades.mortuus2.effect', { x: format(effects.talismanLevelIncreaser, 0, true) })
@@ -406,15 +352,7 @@ export const antUpgradeData: { [K in AntUpgrades]: AntUpgradeData<K> } = {
     name: () => i18next.t('ants.upgrades.ascensionScore.name'),
     intro: () => i18next.t('ants.upgrades.ascensionScore.intro'),
     description: () => i18next.t('ants.upgrades.ascensionScore.description'),
-    effect: (n: number) => {
-      const ascensionScoreBase = 100000 * (1 - Math.pow(0.999, n))
-      const bankedCubes = 3 * Math.min(200, n) + 2500 * (1 - Math.pow(1 - 1 / 2750, n))
-        + 96900 * (1 - Math.pow(1 - 1 / 969000, n))
-      return {
-        cubesBanked: bankedCubes,
-        ascensionScoreBase: ascensionScoreBase
-      }
-    },
+    effect: (n: number) => logicAscensionScore(n),
     effectDescription: () => {
       const effects = getAntUpgradeEffect(AntUpgrades.AscensionScore)
       const effect1 = i18next.t('ants.upgrades.ascensionScore.effect', {
@@ -437,11 +375,7 @@ export const antUpgradeData: { [K in AntUpgrades]: AntUpgradeData<K> } = {
     antUpgradeHTML: {
       color: '#66FFFF'
     },
-    effect: (n: number) => {
-      return {
-        wowCubes: 2 - Math.pow(0.999, n)
-      }
-    },
+    effect: (n: number) => logicWowCubes(n),
     effectDescription: () => {
       const effects = getAntUpgradeEffect(AntUpgrades.WowCubes)
       return i18next.t('ants.upgrades.wowCubes.effect', { x: formatAsPercentIncrease(effects.wowCubes, 2) })

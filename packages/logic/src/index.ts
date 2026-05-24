@@ -56,6 +56,139 @@ export {
   calculateSingularityMilestoneBlueberries,
   calculateToNextThreshold
 } from './mechanics/ambrosia'
+export type {
+  AntMasteryData,
+  CanBuyAntMasteryInput,
+  SelfSpeedFromMasteryInput
+} from './mechanics/antMasteries'
+export {
+  antMasteryData,
+  calculateSelfSpeedFromMastery,
+  canBuyAntMastery,
+  getBuyableAntMasteryLevels,
+  MAX_ANT_MASTERY_LEVEL
+} from './mechanics/antMasteries'
+export type {
+  AntProducerCostInput,
+  AntProducerData,
+  AntProducerMaxCostInput,
+  AntProducerMaxPurchasableInput,
+  BaseAntsToBeGeneratedInput
+} from './mechanics/antProducers'
+export {
+  antProducerData,
+  calculateBaseAntsToBeGenerated,
+  getCostMaxAntProducers,
+  getCostNextAntProducer,
+  getMaxPurchasableAntProducers
+} from './mechanics/antProducers'
+export type {
+  AvailableRebornELOInput,
+  BaseQuarksFromRebornELOStagesResult,
+  RebornELOStageModifiers,
+  RebornELOStageModifiersInput,
+  RebornELOTranche,
+  SingularityPerkELOInput,
+  TotalProductionForRebornELOInput
+} from './mechanics/antRebornELO'
+export {
+  baseQuarksFromRebornELOStages,
+  calculateAvailableRebornELO,
+  calculateLeaderboardValue,
+  calculateLeftoverRebornELO,
+  calculateRebornELOThresholds,
+  calculateSingularityPerkELO,
+  calculateStageRebornSpeedMult,
+  calculateToNextRebornELOThreshold,
+  calculateTotalProductionForRebornELO,
+  LEADERBOARD_WEIGHTS,
+  perRebornELOStageModifiers,
+  quarkMultiplierPerRebornELOThreshold,
+  quarksFromELOMult,
+  rebornELOStageModifiers,
+  rebornELOThresholdTranches,
+  rebornSpeedPerkLevels,
+  singularityELOBonusMult,
+  singularityELOBonusMultLevels,
+  singularityPerkELOLevels,
+  singularityRebornSpeedMultModifier
+} from './mechanics/antRebornELO'
+export type {
+  AntSacrificeOfferingInput,
+  AntSacrificeObtainiumInput,
+  ApplyTaxmanLastStandClampInput,
+  CalculateImmortalELOGainInput
+} from './mechanics/antSacrificeRewardCalc'
+export {
+  applyTaxmanLastStandClamp,
+  calculateAntSacrificeObtainium,
+  calculateAntSacrificeOffering,
+  calculateImmortalELOGain
+} from './mechanics/antSacrificeRewardCalc'
+export type {
+  AntSacrificeTalismanItemInput,
+  TalismanCraftItem
+} from './mechanics/antSacrificeRewards'
+export {
+  calculateAntSacrificeTalismanItem,
+  talismanItemRequiredELO,
+  talismanRewardMultipliers
+} from './mechanics/antSacrificeRewards'
+export type {
+  AcceleratorBoostsAntUpgradeEffect,
+  AntELOAntUpgradeEffect,
+  AntELOAntUpgradeInput,
+  AntSacrificeAntUpgradeEffect,
+  AntSpeedAntUpgradeEffect,
+  AntSpeedAntUpgradeInput,
+  AntUpgradeCostInput,
+  AntUpgradeMaxCostInput,
+  AntUpgradeMaxPurchasableInput,
+  AscensionScoreAntUpgradeEffect,
+  BuildingCostScaleAntUpgradeEffect,
+  CoinsAntUpgradeEffect,
+  CoinsAntUpgradeInput,
+  FreeRunesAntUpgradeEffect,
+  MortuusAntUpgradeEffect,
+  Mortuus2AntUpgradeEffect,
+  MultipliersAntUpgradeEffect,
+  ObtainiumAntUpgradeEffect,
+  OfferingsAntUpgradeEffect,
+  SalvageAntUpgradeEffect,
+  TaxesAntUpgradeEffect,
+  WowCubesAntUpgradeEffect
+} from './mechanics/antUpgrades'
+export {
+  acceleratorBoostsAntUpgradeEffect,
+  antELOAntUpgradeEffect,
+  antSacrificeAntUpgradeEffect,
+  antSpeedAntUpgradeEffect,
+  antUpgradeBaseCosts,
+  antUpgradeCostIncreaseExponents,
+  ascensionScoreAntUpgradeEffect,
+  buildingCostScaleAntUpgradeEffect,
+  coinsAntUpgradeEffect,
+  freeRunesAntUpgradeEffect,
+  getCostMaxAntUpgrades,
+  getCostNextAntUpgrade,
+  getMaxPurchasableAntUpgrades,
+  mortuusAntUpgradeEffect,
+  mortuus2AntUpgradeEffect,
+  multipliersAntUpgradeEffect,
+  obtainiumAntUpgradeEffect,
+  offeringsAntUpgradeEffect,
+  salvageAntUpgradeEffect,
+  taxesAntUpgradeEffect,
+  wowCubesAntUpgradeEffect
+} from './mechanics/antUpgrades'
+export type {
+  CalculateTrueAntLevelInput,
+  ComputeFreeAntUpgradeLevelsInput
+} from './mechanics/antUpgradeLevels'
+export {
+  calculateTrueAntLevel,
+  computeFreeAntUpgradeLevels
+} from './mechanics/antUpgradeLevels'
 export type { CalculateAscensionCountInput } from './mechanics/ascensions'
 export { calculateAscensionCount } from './mechanics/ascensions'
 export type { AmbrosiaUpgradeNames, AmbrosiaUpgradeRewards } from './mechanics/blueberryUpgrades'
@@ -274,6 +407,24 @@ export {
   maxCorruptionLevel,
   viscosityEffect
 } from './mechanics/corruptions'
+export type {
+  CalculateBuildingPowerInput,
+  CalculateCrystalExponentInput,
+  CrystalUpgrade3BaseInput,
+  CrystalUpgrade3CrystalMultiplierInput,
+  CrystalUpgrade3MaxBaseInput,
+  CrystalUpgrade4MaxExponentInput
+} from './mechanics/crystalAndBuildingPower'
+export {
+  calculateBuildingPower,
+  calculateBuildingPowerCoinMultiplier,
+  calculateCrystalCoinMultiplier,
+  calculateCrystalExponent,
+  crystalUpgrade3Base,
+  crystalUpgrade3CrystalMultiplier,
+  crystalUpgrade3MaxBase,
+  crystalUpgrade4MaxExponent
+} from './mechanics/crystalAndBuildingPower'
 export type { BuyCrystalUpgradesInput } from './mechanics/crystalUpgrades'
 export { buyCrystalUpgrades } from './mechanics/crystalUpgrades'
 export {
@@ -356,6 +507,13 @@ export {
   calculateExalt6PenaltyPerSecond,
   calculateExalt6TimeLimit
 } from './mechanics/exaltPenalties'
+export type { GameEventBuffs } from './mechanics/eventBuffs'
+export {
+  BuffType,
+  calculateEventSourceBuff,
+  consumableEventBuff,
+  getEventBuff
+} from './mechanics/eventBuffs'
 export type { GoldenQuarkUpgradeRewards, SingularityDataKeys } from './mechanics/goldenQuarkUpgrades'
 export {
   advancedPackEffect,
@@ -610,6 +768,19 @@ export type {
   ParticleBuildingIndex
 } from './mechanics/particleBuildings'
 export { buyParticleBuilding, getParticleCost } from './mechanics/particleBuildings'
+export type {
+  CheckPlatonicUpgradeInput,
+  PlatonicResourceKey,
+  PlatonicUpgradeAffordability,
+  PlatonicUpgradeBaseCost,
+  PlatonicUpgradePriceMultiplierInput
+} from './mechanics/platonicUpgradeCosts'
+export {
+  checkPlatonicUpgradeAffordability,
+  platonicResources,
+  platonicUpgradeBaseCosts,
+  platonicUpgradePriceMultiplier
+} from './mechanics/platonicUpgradeCosts'
 export type { CalculatePotionValueInput, PotionBonusResult } from './mechanics/potionBonuses'
 export {
   calculateObtainiumPotionBaseObtainium,
@@ -698,6 +869,22 @@ export {
   viscountCostFormula,
   viscountEffect
 } from './mechanics/redAmbrosiaUpgrades'
+export type { RangeLevelAndCost } from './mechanics/researches'
+export {
+  polyBuyToLevel,
+  polyCostForLevels,
+  researchBaseCosts,
+  researchLevelCostRanges,
+  researchMaxLevels
+} from './mechanics/researches'
+export type {
+  ResearchAutomaticObtainiumInput,
+  ResetTimeThresholdInput
+} from './mechanics/resetTimeAndAutoObtainium'
+export {
+  calculateResearchAutomaticObtainium,
+  resetTimeThreshold
+} from './mechanics/resetTimeAndAutoObtainium'
 export type {
   DuplicationRuneBlessingEffects,
   PrismRuneBlessingEffects,
@@ -740,6 +927,28 @@ export {
 } from './mechanics/runeEffects'
 export type { UniversalRuneEXPMultInput } from './mechanics/runeEXPMultiplier'
 export { universalRuneEXPMult } from './mechanics/runeEXPMultiplier'
+export type {
+  BonusRuneLevelsDuplicationInput,
+  BonusRuneLevelsInfiniteAscentInput,
+  BonusRuneLevelsSpeedInput,
+  DuplicationRuneOOMIncreaseInput,
+  FirstFiveFreeLevelsInput,
+  PrismRuneOOMIncreaseInput,
+  SpeedRuneOOMIncreaseInput,
+  SuperiorIntellectRuneOOMIncreaseInput,
+  ThriftRuneOOMIncreaseInput
+} from './mechanics/runeLevelBonuses'
+export {
+  bonusRuneLevelsDuplication,
+  bonusRuneLevelsInfiniteAscent,
+  bonusRuneLevelsSpeed,
+  duplicationRuneOOMIncrease,
+  firstFiveFreeLevels,
+  prismRuneOOMIncrease,
+  speedRuneOOMIncrease,
+  superiorIntellectRuneOOMIncrease,
+  thriftRuneOOMIncrease
+} from './mechanics/runeLevelBonuses'
 export type { MaxRuneLevelPurchaseInput, MaxRuneLevelPurchaseResult } from './mechanics/runeLevels'
 export {
   maxRuneLevelPurchase,
@@ -748,6 +957,30 @@ export {
   runeLevelFromEXP,
   runeOfferingsToLevel
 } from './mechanics/runeLevels'
+export type {
+  DuplicationRuneSpiritEffects,
+  PrismRuneSpiritEffects,
+  SpeedRuneSpiritEffects,
+  SuperiorIntellectRuneSpiritEffects,
+  ThriftRuneSpiritEffects
+} from './mechanics/runeSpiritEffects'
+export {
+  duplicationRuneSpiritEffects,
+  prismRuneSpiritEffects,
+  speedRuneSpiritEffects,
+  superiorIntellectRuneSpiritEffects,
+  thriftRuneSpiritEffects
+} from './mechanics/runeSpiritEffects'
+export type {
+  MaxRuneUpgradePurchaseInput,
+  MaxRuneUpgradePurchaseResult
+} from './mechanics/runeUpgradeProgression'
+export {
+  maxRuneUpgradePurchase,
+  runeUpgradeEXPLeftToLevel,
+  runeUpgradeEXPToLevel,
+  runeUpgradeLevelFromEXP
+} from './mechanics/runeUpgradeProgression'
 export type { ShopCostInput } from './mechanics/shopCosts'
 export { shopCost } from './mechanics/shopCosts'
 export type { QuarkShopUpgradeRewards, ShopPanthemaBonusLevels, ShopUpgradeNames } from './mechanics/shopUpgrades'

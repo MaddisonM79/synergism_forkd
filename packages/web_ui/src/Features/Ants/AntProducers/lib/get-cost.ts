@@ -1,51 +1,40 @@
-import Decimal from 'break_infinity.js'
+import type Decimal from 'break_infinity.js'
+import {
+  getCostMaxAntProducers as logicGetCostMaxAntProducers,
+  getCostNextAntProducer as logicGetCostNextAntProducer,
+  getMaxPurchasableAntProducers as logicGetMaxPurchasableAntProducers
+} from '@synergism/logic'
 import { player } from '../../../../Synergism'
 import type { AntProducers } from '../../structs/structs'
 import { antProducerData } from '../data/data'
 
-export const getCostNextAnt = (ant: AntProducers) => {
+export const getCostNextAnt = (ant: AntProducers): Decimal =>
+  logicGetCostNextAntProducer({
+    baseCost: antProducerData[ant].baseCost,
+    costIncrease: antProducerData[ant].costIncrease,
+    purchased: player.ants.producers[ant].purchased
+  })
+
+export const getCostMaxAnts = (ant: AntProducers): Decimal => {
   const data = antProducerData[ant]
-  const nextCost = data.baseCost.times(
-    Decimal.pow(
-      data.costIncrease,
-      player.ants.producers[ant].purchased
-    )
-  )
-  const lastCost = player.ants.producers[ant].purchased > 0
-    ? data.baseCost.times(
-      Decimal.pow(
-        data.costIncrease,
-        player.ants.producers[ant].purchased - 1
-      )
-    )
-    : Decimal.fromString('0')
-  return nextCost.sub(lastCost)
+  const maxBuyable = logicGetMaxPurchasableAntProducers({
+    baseCost: data.baseCost,
+    costIncrease: data.costIncrease,
+    purchased: player.ants.producers[ant].purchased,
+    budget: player.ants.crumbs
+  })
+  return logicGetCostMaxAntProducers({
+    baseCost: data.baseCost,
+    costIncrease: data.costIncrease,
+    purchased: player.ants.producers[ant].purchased,
+    maxBuyable
+  })
 }
 
-export const getCostMaxAnts = (ant: AntProducers) => {
-  const maxBuyable = getMaxPurchasableAnts(ant, player.ants.crumbs)
-  const data = antProducerData[ant]
-
-  const spent = player.ants.producers[ant].purchased > 0
-    ? Decimal.pow(data.costIncrease, player.ants.producers[ant].purchased - 1).times(data.baseCost)
-    : Decimal.fromString('0')
-
-  const maxAntCost = Decimal.pow(data.costIncrease, maxBuyable - 1).times(data.baseCost)
-
-  return maxAntCost.sub(spent)
-}
-
-export const getMaxPurchasableAnts = (ant: AntProducers, budget: Decimal): number => {
-  const data = antProducerData[ant]
-  const sunkCost = player.ants.producers[ant].purchased > 0
-    ? data.baseCost.times(
-      Decimal.pow(
-        data.costIncrease,
-        player.ants.producers[ant].purchased - 1
-      )
-    )
-    : Decimal.fromString('0')
-  const realBudget = budget.add(sunkCost)
-
-  return Math.max(0, 1 + Math.floor(Decimal.log(realBudget.div(data.baseCost), data.costIncrease)))
-}
+export const getMaxPurchasableAnts = (ant: AntProducers, budget: Decimal): number =>
+  logicGetMaxPurchasableAntProducers({
+    baseCost: antProducerData[ant].baseCost,
+    costIncrease: antProducerData[ant].costIncrease,
+    purchased: player.ants.producers[ant].purchased,
+    budget
+  })

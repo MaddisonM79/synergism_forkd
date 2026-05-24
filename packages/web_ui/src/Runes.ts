@@ -1,18 +1,27 @@
 import {
   antiquitiesRuneEffects as logicAntiquitiesRuneEffects,
+  bonusRuneLevelsDuplication as logicBonusRuneLevelsDuplication,
+  bonusRuneLevelsInfiniteAscent as logicBonusRuneLevelsInfiniteAscent,
+  bonusRuneLevelsSpeed as logicBonusRuneLevelsSpeed,
   duplicationRuneEffects as logicDuplicationRuneEffects,
+  duplicationRuneOOMIncrease as logicDuplicationRuneOOMIncrease,
   finiteDescentRuneEffects as logicFiniteDescentRuneEffects,
+  firstFiveFreeLevels as logicFirstFiveFreeLevels,
   horseShoeRuneEffects as logicHorseShoeRuneEffects,
   infiniteAscentRuneEffects as logicInfiniteAscentRuneEffects,
   maxRuneLevelPurchase as logicMaxRuneLevelPurchase,
   prismRuneEffects as logicPrismRuneEffects,
+  prismRuneOOMIncrease as logicPrismRuneOOMIncrease,
   runeEXPLeftToLevel as logicRuneEXPLeftToLevel,
   runeEXPToLevel as logicRuneEXPToLevel,
   runeLevelFromEXP as logicRuneLevelFromEXP,
   runeOfferingsToLevel as logicRuneOfferingsToLevel,
   speedRuneEffects as logicSpeedRuneEffects,
+  speedRuneOOMIncrease as logicSpeedRuneOOMIncrease,
   superiorIntellectRuneEffects as logicSuperiorIntellectRuneEffects,
+  superiorIntellectRuneOOMIncrease as logicSuperiorIntellectRuneOOMIncrease,
   thriftRuneEffects as logicThriftRuneEffects,
+  thriftRuneOOMIncrease as logicThriftRuneOOMIncrease,
   topHatRuneEffects as logicTopHatRuneEffects,
   universalRuneEXPMult as logicUniversalRuneEXPMult
 } from '@synergism/logic'
@@ -136,46 +145,35 @@ interface RuneData<T extends RuneKeys, K extends keyof RuneTypeMap[T]> {
 
 const salvagePerkLevels = [30, 40, 61, 81, 111, 131, 161, 191, 236, 260]
 
-const firstFiveFreeLevels = () => {
-  return (
-    getAntUpgradeEffect(AntUpgrades.FreeRunes).freeRuneLevel
-    + 7 * Math.min(player.constantUpgrades[7], 1000)
-  )
-}
+const firstFiveFreeLevels = () =>
+  logicFirstFiveFreeLevels({
+    freeRunesAntUpgrade: getAntUpgradeEffect(AntUpgrades.FreeRunes).freeRuneLevel,
+    constantUpgrade7: player.constantUpgrades[7]
+  })
 
-const bonusRuneLevelsSpeed = () => {
-  return (
-    getRuneBonusFromAllTalismans('speed')
-    + (
-      player.upgrades[27] * (Math.min(50, Math.floor(Decimal.log(player.coins.add(1), 1e10)))
-        + Math.max(0, Math.min(50, Math.floor(Decimal.log(player.coins.add(1), 1e50)) - 10)))
-    )
-    + player.upgrades[29] * Math.floor(
-        Math.min(
-          100,
-          (player.firstOwnedCoin + player.secondOwnedCoin + player.thirdOwnedCoin + player.fourthOwnedCoin
-            + player.fifthOwnedCoin) / 400
-        )
-      )
-  )
-}
+const totalOwnedCoinsFirstFive = () =>
+  player.firstOwnedCoin + player.secondOwnedCoin + player.thirdOwnedCoin + player.fourthOwnedCoin
+  + player.fifthOwnedCoin
 
-const bonusRuneLevelsDuplication = () => {
-  return (
-    getRuneBonusFromAllTalismans('duplication')
-    + player.upgrades[28] * Math.min(
-        100,
-        Math.floor(
-          (player.firstOwnedCoin + player.secondOwnedCoin + player.thirdOwnedCoin + player.fourthOwnedCoin
-            + player.fifthOwnedCoin) / 400
-        )
-      )
-    + (
-      player.upgrades[30] * (Math.min(50, Math.floor(Decimal.log(player.coins.add(1), 1e30)))
-        + Math.min(50, Math.floor(Decimal.log(player.coins.add(1), 1e300))))
-    )
-  )
-}
+const bonusRuneLevelsSpeed = () =>
+  logicBonusRuneLevelsSpeed({
+    talismanBonus: getRuneBonusFromAllTalismans('speed'),
+    upgrade27: player.upgrades[27],
+    coinLog1e10Floor: Math.floor(Decimal.log(player.coins.add(1), 1e10)),
+    coinLog1e50Floor: Math.floor(Decimal.log(player.coins.add(1), 1e50)),
+    upgrade29: player.upgrades[29],
+    totalOwnedCoinsFirstFive: totalOwnedCoinsFirstFive()
+  })
+
+const bonusRuneLevelsDuplication = () =>
+  logicBonusRuneLevelsDuplication({
+    talismanBonus: getRuneBonusFromAllTalismans('duplication'),
+    upgrade28: player.upgrades[28],
+    totalOwnedCoinsFirstFive: totalOwnedCoinsFirstFive(),
+    upgrade30: player.upgrades[30],
+    coinLog1e30Floor: Math.floor(Decimal.log(player.coins.add(1), 1e30)),
+    coinLog1e300Floor: Math.floor(Decimal.log(player.coins.add(1), 1e300))
+  })
 
 const bonusRuneLevelsPrism = () => {
   return (
@@ -195,15 +193,14 @@ const bonusRuneLevelsSI = () => {
   )
 }
 
-const bonusRuneLevelsIA = () => {
-  return (
-    (PCoinUpgradeEffects.INSTANT_UNLOCK_2 ? 6 : 0)
-    + player.cubeUpgrades[73]
-    + player.campaigns.bonusRune6
-    + getRuneBonusFromAllTalismans('infiniteAscent')
-    + getRuneEffects('finiteDescent', 'infiniteAscentFreeLevel')
-  )
-}
+const bonusRuneLevelsIA = () =>
+  logicBonusRuneLevelsInfiniteAscent({
+    instantUnlock2Bonus: PCoinUpgradeEffects.INSTANT_UNLOCK_2 ? 6 : 0,
+    cubeUpgrade73: player.cubeUpgrades[73],
+    campaignBonusRune6: player.campaigns.bonusRune6,
+    talismanBonus: getRuneBonusFromAllTalismans('infiniteAscent'),
+    finiteDescentBonus: getRuneEffects('finiteDescent', 'infiniteAscentFreeLevel')
+  })
 
 const bonusRuneLevelsAntiquities = () => {
   return getRuneBonusFromAllTalismans('antiquities')
@@ -214,74 +211,71 @@ const bonusRuneLevelsHorseShoe = () => {
     + getShopUpgradeEffects('shopHorseShoe', 'bonusHorseLevels')
 }
 
-const speedRuneOOMIncrease = () => {
-  return (
-    player.upgrades[66] * 2
-    + player.researches[78]
-    + player.researches[111]
-    + CalcECC('ascension', player.challengecompletions[11])
-    + 1.5 * CalcECC('ascension', player.challengecompletions[14])
-    + player.cubeUpgrades[16]
-    + getTalismanEffects('chronos').speedOOMBonus
-    + getAmbrosiaUpgradeEffects('ambrosiaRuneOOMBonus', 'runeOOMBonus')
-    + getLevelMilestone('speedRune')
-  )
-}
+const ascensionECCs = () => ({
+  c11AscensionECC: CalcECC('ascension', player.challengecompletions[11]),
+  c14AscensionECC: CalcECC('ascension', player.challengecompletions[14])
+})
 
-const duplicationRuneOOMIncrease = () => {
-  return (
-    0.75 * CalcECC('transcend', player.challengecompletions[1])
-    + player.upgrades[66] * 2
-    + player.researches[90]
-    + player.researches[112]
-    + CalcECC('ascension', player.challengecompletions[11])
-    + 1.5 * CalcECC('ascension', player.challengecompletions[14])
-    + getTalismanEffects('exemption').duplicationOOMBonus
-    + getAmbrosiaUpgradeEffects('ambrosiaRuneOOMBonus', 'runeOOMBonus')
-    + getLevelMilestone('duplicationRune')
-  )
-}
+const ambrosiaRuneOOMBonus = () => getAmbrosiaUpgradeEffects('ambrosiaRuneOOMBonus', 'runeOOMBonus')
 
-const prismRuneOOMIncrease = () => {
-  return (
-    player.upgrades[66] * 2
-    + player.researches[79]
-    + player.researches[113]
-    + CalcECC('ascension', player.challengecompletions[11])
-    + 1.5 * CalcECC('ascension', player.challengecompletions[14])
-    + player.cubeUpgrades[16]
-    + getTalismanEffects('mortuus').prismOOMBonus
-    + getAmbrosiaUpgradeEffects('ambrosiaRuneOOMBonus', 'runeOOMBonus')
-    + getLevelMilestone('prismRune')
-  )
-}
+const speedRuneOOMIncrease = () =>
+  logicSpeedRuneOOMIncrease({
+    upgrade66: player.upgrades[66],
+    research78: player.researches[78],
+    research111: player.researches[111],
+    ...ascensionECCs(),
+    cubeUpgrade16: player.cubeUpgrades[16],
+    chronosSpeedOOMBonus: getTalismanEffects('chronos').speedOOMBonus,
+    ambrosiaRuneOOMBonus: ambrosiaRuneOOMBonus(),
+    speedRuneLevelMilestone: getLevelMilestone('speedRune')
+  })
 
-const thriftRuneOOMIncrease = () => {
-  return (
-    player.upgrades[66] * 2
-    + player.researches[77]
-    + player.researches[114]
-    + CalcECC('ascension', player.challengecompletions[11])
-    + 1.5 * CalcECC('ascension', player.challengecompletions[14])
-    + player.cubeUpgrades[37]
-    + getTalismanEffects('midas').thriftOOMBonus
-    + getAmbrosiaUpgradeEffects('ambrosiaRuneOOMBonus', 'runeOOMBonus')
-    + getLevelMilestone('thriftRune')
-  )
-}
+const duplicationRuneOOMIncrease = () =>
+  logicDuplicationRuneOOMIncrease({
+    c1TranscendECC: CalcECC('transcend', player.challengecompletions[1]),
+    upgrade66: player.upgrades[66],
+    research90: player.researches[90],
+    research112: player.researches[112],
+    ...ascensionECCs(),
+    exemptionDuplicationOOMBonus: getTalismanEffects('exemption').duplicationOOMBonus,
+    ambrosiaRuneOOMBonus: ambrosiaRuneOOMBonus(),
+    duplicationRuneLevelMilestone: getLevelMilestone('duplicationRune')
+  })
 
-const superiorIntellectOOMIncrease = () => {
-  return (
-    player.upgrades[66] * 2
-    + player.researches[115]
-    + CalcECC('ascension', player.challengecompletions[11])
-    + 1.5 * CalcECC('ascension', player.challengecompletions[14])
-    + player.cubeUpgrades[37]
-    + getTalismanEffects('polymath').SIOOMBonus
-    + getAmbrosiaUpgradeEffects('ambrosiaRuneOOMBonus', 'runeOOMBonus')
-    + getLevelMilestone('SIRune')
-  )
-}
+const prismRuneOOMIncrease = () =>
+  logicPrismRuneOOMIncrease({
+    upgrade66: player.upgrades[66],
+    research79: player.researches[79],
+    research113: player.researches[113],
+    ...ascensionECCs(),
+    cubeUpgrade16: player.cubeUpgrades[16],
+    mortuusPrismOOMBonus: getTalismanEffects('mortuus').prismOOMBonus,
+    ambrosiaRuneOOMBonus: ambrosiaRuneOOMBonus(),
+    prismRuneLevelMilestone: getLevelMilestone('prismRune')
+  })
+
+const thriftRuneOOMIncrease = () =>
+  logicThriftRuneOOMIncrease({
+    upgrade66: player.upgrades[66],
+    research77: player.researches[77],
+    research114: player.researches[114],
+    ...ascensionECCs(),
+    cubeUpgrade37: player.cubeUpgrades[37],
+    midasThriftOOMBonus: getTalismanEffects('midas').thriftOOMBonus,
+    ambrosiaRuneOOMBonus: ambrosiaRuneOOMBonus(),
+    thriftRuneLevelMilestone: getLevelMilestone('thriftRune')
+  })
+
+const superiorIntellectOOMIncrease = () =>
+  logicSuperiorIntellectRuneOOMIncrease({
+    upgrade66: player.upgrades[66],
+    research115: player.researches[115],
+    ...ascensionECCs(),
+    cubeUpgrade37: player.cubeUpgrades[37],
+    polymathSIOOMBonus: getTalismanEffects('polymath').SIOOMBonus,
+    ambrosiaRuneOOMBonus: ambrosiaRuneOOMBonus(),
+    siRuneLevelMilestone: getLevelMilestone('SIRune')
+  })
 
 const infiniteAscentOOMIncrease = () => {
   return (

@@ -1,3 +1,3 @@
-export const getMaxAntMasteryLevel = () => {
-  return 12 // I plan on adding something more detailed later.
-}
+import { MAX_ANT_MASTERY_LEVEL } from '@synergism/logic'
+
+export const getMaxAntMasteryLevel = () => MAX_ANT_MASTERY_LEVEL

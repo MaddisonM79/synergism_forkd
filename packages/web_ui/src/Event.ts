@@ -1,3 +1,9 @@
+import {
+  BuffType as LogicBuffType,
+  calculateEventSourceBuff as logicCalculateEventSourceBuff,
+  consumableEventBuff as logicConsumableEventBuff,
+  getEventBuff as logicGetEventBuff
+} from '@synergism/logic'
 import { DOMCacheGetOrSet } from './Cache/DOM'
 import { apiBaseUrl } from './Config'
 import { allDurableConsumables, type PseudoCoinConsumableNames } from './Login'
@@ -7,22 +13,10 @@ import { revealStuff } from './UpdateHTML'
 import { timeRemainingHours } from './Utility'
 import { Globals as G } from './Variables'
 
-export enum BuffType {
-  Quark = 0,
-  GoldenQuark = 1,
-  Cubes = 2,
-  PowderConversion = 3,
-  AscensionSpeed = 4,
-  GlobalSpeed = 5,
-  AscensionScore = 6,
-  AntSacrifice = 7,
-  Offering = 8,
-  Obtainium = 9,
-  Octeract = 10,
-  BlueberryTime = 11,
-  AmbrosiaLuck = 12,
-  OneMind = 13
-}
+// Re-exported so existing call sites that import `BuffType` from this module
+// keep compiling unchanged.
+export const BuffType = LogicBuffType
+export type BuffType = LogicBuffType
 
 interface GameEvent {
   name: string[]
@@ -98,96 +92,19 @@ export const eventBuffType: (keyof typeof BuffType)[] = [
   'OneMind'
 ]
 
-export const calculateEventSourceBuff = (buff: BuffType): number => {
-  return getEventBuff(buff) + consumableEventBuff(buff)
-}
+export const calculateEventSourceBuff = (buff: BuffType): number =>
+  logicCalculateEventSourceBuff(
+    buff,
+    getEvent(),
+    getGQUpgradeEffect('oneMind', 'unlocked'),
+    allDurableConsumables.HAPPY_HOUR_BELL.amount
+  )
 
-export const getEventBuff = (buff: BuffType): number => {
-  const event = getEvent()
+export const getEventBuff = (buff: BuffType): number =>
+  logicGetEventBuff(buff, getEvent(), getGQUpgradeEffect('oneMind', 'unlocked'))
 
-  if (event === null) {
-    return 0
-  }
-
-  switch (buff) {
-    case BuffType.Quark:
-      return event.quark
-    case BuffType.GoldenQuark:
-      return event.goldenQuark
-    case BuffType.Cubes:
-      return event.cubes
-    case BuffType.PowderConversion:
-      return event.powderConversion
-    case BuffType.AscensionSpeed:
-      return event.ascensionSpeed
-    case BuffType.GlobalSpeed:
-      return event.globalSpeed
-    case BuffType.AscensionScore:
-      return event.ascensionScore
-    case BuffType.AntSacrifice:
-      return event.antSacrifice
-    case BuffType.Offering:
-      return event.offering
-    case BuffType.Obtainium:
-      return event.obtainium
-    case BuffType.Octeract:
-      return event.octeract
-    case BuffType.OneMind:
-      return getGQUpgradeEffect('oneMind', 'unlocked') ? event.oneMind : 0
-    case BuffType.BlueberryTime:
-      return event.blueberryTime
-    case BuffType.AmbrosiaLuck:
-      return event.ambrosiaLuck
-    default: {
-      throw new Error(`Unhandled BuffType: ${buff}`)
-    }
-  }
-}
-
-export const consumableEventBuff = (buff: BuffType) => {
-  const { HAPPY_HOUR_BELL } = allDurableConsumables
-  // The interval is the number of events queued excluding the first.
-  const happyHourInterval = HAPPY_HOUR_BELL.amount - 1
-
-  // If no consumable is active, early return
-  if (HAPPY_HOUR_BELL.amount === 0) {
-    return 0
-  }
-
-  switch (buff) {
-    case BuffType.Quark:
-      return HAPPY_HOUR_BELL ? 0.25 + 0.025 * happyHourInterval : 0
-    case BuffType.GoldenQuark:
-      return 0
-    case BuffType.Cubes:
-      return HAPPY_HOUR_BELL ? 0.5 + 0.05 * happyHourInterval : 0
-    case BuffType.PowderConversion:
-      return 0
-    case BuffType.AscensionSpeed:
-      return 0
-    case BuffType.GlobalSpeed:
-      return 0
-    case BuffType.AscensionScore:
-      return 0
-    case BuffType.AntSacrifice:
-      return 0
-    case BuffType.Offering:
-      return HAPPY_HOUR_BELL ? 0.5 + 0.05 * happyHourInterval : 0
-    case BuffType.Obtainium:
-      return HAPPY_HOUR_BELL ? 0.5 + 0.05 * happyHourInterval : 0
-    case BuffType.Octeract:
-      return 0
-    case BuffType.OneMind:
-      return 0
-    case BuffType.BlueberryTime:
-      return HAPPY_HOUR_BELL ? 0.1 + 0.01 * happyHourInterval : 0
-    case BuffType.AmbrosiaLuck:
-      return HAPPY_HOUR_BELL ? 0.1 + 0.01 * happyHourInterval : 0
-    default: {
-      throw new Error(`Unhandled BuffType: ${buff}`)
-    }
-  }
-}
+export const consumableEventBuff = (buff: BuffType): number =>
+  logicConsumableEventBuff(buff, allDurableConsumables.HAPPY_HOUR_BELL.amount)
 
 const isConsumableActive = (name?: PseudoCoinConsumableNames) => {
   if (typeof name === 'string') {
