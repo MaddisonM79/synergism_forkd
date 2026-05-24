@@ -596,3 +596,138 @@ export function advanceOcteractTimer (input: AdvanceOcteractTimerInput): Advance
     events: [{ kind: 'octeract-tick-fired', amountOfGiveaways }]
   }
 }
+
+// ─── Auto Potion ──────────────────────────────────────────────────────────
+
+export interface AdvanceAutoPotionTimerInput {
+  /** Tick delta (seconds). */
+  time: number
+  /** Pre-evaluated per-tick globalTimeMultiplier — `autoPotion` case in
+   * legacy `addTimers` is in the `timeMultiplier === 1` list, so the
+   * caller passes 1 here. (Kept as input for clarity / symmetry with the
+   * other timer cases in the bundle.) */
+  timeMultiplier: number
+
+  // ─── Gate ──────────────────────────────────────────────────────────
+  /** player.highestSingularityCount — feature gated on `>= 6`. Below the
+   * threshold, both timers and events pass through unchanged. */
+  highestSingularityCount: number
+
+  // ─── State accumulators ───────────────────────────────────────────
+  /** player.autoPotionTimer — fractional accumulator for offering potion
+   * dispenses. Reset modulo the effective threshold when a dispense
+   * fires. */
+  autoPotionTimer: number
+  /** player.autoPotionTimerObtainium — sibling accumulator for obtainium
+   * potion dispenses. */
+  autoPotionTimerObtainium: number
+
+  // ─── Toggle gates ──────────────────────────────────────────────────
+  /** player.toggles[42] — Fast Offering Potion expenditure (the actual
+   * "is this toggle on" flag). Legacy combines with `offeringPotionCount
+   * > 0`; we accept both inputs so the gate is explicit. */
+  toggleOffering: boolean
+  /** player.toggles[43] — Fast Obtainium Potion expenditure. */
+  toggleObtainium: boolean
+  /** player.shopUpgrades.offeringPotion — required `> 0` for the fast
+   * toggle to actually trigger. The dispense itself doesn't read this
+   * (useConsumable does its own check), but the legacy `toggleOfferingOn`
+   * effective-toggle does. */
+  offeringPotionCount: number
+  /** player.shopUpgrades.obtainiumPotion — same for obtainium. */
+  obtainiumPotionCount: number
+
+  // ─── Pre-evaluated lookups ─────────────────────────────────────────
+  /** Pre-evaluated `getOcteractUpgradeEffect('octeractAutoPotionSpeed',
+   * 'autoPotionSpeedMult')`. Drives the base timer threshold. */
+  autoPotionSpeedMult: number
+}
+
+export interface AdvanceAutoPotionTimerResult {
+  autoPotionTimer: number
+  autoPotionTimerObtainium: number
+  /** `auto-potion-fired` events for each threshold crossing this tick.
+   * At most two events (one per side: offering, obtainium). Empty when
+   * the gate fails or neither timer crossed its threshold. */
+  events: CoreEvent[]
+}
+
+/**
+ * Auto Potion case of `addTimers`. Advances the two dispense timers,
+ * computes the per-side threshold (180 × 1.03^(-sing) ÷ speedMult, with
+ * a 1/20-of-min(1, base) fast-mode override), and when a timer crosses
+ * its threshold emits an `auto-potion-fired` event carrying the dispense
+ * count + fast-mode flag. The UI tier translates the event into a
+ * `useConsumable(type, true, amount, fast)` call (the side-effect that
+ * mutates `player.shopUpgrades`, `player.offerings`/`player.obtainium`,
+ * and dispatches DOM updates / sound effects).
+ *
+ * Gate behavior matches legacy `addTimers('autoPotion', ...)`:
+ *   - `highestSingularityCount < 6` → return state unchanged, no events.
+ *   - timer < effective threshold → accumulate timer only, no event.
+ *   - timer >= effective threshold → spend whole-threshold portion via
+ *     event, reset timer modulo threshold.
+ *
+ * Bug-for-bug parity note: legacy reads `player.shopUpgrades.{...}Potion
+ * > 0` to compute `toggleOfferingOn` / `toggleObtainiumOn`, but the
+ * `useConsumable` call itself runs whether or not that count is > 0 —
+ * the count only affects whether the fast-mode threshold (1/20) applies.
+ * We thread both flags through accordingly.
+ */
+export function advanceAutoPotionTimer (input: AdvanceAutoPotionTimerInput): AdvanceAutoPotionTimerResult {
+  if (input.highestSingularityCount < 6) {
+    return {
+      autoPotionTimer: input.autoPotionTimer,
+      autoPotionTimerObtainium: input.autoPotionTimerObtainium,
+      events: []
+    }
+  }
+
+  const events: CoreEvent[] = []
+
+  const toggleOfferingOn = input.toggleOffering && input.offeringPotionCount > 0
+  const toggleObtainiumOn = input.toggleObtainium && input.obtainiumPotionCount > 0
+
+  let autoPotionTimer = input.autoPotionTimer + input.time * input.timeMultiplier
+  let autoPotionTimerObtainium = input.autoPotionTimerObtainium + input.time * input.timeMultiplier
+
+  const timerThreshold = (180 * Math.pow(1.03, -input.highestSingularityCount))
+    / input.autoPotionSpeedMult
+
+  const effectiveOfferingThreshold = toggleOfferingOn
+    ? Math.min(1, timerThreshold) / 20
+    : timerThreshold
+  const effectiveObtainiumThreshold = toggleObtainiumOn
+    ? Math.min(1, timerThreshold) / 20
+    : timerThreshold
+
+  if (autoPotionTimer >= effectiveOfferingThreshold) {
+    const amountOfPotions = (autoPotionTimer - (autoPotionTimer % effectiveOfferingThreshold))
+      / effectiveOfferingThreshold
+    autoPotionTimer %= effectiveOfferingThreshold
+    events.push({
+      kind: 'auto-potion-fired',
+      type: 'offering',
+      amount: amountOfPotions,
+      fastMode: toggleOfferingOn
+    })
+  }
+
+  if (autoPotionTimerObtainium >= effectiveObtainiumThreshold) {
+    const amountOfPotions = (autoPotionTimerObtainium - (autoPotionTimerObtainium % effectiveObtainiumThreshold))
+      / effectiveObtainiumThreshold
+    autoPotionTimerObtainium %= effectiveObtainiumThreshold
+    events.push({
+      kind: 'auto-potion-fired',
+      type: 'obtainium',
+      amount: amountOfPotions,
+      fastMode: toggleObtainiumOn
+    })
+  }
+
+  return {
+    autoPotionTimer,
+    autoPotionTimerObtainium,
+    events
+  }
+}

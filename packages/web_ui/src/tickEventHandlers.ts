@@ -16,6 +16,7 @@ import { type AchievementGroups, awardAchievementGroup, challengeAchievementChec
 import { dispatchSweepTransition } from './Challenges'
 import type { CoreEvent } from '@synergism/logic'
 import { reset } from './Reset'
+import { useConsumable } from './Shop'
 import { Tabs } from './Tabs'
 import { visualUpdateAmbrosia, visualUpdateOcteracts, visualUpdateResearch } from './UpdateVisuals'
 import { revealStuff, updateChallengeLevel } from './UpdateHTML'
@@ -74,6 +75,19 @@ export function dispatchTickEvent (event: CoreEvent): void {
     // ─── octeract events ─────────────────────────────────────────────
     case 'octeract-tick-fired':
       visualUpdateOcteracts()
+      return
+
+    // ─── autoPotion events ───────────────────────────────────────────
+    // Logic emits one event per side (offering / obtainium) when its
+    // dispense timer crossed threshold this tick. Translate to the
+    // useConsumable call the legacy autoPotion case made inline.
+    case 'auto-potion-fired':
+      useConsumable(
+        event.type === 'offering' ? 'offeringPotion' : 'obtainiumPotion',
+        true,
+        event.amount,
+        event.fastMode
+      )
       return
 
     // ─── autoReset events ────────────────────────────────────────────

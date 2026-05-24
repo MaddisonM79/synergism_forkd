@@ -96,7 +96,7 @@ import {
 } from './Corruptions'
 import { calculateAcceleratorCubeBlessing, calculateMultiplierCubeBlessing, updateCubeUpgradeBG } from './Cubes'
 import { generateEventHandlers } from './EventListeners'
-import { addTimers, automaticTools } from './Helper'
+import { automaticTools, tackHeadTimers } from './Helper'
 import { resetHistoryRenderAllTables } from './History'
 import {
   buyResearch,
@@ -4039,17 +4039,13 @@ const tack = (dt: number) => {
     generateAntsAndCrumbs(dt)
 
     // Adds time (in milliseconds) to all reset functions, and quarks timer.
-    addTimers('prestige', dt)
-    addTimers('transcension', dt)
-    addTimers('reincarnation', dt)
-    addTimers('ascension', dt)
-    addTimers('quarks', dt)
-    addTimers('goldenQuarks', dt)
-    addTimers('octeracts', dt)
-    addTimers('singularity', dt)
-    addTimers('autoPotion', dt)
-    addTimers('ambrosia', dt)
-    addTimers('redAmbrosia', dt)
+    // Bundled head: all 11 timer cases composed into a single logic call
+    // (prestige, transcension, reincarnation, ascension, quarks,
+    //  goldenQuarks, octeracts, singularity, autoPotion, ambrosia,
+    //  redAmbrosia). autoPotion's useConsumable side effect is dispatched
+    // through the `auto-potion-fired` CoreEvent handler in
+    // tickEventHandlers.ts.
+    tackHeadTimers(dt)
 
     // Triggers automatic rune sacrifice (adds milliseconds to payload timer)
     if (player.autoSacrificeToggle && getShopUpgradeEffects('offeringAuto', 'autoRune')) {

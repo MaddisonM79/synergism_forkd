@@ -915,6 +915,8 @@ export type {
   AdvanceAmbrosiaTimerResult,
   AdvanceAscensionTimerInput,
   AdvanceAscensionTimerResult,
+  AdvanceAutoPotionTimerInput,
+  AdvanceAutoPotionTimerResult,
   AdvanceGoldenQuarksTimerInput,
   AdvanceOcteractTimerInput,
   AdvanceOcteractTimerResult,
@@ -927,6 +929,7 @@ export type {
 export {
   advanceAmbrosiaTimer,
   advanceAscensionTimer,
+  advanceAutoPotionTimer,
   advanceGoldenQuarksTimer,
   advanceOcteractTimer,
   advanceQuarksTimer,
@@ -964,6 +967,8 @@ export type {
 export { Seed, seededBetween, seededRandom } from './math/rng'
 export type { TackTailInput, TackTailResult } from './tick/tackTail'
 export { tackTail } from './tick/tackTail'
+export type { AdvanceAllTimersInput, AdvanceAllTimersResult } from './tick/timersBundle'
+export { advanceAllTimers } from './tick/timersBundle'
 export type {
   GenerateAntsAndCrumbsInput,
   GenerateAntsAndCrumbsProducerInput,

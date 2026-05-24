@@ -1,8 +1,10 @@
 import {
   addObtainium as logicAddObtainium,
   addOfferings as logicAddOfferings,
+  advanceAllTimers as logicAdvanceAllTimers,
   advanceAmbrosiaTimer as logicAdvanceAmbrosiaTimer,
   advanceAscensionTimer as logicAdvanceAscensionTimer,
+  advanceAutoPotionTimer as logicAdvanceAutoPotionTimer,
   advanceGoldenQuarksTimer as logicAdvanceGoldenQuarksTimer,
   advanceOcteractTimer as logicAdvanceOcteractTimer,
   advanceQuarksTimer as logicAdvanceQuarksTimer,
@@ -33,7 +35,7 @@ import { dispatchTickEvent } from './tickEventHandlers'
 import { buyAllBlessingLevels } from './RuneBlessings'
 import { getNumberUnlockedRunes, indexToRune, type RuneKeys, runes, sacrificeOfferings } from './Runes'
 import { buyAllSpiritLevels } from './RuneSpirits'
-import { getShopUpgradeEffects, useConsumable } from './Shop'
+import { getShopUpgradeEffects } from './Shop'
 import { allGoldenQuarkMultiplierStats } from './Statistics'
 import { getGQUpgradeEffect } from './singularity'
 import { getSingularityChallengeEffect } from './SingularityChallenges'
@@ -170,53 +172,22 @@ export const addTimers = (input: TimerInput, time = 0) => {
       break
     }
     case 'autoPotion': {
-      if (player.highestSingularityCount < 6) {
-        return
-      } else {
-        // player.toggles[42] enables FAST Offering Potion Expenditure, but actually spends the potion.
-        // Hence, you need at least one potion to be able to use fast spend.
-        const toggleOfferingOn = player.toggles[42] && player.shopUpgrades.offeringPotion > 0
-        // player.toggles[43] enables FAST Obtainium Potion Expenditure, but actually spends the potion.
-        const toggleObtainiumOn = player.toggles[43] && player.shopUpgrades.obtainiumPotion > 0
-
-        player.autoPotionTimer += time * timeMultiplier
-        player.autoPotionTimerObtainium += time * timeMultiplier
-
-        const timerThreshold = (180 * Math.pow(1.03, -player.highestSingularityCount))
-          / getOcteractUpgradeEffect('octeractAutoPotionSpeed', 'autoPotionSpeedMult')
-
-        const effectiveOfferingThreshold = toggleOfferingOn
-          ? Math.min(1, timerThreshold) / 20
-          : timerThreshold
-        const effectiveObtainiumThreshold = toggleObtainiumOn
-          ? Math.min(1, timerThreshold) / 20
-          : timerThreshold
-
-        if (player.autoPotionTimer >= effectiveOfferingThreshold) {
-          const amountOfPotions = (player.autoPotionTimer
-            - (player.autoPotionTimer % effectiveOfferingThreshold))
-            / effectiveOfferingThreshold
-          player.autoPotionTimer %= effectiveOfferingThreshold
-          useConsumable(
-            'offeringPotion',
-            true,
-            amountOfPotions,
-            toggleOfferingOn
-          )
-        }
-
-        if (player.autoPotionTimerObtainium >= effectiveObtainiumThreshold) {
-          const amountOfPotions = (player.autoPotionTimerObtainium
-            - (player.autoPotionTimerObtainium % effectiveObtainiumThreshold))
-            / effectiveObtainiumThreshold
-          player.autoPotionTimerObtainium %= effectiveObtainiumThreshold
-          useConsumable(
-            'obtainiumPotion',
-            true,
-            amountOfPotions,
-            toggleObtainiumOn
-          )
-        }
+      const r = logicAdvanceAutoPotionTimer({
+        time,
+        timeMultiplier,
+        highestSingularityCount: player.highestSingularityCount,
+        autoPotionTimer: player.autoPotionTimer,
+        autoPotionTimerObtainium: player.autoPotionTimerObtainium,
+        toggleOffering: player.toggles[42],
+        toggleObtainium: player.toggles[43],
+        offeringPotionCount: player.shopUpgrades.offeringPotion,
+        obtainiumPotionCount: player.shopUpgrades.obtainiumPotion,
+        autoPotionSpeedMult: getOcteractUpgradeEffect('octeractAutoPotionSpeed', 'autoPotionSpeedMult')
+      })
+      player.autoPotionTimer = r.autoPotionTimer
+      player.autoPotionTimerObtainium = r.autoPotionTimerObtainium
+      for (const event of r.events) {
+        dispatchTickEvent(event)
       }
       break
     }
@@ -284,6 +255,131 @@ export const addTimers = (input: TimerInput, time = 0) => {
       }
       break
     }
+  }
+}
+
+/**
+ * Per-tick "head" timer bundle. Replaces the 11 `addTimers(...)`
+ * switch dispatches in `tack` (Synergism.ts) with a single composed
+ * `advanceAllTimers` call from `@synergism/logic`.
+ *
+ * Pre-evaluates the same speed multipliers, caps, and stat-derived
+ * inputs the per-case shims used to evaluate inline, threads them
+ * through the bundle, then writes the result back to `player` / `G`
+ * and dispatches the composed event list. autoPotion's
+ * `useConsumable` side effect runs in the UI dispatcher (see
+ * `tickEventHandlers.ts`'s `auto-potion-fired` handler).
+ */
+export const tackHeadTimers = (dt: number): void => {
+  const globalTimeMultiplier = getGQUpgradeEffect('halfMind', 'unlocked')
+    ? 10
+    : calculateGlobalSpeedMult()
+  const ascensionSpeedMulti = getGQUpgradeEffect('oneMind', 'unlocked')
+    ? 10
+    : calculateAscensionSpeedMult()
+  const singularitySpeedMulti = getAmbrosiaUpgradeEffects('ambrosiaBrickOfLead', 'singularitySpeedMult')
+  const octeractUnlocked = getGQUpgradeEffect('octeractUnlock', 'unlocked')
+
+  // Octeract pre-eval: only meaningful when the GQ-giveaway block will
+  // run (highestSingularityCount >= 160). Below threshold we pass 1 —
+  // the bundle ignores this value when the gate fails. Matches the
+  // per-case `addTimers('octeracts', ...)` shim in this file.
+  let goldenQuarksMultiplierExcludingBase = 1
+  if (octeractUnlocked && player.highestSingularityCount >= 160) {
+    const gqStats = allGoldenQuarkMultiplierStats.map(s => s.stat())
+    goldenQuarksMultiplierExcludingBase = gqStats.slice(1).reduce((a, b) => a * b, 1)
+  }
+
+  const result = logicAdvanceAllTimers({
+    dt,
+    globalTimeMultiplier,
+    prestigecounter: player.prestigecounter,
+    transcendcounter: player.transcendcounter,
+    reincarnationcounter: player.reincarnationcounter,
+    ascensionCounter: player.ascensionCounter,
+    ascensionCounterReal: player.ascensionCounterReal,
+    ascensionSpeedMulti,
+    quarkstimer: player.quarkstimer,
+    maxQuarkTimer: quarkHandler().maxTime,
+    goldenQuarksTimer: player.goldenQuarksTimer,
+    exportGQPerHour: getGQUpgradeEffect('goldenQuarks3', 'exportGQPerHour'),
+    octeractUnlocked,
+    octeractTimer: player.octeractTimer,
+    wowOcteracts: player.wowOcteracts,
+    totalWowOcteracts: player.totalWowOcteracts,
+    goldenQuarks: player.goldenQuarks,
+    quarksThisSingularity: player.quarksThisSingularity,
+    octeractPerSecond: calculateOcteractMultiplier(),
+    highestSingularityCount: player.highestSingularityCount,
+    singularityCount: player.singularityCount,
+    goldenQuarksMultiplierExcludingBase,
+    ascensionCounterRealReal: player.ascensionCounterRealReal,
+    singularityCounter: player.singularityCounter,
+    singChallengeTimer: player.singChallengeTimer,
+    insideSingularityChallenge: player.insideSingularityChallenge,
+    singularitySpeedMulti,
+    autoPotionTimer: player.autoPotionTimer,
+    autoPotionTimerObtainium: player.autoPotionTimerObtainium,
+    autoPotionToggleOffering: player.toggles[42],
+    autoPotionToggleObtainium: player.toggles[43],
+    offeringPotionCount: player.shopUpgrades.offeringPotion,
+    obtainiumPotionCount: player.shopUpgrades.obtainiumPotion,
+    autoPotionSpeedMult: getOcteractUpgradeEffect('octeractAutoPotionSpeed', 'autoPotionSpeedMult'),
+    noSingularityUpgradesCompletions: player.singularityChallenges.noSingularityUpgrades.completions,
+    ambrosiaGenerationSpeed: calculateAmbrosiaGenerationSpeed(),
+    ambrosiaTimerG: G.ambrosiaTimer,
+    blueberryTime: player.blueberryTime,
+    ambrosia: player.ambrosia,
+    lifetimeAmbrosia: player.lifetimeAmbrosia,
+    ambrosiaSeed: player.seed[Seed.Ambrosia],
+    ambrosiaLuck: calculateAmbrosiaLuck(),
+    bonusAmbrosia: getSingularityChallengeEffect('noAmbrosiaUpgrades', 'bonusAmbrosia'),
+    timePerAmbrosia: G.TIME_PER_AMBROSIA,
+    ambrosiaAcceleratorMult: getShopUpgradeEffects('shopAmbrosiaAccelerator', 'ambrosiaPointRequirementMult'),
+    ambrosiaBrickOfLeadMult: getAmbrosiaUpgradeEffects('ambrosiaBrickOfLead', 'barRequirementMult'),
+    noAmbrosiaUpgradesCompletions: player.singularityChallenges.noAmbrosiaUpgrades.completions,
+    redAmbrosiaGenerationSpeed: calculateRedAmbrosiaGenerationSpeed(),
+    redAmbrosiaTimerG: G.redAmbrosiaTimer,
+    redAmbrosiaTime: player.redAmbrosiaTime,
+    redAmbrosia: player.redAmbrosia,
+    lifetimeRedAmbrosia: player.lifetimeRedAmbrosia,
+    redAmbrosiaSeed: player.seed[Seed.RedAmbrosia],
+    redAmbrosiaLuck: calculateRedAmbrosiaLuck(),
+    ambrosiaTimePerRedAmbrosia: getRedAmbrosiaUpgradeEffects('redAmbrosiaAccelerator', 'ambrosiaTimePerRedAmbrosia'),
+    timePerRedAmbrosia: G.TIME_PER_RED_AMBROSIA,
+    redAmbrosiaBarRequirementMultiplier: getSingularityChallengeEffect('limitedTime', 'barRequirementMultiplier')
+  })
+
+  player.prestigecounter = result.prestigecounter
+  player.transcendcounter = result.transcendcounter
+  player.reincarnationcounter = result.reincarnationcounter
+  player.ascensionCounter = result.ascensionCounter
+  player.ascensionCounterReal = result.ascensionCounterReal
+  player.quarkstimer = result.quarkstimer
+  player.goldenQuarksTimer = result.goldenQuarksTimer
+  player.octeractTimer = result.octeractTimer
+  player.wowOcteracts = result.wowOcteracts
+  player.totalWowOcteracts = result.totalWowOcteracts
+  player.goldenQuarks = result.goldenQuarks
+  player.quarksThisSingularity = result.quarksThisSingularity
+  player.ascensionCounterRealReal = result.ascensionCounterRealReal
+  player.singularityCounter = result.singularityCounter
+  player.singChallengeTimer = result.singChallengeTimer
+  player.autoPotionTimer = result.autoPotionTimer
+  player.autoPotionTimerObtainium = result.autoPotionTimerObtainium
+  G.ambrosiaTimer = result.ambrosiaTimerG
+  player.blueberryTime = result.blueberryTime
+  player.ambrosia = result.ambrosia
+  player.lifetimeAmbrosia = result.lifetimeAmbrosia
+  player.seed[Seed.Ambrosia] = result.ambrosiaSeed
+  G.redAmbrosiaTimer = result.redAmbrosiaTimerG
+  player.redAmbrosiaTime = result.redAmbrosiaTime
+  player.redAmbrosia = result.redAmbrosia
+  player.lifetimeRedAmbrosia = result.lifetimeRedAmbrosia
+  player.seed[Seed.RedAmbrosia] = result.redAmbrosiaSeed
+
+  for (const event of result.events) {
+    dispatchTickEvent(event)
   }
 }
 

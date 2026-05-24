@@ -145,3 +145,16 @@ export type CoreEvent =
        * giveaway-second elapsed; otherwise no refresh is needed). */
       amountOfGiveaways: number
     }
+  | {
+      kind: 'auto-potion-fired'
+      /** Which side of the auto-potion dispense fired. The UI dispatcher
+       * maps to `useConsumable('offeringPotion' | 'obtainiumPotion', ...)`. */
+      type: 'offering' | 'obtainium'
+      /** Number of potions to dispense this tick (timer crossed threshold
+       * `amount` times). Always ≥ 1 when emitted. */
+      amount: number
+      /** Whether fast mode was active for this dispense — corresponds to
+       * the `spend` arg of `useConsumable`. When `false`, `useConsumable`
+       * skips the shopUpgrades count decrement. */
+      fastMode: boolean
+    }
