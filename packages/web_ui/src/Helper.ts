@@ -1,7 +1,12 @@
 import {
+  addObtainium as logicAddObtainium,
+  addOfferings as logicAddOfferings,
+  advanceAmbrosiaTimer as logicAdvanceAmbrosiaTimer,
   advanceAscensionTimer as logicAdvanceAscensionTimer,
   advanceGoldenQuarksTimer as logicAdvanceGoldenQuarksTimer,
+  advanceOcteractTimer as logicAdvanceOcteractTimer,
   advanceQuarksTimer as logicAdvanceQuarksTimer,
+  advanceRedAmbrosiaTimer as logicAdvanceRedAmbrosiaTimer,
   advanceResetCounter as logicAdvanceResetCounter,
   advanceSingularityTimer as logicAdvanceSingularityTimer
 } from '@synergism/logic'
@@ -12,12 +17,9 @@ import {
   calculateAmbrosiaLuck,
   calculateAscensionSpeedMult,
   calculateGlobalSpeedMult,
-  calculateGoldenQuarks,
   calculateOcteractMultiplier,
   calculateRedAmbrosiaGenerationSpeed,
   calculateRedAmbrosiaLuck,
-  calculateRequiredBlueberryTime,
-  calculateRequiredRedAmbrosiaTime,
   calculateResearchAutomaticObtainium
 } from './Calculate'
 import { sacrificeAnts } from './Features/Ants/AntSacrifice/sacrifice'
@@ -26,17 +28,17 @@ import { getLevelMilestone } from './Levels'
 import { getOcteractUpgradeEffect } from './Octeracts'
 import { quarkHandler } from './Quark'
 import { getRedAmbrosiaUpgradeEffects } from './RedAmbrosiaUpgrades'
-import { Seed, seededRandom } from './RNG'
+import { Seed } from './RNG'
+import { dispatchTickEvent } from './tickEventHandlers'
 import { buyAllBlessingLevels } from './RuneBlessings'
 import { getNumberUnlockedRunes, indexToRune, type RuneKeys, runes, sacrificeOfferings } from './Runes'
 import { buyAllSpiritLevels } from './RuneSpirits'
 import { getShopUpgradeEffects, useConsumable } from './Shop'
+import { allGoldenQuarkMultiplierStats } from './Statistics'
 import { getGQUpgradeEffect } from './singularity'
 import { getSingularityChallengeEffect } from './SingularityChallenges'
 import { player } from './Synergism'
-import { Tabs } from './Tabs'
 import { buyAllTalismanResources } from './Talismans'
-import { visualUpdateAmbrosia, visualUpdateOcteracts, visualUpdateResearch } from './UpdateVisuals'
 import { Globals as G } from './Variables'
 
 type TimerInput =
@@ -51,8 +53,6 @@ type TimerInput =
   | 'autoPotion'
   | 'ambrosia'
   | 'redAmbrosia'
-
-const octeractGiveawayLevels = [160, 173, 185, 194, 204, 210, 219, 229, 240, 249]
 
 /**
  * addTimers will add (in milliseconds) time to the reset counters, and quark export timer
@@ -136,33 +136,36 @@ export const addTimers = (input: TimerInput, time = 0) => {
     case 'octeracts': {
       if (!getGQUpgradeEffect('octeractUnlock', 'unlocked')) {
         return
-      } else {
-        player.octeractTimer += time * timeMultiplier
       }
-      if (player.octeractTimer >= 1) {
-        const amountOfGiveaways = player.octeractTimer - (player.octeractTimer % 1)
-        player.octeractTimer %= 1
-
-        const perSecond = calculateOcteractMultiplier()
-        player.wowOcteracts += amountOfGiveaways * perSecond
-        player.totalWowOcteracts += amountOfGiveaways * perSecond
-
-        if (player.highestSingularityCount >= 160) {
-          const frac = 1e-6
-          let actualLevel = 0
-          for (const sing of octeractGiveawayLevels) {
-            if (player.highestSingularityCount >= sing) {
-              actualLevel += 1
-            }
-          }
-
-          for (let i = 0; i < amountOfGiveaways; i++) {
-            const quarkFraction = frac * actualLevel
-            player.goldenQuarks += quarkFraction * calculateGoldenQuarks()
-            player.quarksThisSingularity *= 1 - quarkFraction
-          }
-        }
-        visualUpdateOcteracts()
+      // Pre-eval the GQ multiplier product (stats 1..end, skipping the
+      // qts-dependent base at index 0) only when the GQ-giveaway block
+      // will run (≥ sing 160). Logic recomputes the base each iteration.
+      let goldenQuarksMultiplierExcludingBase = 1
+      if (player.highestSingularityCount >= 160) {
+        const gqStats = allGoldenQuarkMultiplierStats.map(s => s.stat())
+        goldenQuarksMultiplierExcludingBase = gqStats.slice(1).reduce((a, b) => a * b, 1)
+      }
+      const octeractResult = logicAdvanceOcteractTimer({
+        time,
+        timeMultiplier,
+        octeractUnlocked: true,
+        octeractTimer: player.octeractTimer,
+        wowOcteracts: player.wowOcteracts,
+        totalWowOcteracts: player.totalWowOcteracts,
+        goldenQuarks: player.goldenQuarks,
+        quarksThisSingularity: player.quarksThisSingularity,
+        perSecond: calculateOcteractMultiplier(),
+        highestSingularityCount: player.highestSingularityCount,
+        singularityCount: player.singularityCount,
+        goldenQuarksMultiplierExcludingBase
+      })
+      player.octeractTimer = octeractResult.octeractTimer
+      player.wowOcteracts = octeractResult.wowOcteracts
+      player.totalWowOcteracts = octeractResult.totalWowOcteracts
+      player.goldenQuarks = octeractResult.goldenQuarks
+      player.quarksThisSingularity = octeractResult.quarksThisSingularity
+      for (const event of octeractResult.events) {
+        dispatchTickEvent(event)
       }
       break
     }
@@ -218,78 +221,68 @@ export const addTimers = (input: TimerInput, time = 0) => {
       break
     }
     case 'ambrosia': {
-      if (player.singularityChallenges.noSingularityUpgrades.completions > 0) {
-        const compute = calculateAmbrosiaGenerationSpeed()
-        if (compute === 0) {
-          break
-        }
-
-        G.ambrosiaTimer += time * timeMultiplier
-
-        if (G.ambrosiaTimer < 0.125) {
-          break
-        }
-
-        const ambrosiaLuck = calculateAmbrosiaLuck()
-        const baseBlueberryTime = calculateAmbrosiaGenerationSpeed()
-        player.blueberryTime += Math.floor(8 * G.ambrosiaTimer) / 8 * baseBlueberryTime
-        G.ambrosiaTimer %= 0.125
-
-        let timeToAmbrosia = calculateRequiredBlueberryTime()
-
-        while (player.blueberryTime >= timeToAmbrosia) {
-          const RNG = seededRandom(Seed.Ambrosia)
-          const ambrosiaMult = Math.floor(ambrosiaLuck / 100)
-          const luckMult = RNG < ambrosiaLuck / 100 - Math.floor(ambrosiaLuck / 100) ? 1 : 0
-          const bonusAmbrosia = getSingularityChallengeEffect('noAmbrosiaUpgrades', 'bonusAmbrosia')
-          const ambrosiaToGain = (ambrosiaMult + luckMult) + bonusAmbrosia
-
-          player.ambrosia += ambrosiaToGain
-          player.lifetimeAmbrosia += ambrosiaToGain
-          player.blueberryTime -= timeToAmbrosia
-
-          timeToAmbrosia = calculateRequiredBlueberryTime()
-        }
-
-        visualUpdateAmbrosia()
+      // Cheap gate first — feature locked when completions === 0. Mirrors
+      // logic's inner gate; avoids paying for the calc pre-evals every tick.
+      if (player.singularityChallenges.noSingularityUpgrades.completions <= 0) {
+        break
+      }
+      const ambrosiaResult = logicAdvanceAmbrosiaTimer({
+        time,
+        timeMultiplier,
+        noSingularityUpgradesCompletions: player.singularityChallenges.noSingularityUpgrades.completions,
+        ambrosiaGenerationSpeed: calculateAmbrosiaGenerationSpeed(),
+        ambrosiaTimerG: G.ambrosiaTimer,
+        blueberryTime: player.blueberryTime,
+        ambrosia: player.ambrosia,
+        lifetimeAmbrosia: player.lifetimeAmbrosia,
+        seed: player.seed[Seed.Ambrosia],
+        ambrosiaLuck: calculateAmbrosiaLuck(),
+        bonusAmbrosia: getSingularityChallengeEffect('noAmbrosiaUpgrades', 'bonusAmbrosia'),
+        timePerAmbrosia: G.TIME_PER_AMBROSIA,
+        acceleratorMult: getShopUpgradeEffects('shopAmbrosiaAccelerator', 'ambrosiaPointRequirementMult'),
+        brickOfLeadMult: getAmbrosiaUpgradeEffects('ambrosiaBrickOfLead', 'barRequirementMult')
+      })
+      G.ambrosiaTimer = ambrosiaResult.ambrosiaTimerG
+      player.blueberryTime = ambrosiaResult.blueberryTime
+      player.ambrosia = ambrosiaResult.ambrosia
+      player.lifetimeAmbrosia = ambrosiaResult.lifetimeAmbrosia
+      player.seed[Seed.Ambrosia] = ambrosiaResult.seed
+      for (const event of ambrosiaResult.events) {
+        dispatchTickEvent(event)
       }
       break
     }
     case 'redAmbrosia': {
-      if (player.singularityChallenges.noAmbrosiaUpgrades.completions > 0) {
-        const speed = calculateRedAmbrosiaGenerationSpeed()
-        G.redAmbrosiaTimer += time * timeMultiplier
-        if (G.redAmbrosiaTimer < 0.125) {
-          break
-        }
-
-        player.redAmbrosiaTime += Math.floor(8 * G.redAmbrosiaTimer) / 8 * speed
-        G.redAmbrosiaTimer %= 0.125
-        let timeToRedAmbrosia = calculateRequiredRedAmbrosiaTime()
-
-        let ambrosiaTimeToGrant = 0
-        const timeCoeff = getRedAmbrosiaUpgradeEffects('redAmbrosiaAccelerator', 'ambrosiaTimePerRedAmbrosia')
-
-        while (player.redAmbrosiaTime >= timeToRedAmbrosia) {
-          const redAmbrosiaLuck = calculateRedAmbrosiaLuck()
-          const RNG = seededRandom(Seed.RedAmbrosia)
-          const redAmbrosiaMult = Math.floor(redAmbrosiaLuck / 100)
-          const luckMult = RNG < redAmbrosiaLuck / 100 - Math.floor(redAmbrosiaLuck / 100) ? 1 : 0
-          const redAmbrosiaToGain = redAmbrosiaMult + luckMult
-
-          player.redAmbrosia += redAmbrosiaToGain
-          player.lifetimeRedAmbrosia += redAmbrosiaToGain
-          ambrosiaTimeToGrant += redAmbrosiaToGain * timeCoeff
-          player.redAmbrosiaTime -= timeToRedAmbrosia
-          timeToRedAmbrosia = calculateRequiredRedAmbrosiaTime()
-        }
-
-        if (ambrosiaTimeToGrant > 0) {
-          addTimers('ambrosia', ambrosiaTimeToGrant)
-        }
-
-        visualUpdateAmbrosia()
+      if (player.singularityChallenges.noAmbrosiaUpgrades.completions <= 0) {
+        break
       }
+      const redAmbrosiaResult = logicAdvanceRedAmbrosiaTimer({
+        time,
+        timeMultiplier,
+        noAmbrosiaUpgradesCompletions: player.singularityChallenges.noAmbrosiaUpgrades.completions,
+        redAmbrosiaGenerationSpeed: calculateRedAmbrosiaGenerationSpeed(),
+        redAmbrosiaTimerG: G.redAmbrosiaTimer,
+        redAmbrosiaTime: player.redAmbrosiaTime,
+        redAmbrosia: player.redAmbrosia,
+        lifetimeRedAmbrosia: player.lifetimeRedAmbrosia,
+        seed: player.seed[Seed.RedAmbrosia],
+        redAmbrosiaLuck: calculateRedAmbrosiaLuck(),
+        ambrosiaTimePerRedAmbrosia: getRedAmbrosiaUpgradeEffects('redAmbrosiaAccelerator', 'ambrosiaTimePerRedAmbrosia'),
+        timePerRedAmbrosia: G.TIME_PER_RED_AMBROSIA,
+        barRequirementMultiplier: getSingularityChallengeEffect('limitedTime', 'barRequirementMultiplier')
+      })
+      G.redAmbrosiaTimer = redAmbrosiaResult.redAmbrosiaTimerG
+      player.redAmbrosiaTime = redAmbrosiaResult.redAmbrosiaTime
+      player.redAmbrosia = redAmbrosiaResult.redAmbrosia
+      player.lifetimeRedAmbrosia = redAmbrosiaResult.lifetimeRedAmbrosia
+      player.seed[Seed.RedAmbrosia] = redAmbrosiaResult.seed
+      if (redAmbrosiaResult.bonusAmbrosiaTime > 0) {
+        addTimers('ambrosia', redAmbrosiaResult.bonusAmbrosiaTime)
+      }
+      for (const event of redAmbrosiaResult.events) {
+        dispatchTickEvent(event)
+      }
+      break
     }
   }
 }
@@ -319,38 +312,31 @@ let autoSacrificeInterval = 1
 export const automaticTools = (input: AutoToolInput, time: number) => {
   switch (input) {
     case 'addObtainium': {
-      // If in challenge 14, abort and do not award obtainium
-      if (player.currentChallenge.ascension === 14) {
-        break
-      }
-
-      let obtainiumGain = calculateResearchAutomaticObtainium(time)
-      if (
-        player.singularityChallenges.taxmanLastStand.enabled
-        && player.singularityChallenges.taxmanLastStand.completions >= 2
-      ) {
-        obtainiumGain = Decimal.min(
-          obtainiumGain,
-          player.obtainium.times(100).plus(1)
-        )
-      }
-
-      // Add Obtainium
-      player.obtainium = player.obtainium.add(obtainiumGain)
-      // Update visual displays if appropriate
-      if (G.currentTab === Tabs.Research) {
-        visualUpdateResearch()
+      const obtainiumResult = logicAddObtainium({
+        obtainium: player.obtainium,
+        obtainiumGain: calculateResearchAutomaticObtainium(time),
+        ascensionChallenge: player.currentChallenge.ascension,
+        taxmanLastStandEnabled: player.singularityChallenges.taxmanLastStand.enabled,
+        taxmanLastStandCompletions: player.singularityChallenges.taxmanLastStand.completions
+      })
+      player.obtainium = obtainiumResult.obtainium
+      for (const event of obtainiumResult.events) {
+        dispatchTickEvent(event)
       }
       break
     }
-    case 'addOfferings':
+    case 'addOfferings': {
       // This counter can be increased through challenge 3 reward
       // As well as cube upgrade 1x2 (2).
-      G.autoOfferingCounter += time
-      // Any time this exceeds 1 it adds an offering
-      player.offerings = player.offerings.add(Math.floor(G.autoOfferingCounter))
-      G.autoOfferingCounter %= 1
+      const offeringsResult = logicAddOfferings({
+        time,
+        autoOfferingCounter: G.autoOfferingCounter,
+        offerings: player.offerings
+      })
+      G.autoOfferingCounter = offeringsResult.autoOfferingCounter
+      player.offerings = offeringsResult.offerings
       break
+    }
     case 'runeSacrifice':
       // Every real life second this will trigger
       player.sacrificeTimer += time

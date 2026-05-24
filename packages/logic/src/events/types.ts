@@ -1,4 +1,5 @@
 import type { Decimal } from '../math/bignum'
+import type { SweepStates } from '../tick/challengeSweep'
 
 // Discriminated union of events the logic core emits for the UI tier to
 // react to. UI subscribers translate these into user-facing effects
@@ -106,10 +107,14 @@ export type CoreEvent =
     }
   | {
       kind: 'challenge-sweep-transitioned'
-      /** SweepState kind transitioned out of. */
-      from: string
-      /** SweepState kind transitioned into. */
-      to: string
+      /** Full SweepState transitioned out of — handler routes
+       * resetCheck('transcensionChallenge' | 'reincarnationChallenge')
+       * by `from.index` when from.kind === 'active'. */
+      from: SweepStates
+      /** Full SweepState transitioned into — handler picks
+       * toggleAutoChallengeModeText by `to.kind`, and additionally calls
+       * toggleChallenges(to.index, true) when to.kind === 'active'. */
+      to: SweepStates
     }
   | {
       kind: 'reveal-needed'
@@ -122,4 +127,21 @@ export type CoreEvent =
       challengeIndex: 1 | 2 | 3 | 4 | 5
       /** New completion count after increment. */
       newCompletions: number
+    }
+  | {
+      kind: 'ambrosia-gained'
+      /** Total ambrosia gained this tick (sum across all loop iterations). */
+      amount: number
+    }
+  | {
+      kind: 'red-ambrosia-gained'
+      /** Total red ambrosia gained this tick. */
+      amount: number
+    }
+  | {
+      kind: 'octeract-tick-fired'
+      /** Number of integer 1-second giveaway buckets that crossed this tick.
+       * Always ≥ 1 when emitted (the event only fires when at least one
+       * giveaway-second elapsed; otherwise no refresh is needed). */
+      amountOfGiveaways: number
     }

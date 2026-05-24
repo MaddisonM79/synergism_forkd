@@ -6,13 +6,13 @@ import {
   calculateCrystalCoinMultiplier as logicCalculateCrystalCoinMultiplier,
   calculateCrystalExponent as logicCalculateCrystalExponent,
   computeGlobalMultipliers as logicComputeGlobalMultipliers,
-  type CoreEvent,
   crystalUpgrade3Base as logicCrystalUpgrade3Base,
   crystalUpgrade3CrystalMultiplier as logicCrystalUpgrade3CrystalMultiplier,
   crystalUpgrade3MaxBase as logicCrystalUpgrade3MaxBase,
   crystalUpgrade4MaxExponent as logicCrystalUpgrade4MaxExponent,
   resetCurrency as logicResetCurrency,
   resourceGain as logicResourceGain,
+  tackTail as logicTackTail,
   updateAllMultiplier as logicUpdateAllMultiplier,
   updateAllTick as logicUpdateAllTick
 } from '@synergism/logic'
@@ -20,6 +20,7 @@ import Decimal, { type DecimalSource } from 'break_infinity.js'
 import LZString from 'lz-string'
 
 import {
+  applySweepResult,
   autoAscensionChallengeSweepUnlock,
   CalcECC,
   challenge15ScoreMultiplier,
@@ -30,8 +31,9 @@ import {
   getMaxChallenges,
   getNextAscensionChallenge,
   highestChallengeRewards,
-  tickChallengeSweep
+  prepareSweepInputForTackTail
 } from './Challenges'
+import { dispatchTickEvent } from './tickEventHandlers'
 import { btoa } from './Utility'
 import { freshBlankGlobals, Globals as G } from './Variables'
 
@@ -2707,20 +2709,6 @@ export const multipliers = (): void => {
   G.antMultiplier = result.antMultiplier
 }
 
-// Dispatches CoreEvents returned by logic resourceGain back into web_ui side
-// effects. Kept inline rather than a separate module so the data flow is
-// obvious next to the shim that emits them.
-const dispatchResourceGainEvents = (events: readonly CoreEvent[]): void => {
-  for (const ev of events) {
-    if (ev.kind === 'achievement-group-awarded') {
-      awardAchievementGroup(ev.group as 'constant')
-    } else if (ev.kind === 'challenge-auto-completed') {
-      challengeAchievementCheck(ev.challengeIndex)
-      updateChallengeLevel(ev.challengeIndex)
-    }
-  }
-}
-
 export const resourceGain = (dt: number): void => {
   // Pre-tick orchestration — populate G.* derived state that logic reads.
   calculateTotalAcceleratorBoost()
@@ -2914,7 +2902,9 @@ export const resourceGain = (dt: number): void => {
   G.ascendBuildingProduction.fourth = result.ascendBuildingProduction.fourth
   G.ascendBuildingProduction.fifth = result.ascendBuildingProduction.fifth
 
-  dispatchResourceGainEvents(result.events)
+  for (const event of result.events) {
+    dispatchTickEvent(event)
+  }
 
   // Terminal challenge resetCheck dispatch — async + modal-aware, stays in
   // web_ui. Reads the post-tick player state so threshold checks see the
@@ -4124,105 +4114,62 @@ const tack = (dt: number) => {
     }
   }
 
-  // Adds an offering every 2 seconds
-  if (player.highestchallengecompletions[3] > 0) {
-    automaticTools('addOfferings', dt / 2)
-  }
-
-  // Challenge Sweep State Machine
-  tickChallengeSweep(dt)
-
-  // Check for automatic resets
-  // Auto Prestige.
-  if (player.resetToggleModes.prestige === AutoResetModes.amount) {
-    if (
-      player.toggles[15]
-      && getLevelMilestone('autoPrestige') === 1
-      && G.prestigePointGain.gte(
-        player.prestigePoints.times(Decimal.pow(10, player.prestigeamount))
-      )
-      && player.coinsThisPrestige.gte(1e16)
-    ) {
-      resetAchievementCheck('prestige')
-      reset('prestige', true)
-    }
-  }
-  if (player.resetToggleModes.prestige === AutoResetModes.time) {
-    G.autoResetTimers.prestige += dt
-    const time = Math.max(0.01, player.prestigeamount)
-    if (
-      player.toggles[15]
-      && getLevelMilestone('autoPrestige') === 1
-      && G.autoResetTimers.prestige >= time
-      && player.coinsThisPrestige.gte(1e16)
-    ) {
-      resetAchievementCheck('transcension')
-      reset('prestige', true)
-    }
-  }
-
-  if (player.resetToggleModes.transcend === AutoResetModes.amount) {
-    if (
-      player.toggles[21]
-      && player.upgrades[89] === 1
-      && G.transcendPointGain.gte(
-        player.transcendPoints.times(Decimal.pow(10, player.transcendamount))
-      )
-      && player.coinsThisTranscension.gte(1e100)
-      && player.currentChallenge.transcension === 0
-    ) {
-      resetAchievementCheck('transcension')
-      reset('transcension', true)
-    }
-  }
-  if (player.resetToggleModes.transcend === AutoResetModes.time) {
-    G.autoResetTimers.transcension += dt
-    const time = Math.max(0.01, player.transcendamount)
-    if (
-      player.toggles[21]
-      && player.upgrades[89] === 1
-      && G.autoResetTimers.transcension >= time
-      && player.coinsThisTranscension.gte(1e100)
-      && player.currentChallenge.transcension === 0
-    ) {
-      resetAchievementCheck('transcension')
-      reset('transcension', true)
-    }
-  }
-
-  if (player.currentChallenge.ascension !== 12) {
-    G.autoResetTimers.reincarnation += dt
-    if (player.resetToggleModes.reincarnation === AutoResetModes.time) {
-      const time = Math.max(0.01, player.reincarnationamount)
-      if (
-        player.toggles[27]
-        && player.researches[46] > 0.5
-        && player.transcendShards.gte('1e300')
-        && G.autoResetTimers.reincarnation >= time
-        && player.currentChallenge.transcension === 0
-        && player.currentChallenge.reincarnation === 0
-      ) {
-        resetAchievementCheck('reincarnation')
-        reset('reincarnation', true)
-      }
-    }
-    if (player.resetToggleModes.reincarnation === AutoResetModes.amount) {
-      if (
-        player.toggles[27]
-        && player.researches[46] > 0.5
-        && G.reincarnationPointGain.gte(
-          player.reincarnationPoints
-            .add(1)
-            .times(Decimal.pow(10, player.reincarnationamount))
-        )
-        && player.transcendShards.gte(1e300)
-        && player.currentChallenge.transcension === 0
-        && player.currentChallenge.reincarnation === 0
-      ) {
-        resetAchievementCheck('reincarnation')
-        reset('reincarnation', true)
-      }
-    }
+  // Per-tick tail — single logic call composing addOfferings (when c3+) +
+  // tickChallengeSweep + applyAutoResets. Events flow through the central
+  // dispatcher in tickEventHandlers.ts.
+  const sweepInput = prepareSweepInputForTackTail()
+  const tailResult = logicTackTail({
+    dt,
+    highestchallengecompletions3: player.highestchallengecompletions[3],
+    autoOfferingCounter: G.autoOfferingCounter,
+    offerings: player.offerings,
+    sweepState: sweepInput.sweepState,
+    timeSinceLastStateChange: sweepInput.timeSinceLastStateChange,
+    shouldRunSweep: sweepInput.shouldRunSweep,
+    timerStart: sweepInput.timerStart,
+    timerExit: sweepInput.timerExit,
+    timerEnter: sweepInput.timerEnter,
+    initialIndex: sweepInput.initialIndex,
+    nextRegularChallengeFromInitial: sweepInput.nextRegularChallengeFromInitial,
+    nextRegularChallengeFromActive: sweepInput.nextRegularChallengeFromActive,
+    challenge15AutoExponentCheck: sweepInput.challenge15AutoExponentCheck,
+    isFinishedStillValid: sweepInput.isFinishedStillValid,
+    prestigeMode: player.resetToggleModes.prestige === AutoResetModes.amount ? 'amount' : 'time',
+    toggle15: player.toggles[15],
+    autoPrestigeMilestone: getLevelMilestone('autoPrestige'),
+    prestigePoints: player.prestigePoints,
+    prestigePointGain: G.prestigePointGain,
+    prestigeamount: player.prestigeamount,
+    coinsThisPrestige: player.coinsThisPrestige,
+    autoResetTimerPrestige: G.autoResetTimers.prestige,
+    transcendMode: player.resetToggleModes.transcend === AutoResetModes.amount ? 'amount' : 'time',
+    toggle21: player.toggles[21],
+    upgrade89: player.upgrades[89],
+    transcendPoints: player.transcendPoints,
+    transcendPointGain: G.transcendPointGain,
+    transcendamount: player.transcendamount,
+    coinsThisTranscension: player.coinsThisTranscension,
+    autoResetTimerTranscension: G.autoResetTimers.transcension,
+    reincarnationMode: player.resetToggleModes.reincarnation === AutoResetModes.amount ? 'amount' : 'time',
+    toggle27: player.toggles[27],
+    research46: player.researches[46],
+    reincarnationPoints: player.reincarnationPoints,
+    reincarnationPointGain: G.reincarnationPointGain,
+    reincarnationamount: player.reincarnationamount,
+    transcendShards: player.transcendShards,
+    autoResetTimerReincarnation: G.autoResetTimers.reincarnation,
+    ascensionChallenge: player.currentChallenge.ascension,
+    transcensionChallenge: player.currentChallenge.transcension,
+    reincarnationChallenge: player.currentChallenge.reincarnation
+  })
+  G.autoOfferingCounter = tailResult.autoOfferingCounter
+  player.offerings = tailResult.offerings
+  applySweepResult(tailResult.sweepState, tailResult.timeSinceLastStateChange)
+  G.autoResetTimers.prestige = tailResult.autoResetTimerPrestige
+  G.autoResetTimers.transcension = tailResult.autoResetTimerTranscension
+  G.autoResetTimers.reincarnation = tailResult.autoResetTimerReincarnation
+  for (const event of tailResult.events) {
+    dispatchTickEvent(event)
   }
   calculateOfferings()
 }

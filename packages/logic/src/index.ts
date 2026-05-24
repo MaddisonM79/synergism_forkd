@@ -911,20 +911,65 @@ export type {
 } from './mechanics/resourceGain'
 export { resourceGain } from './mechanics/resourceGain'
 export type {
+  AdvanceAmbrosiaTimerInput,
+  AdvanceAmbrosiaTimerResult,
   AdvanceAscensionTimerInput,
   AdvanceAscensionTimerResult,
   AdvanceGoldenQuarksTimerInput,
+  AdvanceOcteractTimerInput,
+  AdvanceOcteractTimerResult,
   AdvanceQuarksTimerInput,
+  AdvanceRedAmbrosiaTimerInput,
+  AdvanceRedAmbrosiaTimerResult,
   AdvanceSingularityTimerInput,
   AdvanceSingularityTimerResult
 } from './tick/timers'
 export {
+  advanceAmbrosiaTimer,
   advanceAscensionTimer,
   advanceGoldenQuarksTimer,
+  advanceOcteractTimer,
   advanceQuarksTimer,
+  advanceRedAmbrosiaTimer,
   advanceResetCounter,
-  advanceSingularityTimer
+  advanceSingularityTimer,
+  OCTERACT_GIVEAWAY_LEVELS
 } from './tick/timers'
+export type {
+  AddObtainiumInput,
+  AddObtainiumResult,
+  AddOfferingsInput,
+  AddOfferingsResult
+} from './tick/automaticTools'
+export {
+  addObtainium,
+  addOfferings
+} from './tick/automaticTools'
+export type {
+  ApplyAutoResetsInput,
+  ApplyAutoResetsResult
+} from './tick/autoReset'
+export { applyAutoResets } from './tick/autoReset'
+export type {
+  SweepStates,
+  TickChallengeSweepInput,
+  TickChallengeSweepResult
+} from './tick/challengeSweep'
+export { tickChallengeSweep } from './tick/challengeSweep'
+export type {
+  SeededBetweenResult,
+  SeededRandomResult,
+  SeedValues
+} from './math/rng'
+export { Seed, seededBetween, seededRandom } from './math/rng'
+export type { TackTailInput, TackTailResult } from './tick/tackTail'
+export { tackTail } from './tick/tackTail'
+export type {
+  GenerateAntsAndCrumbsInput,
+  GenerateAntsAndCrumbsProducerInput,
+  GenerateAntsAndCrumbsResult
+} from './tick/antGeneration'
+export { generateAntsAndCrumbs as logicGenerateAntsAndCrumbs } from './tick/antGeneration'
 export type {
   DuplicationRuneBlessingEffects,
   PrismRuneBlessingEffects,
