@@ -92,9 +92,11 @@ import {
   calculateTotalOcteractQuarkBonus as logicCalcTotalOcteractQuarkBonus,
   calculateToNextThreshold as logicCalcToNextThreshold,
   calculateTotalSalvage as logicCalcTotalSalvage,
+  calculateResearchAutomaticObtainium as logicCalcResearchAutomaticObtainium,
   computeAscensionScoreBonusMultiplier as logicComputeAscScoreBonusMult,
   derpsmithCornucopiaBonus as logicDerpsmithCornucopiaBonus,
   inheritanceTokens as logicInheritanceTokens,
+  resetTimeThreshold as logicResetTimeThreshold,
   singularityBonusTokenMult as logicSingularityBonusTokenMult,
   sumOfExaltCompletions as logicSumOfExaltCompletions
 } from '@synergism/logic'
@@ -253,37 +255,27 @@ export const calculatePotionValue = (resetTime: number, resourceMult: Decimal, b
       * getOcteractUpgradeEffect('octeractAutoPotionEfficiency', 'potionPowerMult')
   })
 
-export const calculateResearchAutomaticObtainium = (deltaTime: number) => {
-  if (player.currentChallenge.ascension === 14) {
-    return new Decimal('0')
-  }
-
-  const multiplier = 0.5 * player.researches[61]
-    + 0.1 * player.researches[62]
-    + 0.8 * player.cubeUpgrades[3]
-
-  if (multiplier === 0) {
-    return new Decimal('0')
-  }
-
+export const calculateResearchAutomaticObtainium = (deltaTime: number): Decimal => {
   const useTimer = false
-  const resourceMult = calculateObtainium(useTimer)
-  const globalSpeedMult = calculateGlobalSpeedMult()
-  const resetTimeDivisor = resetTimeThreshold()
-  const timePenaltyMult = Math.min(1, player.reincarnationcounter / resetTimeDivisor)
-
-  const baseObtainium = calculateBaseObtainium()
-  const nonBaseValue = resourceMult.times(globalSpeedMult).times(timePenaltyMult)
-  let nonBaseAntValue = new Decimal(0)
-  if (player.cubeUpgrades[47] > 0) {
-    const stageMod = thresholdModifiers().antSacrificeObtainiumMult
-    const antMult = calculateAntSacrificeObtainium(stageMod, useTimer)
-    const antTimePenaltyMult = Math.min(1, player.antSacrificeTimer / resetTimeDivisor)
-    nonBaseAntValue = antMult.times(globalSpeedMult).times(antTimePenaltyMult)
-  }
-
-  return Decimal.max(baseObtainium, Decimal.max(nonBaseValue, nonBaseAntValue)).times(deltaTime).div(resetTimeDivisor)
-    .times(multiplier)
+  const antSacrificeStageMult = thresholdModifiers().antSacrificeObtainiumMult
+  return logicCalcResearchAutomaticObtainium({
+    deltaTime,
+    ascensionChallenge: player.currentChallenge.ascension,
+    research61: player.researches[61],
+    research62: player.researches[62],
+    cubeUpgrade3: player.cubeUpgrades[3],
+    cubeUpgrade47: player.cubeUpgrades[47],
+    resourceMult: calculateObtainium(useTimer),
+    globalSpeedMult: calculateGlobalSpeedMult(),
+    resetTimeDivisor: resetTimeThreshold(),
+    reincarnationcounter: player.reincarnationcounter,
+    baseObtainium: calculateBaseObtainium(),
+    antSacrificeObtainium: player.cubeUpgrades[47] > 0
+      ? calculateAntSacrificeObtainium(antSacrificeStageMult, useTimer)
+      : new Decimal(0),
+    antSacrificeStageMult,
+    antSacrificeTimer: player.antSacrificeTimer
+  })
 }
 
 export const calculateQuarkMultiplier = () => logicCalcQuarkMultiplier(allQuarkStats.map(s => s.stat()))
@@ -1056,14 +1048,8 @@ export const inheritanceTokens = () =>
 export const singularityBonusTokenMult = () =>
   logicSingularityBonusTokenMult(player.highestSingularityCount)
 
-export const resetTimeThreshold = () => {
-  const base = 10
-  let reduction = 0
-
-  reduction += player.campaigns.timeThresholdReduction
-
-  return base - reduction
-}
+export const resetTimeThreshold = (): number =>
+  logicResetTimeThreshold({ campaignTimeThresholdReduction: player.campaigns.timeThresholdReduction })
 
 const calculatePlatonic7UpgradePower = () => logicCalcPlatonic7UpgradePower(player.platonicUpgrades[7])
 

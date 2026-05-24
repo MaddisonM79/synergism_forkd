@@ -114,6 +114,18 @@ export {
   singularityRebornSpeedMultModifier
 } from './mechanics/antRebornELO'
 export type {
+  AntSacrificeOfferingInput,
+  AntSacrificeObtainiumInput,
+  ApplyTaxmanLastStandClampInput,
+  CalculateImmortalELOGainInput
+} from './mechanics/antSacrificeRewardCalc'
+export {
+  applyTaxmanLastStandClamp,
+  calculateAntSacrificeObtainium,
+  calculateAntSacrificeOffering,
+  calculateImmortalELOGain
+} from './mechanics/antSacrificeRewardCalc'
+export type {
   AntSacrificeTalismanItemInput,
   TalismanCraftItem
 } from './mechanics/antSacrificeRewards'
@@ -495,6 +507,13 @@ export {
   calculateExalt6PenaltyPerSecond,
   calculateExalt6TimeLimit
 } from './mechanics/exaltPenalties'
+export type { GameEventBuffs } from './mechanics/eventBuffs'
+export {
+  BuffType,
+  calculateEventSourceBuff,
+  consumableEventBuff,
+  getEventBuff
+} from './mechanics/eventBuffs'
 export type { GoldenQuarkUpgradeRewards, SingularityDataKeys } from './mechanics/goldenQuarkUpgrades'
 export {
   advancedPackEffect,
@@ -858,6 +877,14 @@ export {
   researchLevelCostRanges,
   researchMaxLevels
 } from './mechanics/researches'
+export type {
+  ResearchAutomaticObtainiumInput,
+  ResetTimeThresholdInput
+} from './mechanics/resetTimeAndAutoObtainium'
+export {
+  calculateResearchAutomaticObtainium,
+  resetTimeThreshold
+} from './mechanics/resetTimeAndAutoObtainium'
 export type {
   DuplicationRuneBlessingEffects,
   PrismRuneBlessingEffects,
