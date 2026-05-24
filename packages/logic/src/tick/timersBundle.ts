@@ -1,9 +1,9 @@
 // Bundled "head"-side timer composition for the per-tick body. Composes
-// the 10 migrated per-case timer functions into a single logic call so
-// the web_ui adapter makes one call instead of ten switch dispatches.
+// all 11 migrated per-case timer functions into a single logic call so
+// the web_ui adapter makes one call instead of eleven switch dispatches.
 //
 // Mirrors the legacy `addTimers(...)` sequence in the per-tick body in
-// packages/web_ui/src/Synergism.ts (`tack`), running in this order:
+// packages/web_ui/src/Synergism.ts (`tack`), running in legacy order:
 //
 //   1. prestige      — advanceResetCounter(prestigecounter,    dt, globalTimeMultiplier)
 //   2. transcension  — advanceResetCounter(transcendcounter,   dt, globalTimeMultiplier)
@@ -13,34 +13,24 @@
 //   6. goldenQuarks  — advanceGoldenQuarksTimer (timeMultiplier === 1, capped + GQ-export gate)
 //   7. octeracts     — advanceOcteractTimer (timeMultiplier === 1, with GQ-giveaway loop)
 //   8. singularity   — advanceSingularityTimer (timeMultiplier === 1, uses singularitySpeedMulti)
-//   9. ambrosia      — advanceAmbrosiaTimer (timeMultiplier === 1, chunked + seeded RNG)
-//  10. redAmbrosia   — advanceRedAmbrosiaTimer (timeMultiplier === 1, chunked + seeded RNG +
+//   9. autoPotion    — advanceAutoPotionTimer (timeMultiplier === 1, emits auto-potion-fired
+//                       events — useConsumable runs in the UI dispatcher)
+//  10. ambrosia      — advanceAmbrosiaTimer (timeMultiplier === 1, chunked + seeded RNG)
+//  11. redAmbrosia   — advanceRedAmbrosiaTimer (timeMultiplier === 1, chunked + seeded RNG +
 //                       bonus blueberry-time feedback fed into a recursive ambrosia advance)
 //
-// The 11th legacy case (`autoPotion`) stays in web_ui because it calls
-// `useConsumable(...)`, which dispatches DOM/modal side effects and
-// touches player.shopUpgrades / player.offerings / player.obtainium.
-// In the legacy sequence, autoPotion sat between case 8 (singularity)
-// and case 9 (ambrosia). The bundle runs cases 9 and 10 contiguously,
-// so the web_ui caller now invokes autoPotion *after* the bundle —
-// a position shift. Audit findings that justify the shift as bug-for-
-// bug equivalent:
-//   - autoPotion's reads (highestSingularityCount, toggles[42]/[43],
-//     shopUpgrades.{offering,obtainium}Potion, autoPotionTimer{,Obtainium},
-//     octeractAutoPotionSpeed) are not mutated by any timer case.
-//   - autoPotion's writes (offerings, obtainium, shopUpgrades.{offering,
-//     obtainium}Potion, shopPotionsConsumed) are not read by any timer
-//     case (notably ambrosia / redAmbrosia, which only consult ambrosia
-//     and red-ambrosia generation speeds / luck stats).
-// So the bundle is independent of the autoPotion call's position.
+// All 11 cases now run inside the bundle in their exact legacy
+// positions. The `useConsumable` call autoPotion historically made
+// inline now lives in the UI tier (via the `auto-potion-fired` event
+// in tickEventHandlers.ts).
 //
-// The bonus-time feedback loop in case 10 (redAmbrosia → ambrosia) is
+// The bonus-time feedback loop in case 11 (redAmbrosia → ambrosia) is
 // handled internally: if redAmbrosia returns `bonusAmbrosiaTime > 0`,
 // we recursively call advanceAmbrosiaTimer with that as `time` and
 // `timeMultiplier === 1` (matching the legacy `addTimers('ambrosia',
 // bonusAmbrosiaTime)` shim call which uses `timeMultiplier === 1`).
 //
-// Cases 5-10 use `timeMultiplier === 1` in legacy (see Helper.ts:67-76
+// Cases 5-11 use `timeMultiplier === 1` in legacy (see Helper.ts:67-76
 // — the bundle reflects that by passing `1` to those cases regardless
 // of the caller's `globalTimeMultiplier`). Only cases 1-3 read
 // `globalTimeMultiplier` directly. Case 4 (ascension) uses the
@@ -51,6 +41,7 @@ import type { CoreEvent } from '../events/types'
 import {
   advanceAmbrosiaTimer,
   advanceAscensionTimer,
+  advanceAutoPotionTimer,
   advanceGoldenQuarksTimer,
   advanceOcteractTimer,
   advanceQuarksTimer,
@@ -138,7 +129,24 @@ export interface AdvanceAllTimersInput {
    * 'singularitySpeedMult')`. */
   singularitySpeedMulti: number
 
-  // ─── 9. Ambrosia ───────────────────────────────────────────────────
+  // ─── 9. Auto Potion ────────────────────────────────────────────────
+  /** player.autoPotionTimer. */
+  autoPotionTimer: number
+  /** player.autoPotionTimerObtainium. */
+  autoPotionTimerObtainium: number
+  /** player.toggles[42] — Fast Offering Potion expenditure. */
+  autoPotionToggleOffering: boolean
+  /** player.toggles[43] — Fast Obtainium Potion expenditure. */
+  autoPotionToggleObtainium: boolean
+  /** player.shopUpgrades.offeringPotion. */
+  offeringPotionCount: number
+  /** player.shopUpgrades.obtainiumPotion. */
+  obtainiumPotionCount: number
+  /** Pre-evaluated `getOcteractUpgradeEffect('octeractAutoPotionSpeed',
+   * 'autoPotionSpeedMult')`. */
+  autoPotionSpeedMult: number
+
+  // ─── 10. Ambrosia ──────────────────────────────────────────────────
   /** player.singularityChallenges.noSingularityUpgrades.completions —
    * branch gate (> 0 to run). */
   noSingularityUpgradesCompletions: number
@@ -168,7 +176,7 @@ export interface AdvanceAllTimersInput {
    * 'barRequirementMult')`. */
   ambrosiaBrickOfLeadMult: number
 
-  // ─── 10. Red Ambrosia ──────────────────────────────────────────────
+  // ─── 11. Red Ambrosia ──────────────────────────────────────────────
   /** player.singularityChallenges.noAmbrosiaUpgrades.completions — branch
    * gate (> 0 to run). */
   noAmbrosiaUpgradesCompletions: number
@@ -225,36 +233,41 @@ export interface AdvanceAllTimersResult {
   singChallengeTimer: number
 
   // ─── 9 ─────────────────────────────────────────────────────────────
+  autoPotionTimer: number
+  autoPotionTimerObtainium: number
+
+  // ─── 10 ────────────────────────────────────────────────────────────
   ambrosiaTimerG: number
   blueberryTime: number
   ambrosia: number
   lifetimeAmbrosia: number
   ambrosiaSeed: number
 
-  // ─── 10 ────────────────────────────────────────────────────────────
+  // ─── 11 ────────────────────────────────────────────────────────────
   redAmbrosiaTimerG: number
   redAmbrosiaTime: number
   redAmbrosia: number
   lifetimeRedAmbrosia: number
   redAmbrosiaSeed: number
 
-  /** Composed event list — octeract / ambrosia / red-ambrosia events
-   * in the same order they were produced. The recursive ambrosia
-   * advance from the redAmbrosia bonus feedback may add a second
-   * `ambrosia-gained` event after the `red-ambrosia-gained` event. */
+  /** Composed event list — octeract / auto-potion / ambrosia /
+   * red-ambrosia events in the same order they were produced. The
+   * recursive ambrosia advance from the redAmbrosia bonus feedback may
+   * add a second `ambrosia-gained` event after the
+   * `red-ambrosia-gained` event. */
   events: CoreEvent[]
 }
 
 /**
- * Pure composition of the ten migrated per-tick timer cases. Mirrors
- * the legacy `addTimers(...)` sweep in `tack` (Synergism.ts) — see
- * the file header for the case-by-case mapping and the autoPotion
- * position-shift rationale.
+ * Pure composition of the eleven migrated per-tick timer cases.
+ * Mirrors the legacy `addTimers(...)` sweep in `tack` (Synergism.ts)
+ * 1:1 — see the file header for the case-by-case mapping.
  *
  * No gating beyond what each per-case function does internally: an
- * octeract-locked save, an ambrosia-locked save, or a redAmbrosia-
- * locked save will short-circuit inside their respective cases and
- * leave both state and events untouched.
+ * octeract-locked save, an autoPotion-locked save (sing < 6), an
+ * ambrosia-locked save, or a redAmbrosia-locked save will
+ * short-circuit inside their respective cases and leave both state
+ * and events untouched.
  */
 export function advanceAllTimers (input: AdvanceAllTimersInput): AdvanceAllTimersResult {
   const events: CoreEvent[] = []
@@ -319,7 +332,26 @@ export function advanceAllTimers (input: AdvanceAllTimersInput): AdvanceAllTimer
     singularitySpeedMulti: input.singularitySpeedMulti
   })
 
-  // ─── 9. Ambrosia ───────────────────────────────────────────────────
+  // ─── 9. Auto Potion ────────────────────────────────────────────────
+  // timeMultiplier === 1 in legacy. Internal gate on
+  // highestSingularityCount < 6. Emits up to two `auto-potion-fired`
+  // events (one per side: offering, obtainium) when the timers cross
+  // threshold; the UI dispatcher translates them into useConsumable.
+  const autoPotionR = advanceAutoPotionTimer({
+    time: input.dt,
+    timeMultiplier: 1,
+    highestSingularityCount: input.highestSingularityCount,
+    autoPotionTimer: input.autoPotionTimer,
+    autoPotionTimerObtainium: input.autoPotionTimerObtainium,
+    toggleOffering: input.autoPotionToggleOffering,
+    toggleObtainium: input.autoPotionToggleObtainium,
+    offeringPotionCount: input.offeringPotionCount,
+    obtainiumPotionCount: input.obtainiumPotionCount,
+    autoPotionSpeedMult: input.autoPotionSpeedMult
+  })
+  for (const e of autoPotionR.events) events.push(e)
+
+  // ─── 10. Ambrosia ──────────────────────────────────────────────────
   // timeMultiplier === 1 in legacy. Internal gates on
   // noSingularityUpgradesCompletions === 0 and ambrosiaGenerationSpeed === 0.
   const ambR = advanceAmbrosiaTimer({
@@ -340,7 +372,7 @@ export function advanceAllTimers (input: AdvanceAllTimersInput): AdvanceAllTimer
   })
   for (const e of ambR.events) events.push(e)
 
-  // ─── 10. Red Ambrosia ──────────────────────────────────────────────
+  // ─── 11. Red Ambrosia ──────────────────────────────────────────────
   // timeMultiplier === 1 in legacy. Internal gate on
   // noAmbrosiaUpgradesCompletions === 0. Returns bonusAmbrosiaTime that
   // we feed back into ambrosia below.
@@ -361,11 +393,11 @@ export function advanceAllTimers (input: AdvanceAllTimersInput): AdvanceAllTimer
   })
   for (const e of redR.events) events.push(e)
 
-  // ─── 10b. Bonus-time feedback (redAmbrosia → ambrosia) ─────────────
+  // ─── 11b. Bonus-time feedback (redAmbrosia → ambrosia) ─────────────
   // Mirrors the legacy `addTimers('ambrosia', bonusAmbrosiaTime)` shim
-  // call (Helper.ts:280). timeMultiplier === 1 in that recursive call.
-  // The ambrosia state at this point already reflects the case-9 result,
-  // so we re-enter with the post-case-9 state and the bonus time.
+  // call (Helper.ts). timeMultiplier === 1 in that recursive call. The
+  // ambrosia state at this point already reflects the case-10 result,
+  // so we re-enter with the post-case-10 state and the bonus time.
   let ambrosiaTimerG = ambR.ambrosiaTimerG
   let blueberryTime = ambR.blueberryTime
   let ambrosia = ambR.ambrosia
@@ -412,6 +444,8 @@ export function advanceAllTimers (input: AdvanceAllTimersInput): AdvanceAllTimer
     ascensionCounterRealReal: singR.ascensionCounterRealReal,
     singularityCounter: singR.singularityCounter,
     singChallengeTimer: singR.singChallengeTimer,
+    autoPotionTimer: autoPotionR.autoPotionTimer,
+    autoPotionTimerObtainium: autoPotionR.autoPotionTimerObtainium,
     ambrosiaTimerG,
     blueberryTime,
     ambrosia,

@@ -915,6 +915,8 @@ export type {
   AdvanceAmbrosiaTimerResult,
   AdvanceAscensionTimerInput,
   AdvanceAscensionTimerResult,
+  AdvanceAutoPotionTimerInput,
+  AdvanceAutoPotionTimerResult,
   AdvanceGoldenQuarksTimerInput,
   AdvanceOcteractTimerInput,
   AdvanceOcteractTimerResult,
@@ -927,6 +929,7 @@ export type {
 export {
   advanceAmbrosiaTimer,
   advanceAscensionTimer,
+  advanceAutoPotionTimer,
   advanceGoldenQuarksTimer,
   advanceOcteractTimer,
   advanceQuarksTimer,

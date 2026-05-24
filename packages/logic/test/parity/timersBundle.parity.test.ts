@@ -1,26 +1,23 @@
 // Multi-tick parity harness for the advanceAllTimers composition.
 //
-// Per-case parity tests (timers.parity, ambrosiaTimers.parity,
-// octeractTimer.parity) cover individual function correctness; this
-// harness exercises advanceAllTimers across N=1000 ticks against a
-// small set of fixtures, catching composition-level drift the per-case
-// tests can't:
+// Per-case parity tests (timers.parity, autoPotion.parity,
+// ambrosiaTimers.parity, octeractTimer.parity) cover individual
+// function correctness; this harness exercises advanceAllTimers across
+// N=1000 ticks against a small set of fixtures, catching
+// composition-level drift the per-case tests can't:
 //   - Counter timers staying in sync across long runs.
 //   - Octeract timer + GQ-giveaway interaction over many seconds.
+//   - autoPotion threshold crossings emitting paired events.
 //   - Ambrosia / red-ambrosia chunked timers + RNG advancement.
 //   - The redAmbrosia → ambrosia bonus-time feedback loop firing
 //     correctly when bonusAmbrosiaTime > 0.
 //   - Floating-point drift between the migrated `advanceAllTimers`
-//     and the verbatim ten-subsystem oracle.
+//     and the verbatim eleven-subsystem oracle.
 //
-// Scope caveat: this harness covers the migrated head-side timer
-// bundle only. The 11th legacy case (`autoPotion`) stays in web_ui
-// because it calls useConsumable; see the bundle file header for the
-// audit that justifies its position shift.
-//
-// All ten cases run in legacy relative order: prestige, transcension,
-// reincarnation, ascension, quarks, goldenQuarks, octeracts,
-// singularity, ambrosia, redAmbrosia (with bonus-time feedback).
+// All eleven cases run in legacy relative order: prestige,
+// transcension, reincarnation, ascension, quarks, goldenQuarks,
+// octeracts, singularity, autoPotion, ambrosia, redAmbrosia (with
+// bonus-time feedback).
 
 import { describe, expect, it } from 'vitest'
 import type { CoreEvent } from '../../src/events/types'
@@ -32,6 +29,7 @@ import {
 import {
   advanceAmbrosiaTimer,
   advanceAscensionTimer,
+  advanceAutoPotionTimer,
   advanceGoldenQuarksTimer,
   advanceOcteractTimer,
   advanceQuarksTimer,
@@ -92,6 +90,20 @@ const oracleAdvanceAllTimers = (input: AdvanceAllTimersInput): AdvanceAllTimersR
     insideSingularityChallenge: input.insideSingularityChallenge,
     singularitySpeedMulti: input.singularitySpeedMulti
   })
+
+  const autoPotionR = advanceAutoPotionTimer({
+    time: input.dt,
+    timeMultiplier: 1,
+    highestSingularityCount: input.highestSingularityCount,
+    autoPotionTimer: input.autoPotionTimer,
+    autoPotionTimerObtainium: input.autoPotionTimerObtainium,
+    toggleOffering: input.autoPotionToggleOffering,
+    toggleObtainium: input.autoPotionToggleObtainium,
+    offeringPotionCount: input.offeringPotionCount,
+    obtainiumPotionCount: input.obtainiumPotionCount,
+    autoPotionSpeedMult: input.autoPotionSpeedMult
+  })
+  for (const e of autoPotionR.events) events.push(e)
 
   const ambR = advanceAmbrosiaTimer({
     time: input.dt,
@@ -174,6 +186,8 @@ const oracleAdvanceAllTimers = (input: AdvanceAllTimersInput): AdvanceAllTimersR
     ascensionCounterRealReal: singR.ascensionCounterRealReal,
     singularityCounter: singR.singularityCounter,
     singChallengeTimer: singR.singChallengeTimer,
+    autoPotionTimer: autoPotionR.autoPotionTimer,
+    autoPotionTimerObtainium: autoPotionR.autoPotionTimerObtainium,
     ambrosiaTimerG,
     blueberryTime,
     ambrosia,
@@ -210,6 +224,8 @@ interface FixtureState {
   ascensionCounterRealReal: number
   singularityCounter: number
   singChallengeTimer: number
+  autoPotionTimer: number
+  autoPotionTimerObtainium: number
   ambrosiaTimerG: number
   blueberryTime: number
   ambrosia: number
@@ -246,6 +262,8 @@ const stateFromResult = (r: AdvanceAllTimersResult): FixtureState => ({
   ascensionCounterRealReal: r.ascensionCounterRealReal,
   singularityCounter: r.singularityCounter,
   singChallengeTimer: r.singChallengeTimer,
+  autoPotionTimer: r.autoPotionTimer,
+  autoPotionTimerObtainium: r.autoPotionTimerObtainium,
   ambrosiaTimerG: r.ambrosiaTimerG,
   blueberryTime: r.blueberryTime,
   ambrosia: r.ambrosia,
@@ -274,6 +292,11 @@ const FIXTURE_A_STATICS: StaticInputs = {
   goldenQuarksMultiplierExcludingBase: 1,
   insideSingularityChallenge: false,
   singularitySpeedMulti: 1,
+  autoPotionToggleOffering: false,
+  autoPotionToggleObtainium: false,
+  offeringPotionCount: 0,
+  obtainiumPotionCount: 0,
+  autoPotionSpeedMult: 1,
   noSingularityUpgradesCompletions: 0,
   ambrosiaGenerationSpeed: 0,
   ambrosiaLuck: 100,
@@ -305,6 +328,8 @@ const FIXTURE_A_INITIAL: FixtureState = {
   ascensionCounterRealReal: 0,
   singularityCounter: 0,
   singChallengeTimer: 0,
+  autoPotionTimer: 0,
+  autoPotionTimerObtainium: 0,
   ambrosiaTimerG: 0,
   blueberryTime: 0,
   ambrosia: 0,

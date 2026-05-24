@@ -4,6 +4,7 @@ import {
   advanceAllTimers as logicAdvanceAllTimers,
   advanceAmbrosiaTimer as logicAdvanceAmbrosiaTimer,
   advanceAscensionTimer as logicAdvanceAscensionTimer,
+  advanceAutoPotionTimer as logicAdvanceAutoPotionTimer,
   advanceGoldenQuarksTimer as logicAdvanceGoldenQuarksTimer,
   advanceOcteractTimer as logicAdvanceOcteractTimer,
   advanceQuarksTimer as logicAdvanceQuarksTimer,
@@ -34,7 +35,7 @@ import { dispatchTickEvent } from './tickEventHandlers'
 import { buyAllBlessingLevels } from './RuneBlessings'
 import { getNumberUnlockedRunes, indexToRune, type RuneKeys, runes, sacrificeOfferings } from './Runes'
 import { buyAllSpiritLevels } from './RuneSpirits'
-import { getShopUpgradeEffects, useConsumable } from './Shop'
+import { getShopUpgradeEffects } from './Shop'
 import { allGoldenQuarkMultiplierStats } from './Statistics'
 import { getGQUpgradeEffect } from './singularity'
 import { getSingularityChallengeEffect } from './SingularityChallenges'
@@ -171,53 +172,22 @@ export const addTimers = (input: TimerInput, time = 0) => {
       break
     }
     case 'autoPotion': {
-      if (player.highestSingularityCount < 6) {
-        return
-      } else {
-        // player.toggles[42] enables FAST Offering Potion Expenditure, but actually spends the potion.
-        // Hence, you need at least one potion to be able to use fast spend.
-        const toggleOfferingOn = player.toggles[42] && player.shopUpgrades.offeringPotion > 0
-        // player.toggles[43] enables FAST Obtainium Potion Expenditure, but actually spends the potion.
-        const toggleObtainiumOn = player.toggles[43] && player.shopUpgrades.obtainiumPotion > 0
-
-        player.autoPotionTimer += time * timeMultiplier
-        player.autoPotionTimerObtainium += time * timeMultiplier
-
-        const timerThreshold = (180 * Math.pow(1.03, -player.highestSingularityCount))
-          / getOcteractUpgradeEffect('octeractAutoPotionSpeed', 'autoPotionSpeedMult')
-
-        const effectiveOfferingThreshold = toggleOfferingOn
-          ? Math.min(1, timerThreshold) / 20
-          : timerThreshold
-        const effectiveObtainiumThreshold = toggleObtainiumOn
-          ? Math.min(1, timerThreshold) / 20
-          : timerThreshold
-
-        if (player.autoPotionTimer >= effectiveOfferingThreshold) {
-          const amountOfPotions = (player.autoPotionTimer
-            - (player.autoPotionTimer % effectiveOfferingThreshold))
-            / effectiveOfferingThreshold
-          player.autoPotionTimer %= effectiveOfferingThreshold
-          useConsumable(
-            'offeringPotion',
-            true,
-            amountOfPotions,
-            toggleOfferingOn
-          )
-        }
-
-        if (player.autoPotionTimerObtainium >= effectiveObtainiumThreshold) {
-          const amountOfPotions = (player.autoPotionTimerObtainium
-            - (player.autoPotionTimerObtainium % effectiveObtainiumThreshold))
-            / effectiveObtainiumThreshold
-          player.autoPotionTimerObtainium %= effectiveObtainiumThreshold
-          useConsumable(
-            'obtainiumPotion',
-            true,
-            amountOfPotions,
-            toggleObtainiumOn
-          )
-        }
+      const r = logicAdvanceAutoPotionTimer({
+        time,
+        timeMultiplier,
+        highestSingularityCount: player.highestSingularityCount,
+        autoPotionTimer: player.autoPotionTimer,
+        autoPotionTimerObtainium: player.autoPotionTimerObtainium,
+        toggleOffering: player.toggles[42],
+        toggleObtainium: player.toggles[43],
+        offeringPotionCount: player.shopUpgrades.offeringPotion,
+        obtainiumPotionCount: player.shopUpgrades.obtainiumPotion,
+        autoPotionSpeedMult: getOcteractUpgradeEffect('octeractAutoPotionSpeed', 'autoPotionSpeedMult')
+      })
+      player.autoPotionTimer = r.autoPotionTimer
+      player.autoPotionTimerObtainium = r.autoPotionTimerObtainium
+      for (const event of r.events) {
+        dispatchTickEvent(event)
       }
       break
     }
@@ -289,22 +259,16 @@ export const addTimers = (input: TimerInput, time = 0) => {
 }
 
 /**
- * Per-tick "head" timer bundle. Replaces the 10 logic-backed
- * `addTimers(...)` switch dispatches in `tack` (Synergism.ts) with a
- * single composed `advanceAllTimers` call from `@synergism/logic`.
+ * Per-tick "head" timer bundle. Replaces the 11 `addTimers(...)`
+ * switch dispatches in `tack` (Synergism.ts) with a single composed
+ * `advanceAllTimers` call from `@synergism/logic`.
  *
  * Pre-evaluates the same speed multipliers, caps, and stat-derived
  * inputs the per-case shims used to evaluate inline, threads them
  * through the bundle, then writes the result back to `player` / `G`
- * and dispatches the composed event list.
- *
- * `autoPotion` is NOT in this bundle — it uses `useConsumable(...)`
- * with DOM/modal side effects. The legacy sequence had autoPotion
- * between case 8 (singularity) and case 9 (ambrosia); the bundle runs
- * cases 9-10 contiguously and the caller now invokes
- * `addTimers('autoPotion', dt)` *after* this function. See
- * `packages/logic/src/tick/timersBundle.ts` header for the audit that
- * justifies the position shift as bug-for-bug equivalent.
+ * and dispatches the composed event list. autoPotion's
+ * `useConsumable` side effect runs in the UI dispatcher (see
+ * `tickEventHandlers.ts`'s `auto-potion-fired` handler).
  */
 export const tackHeadTimers = (dt: number): void => {
   const globalTimeMultiplier = getGQUpgradeEffect('halfMind', 'unlocked')
@@ -354,6 +318,13 @@ export const tackHeadTimers = (dt: number): void => {
     singChallengeTimer: player.singChallengeTimer,
     insideSingularityChallenge: player.insideSingularityChallenge,
     singularitySpeedMulti,
+    autoPotionTimer: player.autoPotionTimer,
+    autoPotionTimerObtainium: player.autoPotionTimerObtainium,
+    autoPotionToggleOffering: player.toggles[42],
+    autoPotionToggleObtainium: player.toggles[43],
+    offeringPotionCount: player.shopUpgrades.offeringPotion,
+    obtainiumPotionCount: player.shopUpgrades.obtainiumPotion,
+    autoPotionSpeedMult: getOcteractUpgradeEffect('octeractAutoPotionSpeed', 'autoPotionSpeedMult'),
     noSingularityUpgradesCompletions: player.singularityChallenges.noSingularityUpgrades.completions,
     ambrosiaGenerationSpeed: calculateAmbrosiaGenerationSpeed(),
     ambrosiaTimerG: G.ambrosiaTimer,
@@ -394,6 +365,8 @@ export const tackHeadTimers = (dt: number): void => {
   player.ascensionCounterRealReal = result.ascensionCounterRealReal
   player.singularityCounter = result.singularityCounter
   player.singChallengeTimer = result.singChallengeTimer
+  player.autoPotionTimer = result.autoPotionTimer
+  player.autoPotionTimerObtainium = result.autoPotionTimerObtainium
   G.ambrosiaTimer = result.ambrosiaTimerG
   player.blueberryTime = result.blueberryTime
   player.ambrosia = result.ambrosia
