@@ -1,3 +1,10 @@
+import {
+  advanceAscensionTimer as logicAdvanceAscensionTimer,
+  advanceGoldenQuarksTimer as logicAdvanceGoldenQuarksTimer,
+  advanceQuarksTimer as logicAdvanceQuarksTimer,
+  advanceResetCounter as logicAdvanceResetCounter,
+  advanceSingularityTimer as logicAdvanceSingularityTimer
+} from '@synergism/logic'
 import Decimal from 'break_infinity.js'
 import { getAmbrosiaUpgradeEffects } from './BlueberryUpgrades'
 import {
@@ -70,57 +77,60 @@ export const addTimers = (input: TimerInput, time = 0) => {
 
   switch (input) {
     case 'prestige': {
-      player.prestigecounter += time * timeMultiplier
+      player.prestigecounter = logicAdvanceResetCounter(player.prestigecounter, time, timeMultiplier)
       break
     }
     case 'transcension': {
-      player.transcendcounter += time * timeMultiplier
+      player.transcendcounter = logicAdvanceResetCounter(player.transcendcounter, time, timeMultiplier)
       break
     }
     case 'reincarnation': {
-      player.reincarnationcounter += time * timeMultiplier
+      player.reincarnationcounter = logicAdvanceResetCounter(player.reincarnationcounter, time, timeMultiplier)
       break
     }
     case 'ascension': {
-      // Anything in here is affected by add code
       const ascensionSpeedMulti = getGQUpgradeEffect('oneMind', 'unlocked')
         ? 10
         : calculateAscensionSpeedMult()
-      player.ascensionCounter += time * timeMultiplier * ascensionSpeedMulti
-      player.ascensionCounterReal += time * timeMultiplier
+      const r = logicAdvanceAscensionTimer({
+        time,
+        ascensionCounter: player.ascensionCounter,
+        ascensionCounterReal: player.ascensionCounterReal,
+        ascensionSpeedMulti
+      })
+      player.ascensionCounter = r.ascensionCounter
+      player.ascensionCounterReal = r.ascensionCounterReal
       break
     }
     case 'singularity': {
       const singularitySpeedMulti = getAmbrosiaUpgradeEffects('ambrosiaBrickOfLead', 'singularitySpeedMult')
-      player.ascensionCounterRealReal += time
-      player.singularityCounter += time * timeMultiplier * singularitySpeedMulti
-
-      if (player.insideSingularityChallenge) {
-        player.singChallengeTimer += time * timeMultiplier * singularitySpeedMulti
-      } else {
-        player.singChallengeTimer = 0
-      }
-
+      const r = logicAdvanceSingularityTimer({
+        time,
+        ascensionCounterRealReal: player.ascensionCounterRealReal,
+        singularityCounter: player.singularityCounter,
+        singChallengeTimer: player.singChallengeTimer,
+        insideSingularityChallenge: player.insideSingularityChallenge,
+        singularitySpeedMulti
+      })
+      player.ascensionCounterRealReal = r.ascensionCounterRealReal
+      player.singularityCounter = r.singularityCounter
+      player.singChallengeTimer = r.singChallengeTimer
       break
     }
     case 'quarks': {
-      // First get maximum Quark Clock (25h, up to +25 from Research 8x20)
-      const maxQuarkTimer = quarkHandler().maxTime
-      player.quarkstimer += time * timeMultiplier
-      // Checks if this new time is greater than maximum, in which it will default to that time.
-      // Otherwise returns itself.
-      player.quarkstimer = player.quarkstimer > maxQuarkTimer ? maxQuarkTimer : player.quarkstimer
+      player.quarkstimer = logicAdvanceQuarksTimer({
+        time,
+        quarkstimer: player.quarkstimer,
+        maxQuarkTimer: quarkHandler().maxTime
+      })
       break
     }
     case 'goldenQuarks': {
-      if (getGQUpgradeEffect('goldenQuarks3', 'exportGQPerHour') === 0) {
-        return
-      } else {
-        player.goldenQuarksTimer += time * timeMultiplier
-        player.goldenQuarksTimer = player.goldenQuarksTimer > 3600 * 168
-          ? 3600 * 168
-          : player.goldenQuarksTimer
-      }
+      player.goldenQuarksTimer = logicAdvanceGoldenQuarksTimer({
+        time,
+        goldenQuarksTimer: player.goldenQuarksTimer,
+        exportGQPerHour: getGQUpgradeEffect('goldenQuarks3', 'exportGQPerHour')
+      })
       break
     }
     case 'octeracts': {

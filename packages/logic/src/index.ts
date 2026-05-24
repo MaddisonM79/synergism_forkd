@@ -911,6 +911,21 @@ export type {
 } from './mechanics/resourceGain'
 export { resourceGain } from './mechanics/resourceGain'
 export type {
+  AdvanceAscensionTimerInput,
+  AdvanceAscensionTimerResult,
+  AdvanceGoldenQuarksTimerInput,
+  AdvanceQuarksTimerInput,
+  AdvanceSingularityTimerInput,
+  AdvanceSingularityTimerResult
+} from './tick/timers'
+export {
+  advanceAscensionTimer,
+  advanceGoldenQuarksTimer,
+  advanceQuarksTimer,
+  advanceResetCounter,
+  advanceSingularityTimer
+} from './tick/timers'
+export type {
   DuplicationRuneBlessingEffects,
   PrismRuneBlessingEffects,
   SpeedRuneBlessingEffects,
