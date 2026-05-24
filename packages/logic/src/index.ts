@@ -926,6 +926,27 @@ export {
   advanceSingularityTimer
 } from './tick/timers'
 export type {
+  AddObtainiumInput,
+  AddObtainiumResult,
+  AddOfferingsInput,
+  AddOfferingsResult
+} from './tick/automaticTools'
+export {
+  addObtainium,
+  addOfferings
+} from './tick/automaticTools'
+export type {
+  ApplyAutoResetsInput,
+  ApplyAutoResetsResult
+} from './tick/autoReset'
+export { applyAutoResets } from './tick/autoReset'
+export type {
+  SweepStates,
+  TickChallengeSweepInput,
+  TickChallengeSweepResult
+} from './tick/challengeSweep'
+export { tickChallengeSweep } from './tick/challengeSweep'
+export type {
   DuplicationRuneBlessingEffects,
   PrismRuneBlessingEffects,
   SpeedRuneBlessingEffects,

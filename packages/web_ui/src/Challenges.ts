@@ -4,9 +4,12 @@ import {
   challenge15ScoreMultiplier as logicChallenge15ScoreMultiplier,
   challengeRequirement as logicChallengeRequirement,
   challengeScoreDisplay as logicChallengeScoreDisplay,
+  type CoreEvent,
   getMaxChallenges as logicGetMaxChallenges,
   getNextAscensionChallenge as logicGetNextAscChallenge,
-  getNextRegularChallenge as logicGetNextRegularChallenge
+  getNextRegularChallenge as logicGetNextRegularChallenge,
+  type SweepStates,
+  tickChallengeSweep as logicTickChallengeSweep
 } from '@synergism/logic'
 import Decimal from 'break_infinity.js'
 import i18next from 'i18next'
@@ -392,126 +395,41 @@ export const challengeRequirement = (challenge: number, completion: number, spec
   })
 }
 
-// Challenge State Machine
-type SweepStates =
-  | { kind: 'idle' }
-  | { kind: 'initial_wait' }
-  // Keep explored set in case we have to use c10_detour (don't run it twice)
-  | { kind: 'enter_wait'; toIndex: number; explored: Set<number> }
-  | { kind: 'active'; index: number; explored: Set<number> }
-  | { kind: 'c15_wait' } // Happens when you can autoGain c15 Exponent
-  | { kind: 'finished' } // Challenges 1-10 are all completely maxed
+// Challenge State Machine — pure logic lives in @synergism/logic
+// (packages/logic/src/tick/challengeSweep.ts). This module keeps the two
+// pieces of mutable bookkeeping (currentSweepState + timeSinceLastStateChange)
+// in module-locals and threads them through each tick; side effects fire
+// from the dispatcher below in response to challenge-sweep-transitioned events.
 
 let currentSweepState: SweepStates = { kind: 'idle' }
 
-function sweepTransitionFunc (
-  state: SweepStates,
-  elapsedTime: number,
-  timers = player.autoChallengeTimer
-): SweepStates {
-  switch (state.kind) {
-    case 'idle':
-      // Will be transitioned externally when sweep is enabled
-      return state
-
-    case 'initial_wait':
-      if (elapsedTime >= timers.start) {
-        let initialIndex = 1
-        if (player.highestSingularityCount >= 2 && player.currentChallenge.ascension !== 0) {
-          initialIndex = 10
-        }
-        // Find first valid challenge, which skips the enter time.
-        const firstChallenge = getNextRegularChallenge(initialIndex, new Set())
-        if (firstChallenge === -1) {
-          // If we max all the challenges, just don't change the state!
-          return { kind: 'finished' }
-        }
-        return { kind: 'active', index: firstChallenge, explored: new Set([firstChallenge]) }
-      }
-      return state
-
-    case 'active':
-      if (elapsedTime >= timers.exit) {
-        // Find next challenge
-        const nextChallenge = getNextRegularChallenge(state.index, state.explored)
-
-        // Check if we've wrapped around or exhausted all challenges
-        if (nextChallenge === -1) {
-          // Completed a full cycle, check if we need C15 wait
-          if (challenge15AutoExponentCheck()) {
-            return { kind: 'c15_wait' }
-          }
-          // Restart the sweep (wait 'start' seconds before first challenge)
-          return { kind: 'initial_wait' }
-        }
-
-        // Go to enter_wait before next challenge
-        return { kind: 'enter_wait', toIndex: nextChallenge, explored: state.explored }
-      }
-      return state
-
-    case 'enter_wait':
-      if (elapsedTime >= timers.enter) {
-        return { kind: 'active', index: state.toIndex, explored: new Set([...state.explored, state.toIndex]) }
-      }
-      return state
-
-    case 'c15_wait':
-      if (elapsedTime >= 5) {
-        // After 5 seconds, restart the sweep
-        return { kind: 'initial_wait' }
-      }
-      return state
-
-    case 'finished':
-      // Check to ensure that the max challenges did not change since we entered this state
-      // We check challenge 1 and 6 to represent Transcension and Reincarnation challenges respectively
-      if (
-        player.highestchallengecompletions[1] === getMaxChallenges(1)
-        && player.highestchallengecompletions[6] === getMaxChallenges(6)
-      ) {
-        return state
-      } else {
-        return { kind: 'initial_wait' }
-      }
-    default: {
-      throw new Error(`Unhandled SweepState kind: ${(state as { kind: string }).kind}`)
-    }
-  }
-}
-
-function handleStateTransition (oldState: SweepStates, newState: SweepStates): void {
-  if (oldState.kind === 'active') {
-    const challengeIndex = oldState.index
-    if (challengeIndex <= 5) {
+function dispatchSweepTransition (from: SweepStates, to: SweepStates): void {
+  // Exiting an active challenge — fire the corresponding async reset check.
+  if (from.kind === 'active') {
+    if (from.index <= 5) {
       void resetCheck('transcensionChallenge', undefined, true)
     } else {
       void resetCheck('reincarnationChallenge', undefined, true)
     }
   }
 
-  switch (newState.kind) {
+  switch (to.kind) {
     case 'idle':
       toggleAutoChallengeModeText('OFF')
       break
-
     case 'initial_wait':
       toggleAutoChallengeModeText('START')
       break
-
     case 'enter_wait':
       toggleAutoChallengeModeText('ENTER')
       break
-
     case 'active':
-      toggleChallenges(newState.index, true)
+      toggleChallenges(to.index, true)
       toggleAutoChallengeModeText('CHALLENGE')
       break
-
     case 'c15_wait':
       toggleAutoChallengeModeText('WAIT')
       break
-
     case 'finished':
       toggleAutoChallengeModeText('COMPLETE')
       break
@@ -540,38 +458,57 @@ export function resetChallengeSweep (): void {
 }
 
 export function tickChallengeSweep (dt: number): void {
-  const wasEnabled = currentSweepState.kind !== 'idle'
-  const isEnabled = shouldRunSweep()
-
-  if (!wasEnabled && isEnabled) {
-    currentSweepState = { kind: 'initial_wait' }
-    timeSinceLastStateChange = 0
-    handleStateTransition({ kind: 'idle' }, currentSweepState)
-    return
+  // Pre-evaluate the transition-lookup inputs that the logic state
+  // machine needs, scoped to the current state's possible transitions
+  // (skipping work that wouldn't be consulted this tick).
+  let initialIndex = 1
+  let nextRegularChallengeFromInitial = -1
+  if (currentSweepState.kind === 'initial_wait') {
+    if (player.highestSingularityCount >= 2 && player.currentChallenge.ascension !== 0) {
+      initialIndex = 10
+    }
+    nextRegularChallengeFromInitial = getNextRegularChallenge(initialIndex, new Set())
   }
 
-  if (wasEnabled && !isEnabled) {
-    const oldState = currentSweepState
-    currentSweepState = { kind: 'idle' }
-    timeSinceLastStateChange = 0
-    handleStateTransition(oldState, currentSweepState)
-    return
+  let nextRegularChallengeFromActive = -1
+  let chal15Check = false
+  if (currentSweepState.kind === 'active') {
+    nextRegularChallengeFromActive = getNextRegularChallenge(currentSweepState.index, currentSweepState.explored)
+    chal15Check = challenge15AutoExponentCheck()
   }
 
-  if (!isEnabled) {
-    return
+  let isFinishedStillValid = false
+  if (currentSweepState.kind === 'finished') {
+    isFinishedStillValid = player.highestchallengecompletions[1] === getMaxChallenges(1)
+      && player.highestchallengecompletions[6] === getMaxChallenges(6)
   }
 
-  timeSinceLastStateChange += dt
-  const newState = sweepTransitionFunc(currentSweepState, timeSinceLastStateChange)
+  const result = logicTickChallengeSweep({
+    dt,
+    state: currentSweepState,
+    timeSinceLastStateChange,
+    shouldRunSweep: shouldRunSweep(),
+    timerStart: player.autoChallengeTimer.start,
+    timerExit: player.autoChallengeTimer.exit,
+    timerEnter: player.autoChallengeTimer.enter,
+    initialIndex,
+    nextRegularChallengeFromInitial,
+    nextRegularChallengeFromActive,
+    challenge15AutoExponentCheck: chal15Check,
+    isFinishedStillValid
+  })
 
-  if (newState !== currentSweepState) {
-    // State changed, reset timer and handle side effects
-    const oldState = currentSweepState
-    currentSweepState = newState
-    timeSinceLastStateChange = 0
-    handleStateTransition(oldState, newState)
+  currentSweepState = result.state
+  timeSinceLastStateChange = result.timeSinceLastStateChange
+
+  for (const event of result.events) {
+    dispatchSweepEvent(event)
   }
+}
+
+function dispatchSweepEvent (event: CoreEvent): void {
+  if (event.kind !== 'challenge-sweep-transitioned') return
+  dispatchSweepTransition(event.from, event.to)
 }
 
 export const autoAscensionChallengeSweepUnlock = () =>

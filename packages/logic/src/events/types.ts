@@ -1,4 +1,5 @@
 import type { Decimal } from '../math/bignum'
+import type { SweepStates } from '../tick/challengeSweep'
 
 // Discriminated union of events the logic core emits for the UI tier to
 // react to. UI subscribers translate these into user-facing effects
@@ -106,10 +107,14 @@ export type CoreEvent =
     }
   | {
       kind: 'challenge-sweep-transitioned'
-      /** SweepState kind transitioned out of. */
-      from: string
-      /** SweepState kind transitioned into. */
-      to: string
+      /** Full SweepState transitioned out of — handler routes
+       * resetCheck('transcensionChallenge' | 'reincarnationChallenge')
+       * by `from.index` when from.kind === 'active'. */
+      from: SweepStates
+      /** Full SweepState transitioned into — handler picks
+       * toggleAutoChallengeModeText by `to.kind`, and additionally calls
+       * toggleChallenges(to.index, true) when to.kind === 'active'. */
+      to: SweepStates
     }
   | {
       kind: 'reveal-needed'

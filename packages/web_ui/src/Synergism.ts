@@ -1,6 +1,7 @@
 // eslint-disable-next-line no-unassigned-import
 import '@ungap/custom-elements'
 import {
+  applyAutoResets as logicApplyAutoResets,
   calculateBuildingPower as logicCalculateBuildingPower,
   calculateBuildingPowerCoinMultiplier as logicCalculateBuildingPowerCoinMultiplier,
   calculateCrystalCoinMultiplier as logicCalculateCrystalCoinMultiplier,
@@ -4132,96 +4133,60 @@ const tack = (dt: number) => {
   // Challenge Sweep State Machine
   tickChallengeSweep(dt)
 
-  // Check for automatic resets
-  // Auto Prestige.
-  if (player.resetToggleModes.prestige === AutoResetModes.amount) {
-    if (
-      player.toggles[15]
-      && getLevelMilestone('autoPrestige') === 1
-      && G.prestigePointGain.gte(
-        player.prestigePoints.times(Decimal.pow(10, player.prestigeamount))
-      )
-      && player.coinsThisPrestige.gte(1e16)
-    ) {
-      resetAchievementCheck('prestige')
+  // Check for automatic resets — pure decision logic lives in
+  // @synergism/logic; this shim translates fired events into
+  // resetAchievementCheck + reset calls.
+  const autoResetResult = logicApplyAutoResets({
+    dt,
+    prestigeMode: player.resetToggleModes.prestige === AutoResetModes.amount ? 'amount' : 'time',
+    toggle15: player.toggles[15],
+    autoPrestigeMilestone: getLevelMilestone('autoPrestige'),
+    prestigePoints: player.prestigePoints,
+    prestigePointGain: G.prestigePointGain,
+    prestigeamount: player.prestigeamount,
+    coinsThisPrestige: player.coinsThisPrestige,
+    autoResetTimerPrestige: G.autoResetTimers.prestige,
+    transcendMode: player.resetToggleModes.transcend === AutoResetModes.amount ? 'amount' : 'time',
+    toggle21: player.toggles[21],
+    upgrade89: player.upgrades[89],
+    transcendPoints: player.transcendPoints,
+    transcendPointGain: G.transcendPointGain,
+    transcendamount: player.transcendamount,
+    coinsThisTranscension: player.coinsThisTranscension,
+    autoResetTimerTranscension: G.autoResetTimers.transcension,
+    reincarnationMode: player.resetToggleModes.reincarnation === AutoResetModes.amount ? 'amount' : 'time',
+    toggle27: player.toggles[27],
+    research46: player.researches[46],
+    reincarnationPoints: player.reincarnationPoints,
+    reincarnationPointGain: G.reincarnationPointGain,
+    reincarnationamount: player.reincarnationamount,
+    transcendShards: player.transcendShards,
+    autoResetTimerReincarnation: G.autoResetTimers.reincarnation,
+    ascensionChallenge: player.currentChallenge.ascension,
+    transcensionChallenge: player.currentChallenge.transcension,
+    reincarnationChallenge: player.currentChallenge.reincarnation
+  })
+  G.autoResetTimers.prestige = autoResetResult.autoResetTimerPrestige
+  G.autoResetTimers.transcension = autoResetResult.autoResetTimerTranscension
+  G.autoResetTimers.reincarnation = autoResetResult.autoResetTimerReincarnation
+  for (const event of autoResetResult.events) {
+    if (event.kind !== 'auto-reset-triggered') continue
+    if (event.tier === 'prestige') {
+      // Bug-for-bug parity: legacy prestige time mode awards the
+      // 'transcension' achievement check; amount mode awards 'prestige'.
+      // See packages/logic/src/tick/autoReset.ts header for context.
+      if (event.mode === 'time') {
+        resetAchievementCheck('transcension')
+      } else {
+        resetAchievementCheck('prestige')
+      }
       reset('prestige', true)
-    }
-  }
-  if (player.resetToggleModes.prestige === AutoResetModes.time) {
-    G.autoResetTimers.prestige += dt
-    const time = Math.max(0.01, player.prestigeamount)
-    if (
-      player.toggles[15]
-      && getLevelMilestone('autoPrestige') === 1
-      && G.autoResetTimers.prestige >= time
-      && player.coinsThisPrestige.gte(1e16)
-    ) {
-      resetAchievementCheck('transcension')
-      reset('prestige', true)
-    }
-  }
-
-  if (player.resetToggleModes.transcend === AutoResetModes.amount) {
-    if (
-      player.toggles[21]
-      && player.upgrades[89] === 1
-      && G.transcendPointGain.gte(
-        player.transcendPoints.times(Decimal.pow(10, player.transcendamount))
-      )
-      && player.coinsThisTranscension.gte(1e100)
-      && player.currentChallenge.transcension === 0
-    ) {
+    } else if (event.tier === 'transcension') {
       resetAchievementCheck('transcension')
       reset('transcension', true)
-    }
-  }
-  if (player.resetToggleModes.transcend === AutoResetModes.time) {
-    G.autoResetTimers.transcension += dt
-    const time = Math.max(0.01, player.transcendamount)
-    if (
-      player.toggles[21]
-      && player.upgrades[89] === 1
-      && G.autoResetTimers.transcension >= time
-      && player.coinsThisTranscension.gte(1e100)
-      && player.currentChallenge.transcension === 0
-    ) {
-      resetAchievementCheck('transcension')
-      reset('transcension', true)
-    }
-  }
-
-  if (player.currentChallenge.ascension !== 12) {
-    G.autoResetTimers.reincarnation += dt
-    if (player.resetToggleModes.reincarnation === AutoResetModes.time) {
-      const time = Math.max(0.01, player.reincarnationamount)
-      if (
-        player.toggles[27]
-        && player.researches[46] > 0.5
-        && player.transcendShards.gte('1e300')
-        && G.autoResetTimers.reincarnation >= time
-        && player.currentChallenge.transcension === 0
-        && player.currentChallenge.reincarnation === 0
-      ) {
-        resetAchievementCheck('reincarnation')
-        reset('reincarnation', true)
-      }
-    }
-    if (player.resetToggleModes.reincarnation === AutoResetModes.amount) {
-      if (
-        player.toggles[27]
-        && player.researches[46] > 0.5
-        && G.reincarnationPointGain.gte(
-          player.reincarnationPoints
-            .add(1)
-            .times(Decimal.pow(10, player.reincarnationamount))
-        )
-        && player.transcendShards.gte(1e300)
-        && player.currentChallenge.transcension === 0
-        && player.currentChallenge.reincarnation === 0
-      ) {
-        resetAchievementCheck('reincarnation')
-        reset('reincarnation', true)
-      }
+    } else if (event.tier === 'reincarnation') {
+      resetAchievementCheck('reincarnation')
+      reset('reincarnation', true)
     }
   }
   calculateOfferings()

@@ -1,4 +1,6 @@
 import {
+  addObtainium as logicAddObtainium,
+  addOfferings as logicAddOfferings,
   advanceAscensionTimer as logicAdvanceAscensionTimer,
   advanceGoldenQuarksTimer as logicAdvanceGoldenQuarksTimer,
   advanceQuarksTimer as logicAdvanceQuarksTimer,
@@ -319,38 +321,35 @@ let autoSacrificeInterval = 1
 export const automaticTools = (input: AutoToolInput, time: number) => {
   switch (input) {
     case 'addObtainium': {
-      // If in challenge 14, abort and do not award obtainium
-      if (player.currentChallenge.ascension === 14) {
-        break
-      }
-
-      let obtainiumGain = calculateResearchAutomaticObtainium(time)
-      if (
-        player.singularityChallenges.taxmanLastStand.enabled
-        && player.singularityChallenges.taxmanLastStand.completions >= 2
-      ) {
-        obtainiumGain = Decimal.min(
-          obtainiumGain,
-          player.obtainium.times(100).plus(1)
-        )
-      }
-
-      // Add Obtainium
-      player.obtainium = player.obtainium.add(obtainiumGain)
-      // Update visual displays if appropriate
-      if (G.currentTab === Tabs.Research) {
-        visualUpdateResearch()
+      const obtainiumResult = logicAddObtainium({
+        obtainium: player.obtainium,
+        obtainiumGain: calculateResearchAutomaticObtainium(time),
+        ascensionChallenge: player.currentChallenge.ascension,
+        taxmanLastStandEnabled: player.singularityChallenges.taxmanLastStand.enabled,
+        taxmanLastStandCompletions: player.singularityChallenges.taxmanLastStand.completions
+      })
+      player.obtainium = obtainiumResult.obtainium
+      for (const event of obtainiumResult.events) {
+        if (event.kind === 'auto-tool-fired' && event.tool === 'addObtainium') {
+          if (G.currentTab === Tabs.Research) {
+            visualUpdateResearch()
+          }
+        }
       }
       break
     }
-    case 'addOfferings':
+    case 'addOfferings': {
       // This counter can be increased through challenge 3 reward
       // As well as cube upgrade 1x2 (2).
-      G.autoOfferingCounter += time
-      // Any time this exceeds 1 it adds an offering
-      player.offerings = player.offerings.add(Math.floor(G.autoOfferingCounter))
-      G.autoOfferingCounter %= 1
+      const offeringsResult = logicAddOfferings({
+        time,
+        autoOfferingCounter: G.autoOfferingCounter,
+        offerings: player.offerings
+      })
+      G.autoOfferingCounter = offeringsResult.autoOfferingCounter
+      player.offerings = offeringsResult.offerings
       break
+    }
     case 'runeSacrifice':
       // Every real life second this will trigger
       player.sacrificeTimer += time
