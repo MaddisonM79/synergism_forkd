@@ -906,6 +906,11 @@ export type {
 } from './mechanics/globalMultipliers'
 export { computeGlobalMultipliers } from './mechanics/globalMultipliers'
 export type {
+  ResourceGainInput,
+  ResourceGainResult
+} from './mechanics/resourceGain'
+export { resourceGain } from './mechanics/resourceGain'
+export type {
   DuplicationRuneBlessingEffects,
   PrismRuneBlessingEffects,
   SpeedRuneBlessingEffects,
