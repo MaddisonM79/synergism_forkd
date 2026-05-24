@@ -965,6 +965,12 @@ export { Seed, seededBetween, seededRandom } from './math/rng'
 export type { TackTailInput, TackTailResult } from './tick/tackTail'
 export { tackTail } from './tick/tackTail'
 export type {
+  GenerateAntsAndCrumbsInput,
+  GenerateAntsAndCrumbsProducerInput,
+  GenerateAntsAndCrumbsResult
+} from './tick/antGeneration'
+export { generateAntsAndCrumbs as logicGenerateAntsAndCrumbs } from './tick/antGeneration'
+export type {
   DuplicationRuneBlessingEffects,
   PrismRuneBlessingEffects,
   SpeedRuneBlessingEffects,
