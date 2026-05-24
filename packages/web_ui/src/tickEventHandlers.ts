@@ -17,7 +17,7 @@ import { dispatchSweepTransition } from './Challenges'
 import type { CoreEvent } from '@synergism/logic'
 import { reset } from './Reset'
 import { Tabs } from './Tabs'
-import { visualUpdateAmbrosia, visualUpdateResearch } from './UpdateVisuals'
+import { visualUpdateAmbrosia, visualUpdateOcteracts, visualUpdateResearch } from './UpdateVisuals'
 import { revealStuff, updateChallengeLevel } from './UpdateHTML'
 import { Globals as G } from './Variables'
 
@@ -69,6 +69,11 @@ export function dispatchTickEvent (event: CoreEvent): void {
     case 'ambrosia-gained':
     case 'red-ambrosia-gained':
       visualUpdateAmbrosia()
+      return
+
+    // ─── octeract events ─────────────────────────────────────────────
+    case 'octeract-tick-fired':
+      visualUpdateOcteracts()
       return
 
     // ─── autoReset events ────────────────────────────────────────────

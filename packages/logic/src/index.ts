@@ -916,6 +916,8 @@ export type {
   AdvanceAscensionTimerInput,
   AdvanceAscensionTimerResult,
   AdvanceGoldenQuarksTimerInput,
+  AdvanceOcteractTimerInput,
+  AdvanceOcteractTimerResult,
   AdvanceQuarksTimerInput,
   AdvanceRedAmbrosiaTimerInput,
   AdvanceRedAmbrosiaTimerResult,
@@ -926,10 +928,12 @@ export {
   advanceAmbrosiaTimer,
   advanceAscensionTimer,
   advanceGoldenQuarksTimer,
+  advanceOcteractTimer,
   advanceQuarksTimer,
   advanceRedAmbrosiaTimer,
   advanceResetCounter,
-  advanceSingularityTimer
+  advanceSingularityTimer,
+  OCTERACT_GIVEAWAY_LEVELS
 } from './tick/timers'
 export type {
   AddObtainiumInput,

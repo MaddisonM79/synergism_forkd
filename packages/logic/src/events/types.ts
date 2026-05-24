@@ -138,3 +138,10 @@ export type CoreEvent =
       /** Total red ambrosia gained this tick. */
       amount: number
     }
+  | {
+      kind: 'octeract-tick-fired'
+      /** Number of integer 1-second giveaway buckets that crossed this tick.
+       * Always ≥ 1 when emitted (the event only fires when at least one
+       * giveaway-second elapsed; otherwise no refresh is needed). */
+      amountOfGiveaways: number
+    }

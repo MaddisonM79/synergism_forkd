@@ -4,6 +4,7 @@ import {
   advanceAmbrosiaTimer as logicAdvanceAmbrosiaTimer,
   advanceAscensionTimer as logicAdvanceAscensionTimer,
   advanceGoldenQuarksTimer as logicAdvanceGoldenQuarksTimer,
+  advanceOcteractTimer as logicAdvanceOcteractTimer,
   advanceQuarksTimer as logicAdvanceQuarksTimer,
   advanceRedAmbrosiaTimer as logicAdvanceRedAmbrosiaTimer,
   advanceResetCounter as logicAdvanceResetCounter,
@@ -16,7 +17,6 @@ import {
   calculateAmbrosiaLuck,
   calculateAscensionSpeedMult,
   calculateGlobalSpeedMult,
-  calculateGoldenQuarks,
   calculateOcteractMultiplier,
   calculateRedAmbrosiaGenerationSpeed,
   calculateRedAmbrosiaLuck,
@@ -34,11 +34,11 @@ import { buyAllBlessingLevels } from './RuneBlessings'
 import { getNumberUnlockedRunes, indexToRune, type RuneKeys, runes, sacrificeOfferings } from './Runes'
 import { buyAllSpiritLevels } from './RuneSpirits'
 import { getShopUpgradeEffects, useConsumable } from './Shop'
+import { allGoldenQuarkMultiplierStats } from './Statistics'
 import { getGQUpgradeEffect } from './singularity'
 import { getSingularityChallengeEffect } from './SingularityChallenges'
 import { player } from './Synergism'
 import { buyAllTalismanResources } from './Talismans'
-import { visualUpdateOcteracts } from './UpdateVisuals'
 import { Globals as G } from './Variables'
 
 type TimerInput =
@@ -53,8 +53,6 @@ type TimerInput =
   | 'autoPotion'
   | 'ambrosia'
   | 'redAmbrosia'
-
-const octeractGiveawayLevels = [160, 173, 185, 194, 204, 210, 219, 229, 240, 249]
 
 /**
  * addTimers will add (in milliseconds) time to the reset counters, and quark export timer
@@ -138,33 +136,36 @@ export const addTimers = (input: TimerInput, time = 0) => {
     case 'octeracts': {
       if (!getGQUpgradeEffect('octeractUnlock', 'unlocked')) {
         return
-      } else {
-        player.octeractTimer += time * timeMultiplier
       }
-      if (player.octeractTimer >= 1) {
-        const amountOfGiveaways = player.octeractTimer - (player.octeractTimer % 1)
-        player.octeractTimer %= 1
-
-        const perSecond = calculateOcteractMultiplier()
-        player.wowOcteracts += amountOfGiveaways * perSecond
-        player.totalWowOcteracts += amountOfGiveaways * perSecond
-
-        if (player.highestSingularityCount >= 160) {
-          const frac = 1e-6
-          let actualLevel = 0
-          for (const sing of octeractGiveawayLevels) {
-            if (player.highestSingularityCount >= sing) {
-              actualLevel += 1
-            }
-          }
-
-          for (let i = 0; i < amountOfGiveaways; i++) {
-            const quarkFraction = frac * actualLevel
-            player.goldenQuarks += quarkFraction * calculateGoldenQuarks()
-            player.quarksThisSingularity *= 1 - quarkFraction
-          }
-        }
-        visualUpdateOcteracts()
+      // Pre-eval the GQ multiplier product (stats 1..end, skipping the
+      // qts-dependent base at index 0) only when the GQ-giveaway block
+      // will run (≥ sing 160). Logic recomputes the base each iteration.
+      let goldenQuarksMultiplierExcludingBase = 1
+      if (player.highestSingularityCount >= 160) {
+        const gqStats = allGoldenQuarkMultiplierStats.map(s => s.stat())
+        goldenQuarksMultiplierExcludingBase = gqStats.slice(1).reduce((a, b) => a * b, 1)
+      }
+      const octeractResult = logicAdvanceOcteractTimer({
+        time,
+        timeMultiplier,
+        octeractUnlocked: true,
+        octeractTimer: player.octeractTimer,
+        wowOcteracts: player.wowOcteracts,
+        totalWowOcteracts: player.totalWowOcteracts,
+        goldenQuarks: player.goldenQuarks,
+        quarksThisSingularity: player.quarksThisSingularity,
+        perSecond: calculateOcteractMultiplier(),
+        highestSingularityCount: player.highestSingularityCount,
+        singularityCount: player.singularityCount,
+        goldenQuarksMultiplierExcludingBase
+      })
+      player.octeractTimer = octeractResult.octeractTimer
+      player.wowOcteracts = octeractResult.wowOcteracts
+      player.totalWowOcteracts = octeractResult.totalWowOcteracts
+      player.goldenQuarks = octeractResult.goldenQuarks
+      player.quarksThisSingularity = octeractResult.quarksThisSingularity
+      for (const event of octeractResult.events) {
+        dispatchTickEvent(event)
       }
       break
     }
