@@ -1,5 +1,15 @@
 // eslint-disable-next-line no-unassigned-import
 import '@ungap/custom-elements'
+import {
+  calculateBuildingPower as logicCalculateBuildingPower,
+  calculateBuildingPowerCoinMultiplier as logicCalculateBuildingPowerCoinMultiplier,
+  calculateCrystalCoinMultiplier as logicCalculateCrystalCoinMultiplier,
+  calculateCrystalExponent as logicCalculateCrystalExponent,
+  crystalUpgrade3Base as logicCrystalUpgrade3Base,
+  crystalUpgrade3CrystalMultiplier as logicCrystalUpgrade3CrystalMultiplier,
+  crystalUpgrade3MaxBase as logicCrystalUpgrade3MaxBase,
+  crystalUpgrade4MaxExponent as logicCrystalUpgrade4MaxExponent
+} from '@synergism/logic'
 import Decimal, { type DecimalSource } from 'break_infinity.js'
 import LZString from 'lz-string'
 
@@ -2658,91 +2668,67 @@ export const updateAllMultiplier = (): void => {
   G.multiplierEffect = Decimal.pow(G.multiplierPower, G.totalMultiplier)
 }
 
-export const calculateBuildingPower = (): number => {
-  const challenge8Bonus = 0.25 * CalcECC('reincarnation', player.challengecompletions[8])
-
-  let power = 1
-  // Atom bonus
-  power += (1 - Math.pow(2, -1 / 160))
-    * Decimal.log(player.reincarnationShards.add(1), 10)
-  // Challenge 8 Reward
-  power += challenge8Bonus
-
-  // Researches
-  power *= 1 + (1 / 20) * player.researches[36]
-  power *= 1 + (1 / 40) * player.researches[37]
-  power *= 1 + (1 / 40) * player.researches[38]
-
-  // Ant
-
-  power *= getAntUpgradeEffect(AntUpgrades.BuildingCostScale).buildingPowerMult
-
-  // Cube Upgrades each raise the base to a power.
-  power = Math.pow(power, 1 + player.cubeUpgrades[12] * 0.09)
-  power = Math.pow(power, 1 + player.cubeUpgrades[36] * 0.05)
-
-  // Challenge 7 effect!
-
-  if (player.currentChallenge.reincarnation === 7) {
-    power = 1 + 0.05 * power
-  }
-
-  return power
-}
+export const calculateBuildingPower = (): number =>
+  logicCalculateBuildingPower({
+    c8ReincarnationECC: CalcECC('reincarnation', player.challengecompletions[8]),
+    reincarnationShards: player.reincarnationShards,
+    research36: player.researches[36],
+    research37: player.researches[37],
+    research38: player.researches[38],
+    buildingCostScaleAntUpgradeBuildingPowerMult: getAntUpgradeEffect(AntUpgrades.BuildingCostScale).buildingPowerMult,
+    cubeUpgrade12: player.cubeUpgrades[12],
+    cubeUpgrade36: player.cubeUpgrades[36],
+    inReincarnationChallenge7: player.currentChallenge.reincarnation === 7
+  })
 
 export const calculateBuildingPowerCoinMultiplier = (power?: number): Decimal => {
   const buildingPower = power ?? calculateBuildingPower()
-  const totalOwnedCoin = calculateTotalCoinOwned()
-  return Decimal.pow(buildingPower, totalOwnedCoin)
+  return logicCalculateBuildingPowerCoinMultiplier(buildingPower, calculateTotalCoinOwned())
 }
 
-export const crystalUpgrade4MaxExponent = (): number => {
-  let exponent = 10
-  exponent += 0.05 * player.researches[129] * Decimal.log(player.commonFragments.add(1), 4)
-  exponent += getRuneSpiritEffect('prism').crystalCaps
+export const crystalUpgrade4MaxExponent = (): number =>
+  logicCrystalUpgrade4MaxExponent({
+    research129: player.researches[129],
+    commonFragments: player.commonFragments,
+    prismSpiritCrystalCaps: getRuneSpiritEffect('prism').crystalCaps
+  })
 
-  return exponent
-}
+export const calculateCrystalExponent = (): number =>
+  logicCalculateCrystalExponent({
+    crystalUpgrade3MaxExponent: crystalUpgrade4MaxExponent(),
+    crystalUpgrade3: player.crystalUpgrades[3],
+    c3TranscendECC: CalcECC('transcend', player.challengecompletions[3]),
+    research28: player.researches[28],
+    research29: player.researches[29],
+    research30: player.researches[30],
+    cubeUpgrade17: player.cubeUpgrades[17]
+  })
 
-export const calculateCrystalExponent = (): number => {
-  const crystalUpgrade3Max = crystalUpgrade4MaxExponent()
-  let exponent = 1 / 3 // Base Val
-  exponent += crystalUpgrade3Max * (1 - Math.pow(0.995, player.crystalUpgrades[3]))
-  exponent += 0.04 * CalcECC('transcend', player.challengecompletions[3])
-  exponent += 0.08 * player.researches[28] // 2x3
-  exponent += 0.08 * player.researches[29] // 2x4
-  exponent += 0.04 * player.researches[30] // 2x5
-  exponent += 8 * player.cubeUpgrades[17] // 2x7
-  return exponent
-}
+export const calculateCrystalCoinMultiplier = (exponent?: number): Decimal =>
+  logicCalculateCrystalCoinMultiplier(player.prestigeShards, exponent ?? calculateCrystalExponent())
 
-export const calculateCrystalCoinMultiplier = (exponent?: number) => {
-  const crystalExponent = exponent ?? calculateCrystalExponent()
-  return Decimal.pow(player.prestigeShards.add(1), crystalExponent)
-}
+export const crystalUpgrade3MaxBase = (): number =>
+  logicCrystalUpgrade3MaxBase({
+    upgrade122: player.upgrades[122],
+    research129: player.researches[129],
+    commonFragments: player.commonFragments
+  })
 
-export const crystalUpgrade3MaxBase = (): number => {
-  let maxBase = 2
-  maxBase += 1 * player.upgrades[122]
-  maxBase += 0.001 * player.researches[129] * Decimal.log(player.commonFragments.add(1), 4)
-  return maxBase
-}
+export const crystalUpgrade3Base = (maxBase?: number): number =>
+  logicCrystalUpgrade3Base({
+    maxBase: maxBase ?? crystalUpgrade3MaxBase(),
+    crystalUpgrade2: player.crystalUpgrades[2]
+  })
 
-export const crystalUpgrade3Base = (maxBase?: number): number => {
-  const baseCap = maxBase ?? crystalUpgrade3MaxBase()
-  return 1 + (baseCap - 1) * (1 - Math.pow(0.999, player.crystalUpgrades[2]))
-}
-
-export const crystalUpgrade3CrystalMultiplier = (base?: number): Decimal => {
-  const baseToUse = base ?? crystalUpgrade3Base()
-  const crystalProducersOwned = player.firstOwnedDiamonds
-    + player.secondOwnedDiamonds
-    + player.thirdOwnedDiamonds
-    + player.fourthOwnedDiamonds
-    + player.fifthOwnedDiamonds
-
-  return Decimal.pow(baseToUse, crystalProducersOwned)
-}
+export const crystalUpgrade3CrystalMultiplier = (base?: number): Decimal =>
+  logicCrystalUpgrade3CrystalMultiplier({
+    base: base ?? crystalUpgrade3Base(),
+    crystalProducersOwned: player.firstOwnedDiamonds
+      + player.secondOwnedDiamonds
+      + player.thirdOwnedDiamonds
+      + player.fourthOwnedDiamonds
+      + player.fifthOwnedDiamonds
+  })
 
 export const multipliers = (): void => {
   let s = new Decimal(1)

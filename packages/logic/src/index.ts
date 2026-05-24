@@ -395,6 +395,24 @@ export {
   maxCorruptionLevel,
   viscosityEffect
 } from './mechanics/corruptions'
+export type {
+  CalculateBuildingPowerInput,
+  CalculateCrystalExponentInput,
+  CrystalUpgrade3BaseInput,
+  CrystalUpgrade3CrystalMultiplierInput,
+  CrystalUpgrade3MaxBaseInput,
+  CrystalUpgrade4MaxExponentInput
+} from './mechanics/crystalAndBuildingPower'
+export {
+  calculateBuildingPower,
+  calculateBuildingPowerCoinMultiplier,
+  calculateCrystalCoinMultiplier,
+  calculateCrystalExponent,
+  crystalUpgrade3Base,
+  crystalUpgrade3CrystalMultiplier,
+  crystalUpgrade3MaxBase,
+  crystalUpgrade4MaxExponent
+} from './mechanics/crystalAndBuildingPower'
 export type { BuyCrystalUpgradesInput } from './mechanics/crystalUpgrades'
 export { buyCrystalUpgrades } from './mechanics/crystalUpgrades'
 export {
