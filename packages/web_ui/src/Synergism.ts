@@ -1,19 +1,18 @@
 // eslint-disable-next-line no-unassigned-import
 import '@ungap/custom-elements'
 import {
-  applyAutoResets as logicApplyAutoResets,
   calculateBuildingPower as logicCalculateBuildingPower,
   calculateBuildingPowerCoinMultiplier as logicCalculateBuildingPowerCoinMultiplier,
   calculateCrystalCoinMultiplier as logicCalculateCrystalCoinMultiplier,
   calculateCrystalExponent as logicCalculateCrystalExponent,
   computeGlobalMultipliers as logicComputeGlobalMultipliers,
-  type CoreEvent,
   crystalUpgrade3Base as logicCrystalUpgrade3Base,
   crystalUpgrade3CrystalMultiplier as logicCrystalUpgrade3CrystalMultiplier,
   crystalUpgrade3MaxBase as logicCrystalUpgrade3MaxBase,
   crystalUpgrade4MaxExponent as logicCrystalUpgrade4MaxExponent,
   resetCurrency as logicResetCurrency,
   resourceGain as logicResourceGain,
+  tackTail as logicTackTail,
   updateAllMultiplier as logicUpdateAllMultiplier,
   updateAllTick as logicUpdateAllTick
 } from '@synergism/logic'
@@ -21,6 +20,7 @@ import Decimal, { type DecimalSource } from 'break_infinity.js'
 import LZString from 'lz-string'
 
 import {
+  applySweepResult,
   autoAscensionChallengeSweepUnlock,
   CalcECC,
   challenge15ScoreMultiplier,
@@ -31,8 +31,9 @@ import {
   getMaxChallenges,
   getNextAscensionChallenge,
   highestChallengeRewards,
-  tickChallengeSweep
+  prepareSweepInputForTackTail
 } from './Challenges'
+import { dispatchTickEvent } from './tickEventHandlers'
 import { btoa } from './Utility'
 import { freshBlankGlobals, Globals as G } from './Variables'
 
@@ -2708,20 +2709,6 @@ export const multipliers = (): void => {
   G.antMultiplier = result.antMultiplier
 }
 
-// Dispatches CoreEvents returned by logic resourceGain back into web_ui side
-// effects. Kept inline rather than a separate module so the data flow is
-// obvious next to the shim that emits them.
-const dispatchResourceGainEvents = (events: readonly CoreEvent[]): void => {
-  for (const ev of events) {
-    if (ev.kind === 'achievement-group-awarded') {
-      awardAchievementGroup(ev.group as 'constant')
-    } else if (ev.kind === 'challenge-auto-completed') {
-      challengeAchievementCheck(ev.challengeIndex)
-      updateChallengeLevel(ev.challengeIndex)
-    }
-  }
-}
-
 export const resourceGain = (dt: number): void => {
   // Pre-tick orchestration — populate G.* derived state that logic reads.
   calculateTotalAcceleratorBoost()
@@ -2915,7 +2902,9 @@ export const resourceGain = (dt: number): void => {
   G.ascendBuildingProduction.fourth = result.ascendBuildingProduction.fourth
   G.ascendBuildingProduction.fifth = result.ascendBuildingProduction.fifth
 
-  dispatchResourceGainEvents(result.events)
+  for (const event of result.events) {
+    dispatchTickEvent(event)
+  }
 
   // Terminal challenge resetCheck dispatch — async + modal-aware, stays in
   // web_ui. Reads the post-tick player state so threshold checks see the
@@ -4125,19 +4114,26 @@ const tack = (dt: number) => {
     }
   }
 
-  // Adds an offering every 2 seconds
-  if (player.highestchallengecompletions[3] > 0) {
-    automaticTools('addOfferings', dt / 2)
-  }
-
-  // Challenge Sweep State Machine
-  tickChallengeSweep(dt)
-
-  // Check for automatic resets — pure decision logic lives in
-  // @synergism/logic; this shim translates fired events into
-  // resetAchievementCheck + reset calls.
-  const autoResetResult = logicApplyAutoResets({
+  // Per-tick tail — single logic call composing addOfferings (when c3+) +
+  // tickChallengeSweep + applyAutoResets. Events flow through the central
+  // dispatcher in tickEventHandlers.ts.
+  const sweepInput = prepareSweepInputForTackTail()
+  const tailResult = logicTackTail({
     dt,
+    highestchallengecompletions3: player.highestchallengecompletions[3],
+    autoOfferingCounter: G.autoOfferingCounter,
+    offerings: player.offerings,
+    sweepState: sweepInput.sweepState,
+    timeSinceLastStateChange: sweepInput.timeSinceLastStateChange,
+    shouldRunSweep: sweepInput.shouldRunSweep,
+    timerStart: sweepInput.timerStart,
+    timerExit: sweepInput.timerExit,
+    timerEnter: sweepInput.timerEnter,
+    initialIndex: sweepInput.initialIndex,
+    nextRegularChallengeFromInitial: sweepInput.nextRegularChallengeFromInitial,
+    nextRegularChallengeFromActive: sweepInput.nextRegularChallengeFromActive,
+    challenge15AutoExponentCheck: sweepInput.challenge15AutoExponentCheck,
+    isFinishedStillValid: sweepInput.isFinishedStillValid,
     prestigeMode: player.resetToggleModes.prestige === AutoResetModes.amount ? 'amount' : 'time',
     toggle15: player.toggles[15],
     autoPrestigeMilestone: getLevelMilestone('autoPrestige'),
@@ -4166,28 +4162,14 @@ const tack = (dt: number) => {
     transcensionChallenge: player.currentChallenge.transcension,
     reincarnationChallenge: player.currentChallenge.reincarnation
   })
-  G.autoResetTimers.prestige = autoResetResult.autoResetTimerPrestige
-  G.autoResetTimers.transcension = autoResetResult.autoResetTimerTranscension
-  G.autoResetTimers.reincarnation = autoResetResult.autoResetTimerReincarnation
-  for (const event of autoResetResult.events) {
-    if (event.kind !== 'auto-reset-triggered') continue
-    if (event.tier === 'prestige') {
-      // Bug-for-bug parity: legacy prestige time mode awards the
-      // 'transcension' achievement check; amount mode awards 'prestige'.
-      // See packages/logic/src/tick/autoReset.ts header for context.
-      if (event.mode === 'time') {
-        resetAchievementCheck('transcension')
-      } else {
-        resetAchievementCheck('prestige')
-      }
-      reset('prestige', true)
-    } else if (event.tier === 'transcension') {
-      resetAchievementCheck('transcension')
-      reset('transcension', true)
-    } else if (event.tier === 'reincarnation') {
-      resetAchievementCheck('reincarnation')
-      reset('reincarnation', true)
-    }
+  G.autoOfferingCounter = tailResult.autoOfferingCounter
+  player.offerings = tailResult.offerings
+  applySweepResult(tailResult.sweepState, tailResult.timeSinceLastStateChange)
+  G.autoResetTimers.prestige = tailResult.autoResetTimerPrestige
+  G.autoResetTimers.transcension = tailResult.autoResetTimerTranscension
+  G.autoResetTimers.reincarnation = tailResult.autoResetTimerReincarnation
+  for (const event of tailResult.events) {
+    dispatchTickEvent(event)
   }
   calculateOfferings()
 }

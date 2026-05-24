@@ -29,6 +29,7 @@ import { getOcteractUpgradeEffect } from './Octeracts'
 import { quarkHandler } from './Quark'
 import { getRedAmbrosiaUpgradeEffects } from './RedAmbrosiaUpgrades'
 import { Seed } from './RNG'
+import { dispatchTickEvent } from './tickEventHandlers'
 import { buyAllBlessingLevels } from './RuneBlessings'
 import { getNumberUnlockedRunes, indexToRune, type RuneKeys, runes, sacrificeOfferings } from './Runes'
 import { buyAllSpiritLevels } from './RuneSpirits'
@@ -36,9 +37,8 @@ import { getShopUpgradeEffects, useConsumable } from './Shop'
 import { getGQUpgradeEffect } from './singularity'
 import { getSingularityChallengeEffect } from './SingularityChallenges'
 import { player } from './Synergism'
-import { Tabs } from './Tabs'
 import { buyAllTalismanResources } from './Talismans'
-import { visualUpdateAmbrosia, visualUpdateOcteracts, visualUpdateResearch } from './UpdateVisuals'
+import { visualUpdateOcteracts } from './UpdateVisuals'
 import { Globals as G } from './Variables'
 
 type TimerInput =
@@ -247,9 +247,7 @@ export const addTimers = (input: TimerInput, time = 0) => {
       player.lifetimeAmbrosia = ambrosiaResult.lifetimeAmbrosia
       player.seed[Seed.Ambrosia] = ambrosiaResult.seed
       for (const event of ambrosiaResult.events) {
-        if (event.kind === 'ambrosia-gained') {
-          visualUpdateAmbrosia()
-        }
+        dispatchTickEvent(event)
       }
       break
     }
@@ -281,9 +279,7 @@ export const addTimers = (input: TimerInput, time = 0) => {
         addTimers('ambrosia', redAmbrosiaResult.bonusAmbrosiaTime)
       }
       for (const event of redAmbrosiaResult.events) {
-        if (event.kind === 'red-ambrosia-gained') {
-          visualUpdateAmbrosia()
-        }
+        dispatchTickEvent(event)
       }
       break
     }
@@ -324,11 +320,7 @@ export const automaticTools = (input: AutoToolInput, time: number) => {
       })
       player.obtainium = obtainiumResult.obtainium
       for (const event of obtainiumResult.events) {
-        if (event.kind === 'auto-tool-fired' && event.tool === 'addObtainium') {
-          if (G.currentTab === Tabs.Research) {
-            visualUpdateResearch()
-          }
-        }
+        dispatchTickEvent(event)
       }
       break
     }

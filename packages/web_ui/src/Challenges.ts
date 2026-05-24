@@ -4,7 +4,6 @@ import {
   challenge15ScoreMultiplier as logicChallenge15ScoreMultiplier,
   challengeRequirement as logicChallengeRequirement,
   challengeScoreDisplay as logicChallengeScoreDisplay,
-  type CoreEvent,
   getMaxChallenges as logicGetMaxChallenges,
   getNextAscensionChallenge as logicGetNextAscChallenge,
   getNextRegularChallenge as logicGetNextRegularChallenge,
@@ -19,6 +18,7 @@ import { getShopUpgradeEffects } from './Shop'
 import { getGQUpgradeEffect } from './singularity'
 import { getSingularityChallengeEffect } from './SingularityChallenges'
 import { format, player, resetCheck } from './Synergism'
+import { dispatchTickEvent } from './tickEventHandlers'
 import { AutoAscensionResetModes, toggleAutoChallengeModeText, toggleChallenges } from './Toggles'
 import { Globals as G } from './Variables'
 
@@ -403,7 +403,7 @@ export const challengeRequirement = (challenge: number, completion: number, spec
 
 let currentSweepState: SweepStates = { kind: 'idle' }
 
-function dispatchSweepTransition (from: SweepStates, to: SweepStates): void {
+export function dispatchSweepTransition (from: SweepStates, to: SweepStates): void {
   // Exiting an active challenge — fire the corresponding async reset check.
   if (from.kind === 'active') {
     if (from.index <= 5) {
@@ -457,10 +457,27 @@ export function resetChallengeSweep (): void {
   }
 }
 
-export function tickChallengeSweep (dt: number): void {
-  // Pre-evaluate the transition-lookup inputs that the logic state
-  // machine needs, scoped to the current state's possible transitions
-  // (skipping work that wouldn't be consulted this tick).
+export interface SweepInputForTackTail {
+  sweepState: SweepStates
+  timeSinceLastStateChange: number
+  shouldRunSweep: boolean
+  timerStart: number
+  timerExit: number
+  timerEnter: number
+  initialIndex: number
+  nextRegularChallengeFromInitial: number
+  nextRegularChallengeFromActive: number
+  challenge15AutoExponentCheck: boolean
+  isFinishedStillValid: boolean
+}
+
+/**
+ * Pre-evaluate the transition-lookup inputs for logicTickChallengeSweep,
+ * scoped to the current state's possible transitions (skipping work that
+ * wouldn't be consulted this tick). Used both by the standalone
+ * tickChallengeSweep wrapper and by the per-tick tackTail composition.
+ */
+export function prepareSweepInputForTackTail (): SweepInputForTackTail {
   let initialIndex = 1
   let nextRegularChallengeFromInitial = -1
   if (currentSweepState.kind === 'initial_wait') {
@@ -483,9 +500,8 @@ export function tickChallengeSweep (dt: number): void {
       && player.highestchallengecompletions[6] === getMaxChallenges(6)
   }
 
-  const result = logicTickChallengeSweep({
-    dt,
-    state: currentSweepState,
+  return {
+    sweepState: currentSweepState,
     timeSinceLastStateChange,
     shouldRunSweep: shouldRunSweep(),
     timerStart: player.autoChallengeTimer.start,
@@ -496,19 +512,38 @@ export function tickChallengeSweep (dt: number): void {
     nextRegularChallengeFromActive,
     challenge15AutoExponentCheck: chal15Check,
     isFinishedStillValid
-  })
-
-  currentSweepState = result.state
-  timeSinceLastStateChange = result.timeSinceLastStateChange
-
-  for (const event of result.events) {
-    dispatchSweepEvent(event)
   }
 }
 
-function dispatchSweepEvent (event: CoreEvent): void {
-  if (event.kind !== 'challenge-sweep-transitioned') return
-  dispatchSweepTransition(event.from, event.to)
+/**
+ * Write the sweep state back to the module-locals after a logic tick.
+ * Used both by the standalone tickChallengeSweep wrapper and by tack().
+ */
+export function applySweepResult (state: SweepStates, time: number): void {
+  currentSweepState = state
+  timeSinceLastStateChange = time
+}
+
+export function tickChallengeSweep (dt: number): void {
+  const input = prepareSweepInputForTackTail()
+  const result = logicTickChallengeSweep({
+    dt,
+    state: input.sweepState,
+    timeSinceLastStateChange: input.timeSinceLastStateChange,
+    shouldRunSweep: input.shouldRunSweep,
+    timerStart: input.timerStart,
+    timerExit: input.timerExit,
+    timerEnter: input.timerEnter,
+    initialIndex: input.initialIndex,
+    nextRegularChallengeFromInitial: input.nextRegularChallengeFromInitial,
+    nextRegularChallengeFromActive: input.nextRegularChallengeFromActive,
+    challenge15AutoExponentCheck: input.challenge15AutoExponentCheck,
+    isFinishedStillValid: input.isFinishedStillValid
+  })
+  applySweepResult(result.state, result.timeSinceLastStateChange)
+  for (const event of result.events) {
+    dispatchTickEvent(event)
+  }
 }
 
 export const autoAscensionChallengeSweepUnlock = () =>

@@ -958,6 +958,8 @@ export type {
   SeedValues
 } from './math/rng'
 export { Seed, seededBetween, seededRandom } from './math/rng'
+export type { TackTailInput, TackTailResult } from './tick/tackTail'
+export { tackTail } from './tick/tackTail'
 export type {
   DuplicationRuneBlessingEffects,
   PrismRuneBlessingEffects,
