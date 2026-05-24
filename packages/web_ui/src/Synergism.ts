@@ -5,10 +5,16 @@ import {
   calculateBuildingPowerCoinMultiplier as logicCalculateBuildingPowerCoinMultiplier,
   calculateCrystalCoinMultiplier as logicCalculateCrystalCoinMultiplier,
   calculateCrystalExponent as logicCalculateCrystalExponent,
+  computeGlobalMultipliers as logicComputeGlobalMultipliers,
+  type CoreEvent,
   crystalUpgrade3Base as logicCrystalUpgrade3Base,
   crystalUpgrade3CrystalMultiplier as logicCrystalUpgrade3CrystalMultiplier,
   crystalUpgrade3MaxBase as logicCrystalUpgrade3MaxBase,
-  crystalUpgrade4MaxExponent as logicCrystalUpgrade4MaxExponent
+  crystalUpgrade4MaxExponent as logicCrystalUpgrade4MaxExponent,
+  resetCurrency as logicResetCurrency,
+  resourceGain as logicResourceGain,
+  updateAllMultiplier as logicUpdateAllMultiplier,
+  updateAllTick as logicUpdateAllTick
 } from '@synergism/logic'
 import Decimal, { type DecimalSource } from 'break_infinity.js'
 import LZString from 'lz-string'
@@ -156,7 +162,6 @@ import type { Player, resetNames } from './types/Synergism'
 import {
   ascendBuildingKeys,
   buildingCostKeys,
-  buildingOrdinalNames,
   buildingOwnedKeys,
   buildingResources,
   digitToOneToFive,
@@ -2369,303 +2374,139 @@ export const formatDecimalAsPercentIncrease = (n: Decimal, accuracy = 2) => {
 }
 
 export const updateAllTick = (): void => {
-  let a = 0
-
-  G.totalAccelerator = player.acceleratorBought
-  G.costDivisor = 1
-
-  if (player.upgrades[8] !== 0) {
-    a += Math.floor(player.multiplierBought / 7)
-  }
-  if (player.upgrades[21] !== 0) {
-    a += 5
-  }
-  if (player.upgrades[22] !== 0) {
-    a += 4
-  }
-  if (player.upgrades[23] !== 0) {
-    a += 3
-  }
-  if (player.upgrades[24] !== 0) {
-    a += 2
-  }
-  if (player.upgrades[25] !== 0) {
-    a += 1
-  }
-  if (player.upgrades[32] !== 0) {
-    a += Math.min(
-      500,
-      Math.floor(Decimal.log(player.prestigePoints.add(1), 1e25))
-    )
-  }
-  if (player.upgrades[45] !== 0) {
-    a += Math.min(
-      2500,
-      Math.floor(Decimal.log(player.transcendShards.add(1), 10))
-    )
-  }
-  a += +getAchievementReward('accelerators')
-
-  a += 5 * CalcECC('transcend', player.challengecompletions[2])
-  G.freeUpgradeAccelerator = a
-  a += G.totalAcceleratorBoost
-    * (5
-      + 2 * player.researches[18]
-      + 2 * player.researches[19]
-      + 3 * player.researches[20]
-      + calculateAcceleratorCubeBlessing())
-
-  if (player.unlocks.prestige) {
-    a *= getRuneEffects('speed', 'multiplicativeAccelerators')
-  }
-
+  // calculateAcceleratorMultiplier mutates G.acceleratorMultiplier; logic
+  // expects it as input so we refresh it here before pre-extracting.
   calculateAcceleratorMultiplier()
-  a *= G.acceleratorMultiplier
-  a = Math.pow(
-    a,
-    Math.min(
-      1,
-      (1 + player.platonicUpgrades[6] / 30)
-        * G.viscosityPower[player.corruptions.used.viscosity]
-    )
+
+  const hepteractAccelerator = getHepteractEffects('accelerator')
+
+  const result = logicUpdateAllTick(
+    {
+      acceleratorBought: player.acceleratorBought,
+      multiplierBought: player.multiplierBought,
+      upgrade8: player.upgrades[8],
+      upgrade11: player.upgrades[11],
+      upgrade21: player.upgrades[21],
+      upgrade22: player.upgrades[22],
+      upgrade23: player.upgrades[23],
+      upgrade24: player.upgrades[24],
+      upgrade25: player.upgrades[25],
+      upgrade32: player.upgrades[32],
+      upgrade45: player.upgrades[45],
+      upgrade46: player.upgrades[46],
+      prestigePoints: player.prestigePoints,
+      transcendShards: player.transcendShards,
+      c1Completions: player.challengecompletions[1],
+      c2Completions: player.challengecompletions[2],
+      c7Completions: player.challengecompletions[7],
+      transcensionChallenge: player.currentChallenge.transcension,
+      reincarnationChallenge: player.currentChallenge.reincarnation,
+      research18: player.researches[18],
+      research19: player.researches[19],
+      research20: player.researches[20],
+      platonicUpgrade6: player.platonicUpgrades[6],
+      prestigeUnlocked: player.unlocks.prestige,
+      viscosityCorruptionLevel: player.corruptions.used.viscosity,
+
+      acceleratorsAchievement: +getAchievementReward('accelerators'),
+      acceleratorPowerAchievement: +getAchievementReward('acceleratorPower'),
+      multiplicativeAcceleratorsRune: getRuneEffects('speed', 'multiplicativeAccelerators'),
+      acceleratorPowerRune: getRuneEffects('speed', 'acceleratorPower'),
+      acceleratorCubeBlessing: calculateAcceleratorCubeBlessing(),
+      hepteractAccelerators: hepteractAccelerator.accelerators,
+      hepteractAcceleratorMult: hepteractAccelerator.acceleratorMultiplier,
+
+      totalAcceleratorBoost: G.totalAcceleratorBoost,
+      acceleratorMultiplier: G.acceleratorMultiplier,
+      viscosityPower: G.viscosityPower[player.corruptions.used.viscosity],
+      challenge15RewardAccelerator: G.challenge15Rewards.accelerator.value
+    },
+    G.totalMultiplier
   )
-  a += getHepteractEffects('accelerator').accelerators
-  a *= G.challenge15Rewards.accelerator.value
-  a *= getHepteractEffects('accelerator').acceleratorMultiplier
-  a = Math.floor(Math.min(1e100, a))
 
-  if (player.corruptions.used.viscosity >= 15) {
-    a = Math.pow(a, 0.2)
-  }
-  if (player.corruptions.used.viscosity >= 16) {
-    a = 1
-  }
-
-  G.freeAccelerator = a
-  G.totalAccelerator += G.freeAccelerator
-
-  G.tuSevenMulti = 1
-
-  if (player.upgrades[46] > 0.5) {
-    G.tuSevenMulti = 1.05
-  }
-
-  const achievementBonus = +getAchievementReward('acceleratorPower')
-
-  G.acceleratorPower = Math.pow(
-    1.1
-      + getRuneEffects('speed', 'acceleratorPower')
-      + 1 / 400 * CalcECC('transcend', player.challengecompletions[2])
-      + achievementBonus
-      + G.tuSevenMulti
-        * (G.totalAcceleratorBoost / 100)
-        * (1 + CalcECC('transcend', player.challengecompletions[2]) / 20),
-    1 + 0.04 * CalcECC('reincarnation', player.challengecompletions[7])
-  )
-
-  // No MA and Sadistic will always overwrite Transcend challenges starting in v2.0.0
-  if (
-    player.currentChallenge.reincarnation !== 7
-    && player.currentChallenge.reincarnation !== 10
-  ) {
-    if (player.currentChallenge.transcension === 1) {
-      G.acceleratorPower *= 25 / (50 + player.challengecompletions[1])
-      G.acceleratorPower += 0.55
-      G.acceleratorPower = Math.max(1, G.acceleratorPower)
-    }
-    if (player.currentChallenge.transcension === 2) {
-      G.acceleratorPower = 1
-    }
-    if (player.currentChallenge.transcension === 3) {
-      G.acceleratorPower = 1 + G.acceleratorPower / 2
-    }
-  }
-  G.acceleratorPower = Math.min(1e300, G.acceleratorPower)
-  if (player.currentChallenge.reincarnation === 7) {
-    G.acceleratorPower = 1
-  }
-  if (player.currentChallenge.reincarnation === 10) {
-    G.acceleratorPower = 1
-  }
-
-  if (player.currentChallenge.transcension !== 1) {
-    G.acceleratorEffect = Decimal.pow(G.acceleratorPower, G.totalAccelerator)
-  }
-
-  if (player.currentChallenge.transcension === 1) {
-    G.acceleratorEffect = Decimal.pow(
-      G.acceleratorPower,
-      G.totalAccelerator + G.totalMultiplier
-    )
-  }
-  G.acceleratorEffectDisplay = new Decimal(G.acceleratorPower * 100 - 100)
-  if (player.currentChallenge.reincarnation === 10) {
-    G.acceleratorEffect = new Decimal(1)
-  }
-  G.generatorPower = new Decimal(1)
-  if (
-    player.upgrades[11] > 0.5
-    && player.currentChallenge.reincarnation !== 7
-  ) {
-    G.generatorPower = Decimal.pow(1.02, G.totalAccelerator)
-  }
+  G.totalAccelerator = result.totalAccelerator
+  G.costDivisor = result.costDivisor
+  G.freeUpgradeAccelerator = result.freeUpgradeAccelerator
+  G.freeAccelerator = result.freeAccelerator
+  G.tuSevenMulti = result.tuSevenMulti
+  G.acceleratorPower = result.acceleratorPower
+  G.acceleratorEffect = result.acceleratorEffect
+  G.acceleratorEffectDisplay = result.acceleratorEffectDisplay
+  G.generatorPower = result.generatorPower
 }
 
 export const updateAllMultiplier = (): void => {
-  let a = 0
+  const hepteractMultiplier = getHepteractEffects('multiplier')
 
-  if (player.upgrades[7] > 0) {
-    a += Math.min(
-      4,
-      1 + Math.floor(Decimal.log(player.fifthOwnedCoin + 1, 10))
-    )
-  }
-  if (player.upgrades[9] > 0) {
-    a += Math.floor(player.acceleratorBought / 10)
-  }
-  if (player.upgrades[21] > 0) {
-    a += 1
-  }
-  if (player.upgrades[22] > 0) {
-    a += 1
-  }
-  if (player.upgrades[23] > 0) {
-    a += 1
-  }
-  if (player.upgrades[24] > 0) {
-    a += 1
-  }
-  if (player.upgrades[25] > 0) {
-    a += 1
-  }
-  if (player.upgrades[33] > 0) {
-    a += G.totalAcceleratorBoost
-  }
-  if (player.upgrades[49] > 0) {
-    a += Math.min(
-      50,
-      Math.floor(Decimal.log(player.transcendPoints.add(1), 1e10))
-    )
-  }
-  if (player.upgrades[68] > 0) {
-    a += Math.min(2500, Math.floor((Decimal.log(G.taxdivisor, 10) * 1) / 1000))
-  }
-  if (player.challengecompletions[1] > 0) {
-    a += 1
-  }
+  const result = logicUpdateAllMultiplier({
+    upgrade7: player.upgrades[7],
+    upgrade9: player.upgrades[9],
+    upgrade21: player.upgrades[21],
+    upgrade22: player.upgrades[22],
+    upgrade23: player.upgrades[23],
+    upgrade24: player.upgrades[24],
+    upgrade25: player.upgrades[25],
+    upgrade33: player.upgrades[33],
+    upgrade34: player.upgrades[34],
+    upgrade35: player.upgrades[35],
+    upgrade49: player.upgrades[49],
+    upgrade50: player.upgrades[50],
+    upgrade68: player.upgrades[68],
+    acceleratorBought: player.acceleratorBought,
+    multiplierBought: player.multiplierBought,
+    fifthOwnedCoin: player.fifthOwnedCoin,
+    c1Completions: player.challengecompletions[1],
+    c7Completions: player.challengecompletions[7],
+    c14Completions: player.challengecompletions[14],
+    transcendPoints: player.transcendPoints,
+    transcendShards: player.transcendShards,
+    research2: player.researches[2],
+    research11: player.researches[11],
+    research12: player.researches[12],
+    research13: player.researches[13],
+    research14: player.researches[14],
+    research15: player.researches[15],
+    research33: player.researches[33],
+    research34: player.researches[34],
+    research35: player.researches[35],
+    research87: player.researches[87],
+    research89: player.researches[89],
+    research94: player.researches[94],
+    research128: player.researches[128],
+    research143: player.researches[143],
+    research158: player.researches[158],
+    research173: player.researches[173],
+    research188: player.researches[188],
+    research200: player.researches[200],
+    cubeUpgrade50: player.cubeUpgrades[50],
+    platonicUpgrade6: player.platonicUpgrades[6],
+    transcensionChallenge: player.currentChallenge.transcension,
+    reincarnationChallenge: player.currentChallenge.reincarnation,
+    viscosityCorruptionLevel: player.corruptions.used.viscosity,
 
-  a += +getAchievementReward('multipliers')
-  a += 20
-    * player.researches[94]
-    * Math.floor(sumOfRuneLevels() / 8)
+    multipliersAchievement: +getAchievementReward('multipliers'),
+    sumOfRuneLevels: sumOfRuneLevels(),
+    multiplicativeMultipliersRune: getRuneEffects('duplication', 'multiplicativeMultipliers'),
+    multiplierBoostsRune: getRuneEffects('duplication', 'multiplierBoosts'),
+    multiplierBoostsRuneBlessing: getRuneBlessingEffect('duplication').multiplierBoosts,
+    antMultiplierMult: getAntUpgradeEffect(AntUpgrades.Multipliers).multiplierMult,
+    multiplierCubeBlessing: calculateMultiplierCubeBlessing(),
+    hepteractMultiplier: hepteractMultiplier.multiplier,
+    hepteractMultiplierMult: hepteractMultiplier.multiplierMultiplier,
 
-  G.freeUpgradeMultiplier = Math.min(1e100, a)
-  a *= Math.pow(
-    1.01,
-    player.upgrades[21]
-      + player.upgrades[22]
-      + player.upgrades[23]
-      + player.upgrades[24]
-      + player.upgrades[25]
-  )
-  a *= 1 + 0.03 * player.upgrades[34] + 0.02 * player.upgrades[35]
-  a *= 1
-    + (1 / 5)
-      * player.researches[2]
-      * (1 + (1 / 2) * CalcECC('ascension', player.challengecompletions[14]))
-  a *= 1
-    + (1 / 20) * player.researches[11]
-    + (1 / 25) * player.researches[12]
-    + (1 / 40) * player.researches[13]
-    + (3 / 200) * player.researches[14]
-    + (1 / 200) * player.researches[15]
-  a *= getRuneEffects('duplication', 'multiplicativeMultipliers')
-  a *= 1 + (1 / 20) * player.researches[87]
-  a *= 1 + (1 / 100) * player.researches[128]
-  a *= 1 + (0.8 / 100) * player.researches[143]
-  a *= 1 + (0.6 / 100) * player.researches[158]
-  a *= 1 + (0.4 / 100) * player.researches[173]
-  a *= 1 + (0.2 / 100) * player.researches[188]
-  a *= 1 + (0.01 / 100) * player.researches[200]
-  a *= 1 + (0.01 / 100) * player.cubeUpgrades[50]
-  a *= getAntUpgradeEffect(AntUpgrades.Multipliers).multiplierMult
-  a *= calculateMultiplierCubeBlessing()
-  if (
-    (player.currentChallenge.transcension !== 0
-      || player.currentChallenge.reincarnation !== 0)
-    && player.upgrades[50] > 0.5
-  ) {
-    a *= 1.25
-  }
-  a = Math.pow(
-    a,
-    Math.min(
-      1,
-      (1 + player.platonicUpgrades[6] / 30)
-        * G.viscosityPower[player.corruptions.used.viscosity]
-    )
-  )
-  a += getHepteractEffects('multiplier').multiplier
-  a *= G.challenge15Rewards.multiplier.value
-  a *= getHepteractEffects('multiplier').multiplierMultiplier
-  a = Math.floor(Math.min(1e100, a))
+    totalAcceleratorBoost: G.totalAcceleratorBoost,
+    taxdivisor: G.taxdivisor,
+    viscosityPower: G.viscosityPower[player.corruptions.used.viscosity],
+    challenge15RewardMultiplier: G.challenge15Rewards.multiplier.value
+  })
 
-  if (player.corruptions.used.viscosity >= 15) {
-    a = Math.pow(a, 0.2)
-  }
-  if (player.corruptions.used.viscosity >= 16) {
-    a = 1
-  }
-
-  G.freeMultiplier = a
-  G.totalMultiplier = G.freeMultiplier + player.multiplierBought
-
-  G.challengeOneLog = 3
-
-  let b = 0
-  b += Decimal.log(player.transcendShards.add(1), 3)
-  b += getRuneEffects('duplication', 'multiplierBoosts')
-  b += 2 * CalcECC('transcend', player.challengecompletions[1])
-  b *= 1 + (11 * player.researches[33]) / 100
-  b *= 1 + (11 * player.researches[34]) / 100
-  b *= 1 + (11 * player.researches[35]) / 100
-  b *= 1 + player.researches[89] / 5
-  b *= getRuneBlessingEffect('duplication').multiplierBoosts
-
-  G.totalMultiplierBoost = Math.pow(
-    Math.floor(b),
-    1 + CalcECC('reincarnation', player.challengecompletions[7]) * 0.04
-  )
-
-  let c7 = 1
-  if (player.challengecompletions[7] > 0.5) {
-    c7 = 1.25
-  }
-
-  G.multiplierPower = 2 + 0.02 * G.totalMultiplierBoost * c7
-
-  // No MA and Sadistic will always override Transcend Challenges starting in v2.0.0
-  if (
-    player.currentChallenge.reincarnation !== 7
-    && player.currentChallenge.reincarnation !== 10
-  ) {
-    if (player.currentChallenge.transcension === 1) {
-      G.multiplierPower = 1
-    }
-    if (player.currentChallenge.transcension === 2) {
-      G.multiplierPower = 1.25 + 0.0012 * b * c7
-    }
-  }
-  G.multiplierPower = Math.min(1e300, G.multiplierPower)
-
-  if (player.currentChallenge.reincarnation === 7) {
-    G.multiplierPower = 1
-  }
-  if (player.currentChallenge.reincarnation === 10) {
-    G.multiplierPower = 1
-  }
-
-  G.multiplierEffect = Decimal.pow(G.multiplierPower, G.totalMultiplier)
+  G.freeUpgradeMultiplier = result.freeUpgradeMultiplier
+  G.freeMultiplier = result.freeMultiplier
+  G.totalMultiplier = result.totalMultiplier
+  G.challengeOneLog = result.challengeOneLog
+  G.totalMultiplierBoost = result.totalMultiplierBoost
+  G.multiplierPower = result.multiplierPower
+  G.multiplierEffect = result.multiplierEffect
 }
 
 export const calculateBuildingPower = (): number =>
@@ -2731,682 +2572,353 @@ export const crystalUpgrade3CrystalMultiplier = (base?: number): Decimal =>
   })
 
 export const multipliers = (): void => {
-  let s = new Decimal(1)
-  let c = new Decimal(1)
-
-  const crystalMult = calculateCrystalCoinMultiplier()
-
   const buildingPower = calculateBuildingPower()
   const buildingPowerMult = calculateBuildingPowerCoinMultiplier(buildingPower)
+  const antMultiplier = getAntUpgradeEffect(AntUpgrades.Coins).coinMultiplier
 
-  G.antMultiplier = getAntUpgradeEffect(AntUpgrades.Coins).coinMultiplier
+  const result = logicComputeGlobalMultipliers({
+    upgrade1: player.upgrades[1],
+    upgrade2: player.upgrades[2],
+    upgrade3: player.upgrades[3],
+    upgrade4: player.upgrades[4],
+    upgrade5: player.upgrades[5],
+    upgrade6: player.upgrades[6],
+    upgrade10: player.upgrades[10],
+    upgrade12: player.upgrades[12],
+    upgrade13: player.upgrades[13],
+    upgrade17: player.upgrades[17],
+    upgrade18: player.upgrades[18],
+    upgrade19: player.upgrades[19],
+    upgrade20: player.upgrades[20],
+    upgrade41: player.upgrades[41],
+    upgrade43: player.upgrades[43],
+    upgrade48: player.upgrades[48],
+    upgrade56: player.upgrades[56],
+    upgrade57: player.upgrades[57],
+    upgrade58: player.upgrades[58],
+    upgrade59: player.upgrades[59],
+    upgrade60: player.upgrades[60],
+    upgrade36: player.upgrades[36],
+    upgrade37: player.upgrades[37],
+    upgrade42: player.upgrades[42],
+    upgrade47: player.upgrades[47],
+    upgrade51: player.upgrades[51],
+    upgrade52: player.upgrades[52],
+    upgrade53: player.upgrades[53],
+    upgrade54: player.upgrades[54],
+    upgrade55: player.upgrades[55],
+    upgrade63: player.upgrades[63],
+    upgrade64: player.upgrades[64],
+    upgrade123: player.upgrades[123],
 
-  s = s.times(G.multiplierEffect)
-  s = s.times(G.acceleratorEffect)
-  s = s.times(crystalMult)
-  s = s.times(buildingPowerMult)
-  s = s.times(G.antMultiplier)
+    research5: player.researches[5],
+    research17: player.researches[17],
+    research26: player.researches[26],
+    research27: player.researches[27],
+    research39: player.researches[39],
+    research40: player.researches[40],
+    research139: player.researches[139],
+    research154: player.researches[154],
+    research184: player.researches[184],
+    research199: player.researches[199],
 
-  const totalCoinOwned = calculateTotalCoinOwned()
-  const first6CoinUp = new Decimal(totalCoinOwned + 1).times(
-    Decimal.min(1e30, Decimal.pow(1.008, totalCoinOwned))
-  )
+    crystalUpgrade0: player.crystalUpgrades[0],
+    crystalUpgrade1: player.crystalUpgrades[1],
+    crystalUpgrade4: player.crystalUpgrades[4],
+    constantUpgrade1: player.constantUpgrades[1],
+    constantUpgrade2: player.constantUpgrades[2],
+    platonicUpgrade5: player.platonicUpgrades[5],
+    platonicUpgrade10: player.platonicUpgrades[10],
+    platonicUpgrade14: player.platonicUpgrades[14],
+    platonicUpgrade15: player.platonicUpgrades[15],
+    platonicUpgrade16: player.platonicUpgrades[16],
+    platonicUpgrade18: player.platonicUpgrades[18],
 
-  if (player.highestSingularityCount > 0) {
-    s = s.times(
-      Math.pow(player.goldenQuarks + 1, 1.5)
-        * Math.pow(player.highestSingularityCount + 1, 2)
-    )
-  }
-  if (player.upgrades[6] > 0.5) {
-    s = s.times(first6CoinUp)
-  }
-  if (player.upgrades[12] > 0.5) {
-    s = s.times(Decimal.min(1e4, Decimal.pow(1.01, player.prestigeCount)))
-  }
-  if (player.upgrades[20] > 0.5) {
-    // PLAT - check
-    s = s.times(Decimal.pow(totalCoinOwned / 4 + 1, 10))
-  }
-  if (player.upgrades[41] > 0.5) {
-    s = s.times(
-      Decimal.min(1e30, Decimal.pow(player.transcendPoints.add(4), 1 / 2))
-    )
-  }
-  if (player.upgrades[43] > 0.5) {
-    s = s.times(Decimal.min(1e30, Decimal.pow(1.01, player.transcendCount)))
-  }
-  if (player.upgrades[48] > 0.5) {
-    s = s.times(
-      Decimal.pow((G.totalMultiplier * G.totalAccelerator) / 1000 + 1, 8)
-    )
-  }
-  if (player.currentChallenge.reincarnation === 6) {
-    s = s.dividedBy(1e250)
-  }
-  if (player.currentChallenge.reincarnation === 7) {
-    s = s.dividedBy('1e1250')
-  }
-  if (player.currentChallenge.reincarnation === 9) {
-    s = s.dividedBy('1e2000000')
-  }
-  c = Decimal.pow(s, 1 + 0.001 * player.researches[17])
-  let lol = Decimal.pow(c, 1 + 0.025 * player.upgrades[123])
-  if (
-    player.currentChallenge.ascension === 15
-    && player.platonicUpgrades[5] > 0
-  ) {
-    lol = Decimal.pow(lol, 1.1)
-  }
-  if (
-    player.currentChallenge.ascension === 15
-    && player.platonicUpgrades[14] > 0
-  ) {
-    lol = Decimal.pow(
-      lol,
-      1
-        + ((1 / 20)
-            * player.corruptions.used.recession
-            * Decimal.log(player.coins.add(1), 10))
-          / (1e7 + Decimal.log(player.coins.add(1), 10))
-    )
-  }
-  if (
-    player.currentChallenge.ascension === 15
-    && player.platonicUpgrades[15] > 0
-  ) {
-    lol = Decimal.pow(lol, 1.1)
-  }
-  lol = Decimal.pow(lol, G.challenge15Rewards.coinExponent.value)
-  G.globalCoinMultiplier = lol
-  G.globalCoinMultiplier = Decimal.pow(
-    G.globalCoinMultiplier,
-    G.recessionPower[player.corruptions.used.recession]
-  )
+    coins: player.coins,
+    prestigePoints: player.prestigePoints,
+    transcendPoints: player.transcendPoints,
+    reincarnationPoints: player.reincarnationPoints,
+    transcendShards: player.transcendShards,
+    prestigeCount: player.prestigeCount,
+    transcendCount: player.transcendCount,
+    highestSingularityCount: player.highestSingularityCount,
+    goldenQuarks: player.goldenQuarks,
+    overfluxPowder: player.overfluxPowder,
 
-  G.coinOneMulti = new Decimal(1)
-  if (player.upgrades[1] > 0.5) {
-    G.coinOneMulti = G.coinOneMulti.times(first6CoinUp)
-  }
-  if (player.upgrades[10] > 0.5) {
-    G.coinOneMulti = G.coinOneMulti.times(
-      Decimal.pow(2, Math.min(50, player.secondOwnedCoin / 15))
-    )
-  }
-  if (player.upgrades[56] > 0.5) {
-    G.coinOneMulti = G.coinOneMulti.times('1e5000')
-  }
+    secondOwnedCoin: player.secondOwnedCoin,
+    firstGeneratedMythos: player.firstGeneratedMythos,
+    firstOwnedMythos: player.firstOwnedMythos,
+    secondOwnedMythos: player.secondOwnedMythos,
+    thirdOwnedMythos: player.thirdOwnedMythos,
+    fourthOwnedMythos: player.fourthOwnedMythos,
+    fifthOwnedMythos: player.fifthOwnedMythos,
 
-  G.coinTwoMulti = new Decimal(1)
-  if (player.upgrades[2] > 0.5) {
-    G.coinTwoMulti = G.coinTwoMulti.times(first6CoinUp)
-  }
-  if (player.upgrades[13] > 0.5) {
-    G.coinTwoMulti = G.coinTwoMulti.times(
-      Decimal.min(
-        1e50,
-        Decimal.pow(
-          player.firstGeneratedMythos.add(player.firstOwnedMythos).add(1),
-          4 / 3
-        ).times(1e22)
-      )
-    )
-  }
-  if (player.upgrades[19] > 0.5) {
-    G.coinTwoMulti = G.coinTwoMulti.times(
-      Decimal.min(1e200, player.transcendPoints.times(1e30).add(1))
-    )
-  }
-  if (player.upgrades[57] > 0.5) {
-    G.coinTwoMulti = G.coinTwoMulti.times('1e7500')
-  }
+    c1Completions: player.challengecompletions[1],
+    c2Completions: player.challengecompletions[2],
+    c3Completions: player.challengecompletions[3],
+    c4Completions: player.challengecompletions[4],
+    c5Completions: player.challengecompletions[5],
+    c14Completions: player.challengecompletions[14],
+    reincarnationChallenge: player.currentChallenge.reincarnation,
+    ascensionChallenge: player.currentChallenge.ascension,
+    recessionCorruptionLevel: player.corruptions.used.recession,
 
-  G.coinThreeMulti = new Decimal(1)
-  if (player.upgrades[3] > 0.5) {
-    G.coinThreeMulti = G.coinThreeMulti.times(first6CoinUp)
-  }
-  if (player.upgrades[18] > 0.5) {
-    G.coinThreeMulti = G.coinThreeMulti.times(
-      Decimal.min(1e125, player.transcendShards.add(1))
-    )
-  }
-  if (player.upgrades[58] > 0.5) {
-    G.coinThreeMulti = G.coinThreeMulti.times('1e15000')
-  }
+    crystalMult: calculateCrystalCoinMultiplier(),
+    buildingPower,
+    buildingPowerMult,
+    totalCoinOwned: calculateTotalCoinOwned(),
+    antMultiplier,
+    crystalUpgrade3Multiplier: crystalUpgrade3CrystalMultiplier(),
+    achievementPoints,
+    crystalMultiplierAchievement: +getAchievementReward('crystalMultiplier'),
+    constUpgrade1BuffAchievement: +getAchievementReward('constUpgrade1Buff'),
+    constUpgrade2BuffAchievement: +getAchievementReward('constUpgrade2Buff'),
+    prismProductionLog10: getRuneEffects('prism', 'productionLog10'),
+    constantEXMaxPercentIncrease: getShopUpgradeEffects('constantEX', 'maxPercentIncrease'),
+    ascendBuildingDRValue: ascendBuildingDR(),
 
-  G.coinFourMulti = new Decimal(1)
-  if (player.upgrades[4] > 0.5) {
-    G.coinFourMulti = G.coinFourMulti.times(first6CoinUp)
-  }
-  if (player.upgrades[17] > 0.5) {
-    G.coinFourMulti = G.coinFourMulti.times(1e100)
-  }
-  if (player.upgrades[59] > 0.5) {
-    G.coinFourMulti = G.coinFourMulti.times('1e25000')
-  }
+    multiplierEffect: G.multiplierEffect,
+    acceleratorEffect: G.acceleratorEffect,
+    totalMultiplier: G.totalMultiplier,
+    totalAccelerator: G.totalAccelerator,
+    totalAcceleratorBoost: G.totalAcceleratorBoost,
+    challenge15CoinExponent: G.challenge15Rewards.coinExponent.value,
+    challenge15ExponentValue: G.challenge15Rewards.exponent.value,
+    challenge15ConstantBonus: G.challenge15Rewards.constantBonus.value,
+    recessionPower: G.recessionPower[player.corruptions.used.recession]
+  })
 
-  G.coinFiveMulti = new Decimal(1)
-  if (player.upgrades[5] > 0.5) {
-    G.coinFiveMulti = G.coinFiveMulti.times(first6CoinUp)
-  }
-  if (player.upgrades[60] > 0.5) {
-    G.coinFiveMulti = G.coinFiveMulti.times('1e35000')
-  }
+  G.globalCoinMultiplier = result.globalCoinMultiplier
+  G.coinOneMulti = result.coinOneMulti
+  G.coinTwoMulti = result.coinTwoMulti
+  G.coinThreeMulti = result.coinThreeMulti
+  G.coinFourMulti = result.coinFourMulti
+  G.coinFiveMulti = result.coinFiveMulti
+  G.globalCrystalMultiplier = result.globalCrystalMultiplier
+  G.globalMythosMultiplier = result.globalMythosMultiplier
+  G.grandmasterMultiplier = result.grandmasterMultiplier
+  G.totalMythosOwned = result.totalMythosOwned
+  G.mythosBuildingPower = result.mythosBuildingPower
+  G.challengeThreeMultiplier = result.challengeThreeMultiplier
+  G.mythosupgrade13 = result.mythosupgrade13
+  G.mythosupgrade14 = result.mythosupgrade14
+  G.mythosupgrade15 = result.mythosupgrade15
+  G.globalConstantMult = result.globalConstantMult
+  G.antMultiplier = result.antMultiplier
+}
 
-  const upgrade3Multiplier = crystalUpgrade3CrystalMultiplier()
-
-  G.globalCrystalMultiplier = new Decimal(1)
-  G.globalCrystalMultiplier = G.globalCrystalMultiplier.times(
-    +getAchievementReward('crystalMultiplier')
-  )
-  G.globalCrystalMultiplier = G.globalCrystalMultiplier.times(
-    Decimal.pow(10, getRuneEffects('prism', 'productionLog10'))
-  )
-  if (player.upgrades[36] > 0.5) {
-    G.globalCrystalMultiplier = G.globalCrystalMultiplier.times(
-      Decimal.min('1e5000', Decimal.pow(player.prestigePoints, 1 / 500))
-    )
+// Dispatches CoreEvents returned by logic resourceGain back into web_ui side
+// effects. Kept inline rather than a separate module so the data flow is
+// obvious next to the shim that emits them.
+const dispatchResourceGainEvents = (events: readonly CoreEvent[]): void => {
+  for (const ev of events) {
+    if (ev.kind === 'achievement-group-awarded') {
+      awardAchievementGroup(ev.group as 'constant')
+    } else if (ev.kind === 'challenge-auto-completed') {
+      challengeAchievementCheck(ev.challengeIndex)
+      updateChallengeLevel(ev.challengeIndex)
+    }
   }
-  if (player.upgrades[63] > 0.5) {
-    G.globalCrystalMultiplier = G.globalCrystalMultiplier.times(
-      Decimal.min('1e6000', Decimal.pow(player.reincarnationPoints.add(1), 6))
-    )
-  }
-  if (player.researches[39] > 0.5) {
-    G.globalCrystalMultiplier = G.globalCrystalMultiplier.times(
-      Decimal.pow(buildingPowerMult, 1 / 50)
-    )
-  }
-
-  G.globalCrystalMultiplier = G.globalCrystalMultiplier.times(
-    Decimal.pow(1 + 0.01 * player.crystalUpgrades[0], achievementPoints)
-  )
-  G.globalCrystalMultiplier = G.globalCrystalMultiplier.times(
-    Decimal.pow(
-      1 + player.crystalUpgrades[1] * Decimal.log(player.coins.add(1), 10) / 100,
-      2 + Math.log2(player.crystalUpgrades[1] + 1)
-    )
-  )
-  G.globalCrystalMultiplier = G.globalCrystalMultiplier.times(
-    upgrade3Multiplier
-  )
-  G.globalCrystalMultiplier = G.globalCrystalMultiplier.times(
-    Decimal.pow(
-      1 + 0.05 * player.crystalUpgrades[4],
-      player.challengecompletions[1]
-        + player.challengecompletions[2]
-        + player.challengecompletions[3]
-        + player.challengecompletions[4]
-        + player.challengecompletions[5]
-    )
-  )
-  G.globalCrystalMultiplier = G.globalCrystalMultiplier.times(
-    Decimal.pow(10, CalcECC('transcend', player.challengecompletions[5]))
-  )
-  G.globalCrystalMultiplier = G.globalCrystalMultiplier.times(
-    Decimal.pow(
-      1e4,
-      player.researches[5]
-        * (1 + (1 / 2) * CalcECC('ascension', player.challengecompletions[14]))
-    )
-  )
-  G.globalCrystalMultiplier = G.globalCrystalMultiplier.times(
-    Decimal.pow(2.5, player.researches[26])
-  )
-  G.globalCrystalMultiplier = G.globalCrystalMultiplier.times(
-    Decimal.pow(2.5, player.researches[27])
-  )
-
-  G.globalMythosMultiplier = new Decimal(1)
-
-  if (player.upgrades[37] > 0.5) {
-    G.globalMythosMultiplier = G.globalMythosMultiplier.times(
-      Decimal.pow(Decimal.log(player.prestigePoints.add(10), 10), 2)
-    )
-  }
-  if (player.upgrades[42] > 0.5) {
-    G.globalMythosMultiplier = G.globalMythosMultiplier.times(
-      Decimal.min(
-        1e50,
-        Decimal.pow(player.prestigePoints.add(1), 1 / 50)
-          .dividedBy(2.5)
-          .add(1)
-      )
-    )
-  }
-  if (player.upgrades[47] > 0.5) {
-    G.globalMythosMultiplier = G.globalMythosMultiplier
-      .times(Decimal.pow(1.01, achievementPoints))
-      .times(achievementPoints / 5 + 1)
-  }
-  if (player.upgrades[51] > 0.5) {
-    G.globalMythosMultiplier = G.globalMythosMultiplier.times(
-      Decimal.pow(G.totalAcceleratorBoost, 2)
-    )
-  }
-  if (player.upgrades[52] > 0.5) {
-    G.globalMythosMultiplier = G.globalMythosMultiplier.times(
-      Decimal.pow(G.globalMythosMultiplier, 0.025)
-    )
-  }
-  if (player.upgrades[64] > 0.5) {
-    G.globalMythosMultiplier = G.globalMythosMultiplier.times(
-      Decimal.pow(player.reincarnationPoints.add(1), 2)
-    )
-  }
-  if (player.researches[40] > 0.5) {
-    G.globalMythosMultiplier = G.globalMythosMultiplier.times(
-      Decimal.pow(buildingPowerMult, 1 / 250)
-    )
-  }
-  G.grandmasterMultiplier = new Decimal(1)
-  G.totalMythosOwned = player.firstOwnedMythos
-    + player.secondOwnedMythos
-    + player.thirdOwnedMythos
-    + player.fourthOwnedMythos
-    + player.fifthOwnedMythos
-
-  G.mythosBuildingPower = 1 + CalcECC('transcend', player.challengecompletions[3]) / 200
-  G.challengeThreeMultiplier = Decimal.pow(
-    G.mythosBuildingPower,
-    G.totalMythosOwned
-  )
-
-  G.grandmasterMultiplier = G.grandmasterMultiplier.times(
-    G.challengeThreeMultiplier
-  )
-
-  G.mythosupgrade13 = new Decimal(1)
-  G.mythosupgrade14 = new Decimal(1)
-  G.mythosupgrade15 = new Decimal(1)
-  if (player.upgrades[53] === 1) {
-    G.mythosupgrade13 = G.mythosupgrade13.times(
-      Decimal.min('1e1250', Decimal.pow(G.acceleratorEffect, 1 / 125))
-    )
-  }
-  if (player.upgrades[54] === 1) {
-    G.mythosupgrade14 = G.mythosupgrade14.times(
-      Decimal.min('1e2000', Decimal.pow(G.multiplierEffect, 1 / 180))
-    )
-  }
-  if (player.upgrades[55] === 1) {
-    G.mythosupgrade15 = G.mythosupgrade15.times(
-      Decimal.pow('1e1000', Math.min(1000, buildingPower - 1))
-    )
-  }
-
-  G.globalConstantMult = new Decimal('1')
-  G.globalConstantMult = G.globalConstantMult.times(
-    Decimal.pow(
-      1.05
-        + +getAchievementReward('constUpgrade1Buff')
-        + 0.001 * player.platonicUpgrades[18],
-      player.constantUpgrades[1]
-    )
-  )
-  G.globalConstantMult = G.globalConstantMult.times(
-    Decimal.pow(
-      1
-        + 0.001
-          * Math.min(
-            100
-              + 1000 * +getAchievementReward('constUpgrade2Buff')
-              + 10 * getShopUpgradeEffects('constantEX', 'maxPercentIncrease')
-              + 1000 * (G.challenge15Rewards.exponent.value - 1)
-              + 3 * player.platonicUpgrades[18],
-            player.constantUpgrades[2]
-          ),
-      ascendBuildingDR()
-    )
-  )
-  G.globalConstantMult = G.globalConstantMult.times(
-    1 + (2 / 100) * player.researches[139]
-  )
-  G.globalConstantMult = G.globalConstantMult.times(
-    1 + (3 / 100) * player.researches[154]
-  )
-  G.globalConstantMult = G.globalConstantMult.times(
-    1 + (5 / 100) * player.researches[184]
-  )
-  G.globalConstantMult = G.globalConstantMult.times(
-    1 + (10 / 100) * player.researches[199]
-  )
-  G.globalConstantMult = G.globalConstantMult.times(
-    G.challenge15Rewards.constantBonus.value
-  )
-  if (player.platonicUpgrades[5] > 0) {
-    G.globalConstantMult = G.globalConstantMult.times(2)
-  }
-  if (player.platonicUpgrades[10] > 0) {
-    G.globalConstantMult = G.globalConstantMult.times(10)
-  }
-  if (player.platonicUpgrades[15] > 0) {
-    G.globalConstantMult = G.globalConstantMult.times(1e250)
-  }
-  G.globalConstantMult = G.globalConstantMult.times(
-    Decimal.pow(player.overfluxPowder + 1, 10 * player.platonicUpgrades[16])
-  )
 }
 
 export const resourceGain = (dt: number): void => {
+  // Pre-tick orchestration — populate G.* derived state that logic reads.
   calculateTotalAcceleratorBoost()
-
   updateAllTick()
   updateAllMultiplier()
   multipliers()
   calculatetax()
-  if (G.produceTotal.gte(0.001)) {
-    const addcoin = Decimal.min(
-      G.produceTotal.dividedBy(G.taxdivisor),
-      Decimal.pow(10, G.maxexponent - Decimal.log(G.taxdivisorcheck, 10))
-    ).times(dt / 0.025)
-    player.coins = player.coins.add(addcoin)
-    player.coinsThisPrestige = player.coinsThisPrestige.add(addcoin)
-    player.coinsThisTranscension = player.coinsThisTranscension.add(addcoin)
-    player.coinsThisReincarnation = player.coinsThisReincarnation.add(addcoin)
-    player.coinsTotal = player.coinsTotal.add(addcoin)
-  }
-
   resetCurrency()
-  if (player.upgrades[93] === 1 && player.coinsThisPrestige.gte(1e16)) {
-    player.prestigePoints = player.prestigePoints.add(
-      Decimal.floor(G.prestigePointGain.dividedBy(4000).times(dt / 0.025))
-    )
-  }
-  if (player.upgrades[100] === 1 && player.coinsThisTranscension.gte(1e100)) {
-    player.transcendPoints = player.transcendPoints.add(
-      Decimal.floor(G.transcendPointGain.dividedBy(4000).times(dt / 0.025))
-    )
-  }
-  if (player.cubeUpgrades[28] > 0 && player.transcendShards.gte(1e300)) {
-    player.reincarnationPoints = player.reincarnationPoints.add(
-      Decimal.floor(G.reincarnationPointGain.dividedBy(4000).times(dt / 0.025))
-    )
-  }
-  G.produceFirstDiamonds = player.firstGeneratedDiamonds
-    .add(player.firstOwnedDiamonds)
-    .times(player.firstProduceDiamonds)
-    .times(G.globalCrystalMultiplier)
-  G.produceSecondDiamonds = player.secondGeneratedDiamonds
-    .add(player.secondOwnedDiamonds)
-    .times(player.secondProduceDiamonds)
-    .times(G.globalCrystalMultiplier)
-  G.produceThirdDiamonds = player.thirdGeneratedDiamonds
-    .add(player.thirdOwnedDiamonds)
-    .times(player.thirdProduceDiamonds)
-    .times(G.globalCrystalMultiplier)
-  G.produceFourthDiamonds = player.fourthGeneratedDiamonds
-    .add(player.fourthOwnedDiamonds)
-    .times(player.fourthProduceDiamonds)
-    .times(G.globalCrystalMultiplier)
-  G.produceFifthDiamonds = player.fifthGeneratedDiamonds
-    .add(player.fifthOwnedDiamonds)
-    .times(player.fifthProduceDiamonds)
-    .times(G.globalCrystalMultiplier)
 
-  player.fourthGeneratedDiamonds = player.fourthGeneratedDiamonds.add(
-    G.produceFifthDiamonds.times(dt / 0.025)
-  )
-  player.thirdGeneratedDiamonds = player.thirdGeneratedDiamonds.add(
-    G.produceFourthDiamonds.times(dt / 0.025)
-  )
-  player.secondGeneratedDiamonds = player.secondGeneratedDiamonds.add(
-    G.produceThirdDiamonds.times(dt / 0.025)
-  )
-  player.firstGeneratedDiamonds = player.firstGeneratedDiamonds.add(
-    G.produceSecondDiamonds.times(dt / 0.025)
-  )
-  G.produceDiamonds = G.produceFirstDiamonds
+  const result = logicResourceGain({
+    dt,
+    produceTotal: G.produceTotal,
+    taxdivisor: G.taxdivisor,
+    taxdivisorcheck: G.taxdivisorcheck,
+    maxexponent: G.maxexponent,
+    coins: player.coins,
+    coinsThisPrestige: player.coinsThisPrestige,
+    coinsThisTranscension: player.coinsThisTranscension,
+    coinsThisReincarnation: player.coinsThisReincarnation,
+    coinsTotal: player.coinsTotal,
 
-  if (
-    player.currentChallenge.transcension !== 3
-    && player.currentChallenge.reincarnation !== 10
-  ) {
-    player.prestigeShards = player.prestigeShards.add(
-      G.produceDiamonds.times(dt / 0.025)
-    )
-  }
+    upgrade93: player.upgrades[93],
+    upgrade100: player.upgrades[100],
+    cubeUpgrade28: player.cubeUpgrades[28],
+    prestigePoints: player.prestigePoints,
+    transcendPoints: player.transcendPoints,
+    reincarnationPoints: player.reincarnationPoints,
+    prestigePointGain: G.prestigePointGain,
+    transcendPointGain: G.transcendPointGain,
+    reincarnationPointGain: G.reincarnationPointGain,
 
-  G.produceFifthMythos = player.fifthGeneratedMythos
-    .add(player.fifthOwnedMythos)
-    .times(player.fifthProduceMythos)
-    .times(G.globalMythosMultiplier)
-    .times(G.grandmasterMultiplier)
-    .times(G.mythosupgrade15)
-  G.produceFourthMythos = player.fourthGeneratedMythos
-    .add(player.fourthOwnedMythos)
-    .times(player.fourthProduceMythos)
-    .times(G.globalMythosMultiplier)
-  G.produceThirdMythos = player.thirdGeneratedMythos
-    .add(player.thirdOwnedMythos)
-    .times(player.thirdProduceMythos)
-    .times(G.globalMythosMultiplier)
-    .times(G.mythosupgrade14)
-  G.produceSecondMythos = player.secondGeneratedMythos
-    .add(player.secondOwnedMythos)
-    .times(player.secondProduceMythos)
-    .times(G.globalMythosMultiplier)
-  G.produceFirstMythos = player.firstGeneratedMythos
-    .add(player.firstOwnedMythos)
-    .times(player.firstProduceMythos)
-    .times(G.globalMythosMultiplier)
-    .times(G.mythosupgrade13)
-  player.fourthGeneratedMythos = player.fourthGeneratedMythos.add(
-    G.produceFifthMythos.times(dt / 0.025)
-  )
-  player.thirdGeneratedMythos = player.thirdGeneratedMythos.add(
-    G.produceFourthMythos.times(dt / 0.025)
-  )
-  player.secondGeneratedMythos = player.secondGeneratedMythos.add(
-    G.produceThirdMythos.times(dt / 0.025)
-  )
-  player.firstGeneratedMythos = player.firstGeneratedMythos.add(
-    G.produceSecondMythos.times(dt / 0.025)
-  )
+    firstGeneratedDiamonds: player.firstGeneratedDiamonds,
+    secondGeneratedDiamonds: player.secondGeneratedDiamonds,
+    thirdGeneratedDiamonds: player.thirdGeneratedDiamonds,
+    fourthGeneratedDiamonds: player.fourthGeneratedDiamonds,
+    fifthGeneratedDiamonds: player.fifthGeneratedDiamonds,
+    firstOwnedDiamonds: player.firstOwnedDiamonds,
+    secondOwnedDiamonds: player.secondOwnedDiamonds,
+    thirdOwnedDiamonds: player.thirdOwnedDiamonds,
+    fourthOwnedDiamonds: player.fourthOwnedDiamonds,
+    fifthOwnedDiamonds: player.fifthOwnedDiamonds,
+    firstProduceDiamonds: player.firstProduceDiamonds,
+    secondProduceDiamonds: player.secondProduceDiamonds,
+    thirdProduceDiamonds: player.thirdProduceDiamonds,
+    fourthProduceDiamonds: player.fourthProduceDiamonds,
+    fifthProduceDiamonds: player.fifthProduceDiamonds,
+    globalCrystalMultiplier: G.globalCrystalMultiplier,
 
-  G.produceMythos = new Decimal('0')
-  G.produceMythos = player.firstGeneratedMythos
-    .add(player.firstOwnedMythos)
-    .times(player.firstProduceMythos)
-    .times(G.globalMythosMultiplier)
-    .times(G.mythosupgrade13)
-  G.producePerSecondMythos = G.produceMythos.times(40)
+    firstGeneratedMythos: player.firstGeneratedMythos,
+    secondGeneratedMythos: player.secondGeneratedMythos,
+    thirdGeneratedMythos: player.thirdGeneratedMythos,
+    fourthGeneratedMythos: player.fourthGeneratedMythos,
+    fifthGeneratedMythos: player.fifthGeneratedMythos,
+    firstOwnedMythos: player.firstOwnedMythos,
+    secondOwnedMythos: player.secondOwnedMythos,
+    thirdOwnedMythos: player.thirdOwnedMythos,
+    fourthOwnedMythos: player.fourthOwnedMythos,
+    fifthOwnedMythos: player.fifthOwnedMythos,
+    firstProduceMythos: player.firstProduceMythos,
+    secondProduceMythos: player.secondProduceMythos,
+    thirdProduceMythos: player.thirdProduceMythos,
+    fourthProduceMythos: player.fourthProduceMythos,
+    fifthProduceMythos: player.fifthProduceMythos,
+    globalMythosMultiplier: G.globalMythosMultiplier,
+    grandmasterMultiplier: G.grandmasterMultiplier,
+    mythosupgrade13: G.mythosupgrade13,
+    mythosupgrade14: G.mythosupgrade14,
+    mythosupgrade15: G.mythosupgrade15,
 
-  let pm = new Decimal('1')
-  if (player.upgrades[67] > 0.5) {
-    pm = pm.times(
-      Decimal.pow(
-        1.03,
-        player.firstOwnedParticles
-          + player.secondOwnedParticles
-          + player.thirdOwnedParticles
-          + player.fourthOwnedParticles
-          + player.fifthOwnedParticles
-      )
-    )
-  }
-  G.produceFifthParticles = player.fifthGeneratedParticles
-    .add(player.fifthOwnedParticles)
-    .times(player.fifthProduceParticles)
-  G.produceFourthParticles = player.fourthGeneratedParticles
-    .add(player.fourthOwnedParticles)
-    .times(player.fourthProduceParticles)
-  G.produceThirdParticles = player.thirdGeneratedParticles
-    .add(player.thirdOwnedParticles)
-    .times(player.thirdProduceParticles)
-  G.produceSecondParticles = player.secondGeneratedParticles
-    .add(player.secondOwnedParticles)
-    .times(player.secondProduceParticles)
-  G.produceFirstParticles = player.firstGeneratedParticles
-    .add(player.firstOwnedParticles)
-    .times(player.firstProduceParticles)
-    .times(pm)
-  player.fourthGeneratedParticles = player.fourthGeneratedParticles.add(
-    G.produceFifthParticles.times(dt / 0.025)
-  )
-  player.thirdGeneratedParticles = player.thirdGeneratedParticles.add(
-    G.produceFourthParticles.times(dt / 0.025)
-  )
-  player.secondGeneratedParticles = player.secondGeneratedParticles.add(
-    G.produceThirdParticles.times(dt / 0.025)
-  )
-  player.firstGeneratedParticles = player.firstGeneratedParticles.add(
-    G.produceSecondParticles.times(dt / 0.025)
-  )
+    firstGeneratedParticles: player.firstGeneratedParticles,
+    secondGeneratedParticles: player.secondGeneratedParticles,
+    thirdGeneratedParticles: player.thirdGeneratedParticles,
+    fourthGeneratedParticles: player.fourthGeneratedParticles,
+    fifthGeneratedParticles: player.fifthGeneratedParticles,
+    firstOwnedParticles: player.firstOwnedParticles,
+    secondOwnedParticles: player.secondOwnedParticles,
+    thirdOwnedParticles: player.thirdOwnedParticles,
+    fourthOwnedParticles: player.fourthOwnedParticles,
+    fifthOwnedParticles: player.fifthOwnedParticles,
+    firstProduceParticles: player.firstProduceParticles,
+    secondProduceParticles: player.secondProduceParticles,
+    thirdProduceParticles: player.thirdProduceParticles,
+    fourthProduceParticles: player.fourthProduceParticles,
+    fifthProduceParticles: player.fifthProduceParticles,
+    upgrade67: player.upgrades[67],
 
-  G.produceParticles = new Decimal('0')
-  G.produceParticles = player.firstGeneratedParticles
-    .add(player.firstOwnedParticles)
-    .times(player.firstProduceParticles)
-    .times(pm)
-  G.producePerSecondParticles = G.produceParticles.times(40)
+    prestigeShards: player.prestigeShards,
+    transcendShards: player.transcendShards,
+    reincarnationShards: player.reincarnationShards,
+    ascendShards: player.ascendShards,
 
-  if (
-    player.currentChallenge.transcension !== 3
-    && player.currentChallenge.reincarnation !== 10
-  ) {
-    player.transcendShards = player.transcendShards.add(
-      G.produceMythos.times(dt / 0.025)
-    )
-  }
+    ascendBuilding1Generated: player.ascendBuilding1.generated,
+    ascendBuilding2Generated: player.ascendBuilding2.generated,
+    ascendBuilding3Generated: player.ascendBuilding3.generated,
+    ascendBuilding4Generated: player.ascendBuilding4.generated,
+    ascendBuilding5Generated: player.ascendBuilding5.generated,
+    ascendBuilding1Owned: player.ascendBuilding1.owned,
+    ascendBuilding2Owned: player.ascendBuilding2.owned,
+    ascendBuilding3Owned: player.ascendBuilding3.owned,
+    ascendBuilding4Owned: player.ascendBuilding4.owned,
+    ascendBuilding5Owned: player.ascendBuilding5.owned,
+    globalConstantMult: G.globalConstantMult,
 
-  player.reincarnationShards = player.reincarnationShards.add(
-    G.produceParticles.times(dt / 0.025)
-  )
+    ascensionCount: player.ascensionCount,
+    transcensionChallenge: player.currentChallenge.transcension,
+    reincarnationChallenge: player.currentChallenge.reincarnation,
 
-  /*if (player.currentChallenge.reincarnation !== 10) {
-    player.reincarnationShards = player.reincarnationShards.add(
-      G.produceParticles.times(dt / 0.025)
-    )
-  }*/
+    research66: player.researches[66],
+    research67_: player.researches[67],
+    research68: player.researches[68],
+    research69: player.researches[69],
+    research70: player.researches[70],
+    research71: player.researches[71],
+    research72: player.researches[72],
+    research73: player.researches[73],
+    research74: player.researches[74],
+    research75: player.researches[75],
+    research105: player.researches[105],
+    c1Completions: player.challengecompletions[1],
+    c2Completions: player.challengecompletions[2],
+    c3Completions: player.challengecompletions[3],
+    c4Completions: player.challengecompletions[4],
+    c5Completions: player.challengecompletions[5],
+    highestC1: player.highestchallengecompletions[1],
+    highestC2: player.highestchallengecompletions[2],
+    highestC3: player.highestchallengecompletions[3],
+    highestC4: player.highestchallengecompletions[4],
+    highestC5: player.highestchallengecompletions[5],
+    challengeBaseRequirements: G.challengeBaseRequirements
+  })
 
-  for (let j = 4; j >= 0; j--) {
-    const buildingKey = ascendBuildingKeys[j]
-    const ordinalName = buildingOrdinalNames[j]
-    G.ascendBuildingProduction[ordinalName] = player[buildingKey].generated
-      .add(player[buildingKey].owned)
-      // 4.1.0: Removing this from player, also because I want to make the multiplier 0.05 instead of 0.01 anyway
-      // .times(player[buildingKey].multiplier)
-      .times(0.05)
-      .times(G.globalConstantMult)
+  // Apply player updates
+  player.coins = result.coins
+  player.coinsThisPrestige = result.coinsThisPrestige
+  player.coinsThisTranscension = result.coinsThisTranscension
+  player.coinsThisReincarnation = result.coinsThisReincarnation
+  player.coinsTotal = result.coinsTotal
+  player.prestigePoints = result.prestigePoints
+  player.transcendPoints = result.transcendPoints
+  player.reincarnationPoints = result.reincarnationPoints
+  player.prestigeShards = result.prestigeShards
+  player.transcendShards = result.transcendShards
+  player.reincarnationShards = result.reincarnationShards
+  player.ascendShards = result.ascendShards
+  player.firstGeneratedDiamonds = result.firstGeneratedDiamonds
+  player.secondGeneratedDiamonds = result.secondGeneratedDiamonds
+  player.thirdGeneratedDiamonds = result.thirdGeneratedDiamonds
+  player.fourthGeneratedDiamonds = result.fourthGeneratedDiamonds
+  player.firstGeneratedMythos = result.firstGeneratedMythos
+  player.secondGeneratedMythos = result.secondGeneratedMythos
+  player.thirdGeneratedMythos = result.thirdGeneratedMythos
+  player.fourthGeneratedMythos = result.fourthGeneratedMythos
+  player.firstGeneratedParticles = result.firstGeneratedParticles
+  player.secondGeneratedParticles = result.secondGeneratedParticles
+  player.thirdGeneratedParticles = result.thirdGeneratedParticles
+  player.fourthGeneratedParticles = result.fourthGeneratedParticles
+  player.ascendBuilding1.generated = result.ascendBuilding1Generated
+  player.ascendBuilding2.generated = result.ascendBuilding2Generated
+  player.ascendBuilding3.generated = result.ascendBuilding3Generated
+  player.ascendBuilding4.generated = result.ascendBuilding4Generated
+  player.challengecompletions[1] = result.c1Completions
+  player.challengecompletions[2] = result.c2Completions
+  player.challengecompletions[3] = result.c3Completions
+  player.challengecompletions[4] = result.c4Completions
+  player.challengecompletions[5] = result.c5Completions
 
-    if (j !== 0) {
-      const prevKey = ascendBuildingKeys[j - 1]
-      player[prevKey].generated = player[prevKey].generated.add(
-        G.ascendBuildingProduction[ordinalName].times(dt)
-      )
-    }
-  }
+  // Apply G cache updates
+  G.produceFirstDiamonds = result.produceFirstDiamonds
+  G.produceSecondDiamonds = result.produceSecondDiamonds
+  G.produceThirdDiamonds = result.produceThirdDiamonds
+  G.produceFourthDiamonds = result.produceFourthDiamonds
+  G.produceFifthDiamonds = result.produceFifthDiamonds
+  G.produceDiamonds = result.produceDiamonds
+  G.produceFirstMythos = result.produceFirstMythos
+  G.produceSecondMythos = result.produceSecondMythos
+  G.produceThirdMythos = result.produceThirdMythos
+  G.produceFourthMythos = result.produceFourthMythos
+  G.produceFifthMythos = result.produceFifthMythos
+  G.produceMythos = result.produceMythos
+  G.producePerSecondMythos = result.producePerSecondMythos
+  G.produceFirstParticles = result.produceFirstParticles
+  G.produceSecondParticles = result.produceSecondParticles
+  G.produceThirdParticles = result.produceThirdParticles
+  G.produceFourthParticles = result.produceFourthParticles
+  G.produceFifthParticles = result.produceFifthParticles
+  G.produceParticles = result.produceParticles
+  G.producePerSecondParticles = result.producePerSecondParticles
+  G.ascendBuildingProduction.first = result.ascendBuildingProduction.first
+  G.ascendBuildingProduction.second = result.ascendBuildingProduction.second
+  G.ascendBuildingProduction.third = result.ascendBuildingProduction.third
+  G.ascendBuildingProduction.fourth = result.ascendBuildingProduction.fourth
+  G.ascendBuildingProduction.fifth = result.ascendBuildingProduction.fifth
 
-  player.ascendShards = player.ascendShards.add(
-    G.ascendBuildingProduction.first.times(dt)
-  )
+  dispatchResourceGainEvents(result.events)
 
-  if (player.ascensionCount > 0) {
-    awardAchievementGroup('constant')
-  }
-
-  if (
-    player.researches[71] > 0.5
-    && player.challengecompletions[1]
-      < Math.min(
-        player.highestchallengecompletions[1],
-        25 + 5 * player.researches[66] + 925 * player.researches[105]
-      )
-    && player.coins.gte(
-      Decimal.pow(
-        10,
-        1.25
-          * G.challengeBaseRequirements[0]
-          * Math.pow(1 + player.challengecompletions[1], 2)
-      )
-    )
-  ) {
-    player.challengecompletions[1] += 1
-    challengeAchievementCheck(1)
-    updateChallengeLevel(1)
-  }
-  if (
-    player.researches[72] > 0.5
-    && player.challengecompletions[2]
-      < Math.min(
-        player.highestchallengecompletions[2],
-        25 + 5 * player.researches[67] + 925 * player.researches[105]
-      )
-    && player.coins.gte(
-      Decimal.pow(
-        10,
-        1.6
-          * G.challengeBaseRequirements[1]
-          * Math.pow(1 + player.challengecompletions[2], 2)
-      )
-    )
-  ) {
-    player.challengecompletions[2] += 1
-    challengeAchievementCheck(2)
-    updateChallengeLevel(2)
-  }
-  if (
-    player.researches[73] > 0.5
-    && player.challengecompletions[3]
-      < Math.min(
-        player.highestchallengecompletions[3],
-        25 + 5 * player.researches[68] + 925 * player.researches[105]
-      )
-    && player.coins.gte(
-      Decimal.pow(
-        10,
-        1.7
-          * G.challengeBaseRequirements[2]
-          * Math.pow(1 + player.challengecompletions[3], 2)
-      )
-    )
-  ) {
-    player.challengecompletions[3] += 1
-    challengeAchievementCheck(3)
-    updateChallengeLevel(3)
-  }
-  if (
-    player.researches[74] > 0.5
-    && player.challengecompletions[4]
-      < Math.min(
-        player.highestchallengecompletions[4],
-        25 + 5 * player.researches[69] + 925 * player.researches[105]
-      )
-    && player.coins.gte(
-      Decimal.pow(
-        10,
-        1.45
-          * G.challengeBaseRequirements[3]
-          * Math.pow(1 + player.challengecompletions[4], 2)
-      )
-    )
-  ) {
-    player.challengecompletions[4] += 1
-    challengeAchievementCheck(4)
-    updateChallengeLevel(4)
-  }
-  if (
-    player.researches[75] > 0.5
-    && player.challengecompletions[5]
-      < Math.min(
-        player.highestchallengecompletions[5],
-        25 + 5 * player.researches[70] + 925 * player.researches[105]
-      )
-    && player.coins.gte(
-      Decimal.pow(
-        10,
-        2
-          * G.challengeBaseRequirements[4]
-          * Math.pow(1 + player.challengecompletions[5], 2)
-      )
-    )
-  ) {
-    player.challengecompletions[5] += 1
-    challengeAchievementCheck(5)
-    updateChallengeLevel(5)
-  }
-
+  // Terminal challenge resetCheck dispatch — async + modal-aware, stays in
+  // web_ui. Reads the post-tick player state so threshold checks see the
+  // resources we just generated.
   const chal = player.currentChallenge.transcension
   const reinchal = player.currentChallenge.reincarnation
   const ascendchal = player.currentChallenge.ascension
@@ -3423,11 +2935,7 @@ export const resourceGain = (dt: number): void => {
   if (reinchal < 9 && reinchal !== 0) {
     if (
       player.transcendShards.gte(
-        challengeRequirement(
-          reinchal,
-          player.challengecompletions[reinchal],
-          reinchal
-        )
+        challengeRequirement(reinchal, player.challengecompletions[reinchal], reinchal)
       )
     ) {
       void resetCheck('reincarnationChallenge', false)
@@ -3437,11 +2945,7 @@ export const resourceGain = (dt: number): void => {
   if (reinchal >= 9) {
     if (
       player.coins.gte(
-        challengeRequirement(
-          reinchal,
-          player.challengecompletions[reinchal],
-          reinchal
-        )
+        challengeRequirement(reinchal, player.challengecompletions[reinchal], reinchal)
       )
     ) {
       void resetCheck('reincarnationChallenge', false)
@@ -3451,11 +2955,7 @@ export const resourceGain = (dt: number): void => {
   if (ascendchal !== 0 && ascendchal < 15) {
     if (
       player.challengecompletions[10]
-        >= (challengeRequirement(
-          ascendchal,
-          player.challengecompletions[ascendchal],
-          ascendchal
-        ) as number)
+        >= (challengeRequirement(ascendchal, player.challengecompletions[ascendchal], ascendchal) as number)
     ) {
       void resetCheck('ascensionChallenge', false)
       challengeAchievementCheck(ascendchal)
@@ -3464,68 +2964,25 @@ export const resourceGain = (dt: number): void => {
 }
 
 export const resetCurrency = (): void => {
-  let prestigePow = 0.5 + CalcECC('transcend', player.challengecompletions[5]) / 100
-  let transcendPow = 0.03
-
-  // Calculates the conversion exponent for resets (Challenges 5 and 10 reduce the exponent accordingly).
-  if (player.currentChallenge.transcension === 5) {
-    prestigePow = 0.01
-  }
-  if (player.currentChallenge.reincarnation === 10) {
-    prestigePow = 1e-4
-    transcendPow = 0.001
-  }
-  prestigePow *= G.deflationMultiplier[player.corruptions.used.deflation]
-  // Prestige Point Formulae
-  G.prestigePointGain = Decimal.floor(
-    Decimal.pow(player.coinsThisPrestige.dividedBy(1e12), prestigePow)
-  )
-  if (
-    player.upgrades[16] > 0.5
-    && player.currentChallenge.transcension !== 5
-    && player.currentChallenge.reincarnation !== 10
-  ) {
-    G.prestigePointGain = G.prestigePointGain.times(
-      Decimal.min(
-        Decimal.pow(10, 1e33),
-        Decimal.pow(
-          G.acceleratorEffect,
-          (1 / 3) * G.deflationMultiplier[player.corruptions.used.deflation]
-        )
-      )
-    )
-  }
-
-  // Transcend Point Formulae
-  G.transcendPointGain = Decimal.floor(
-    Decimal.pow(player.coinsThisTranscension.dividedBy(1e100), transcendPow)
-  )
-  if (
-    player.upgrades[44] > 0.5
-    && player.currentChallenge.transcension !== 5
-    && player.currentChallenge.reincarnation !== 10
-  ) {
-    G.transcendPointGain = G.transcendPointGain.times(
-      Decimal.min(1e6, Decimal.pow(1.01, player.transcendCount))
-    )
-  }
-
-  // Reincarnation Point Formulae
-  G.reincarnationPointGain = Decimal.floor(
-    Decimal.pow(player.transcendShards.dividedBy(1e300), 0.01)
-  )
-  if (player.currentChallenge.reincarnation !== 0) {
-    G.reincarnationPointGain = Decimal.pow(G.reincarnationPointGain, 0.01)
-  }
-  G.reincarnationPointGain = G.reincarnationPointGain.times(
-    +getAchievementReward('particleGain')
-  )
-  if (player.upgrades[65] > 0.5) {
-    G.reincarnationPointGain = G.reincarnationPointGain.times(5)
-  }
-  if (player.currentChallenge.ascension === 12) {
-    G.reincarnationPointGain = new Decimal('0')
-  }
+  const result = logicResetCurrency({
+    ecc5: CalcECC('transcend', player.challengecompletions[5]),
+    transcensionChallenge: player.currentChallenge.transcension,
+    reincarnationChallenge: player.currentChallenge.reincarnation,
+    ascensionChallenge: player.currentChallenge.ascension,
+    deflationMultiplier: G.deflationMultiplier[player.corruptions.used.deflation],
+    coinsThisPrestige: player.coinsThisPrestige,
+    coinsThisTranscension: player.coinsThisTranscension,
+    transcendShards: player.transcendShards,
+    upgrade16: player.upgrades[16],
+    upgrade44: player.upgrades[44],
+    upgrade65: player.upgrades[65],
+    transcendCount: player.transcendCount,
+    acceleratorEffect: G.acceleratorEffect,
+    particleGainReward: +getAchievementReward('particleGain')
+  })
+  G.prestigePointGain = result.prestigePointGain
+  G.transcendPointGain = result.transcendPointGain
+  G.reincarnationPointGain = result.reincarnationPointGain
 }
 
 export const resetCheck = async (

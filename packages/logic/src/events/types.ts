@@ -64,3 +64,62 @@ export type CoreEvent =
       /** wowTesseracts spent (plain number — WowTesseracts wrapper stays in web_ui). */
       spent: number
     }
+  // ─── Tick events ──────────────────────────────────────────────────────────
+  // Emitted by the migrated tick body. UI subscribers translate these into the
+  // side effects the legacy in-place tick performed directly (revealStuff,
+  // achievement notifications, visual research/ant/octeract refreshes, etc.).
+  | {
+      kind: 'resources-gained'
+      /** Per-tick coin gain (after taxdivisor + maxexponent clamp). Zero if produceTotal < 0.001. */
+      coins: Decimal
+      /** Per-tick prestige-point gain from upgrade 93 (zero otherwise). */
+      prestigePoints: Decimal
+      /** Per-tick transcend-point gain from upgrade 100 (zero otherwise). */
+      transcendPoints: Decimal
+      /** Per-tick reincarnation-point gain from cubeUpgrade 28 (zero otherwise). */
+      reincarnationPoints: Decimal
+      /** Per-tick prestigeShard gain from diamond production (zero in t-chal 3 / r-chal 10). */
+      prestigeShards: Decimal
+      /** Per-tick transcendShard gain from mythos production (zero in t-chal 3 / r-chal 10). */
+      transcendShards: Decimal
+      /** Per-tick reincarnationShard gain from particle production. */
+      reincarnationShards: Decimal
+      /** Per-tick ascendShard gain from the first ascension building. */
+      ascendShards: Decimal
+    }
+  | {
+      kind: 'auto-reset-triggered'
+      /** Which reset tier auto-fired this tick. */
+      tier: 'prestige' | 'transcension' | 'reincarnation' | 'ascension'
+      /** Whether the threshold check was point-amount based or wall-clock based. */
+      mode: 'amount' | 'time'
+    }
+  | {
+      kind: 'achievement-group-awarded'
+      /** Group key passed to awardAchievementGroup() — e.g. 'constant', 'antCrumbs'. */
+      group: string
+    }
+  | {
+      kind: 'auto-tool-fired'
+      /** Which automaticTools branch fired. */
+      tool: 'runeSacrifice' | 'antSacrifice' | 'addObtainium' | 'addOfferings'
+    }
+  | {
+      kind: 'challenge-sweep-transitioned'
+      /** SweepState kind transitioned out of. */
+      from: string
+      /** SweepState kind transitioned into. */
+      to: string
+    }
+  | {
+      kind: 'reveal-needed'
+      /** Which legacy revealStuff() trigger fired — names mirror the four checks in resourceGain. */
+      trigger: 'coinone' | 'cointwo' | 'cointhree' | 'coinfour'
+    }
+  | {
+      kind: 'challenge-auto-completed'
+      /** challengecompletions index that was just incremented (1..5). */
+      challengeIndex: 1 | 2 | 3 | 4 | 5
+      /** New completion count after increment. */
+      newCompletions: number
+    }

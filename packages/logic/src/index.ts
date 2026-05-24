@@ -886,6 +886,46 @@ export {
   resetTimeThreshold
 } from './mechanics/resetTimeAndAutoObtainium'
 export type {
+  ResetCurrencyInput,
+  ResetCurrencyResult
+} from './mechanics/resetCurrency'
+export { resetCurrency } from './mechanics/resetCurrency'
+export type {
+  UpdateAllTickInput,
+  UpdateAllTickResult
+} from './mechanics/updateAllTick'
+export { updateAllTick } from './mechanics/updateAllTick'
+export type {
+  UpdateAllMultiplierInput,
+  UpdateAllMultiplierResult
+} from './mechanics/updateAllMultiplier'
+export { updateAllMultiplier } from './mechanics/updateAllMultiplier'
+export type {
+  GlobalMultipliersInput,
+  GlobalMultipliersResult
+} from './mechanics/globalMultipliers'
+export { computeGlobalMultipliers } from './mechanics/globalMultipliers'
+export type {
+  ResourceGainInput,
+  ResourceGainResult
+} from './mechanics/resourceGain'
+export { resourceGain } from './mechanics/resourceGain'
+export type {
+  AdvanceAscensionTimerInput,
+  AdvanceAscensionTimerResult,
+  AdvanceGoldenQuarksTimerInput,
+  AdvanceQuarksTimerInput,
+  AdvanceSingularityTimerInput,
+  AdvanceSingularityTimerResult
+} from './tick/timers'
+export {
+  advanceAscensionTimer,
+  advanceGoldenQuarksTimer,
+  advanceQuarksTimer,
+  advanceResetCounter,
+  advanceSingularityTimer
+} from './tick/timers'
+export type {
   DuplicationRuneBlessingEffects,
   PrismRuneBlessingEffects,
   SpeedRuneBlessingEffects,
