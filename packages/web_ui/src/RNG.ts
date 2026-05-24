@@ -1,20 +1,24 @@
-import { MersenneTwister } from 'fast-mersenne-twister'
+import {
+  Seed,
+  seededBetween as logicSeededBetween,
+  seededRandom as logicSeededRandom,
+  type SeedValues
+} from '@synergism/logic'
 import { player } from './Synergism'
 
-export const seededRandom = (index: SeedValues) => MersenneTwister(player.seed[index]++).random()
+export { Seed }
+
+export const seededRandom = (index: SeedValues): number => {
+  const { value, newSeed } = logicSeededRandom(player.seed[index])
+  player.seed[index] = newSeed
+  return value
+}
 
 /**
  * Generates a random number (inclusive) between {@param min} and {@param max}.
- * @param min min
- * @param max max
  */
-export const seededBetween = (index: SeedValues, min: number, max: number) =>
-  Math.floor(seededRandom(index) * (max - min + 1) + min)
-
-export const Seed = {
-  PromoCodes: 0,
-  Ambrosia: 1,
-  RedAmbrosia: 2
-} as const
-
-type SeedValues = typeof Seed[keyof typeof Seed]
+export const seededBetween = (index: SeedValues, min: number, max: number): number => {
+  const { value, newSeed } = logicSeededBetween(player.seed[index], min, max)
+  player.seed[index] = newSeed
+  return value
+}

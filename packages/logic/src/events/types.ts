@@ -128,3 +128,13 @@ export type CoreEvent =
       /** New completion count after increment. */
       newCompletions: number
     }
+  | {
+      kind: 'ambrosia-gained'
+      /** Total ambrosia gained this tick (sum across all loop iterations). */
+      amount: number
+    }
+  | {
+      kind: 'red-ambrosia-gained'
+      /** Total red ambrosia gained this tick. */
+      amount: number
+    }

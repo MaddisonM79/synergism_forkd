@@ -1,9 +1,11 @@
 import {
   addObtainium as logicAddObtainium,
   addOfferings as logicAddOfferings,
+  advanceAmbrosiaTimer as logicAdvanceAmbrosiaTimer,
   advanceAscensionTimer as logicAdvanceAscensionTimer,
   advanceGoldenQuarksTimer as logicAdvanceGoldenQuarksTimer,
   advanceQuarksTimer as logicAdvanceQuarksTimer,
+  advanceRedAmbrosiaTimer as logicAdvanceRedAmbrosiaTimer,
   advanceResetCounter as logicAdvanceResetCounter,
   advanceSingularityTimer as logicAdvanceSingularityTimer
 } from '@synergism/logic'
@@ -18,8 +20,6 @@ import {
   calculateOcteractMultiplier,
   calculateRedAmbrosiaGenerationSpeed,
   calculateRedAmbrosiaLuck,
-  calculateRequiredBlueberryTime,
-  calculateRequiredRedAmbrosiaTime,
   calculateResearchAutomaticObtainium
 } from './Calculate'
 import { sacrificeAnts } from './Features/Ants/AntSacrifice/sacrifice'
@@ -28,7 +28,7 @@ import { getLevelMilestone } from './Levels'
 import { getOcteractUpgradeEffect } from './Octeracts'
 import { quarkHandler } from './Quark'
 import { getRedAmbrosiaUpgradeEffects } from './RedAmbrosiaUpgrades'
-import { Seed, seededRandom } from './RNG'
+import { Seed } from './RNG'
 import { buyAllBlessingLevels } from './RuneBlessings'
 import { getNumberUnlockedRunes, indexToRune, type RuneKeys, runes, sacrificeOfferings } from './Runes'
 import { buyAllSpiritLevels } from './RuneSpirits'
@@ -220,78 +220,72 @@ export const addTimers = (input: TimerInput, time = 0) => {
       break
     }
     case 'ambrosia': {
-      if (player.singularityChallenges.noSingularityUpgrades.completions > 0) {
-        const compute = calculateAmbrosiaGenerationSpeed()
-        if (compute === 0) {
-          break
+      // Cheap gate first — feature locked when completions === 0. Mirrors
+      // logic's inner gate; avoids paying for the calc pre-evals every tick.
+      if (player.singularityChallenges.noSingularityUpgrades.completions <= 0) {
+        break
+      }
+      const ambrosiaResult = logicAdvanceAmbrosiaTimer({
+        time,
+        timeMultiplier,
+        noSingularityUpgradesCompletions: player.singularityChallenges.noSingularityUpgrades.completions,
+        ambrosiaGenerationSpeed: calculateAmbrosiaGenerationSpeed(),
+        ambrosiaTimerG: G.ambrosiaTimer,
+        blueberryTime: player.blueberryTime,
+        ambrosia: player.ambrosia,
+        lifetimeAmbrosia: player.lifetimeAmbrosia,
+        seed: player.seed[Seed.Ambrosia],
+        ambrosiaLuck: calculateAmbrosiaLuck(),
+        bonusAmbrosia: getSingularityChallengeEffect('noAmbrosiaUpgrades', 'bonusAmbrosia'),
+        timePerAmbrosia: G.TIME_PER_AMBROSIA,
+        acceleratorMult: getShopUpgradeEffects('shopAmbrosiaAccelerator', 'ambrosiaPointRequirementMult'),
+        brickOfLeadMult: getAmbrosiaUpgradeEffects('ambrosiaBrickOfLead', 'barRequirementMult')
+      })
+      G.ambrosiaTimer = ambrosiaResult.ambrosiaTimerG
+      player.blueberryTime = ambrosiaResult.blueberryTime
+      player.ambrosia = ambrosiaResult.ambrosia
+      player.lifetimeAmbrosia = ambrosiaResult.lifetimeAmbrosia
+      player.seed[Seed.Ambrosia] = ambrosiaResult.seed
+      for (const event of ambrosiaResult.events) {
+        if (event.kind === 'ambrosia-gained') {
+          visualUpdateAmbrosia()
         }
-
-        G.ambrosiaTimer += time * timeMultiplier
-
-        if (G.ambrosiaTimer < 0.125) {
-          break
-        }
-
-        const ambrosiaLuck = calculateAmbrosiaLuck()
-        const baseBlueberryTime = calculateAmbrosiaGenerationSpeed()
-        player.blueberryTime += Math.floor(8 * G.ambrosiaTimer) / 8 * baseBlueberryTime
-        G.ambrosiaTimer %= 0.125
-
-        let timeToAmbrosia = calculateRequiredBlueberryTime()
-
-        while (player.blueberryTime >= timeToAmbrosia) {
-          const RNG = seededRandom(Seed.Ambrosia)
-          const ambrosiaMult = Math.floor(ambrosiaLuck / 100)
-          const luckMult = RNG < ambrosiaLuck / 100 - Math.floor(ambrosiaLuck / 100) ? 1 : 0
-          const bonusAmbrosia = getSingularityChallengeEffect('noAmbrosiaUpgrades', 'bonusAmbrosia')
-          const ambrosiaToGain = (ambrosiaMult + luckMult) + bonusAmbrosia
-
-          player.ambrosia += ambrosiaToGain
-          player.lifetimeAmbrosia += ambrosiaToGain
-          player.blueberryTime -= timeToAmbrosia
-
-          timeToAmbrosia = calculateRequiredBlueberryTime()
-        }
-
-        visualUpdateAmbrosia()
       }
       break
     }
     case 'redAmbrosia': {
-      if (player.singularityChallenges.noAmbrosiaUpgrades.completions > 0) {
-        const speed = calculateRedAmbrosiaGenerationSpeed()
-        G.redAmbrosiaTimer += time * timeMultiplier
-        if (G.redAmbrosiaTimer < 0.125) {
-          break
-        }
-
-        player.redAmbrosiaTime += Math.floor(8 * G.redAmbrosiaTimer) / 8 * speed
-        G.redAmbrosiaTimer %= 0.125
-        let timeToRedAmbrosia = calculateRequiredRedAmbrosiaTime()
-
-        let ambrosiaTimeToGrant = 0
-        const timeCoeff = getRedAmbrosiaUpgradeEffects('redAmbrosiaAccelerator', 'ambrosiaTimePerRedAmbrosia')
-
-        while (player.redAmbrosiaTime >= timeToRedAmbrosia) {
-          const redAmbrosiaLuck = calculateRedAmbrosiaLuck()
-          const RNG = seededRandom(Seed.RedAmbrosia)
-          const redAmbrosiaMult = Math.floor(redAmbrosiaLuck / 100)
-          const luckMult = RNG < redAmbrosiaLuck / 100 - Math.floor(redAmbrosiaLuck / 100) ? 1 : 0
-          const redAmbrosiaToGain = redAmbrosiaMult + luckMult
-
-          player.redAmbrosia += redAmbrosiaToGain
-          player.lifetimeRedAmbrosia += redAmbrosiaToGain
-          ambrosiaTimeToGrant += redAmbrosiaToGain * timeCoeff
-          player.redAmbrosiaTime -= timeToRedAmbrosia
-          timeToRedAmbrosia = calculateRequiredRedAmbrosiaTime()
-        }
-
-        if (ambrosiaTimeToGrant > 0) {
-          addTimers('ambrosia', ambrosiaTimeToGrant)
-        }
-
-        visualUpdateAmbrosia()
+      if (player.singularityChallenges.noAmbrosiaUpgrades.completions <= 0) {
+        break
       }
+      const redAmbrosiaResult = logicAdvanceRedAmbrosiaTimer({
+        time,
+        timeMultiplier,
+        noAmbrosiaUpgradesCompletions: player.singularityChallenges.noAmbrosiaUpgrades.completions,
+        redAmbrosiaGenerationSpeed: calculateRedAmbrosiaGenerationSpeed(),
+        redAmbrosiaTimerG: G.redAmbrosiaTimer,
+        redAmbrosiaTime: player.redAmbrosiaTime,
+        redAmbrosia: player.redAmbrosia,
+        lifetimeRedAmbrosia: player.lifetimeRedAmbrosia,
+        seed: player.seed[Seed.RedAmbrosia],
+        redAmbrosiaLuck: calculateRedAmbrosiaLuck(),
+        ambrosiaTimePerRedAmbrosia: getRedAmbrosiaUpgradeEffects('redAmbrosiaAccelerator', 'ambrosiaTimePerRedAmbrosia'),
+        timePerRedAmbrosia: G.TIME_PER_RED_AMBROSIA,
+        barRequirementMultiplier: getSingularityChallengeEffect('limitedTime', 'barRequirementMultiplier')
+      })
+      G.redAmbrosiaTimer = redAmbrosiaResult.redAmbrosiaTimerG
+      player.redAmbrosiaTime = redAmbrosiaResult.redAmbrosiaTime
+      player.redAmbrosia = redAmbrosiaResult.redAmbrosia
+      player.lifetimeRedAmbrosia = redAmbrosiaResult.lifetimeRedAmbrosia
+      player.seed[Seed.RedAmbrosia] = redAmbrosiaResult.seed
+      if (redAmbrosiaResult.bonusAmbrosiaTime > 0) {
+        addTimers('ambrosia', redAmbrosiaResult.bonusAmbrosiaTime)
+      }
+      for (const event of redAmbrosiaResult.events) {
+        if (event.kind === 'red-ambrosia-gained') {
+          visualUpdateAmbrosia()
+        }
+      }
+      break
     }
   }
 }

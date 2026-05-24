@@ -911,17 +911,23 @@ export type {
 } from './mechanics/resourceGain'
 export { resourceGain } from './mechanics/resourceGain'
 export type {
+  AdvanceAmbrosiaTimerInput,
+  AdvanceAmbrosiaTimerResult,
   AdvanceAscensionTimerInput,
   AdvanceAscensionTimerResult,
   AdvanceGoldenQuarksTimerInput,
   AdvanceQuarksTimerInput,
+  AdvanceRedAmbrosiaTimerInput,
+  AdvanceRedAmbrosiaTimerResult,
   AdvanceSingularityTimerInput,
   AdvanceSingularityTimerResult
 } from './tick/timers'
 export {
+  advanceAmbrosiaTimer,
   advanceAscensionTimer,
   advanceGoldenQuarksTimer,
   advanceQuarksTimer,
+  advanceRedAmbrosiaTimer,
   advanceResetCounter,
   advanceSingularityTimer
 } from './tick/timers'
@@ -946,6 +952,12 @@ export type {
   TickChallengeSweepResult
 } from './tick/challengeSweep'
 export { tickChallengeSweep } from './tick/challengeSweep'
+export type {
+  SeededBetweenResult,
+  SeededRandomResult,
+  SeedValues
+} from './math/rng'
+export { Seed, seededBetween, seededRandom } from './math/rng'
 export type {
   DuplicationRuneBlessingEffects,
   PrismRuneBlessingEffects,
