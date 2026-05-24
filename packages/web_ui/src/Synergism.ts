@@ -96,7 +96,7 @@ import {
 } from './Corruptions'
 import { calculateAcceleratorCubeBlessing, calculateMultiplierCubeBlessing, updateCubeUpgradeBG } from './Cubes'
 import { generateEventHandlers } from './EventListeners'
-import { addTimers, automaticTools } from './Helper'
+import { addTimers, automaticTools, tackHeadTimers } from './Helper'
 import { resetHistoryRenderAllTables } from './History'
 import {
   buyResearch,
@@ -4039,17 +4039,16 @@ const tack = (dt: number) => {
     generateAntsAndCrumbs(dt)
 
     // Adds time (in milliseconds) to all reset functions, and quarks timer.
-    addTimers('prestige', dt)
-    addTimers('transcension', dt)
-    addTimers('reincarnation', dt)
-    addTimers('ascension', dt)
-    addTimers('quarks', dt)
-    addTimers('goldenQuarks', dt)
-    addTimers('octeracts', dt)
-    addTimers('singularity', dt)
+    // Bundled head: 10 of 11 timer cases composed into a single logic call
+    // (prestige, transcension, reincarnation, ascension, quarks,
+    //  goldenQuarks, octeracts, singularity, ambrosia, redAmbrosia).
+    // autoPotion stays inline because it dispatches DOM/modal side effects
+    // through useConsumable. Legacy ran autoPotion between cases 8 and 9;
+    // the bundle runs 9-10 contiguously and autoPotion now follows the
+    // bundle. See packages/logic/src/tick/timersBundle.ts for the audit
+    // that this position shift is bug-for-bug equivalent.
+    tackHeadTimers(dt)
     addTimers('autoPotion', dt)
-    addTimers('ambrosia', dt)
-    addTimers('redAmbrosia', dt)
 
     // Triggers automatic rune sacrifice (adds milliseconds to payload timer)
     if (player.autoSacrificeToggle && getShopUpgradeEffects('offeringAuto', 'autoRune')) {
