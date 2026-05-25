@@ -1,0 +1,42 @@
+name: rust-bench
+
+on:
+  schedule:
+    # Nightly at 06:00 UTC — runs criterion against main and compares to baseline.
+    - cron: '0 6 * * *'
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  bench:
+    name: criterion (ubuntu-latest)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+
+      - name: Cache cargo registry & target
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: cargo-bench-${{ hashFiles('Cargo.lock', 'rust-toolchain.toml') }}
+
+      # Bench harnesses (criterion) land in crates that have a `benches/`
+      # directory: bignum, logic, save. Workspace bench is a no-op until
+      # those are wired.
+      - name: cargo bench (dry)
+        run: cargo bench --workspace --no-run
+
+      # Once criterion benches exist, swap the dry run for:
+      #   cargo bench --workspace -- --output-format bencher
+      # and pipe the JSON through a small formatter (mirrors the TS
+      # `bench-report.mjs` in legacy_core_split) to produce BENCH_REPORT.md.
