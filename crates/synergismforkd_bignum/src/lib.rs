@@ -1,114 +1,50 @@
-//! Synergism Forkd — bignum wrapper.
+//! Synergism Forkd — bignum re-export.
 //!
-//! Surface mirrors `break_eternity.js`. The body is a stub: every method
-//! returns a placeholder or panics with `unimplemented!()`. Downstream
-//! crates import [`Decimal`] so call sites compile; the real
-//! implementation lands when the maintained `break-eternity` Rust fork is
-//! published.
+//! Thin wrapper around the maintained [`break-eternity-rs`] fork of
+//! `cozyGalvinism/break-eternity`. Every Synergism Forkd crate that
+//! touches big numbers depends on this crate, never on the upstream
+//! directly — that keeps the underlying impl swappable without churning
+//! call sites.
+//!
+//! See the upstream `Decimal` docs for the full API: arithmetic via
+//! operator overloads (`+`, `-`, `*`, `/`), constants (`Decimal::zero`,
+//! `one`, `ten`, `nan`, `inf`, `maximum`), comparison via [`Ord`] /
+//! [`PartialOrd`], and the BE.js-equivalent helpers (`log10`, `ln`,
+//! `pow`, `tetrate`, `iteratedexp`, `iteratedlog`, `slog`, `sqrt`,
+//! `cbrt`, `gamma`, `factorial`, `lambertw`, …).
+//!
+//! [`break-eternity-rs`]: https://crates.io/crates/break-eternity-rs
 
-use std::cmp::Ordering;
-use std::fmt;
+pub use break_eternity::{
+    decimal_places, sign, to_fixed, BreakEternityError, Decimal, EXPN1, EXPONENT_LIMIT,
+    FIRST_NEG_LAYER, LAYER_REDUCTION_THRESHOLD, MAX_ES_IN_A_ROW, MAX_FLOAT_PRECISION,
+    MAX_POWERS_OF_TEN, NUMBER_EXP_MAX, NUMBER_EXP_MIN, OMEGA, TWO_PI,
+};
 
-/// Big-number type with `break_eternity` semantics: sign + layer-based
-/// exponent tower. Layer 0 is `sign * mag`; layer 1 is `sign * 10^mag`;
-/// layer 2 is `sign * 10^10^mag`; and so on.
-#[derive(Clone, Copy, Debug, Default, PartialEq)]
-pub struct Decimal {
-    sign: f64,
-    mag: f64,
-    layer: f64,
-}
+#[cfg(test)]
+mod tests {
+    use super::*;
 
-impl Decimal {
-    pub const ZERO: Self = Self {
-        sign: 0.0,
-        mag: 0.0,
-        layer: 0.0,
-    };
-    pub const ONE: Self = Self {
-        sign: 1.0,
-        mag: 0.0,
-        layer: 0.0,
-    };
-
-    pub fn from_components(sign: f64, layer: f64, mag: f64) -> Self {
-        Self { sign, mag, layer }
+    #[test]
+    fn zero_and_one_round_trip_to_f64() {
+        assert_eq!(Decimal::zero().to_number(), 0.0);
+        assert_eq!(Decimal::one().to_number(), 1.0);
     }
 
-    pub fn from_f64(_value: f64) -> Self {
-        unimplemented!("bignum stub — wire the maintained break-eternity fork")
+    #[test]
+    fn small_arithmetic_matches_f64() {
+        // `Decimal` is `Copy`, so passing by value is the idiomatic call form.
+        let a = Decimal::from_number(2.0);
+        let b = Decimal::from_number(3.0);
+        assert_eq!((a + b).to_number(), 5.0);
+        assert_eq!((a * b).to_number(), 6.0);
     }
 
-    pub fn add(&self, _rhs: &Self) -> Self {
-        unimplemented!()
-    }
-    pub fn sub(&self, _rhs: &Self) -> Self {
-        unimplemented!()
-    }
-    pub fn mul(&self, _rhs: &Self) -> Self {
-        unimplemented!()
-    }
-    pub fn div(&self, _rhs: &Self) -> Self {
-        unimplemented!()
-    }
-    pub fn neg(&self) -> Self {
-        unimplemented!()
-    }
-    pub fn abs(&self) -> Self {
-        unimplemented!()
-    }
-    pub fn pow(&self, _rhs: &Self) -> Self {
-        unimplemented!()
-    }
-    pub fn log10(&self) -> Self {
-        unimplemented!()
-    }
-    pub fn exp(&self) -> Self {
-        unimplemented!()
-    }
-    pub fn tetrate(&self, _height: &Self) -> Self {
-        unimplemented!()
-    }
-    pub fn iterated_exp(&self, _times: &Self) -> Self {
-        unimplemented!()
-    }
-    pub fn iterated_log(&self, _times: &Self) -> Self {
-        unimplemented!()
-    }
-    pub fn slog(&self, _base: &Self) -> Self {
-        unimplemented!()
-    }
-    pub fn ssqrt(&self) -> Self {
-        unimplemented!()
-    }
-    pub fn lambertw(&self) -> Self {
-        unimplemented!()
-    }
-    #[allow(clippy::should_implement_trait)]
-    pub fn cmp(&self, _rhs: &Self) -> Ordering {
-        unimplemented!()
-    }
-}
-
-impl fmt::Display for Decimal {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Decimal(stub)")
-    }
-}
-
-/// Anything convertible into a `Decimal`. Mirrors `DecimalSource` in BE.js.
-pub trait DecimalSource {
-    fn to_decimal(self) -> Decimal;
-}
-
-impl DecimalSource for Decimal {
-    fn to_decimal(self) -> Decimal {
-        self
-    }
-}
-
-impl DecimalSource for f64 {
-    fn to_decimal(self) -> Decimal {
-        Decimal::from_f64(self)
+    #[test]
+    fn handles_magnitudes_past_f64_max() {
+        // 1e400 is past f64::MAX (~1.8e308); a normal f64 would be inf.
+        let huge = Decimal::from_mantissa_exponent(1.0, 400.0);
+        assert!(huge.to_number().is_infinite() || huge.to_number() > 1e300);
+        assert!(huge.exponent() >= 400.0);
     }
 }

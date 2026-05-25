@@ -10,7 +10,7 @@ A Rust rewrite of the TypeScript idle game **Synergism**. Forked, renamed, and p
 
 ```
 crates/
-  synergismforkd_bignum/      # break_eternity wrapper (Decimal) — stub
+  synergismforkd_bignum/      # break-eternity-rs wrapper (Decimal)
   synergismforkd_common/      # shared types
   synergismforkd_logic/       # headless game logic
   synergismforkd_save/        # save format + migrations

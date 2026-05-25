@@ -59,8 +59,8 @@
 The TS-era boundary (`packages/logic` could not touch DOM / UI / i18n) generalizes to the whole Rust workspace.
 
 ### `synergismforkd_bignum`
-- Stub for now. Public surface mirrors `break_eternity.js`.
-- Real impl lands when the maintained `break-eternity` Rust fork is published. Other crates depend on `synergismforkd_bignum` only, never on the upstream crate directly.
+- Thin re-export of the maintained [`break-eternity-rs`](https://crates.io/crates/break-eternity-rs) crate. `Decimal` is `Copy`, supports the standard arithmetic operators, and exposes the full BE.js helper set (`log10`, `ln`, `pow`, `tetrate`, `iteratedexp`, `iteratedlog`, `slog`, `sqrt`, `cbrt`, `gamma`, `factorial`, `lambertw`, …).
+- Other crates depend on `synergismforkd_bignum` only, never on the upstream crate directly — that keeps the underlying impl swappable later.
 
 ### `synergismforkd_logic`
 - **No** `wasm-bindgen`, `web-sys`, `js-sys`, network, filesystem, time-of-day, or async runtime.
@@ -103,7 +103,7 @@ The Rust save format is **fresh** — no compatibility with the TS savefile.
 
 ### Bignum
 - Always import `Decimal` from `synergismforkd_bignum`, never directly from `break_eternity` (or whatever underlies it).
-- The stub panics on most operations. Real code that needs working arithmetic must wait for the fork PR.
+- `Decimal` is `Copy` — pass by value, no `&` or `.clone()` needed at call sites. Operators (`+`, `-`, `*`, `/`) consume copies of their operands.
 
 ### Module structure (logic)
 Mirror the TS `packages/logic/src/` layout exactly:
