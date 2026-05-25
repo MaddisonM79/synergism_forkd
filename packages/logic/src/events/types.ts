@@ -166,3 +166,12 @@ export type CoreEvent =
       // (all un-migrated). No payload — the event is a pure intent signal;
       // sacrificeAnts() re-reads the latest player state itself.
     }
+  | {
+      kind: 'rune-sacrifice-triggered'
+      // Emitted by advanceRuneSacrifice when the sacrifice timer crosses
+      // autoSacrificeInterval and offerings > 0. UI dispatcher runs the
+      // blessing/spirit/talisman/per-rune-or-all purchase fan-out and
+      // recalculates the autoSacrificeInterval cache. No payload — the
+      // dispatcher re-reads the latest player state itself (singularity
+      // count gates, cube upgrade gates, autoSacrifice rune index, etc.).
+    }

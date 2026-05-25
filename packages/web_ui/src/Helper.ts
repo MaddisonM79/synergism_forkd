@@ -11,6 +11,7 @@ import {
   advanceQuarksTimer as logicAdvanceQuarksTimer,
   advanceRedAmbrosiaTimer as logicAdvanceRedAmbrosiaTimer,
   advanceResetCounter as logicAdvanceResetCounter,
+  advanceRuneSacrifice as logicAdvanceRuneSacrifice,
   advanceSingularityTimer as logicAdvanceSingularityTimer,
   type AutoSacrificeMode as LogicAutoSacrificeMode,
   checkAntSacrificeReady as logicCheckAntSacrificeReady
@@ -452,61 +453,19 @@ export const automaticTools = (input: AutoToolInput, time: number) => {
       player.offerings = offeringsResult.offerings
       break
     }
-    case 'runeSacrifice':
-      // Every real life second this will trigger
-      player.sacrificeTimer += time
-      if (
-        player.sacrificeTimer >= autoSacrificeInterval
-        && player.offerings.gt(0)
-      ) {
-        // Automatic purchase of Blessings
-        if (player.highestSingularityCount >= 15) {
-          if (player.toggles[36]) {
-            buyAllBlessingLevels(player.offerings.div(2))
-          }
-          if (player.toggles[37]) {
-            buyAllSpiritLevels(player.offerings.div(2))
-          }
-        }
-        if (
-          player.autoBuyFragment
-          && player.highestSingularityCount >= 40
-          && player.cubeUpgrades[51] > 0
-        ) {
-          buyAllTalismanResources()
-        }
-
-        // If you bought cube upgrade 2x10 then it sacrifices to all runes equally
-        if (player.cubeUpgrades[20] === 1) {
-          let numUnlocked = getNumberUnlockedRunes()
-
-          // Do not purchase AoAG under s50
-          if (player.highestSingularityCount < 50 && runes.antiquities.isUnlocked()) {
-            numUnlocked -= 1
-          }
-
-          // Do not purchase IA under s30
-          if (player.highestSingularityCount < 30 && runes.infiniteAscent.isUnlocked()) {
-            numUnlocked -= 1
-          }
-
-          const offeringPerRune = Decimal.floor(player.offerings.mul(0.5).div(numUnlocked))
-
-          for (const key of Object.keys(player.runes)) {
-            const runeKey = key as RuneKeys
-            sacrificeOfferings(runeKey, offeringPerRune, true)
-          }
-        } else {
-          // If you did not buy cube upgrade 2x10 it sacrifices to selected rune.
-          const rune = player.autoSacrifice
-          if (rune !== 0) {
-            sacrificeOfferings(indexToRune[rune], player.offerings, true)
-          }
-        }
-        autoSacrificeInterval = calculateAutoSacrificeInterval()
-        player.sacrificeTimer = 0
+    case 'runeSacrifice': {
+      const runeR = logicAdvanceRuneSacrifice({
+        time,
+        sacrificeTimer: player.sacrificeTimer,
+        autoSacrificeInterval,
+        offerings: player.offerings
+      })
+      player.sacrificeTimer = runeR.sacrificeTimer
+      for (const event of runeR.events) {
+        dispatchTickEvent(event)
       }
       break
+    }
     case 'antSacrifice': {
       const timerR = logicAdvanceAntSacrificeTimers({
         time,
@@ -544,4 +503,63 @@ export const automaticTools = (input: AutoToolInput, time: number) => {
       break
     }
   }
+}
+
+/**
+ * Execute the rune auto-sacrifice fan-out + refresh the module-local
+ * autoSacrificeInterval cache. Invoked by the `rune-sacrifice-triggered`
+ * event handler in tickEventHandlers.ts when logic's advanceRuneSacrifice
+ * decides the gate fires this tick.
+ *
+ * Each call reads the latest player state (singularity-count gates, cube
+ * upgrade gates, autoSacrifice rune index, etc.) — the event itself
+ * carries no payload because every fan-out branch depends on un-migrated
+ * subsystems (RuneBlessings, RuneSpirits, Talismans, sacrificeOfferings).
+ */
+export const executeRuneAutoSacrifice = (): void => {
+  // Automatic purchase of Blessings
+  if (player.highestSingularityCount >= 15) {
+    if (player.toggles[36]) {
+      buyAllBlessingLevels(player.offerings.div(2))
+    }
+    if (player.toggles[37]) {
+      buyAllSpiritLevels(player.offerings.div(2))
+    }
+  }
+  if (
+    player.autoBuyFragment
+    && player.highestSingularityCount >= 40
+    && player.cubeUpgrades[51] > 0
+  ) {
+    buyAllTalismanResources()
+  }
+
+  // If you bought cube upgrade 2x10 then it sacrifices to all runes equally
+  if (player.cubeUpgrades[20] === 1) {
+    let numUnlocked = getNumberUnlockedRunes()
+
+    // Do not purchase AoAG under s50
+    if (player.highestSingularityCount < 50 && runes.antiquities.isUnlocked()) {
+      numUnlocked -= 1
+    }
+
+    // Do not purchase IA under s30
+    if (player.highestSingularityCount < 30 && runes.infiniteAscent.isUnlocked()) {
+      numUnlocked -= 1
+    }
+
+    const offeringPerRune = Decimal.floor(player.offerings.mul(0.5).div(numUnlocked))
+
+    for (const key of Object.keys(player.runes)) {
+      const runeKey = key as RuneKeys
+      sacrificeOfferings(runeKey, offeringPerRune, true)
+    }
+  } else {
+    // If you did not buy cube upgrade 2x10 it sacrifices to selected rune.
+    const rune = player.autoSacrifice
+    if (rune !== 0) {
+      sacrificeOfferings(indexToRune[rune], player.offerings, true)
+    }
+  }
+  autoSacrificeInterval = calculateAutoSacrificeInterval()
 }

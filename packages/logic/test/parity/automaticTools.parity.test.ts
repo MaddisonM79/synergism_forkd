@@ -16,6 +16,9 @@ import {
   type AdvanceAntSacrificeTimersInput,
   type AdvanceAntSacrificeTimersResult,
   advanceAntSacrificeTimers as newAdvanceAntSacrificeTimers,
+  type AdvanceRuneSacrificeInput,
+  type AdvanceRuneSacrificeResult,
+  advanceRuneSacrifice as newAdvanceRuneSacrifice,
   type CheckAntSacrificeReadyInput,
   type CheckAntSacrificeReadyResult,
   checkAntSacrificeReady as newCheckAntSacrificeReady
@@ -558,6 +561,140 @@ describe('parity: checkAntSacrificeReady', () => {
     it(c.name, () => {
       const newR = newCheckAntSacrificeReady(c.input)
       const oldR = oldCheckAntSacrificeReady(c.input)
+      expect(newR.events).toEqual(oldR.events)
+    })
+  }
+})
+
+// ─── advanceRuneSacrifice ───────────────────────────────────────────────
+
+const oldAdvanceRuneSacrifice = (input: AdvanceRuneSacrificeInput): AdvanceRuneSacrificeResult => {
+  // Verbatim legacy body in Helper.ts: timer accumulates raw `time`. When
+  // the threshold + offerings gate fires, the timer resets to 0 and the
+  // dispatcher (was inline) runs the purchase fan-out + refreshes the
+  // autoSacrificeInterval cache. The logic-tier translation emits the
+  // event in place of running the side effects.
+  const advanced = input.sacrificeTimer + input.time
+  if (advanced >= input.autoSacrificeInterval && input.offerings.gt(0)) {
+    return {
+      sacrificeTimer: 0,
+      events: [{ kind: 'rune-sacrifice-triggered' }]
+    }
+  }
+  return {
+    sacrificeTimer: advanced,
+    events: []
+  }
+}
+
+describe('parity: advanceRuneSacrifice', () => {
+  const cases: Array<{ name: string, input: AdvanceRuneSacrificeInput }> = [
+    {
+      name: 'baseline tick — under threshold, accumulates',
+      input: {
+        time: 0.025,
+        sacrificeTimer: 0,
+        autoSacrificeInterval: 1,
+        offerings: new Decimal(1e9)
+      }
+    },
+    {
+      name: 'tick crosses threshold (offerings positive) — fires + resets',
+      input: {
+        time: 0.5,
+        sacrificeTimer: 0.6,
+        autoSacrificeInterval: 1,
+        offerings: new Decimal(100)
+      }
+    },
+    {
+      name: 'tick exactly at threshold (boundary fires)',
+      input: {
+        time: 0,
+        sacrificeTimer: 1,
+        autoSacrificeInterval: 1,
+        offerings: new Decimal(1)
+      }
+    },
+    {
+      name: 'threshold crossed but offerings zero — no fire',
+      input: {
+        time: 0.5,
+        sacrificeTimer: 0.6,
+        autoSacrificeInterval: 1,
+        offerings: new Decimal(0)
+      }
+    },
+    {
+      name: 'offerings negative shape (Decimal allows 0) — gate strictly > 0',
+      input: {
+        time: 1,
+        sacrificeTimer: 2,
+        autoSacrificeInterval: 1,
+        offerings: new Decimal(0)
+      }
+    },
+    {
+      name: 'sub-second interval (autoRuneSpeedMult lowering) — fires sooner',
+      input: {
+        time: 0.025,
+        sacrificeTimer: 0.1,
+        autoSacrificeInterval: 0.1,
+        offerings: new Decimal(1e6)
+      }
+    },
+    {
+      name: 'big offline-catchup tick — fires once + resets',
+      input: {
+        time: 3600,
+        sacrificeTimer: 0,
+        autoSacrificeInterval: 1,
+        offerings: new Decimal(1e9)
+      }
+    },
+    {
+      name: 'zero tick (no-op when below threshold)',
+      input: {
+        time: 0,
+        sacrificeTimer: 0.5,
+        autoSacrificeInterval: 1,
+        offerings: new Decimal(100)
+      }
+    },
+    {
+      name: 'starting from already-crossed timer (legacy never reduces pre-add)',
+      input: {
+        time: 0.025,
+        sacrificeTimer: 2,
+        autoSacrificeInterval: 1,
+        offerings: new Decimal(50)
+      }
+    },
+    {
+      name: 'huge offerings balance (Decimal — no overflow)',
+      input: {
+        time: 1,
+        sacrificeTimer: 0,
+        autoSacrificeInterval: 0.5,
+        offerings: new Decimal('1.5e30')
+      }
+    },
+    {
+      name: 'tiny interval (sing milestone + cube20 stack)',
+      input: {
+        time: 0.025,
+        sacrificeTimer: 0,
+        autoSacrificeInterval: 0.01,
+        offerings: new Decimal(1)
+      }
+    }
+  ]
+
+  for (const c of cases) {
+    it(c.name, () => {
+      const newR = newAdvanceRuneSacrifice(c.input)
+      const oldR = oldAdvanceRuneSacrifice(c.input)
+      expect(newR.sacrificeTimer).toBe(oldR.sacrificeTimer)
       expect(newR.events).toEqual(oldR.events)
     })
   }

@@ -945,6 +945,8 @@ export type {
   AddOfferingsResult,
   AdvanceAntSacrificeTimersInput,
   AdvanceAntSacrificeTimersResult,
+  AdvanceRuneSacrificeInput,
+  AdvanceRuneSacrificeResult,
   AutoSacrificeMode,
   CheckAntSacrificeReadyInput,
   CheckAntSacrificeReadyResult
@@ -953,6 +955,7 @@ export {
   addObtainium,
   addOfferings,
   advanceAntSacrificeTimers,
+  advanceRuneSacrifice,
   checkAntSacrificeReady,
   MINIMUM_CRUMBS_FOR_SACRIFICE,
   MINIMUM_SECONDS_DELAY_BETWEEN_SACRIFICES,

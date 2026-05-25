@@ -16,6 +16,7 @@ import { type AchievementGroups, awardAchievementGroup, challengeAchievementChec
 import { dispatchSweepTransition } from './Challenges'
 import type { CoreEvent } from '@synergism/logic'
 import { sacrificeAnts } from './Features/Ants/AntSacrifice/sacrifice'
+import { executeRuneAutoSacrifice } from './Helper'
 import { reset } from './Reset'
 import { useConsumable } from './Shop'
 import { Tabs } from './Tabs'
@@ -126,6 +127,16 @@ export function dispatchTickEvent (event: CoreEvent): void {
     // history record — all un-migrated subsystems that stay in web_ui.
     case 'ant-sacrifice-triggered':
       sacrificeAnts()
+      return
+
+    // ─── runeSacrifice events ────────────────────────────────────────
+    // Logic's advanceRuneSacrifice emits this when the sacrifice timer
+    // crosses the autoSacrificeInterval cache and offerings > 0. The
+    // dispatcher runs the blessing/spirit/talisman/per-rune fan-out and
+    // refreshes the cache — see Helper.ts:executeRuneAutoSacrifice for
+    // the inline branches that mirror the legacy automaticTools body.
+    case 'rune-sacrifice-triggered':
+      executeRuneAutoSacrifice()
       return
   }
 }

@@ -283,3 +283,62 @@ export function checkAntSacrificeReady (
 
   return { events: ready ? [{ kind: 'ant-sacrifice-triggered' }] : [] }
 }
+
+export interface AdvanceRuneSacrificeInput {
+  /** Tick delta (seconds). Added raw to `sacrificeTimer` — runeSacrifice
+   * is in the `timeMultiplier === 1` list (legacy automaticTools only
+   * passes the raw `time` arg here, no per-case speed scaling). */
+  time: number
+  /** player.sacrificeTimer — fractional timer accumulated across ticks.
+   * Reset to 0 when the threshold + offerings gate fires. */
+  sacrificeTimer: number
+  /** Cached `calculateAutoSacrificeInterval()` — see Helper.ts. The
+   * cache is recalculated by the UI dispatcher when the event fires
+   * (i.e. inside `executeRuneAutoSacrifice`), then fed back in here on
+   * subsequent ticks. */
+  autoSacrificeInterval: number
+  /** player.offerings — gate (`> 0`) on whether a sacrifice can fire.
+   * The dispatcher's purchase fan-out reads the post-tick offerings
+   * itself, so we don't return them. */
+  offerings: Decimal
+}
+
+export interface AdvanceRuneSacrificeResult {
+  /** Either the advanced timer (no fire) or `0` (fire — timer reset). */
+  sacrificeTimer: number
+  /** `[{ kind: 'rune-sacrifice-triggered' }]` when the gate fires;
+   * `[]` otherwise. */
+  events: CoreEvent[]
+}
+
+/**
+ * Per-tick rune-sacrifice trigger. Mirrors the timer-advance + threshold
+ * + offerings gate portion of `automaticTools('runeSacrifice', time)` in
+ * Helper.ts:
+ *
+ *   player.sacrificeTimer += time
+ *   if (sacrificeTimer >= autoSacrificeInterval && offerings > 0) {
+ *     // ...purchase fan-out (blessings / spirits / talismans /
+ *     //                       per-rune or all-runes sacrifice)
+ *     autoSacrificeInterval = calculateAutoSacrificeInterval()
+ *     player.sacrificeTimer = 0
+ *   }
+ *
+ * The purchase fan-out + cache refresh stay in web_ui — they depend on
+ * un-migrated subsystems (RuneBlessings, RuneSpirits, Talismans,
+ * sacrificeOfferings) and the autoSacrificeInterval cache is a
+ * module-local in Helper.ts.
+ */
+export function advanceRuneSacrifice (input: AdvanceRuneSacrificeInput): AdvanceRuneSacrificeResult {
+  const advanced = input.sacrificeTimer + input.time
+  if (advanced >= input.autoSacrificeInterval && input.offerings.gt(0)) {
+    return {
+      sacrificeTimer: 0,
+      events: [{ kind: 'rune-sacrifice-triggered' }]
+    }
+  }
+  return {
+    sacrificeTimer: advanced,
+    events: []
+  }
+}
