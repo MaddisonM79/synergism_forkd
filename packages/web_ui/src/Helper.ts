@@ -3,6 +3,7 @@ import {
   addOfferings as logicAddOfferings,
   advanceAllTimers as logicAdvanceAllTimers,
   advanceAmbrosiaTimer as logicAdvanceAmbrosiaTimer,
+  advanceAntSacrificeTimers as logicAdvanceAntSacrificeTimers,
   advanceAscensionTimer as logicAdvanceAscensionTimer,
   advanceAutoPotionTimer as logicAdvanceAutoPotionTimer,
   advanceGoldenQuarksTimer as logicAdvanceGoldenQuarksTimer,
@@ -489,10 +490,14 @@ export const automaticTools = (input: AutoToolInput, time: number) => {
       }
       break
     case 'antSacrifice': {
-      const globalDelta = getGQUpgradeEffect('halfMind', 'unlocked') ? 10 : calculateGlobalSpeedMult()
-
-      player.antSacrificeTimer += time * globalDelta
-      player.antSacrificeTimerReal += time
+      const timerR = logicAdvanceAntSacrificeTimers({
+        time,
+        globalDelta: getGQUpgradeEffect('halfMind', 'unlocked') ? 10 : calculateGlobalSpeedMult(),
+        antSacrificeTimer: player.antSacrificeTimer,
+        antSacrificeTimerReal: player.antSacrificeTimerReal
+      })
+      player.antSacrificeTimer = timerR.antSacrificeTimer
+      player.antSacrificeTimerReal = timerR.antSacrificeTimerReal
 
       const timeElapsed = player.antSacrificeTimerReal
       const crumbs = player.ants.crumbsThisSacrifice

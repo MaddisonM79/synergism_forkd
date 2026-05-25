@@ -1,6 +1,7 @@
-// Parity tests for the 2 simple cases of automaticTools.
+// Parity tests for the migrated pure cases of automaticTools.
 // Old bodies transcribed verbatim from packages/web_ui/src/Helper.ts
-// (automaticTools, addObtainium + addOfferings cases pre-migration).
+// (automaticTools, addObtainium + addOfferings + antSacrifice timer
+// portion pre-migration).
 
 import { describe, expect, it } from 'vitest'
 import { Decimal } from '../../src/math/bignum'
@@ -10,7 +11,10 @@ import {
   addObtainium as newAddObtainium,
   type AddOfferingsInput,
   type AddOfferingsResult,
-  addOfferings as newAddOfferings
+  addOfferings as newAddOfferings,
+  type AdvanceAntSacrificeTimersInput,
+  type AdvanceAntSacrificeTimersResult,
+  advanceAntSacrificeTimers as newAdvanceAntSacrificeTimers
 } from '../../src/tick/automaticTools'
 
 // ─── addObtainium ───────────────────────────────────────────────────────
@@ -213,6 +217,115 @@ describe('parity: addOfferings', () => {
       const oldR = oldAddOfferings(c.input)
       expect(newR.autoOfferingCounter).toBe(oldR.autoOfferingCounter)
       expect(newR.offerings.toString()).toBe(oldR.offerings.toString())
+    })
+  }
+})
+
+// ─── advanceAntSacrificeTimers ──────────────────────────────────────────
+
+const oldAdvanceAntSacrificeTimers = (
+  input: AdvanceAntSacrificeTimersInput
+): AdvanceAntSacrificeTimersResult => {
+  // Legacy body in Helper.ts: scaled timer advances by time*globalDelta,
+  // wall-clock timer advances by raw time. The globalDelta is whatever the
+  // caller pre-evaluated (halfMind ? 10 : calculateGlobalSpeedMult()).
+  return {
+    antSacrificeTimer: input.antSacrificeTimer + input.time * input.globalDelta,
+    antSacrificeTimerReal: input.antSacrificeTimerReal + input.time
+  }
+}
+
+describe('parity: advanceAntSacrificeTimers', () => {
+  const cases: Array<{ name: string, input: AdvanceAntSacrificeTimersInput }> = [
+    {
+      name: 'baseline tick — globalDelta = 1, fresh timers',
+      input: {
+        time: 0.025,
+        globalDelta: 1,
+        antSacrificeTimer: 0,
+        antSacrificeTimerReal: 0
+      }
+    },
+    {
+      name: 'halfMind unlocked — globalDelta = 10',
+      input: {
+        time: 0.025,
+        globalDelta: 10,
+        antSacrificeTimer: 5,
+        antSacrificeTimerReal: 5
+      }
+    },
+    {
+      name: 'fractional globalDelta (slow time)',
+      input: {
+        time: 0.05,
+        globalDelta: 0.25,
+        antSacrificeTimer: 100,
+        antSacrificeTimerReal: 100
+      }
+    },
+    {
+      name: 'large globalDelta (fast time)',
+      input: {
+        time: 0.025,
+        globalDelta: 3600,
+        antSacrificeTimer: 0,
+        antSacrificeTimerReal: 0
+      }
+    },
+    {
+      name: 'zero tick (no-op)',
+      input: {
+        time: 0,
+        globalDelta: 10,
+        antSacrificeTimer: 42.5,
+        antSacrificeTimerReal: 42.5
+      }
+    },
+    {
+      name: 'big offline catch-up tick',
+      input: {
+        time: 3600,
+        globalDelta: 5,
+        antSacrificeTimer: 0,
+        antSacrificeTimerReal: 0
+      }
+    },
+    {
+      name: 'timers diverge (scaled vs. raw) — globalDelta != 1',
+      input: {
+        time: 1,
+        globalDelta: 7.5,
+        antSacrificeTimer: 50,
+        antSacrificeTimerReal: 10
+      }
+    },
+    {
+      name: 'globalDelta = 0 (frozen time) — scaled timer stays put',
+      input: {
+        time: 1,
+        globalDelta: 0,
+        antSacrificeTimer: 30,
+        antSacrificeTimerReal: 30
+      }
+    },
+    {
+      name: 'subsecond tick with fractional globalDelta',
+      input: {
+        time: 0.0125,
+        globalDelta: 1.5,
+        antSacrificeTimer: 0.5,
+        antSacrificeTimerReal: 0.5
+      }
+    }
+  ]
+
+  for (const c of cases) {
+    it(c.name, () => {
+      const newR = newAdvanceAntSacrificeTimers(c.input)
+      const oldR = oldAdvanceAntSacrificeTimers(c.input)
+      expect(newR.antSacrificeTimer).toBe(oldR.antSacrificeTimer)
+      expect(newR.antSacrificeTimerReal).toBe(oldR.antSacrificeTimerReal)
     })
   }
 })

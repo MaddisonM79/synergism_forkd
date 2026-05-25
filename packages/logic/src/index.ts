@@ -942,11 +942,14 @@ export type {
   AddObtainiumInput,
   AddObtainiumResult,
   AddOfferingsInput,
-  AddOfferingsResult
+  AddOfferingsResult,
+  AdvanceAntSacrificeTimersInput,
+  AdvanceAntSacrificeTimersResult
 } from './tick/automaticTools'
 export {
   addObtainium,
-  addOfferings
+  addOfferings,
+  advanceAntSacrificeTimers
 } from './tick/automaticTools'
 export type {
   ApplyAutoResetsInput,

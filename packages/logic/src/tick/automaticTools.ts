@@ -1,17 +1,25 @@
 // Per-tick auto-tool branches. Lifted from packages/web_ui/src/Helper.ts
-// (automaticTools, addObtainium + addOfferings cases).
+// (automaticTools, addObtainium + addOfferings + antSacrifice timer cases).
 //
-// Covers the two simple cases of automaticTools — counter math with at most
-// one UI-tier visual refresh:
-//   addObtainium  — clamps + adds research-automatic obtainium, gated by c14
-//                   abort and taxmanLastStand singularity-challenge cap.
-//   addOfferings  — fractional auto-offering counter; floor of accumulated
-//                   counter is moved into player.offerings each tick.
+// Covers the pure state mutations of three automaticTools cases:
+//   addObtainium             — clamps + adds research-automatic obtainium,
+//                              gated by c14 abort and taxmanLastStand
+//                              singularity-challenge cap.
+//   addOfferings             — fractional auto-offering counter; floor of
+//                              accumulated counter is moved into
+//                              player.offerings each tick.
+//   advanceAntSacrificeTimers — dual antSacrificeTimer / antSacrificeTimerReal
+//                              advancement (scaled vs. raw). The
+//                              canAutoSacrifice check + sacrificeAnts() side
+//                              effect stay in web_ui because they fan out
+//                              into un-migrated subsystems (calculateAvailable
+//                              RebornELO, antSacrificeRewards, resetAnts,
+//                              updateTalismanInventory, achievement awards).
 //
-// The two complex cases (runeSacrifice, antSacrifice) stay in web_ui — they
-// fan out into multiple un-migrated subsystems (RuneBlessings, RuneSpirits,
-// Talismans, sacrificeOfferings on the rune side; sacrificeAnts on the ant
-// side). They'll migrate once those subsystems land in logic.
+// The runeSacrifice case stays entirely in web_ui — its sacrificeTimer
+// advancement is one trivial line and the rest is purchase orchestration
+// across multiple un-migrated subsystems (RuneBlessings, RuneSpirits,
+// Talismans, sacrificeOfferings).
 //
 // Caller pre-evaluates the obtainium gain by calling the existing
 // `calculateResearchAutomaticObtainium(time)` shim (itself already a logic
@@ -96,5 +104,48 @@ export function addOfferings (input: AddOfferingsInput): AddOfferingsResult {
   return {
     autoOfferingCounter: advanced % 1,
     offerings: input.offerings.add(Math.floor(advanced))
+  }
+}
+
+export interface AdvanceAntSacrificeTimersInput {
+  /** Tick delta (seconds). */
+  time: number
+  /** Pre-evaluated `getGQUpgradeEffect('halfMind', 'unlocked') ? 10 :
+   * calculateGlobalSpeedMult()`. Applied to `antSacrificeTimer` only —
+   * `antSacrificeTimerReal` advances by raw `time` regardless. */
+  globalDelta: number
+  /** player.antSacrificeTimer — scaled in-game timer, advances by
+   * `time * globalDelta`. Drives the InGameTime auto-sacrifice mode and
+   * the crumbs-per-second metric in sacrifice history. */
+  antSacrificeTimer: number
+  /** player.antSacrificeTimerReal — raw wall-clock timer, advances by
+   * `time` only. Drives the RealTime auto-sacrifice mode and the
+   * sacrificeOffCooldown check. */
+  antSacrificeTimerReal: number
+}
+
+export interface AdvanceAntSacrificeTimersResult {
+  antSacrificeTimer: number
+  antSacrificeTimerReal: number
+}
+
+/**
+ * Advance the dual ant-sacrifice timers. Mirrors the timer-advancement
+ * lines of the legacy `automaticTools('antSacrifice', time)` case:
+ *
+ *   player.antSacrificeTimer     += time * globalDelta
+ *   player.antSacrificeTimerReal += time
+ *
+ * The caller still runs the `canAutoSacrifice` check + `sacrificeAnts()`
+ * side effect after applying this result — both depend on un-migrated
+ * web_ui subsystems (calculateAvailableRebornELO, antSacrificeRewards,
+ * resetAnts, achievement awards) and are not part of the pure tick body.
+ */
+export function advanceAntSacrificeTimers (
+  input: AdvanceAntSacrificeTimersInput
+): AdvanceAntSacrificeTimersResult {
+  return {
+    antSacrificeTimer: input.antSacrificeTimer + input.time * input.globalDelta,
+    antSacrificeTimerReal: input.antSacrificeTimerReal + input.time
   }
 }
