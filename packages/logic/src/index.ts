@@ -988,6 +988,8 @@ export type { TackTailInput, TackTailResult } from './tick/tackTail'
 export { tackTail } from './tick/tackTail'
 export type { TackMiddleInput, TackMiddleResult } from './tick/tackMiddle'
 export { tackMiddle } from './tick/tackMiddle'
+export type { TackBodyInput, TackBodyResult } from './tick/tack'
+export { tackBody } from './tick/tack'
 export type { AdvanceAllTimersInput, AdvanceAllTimersResult } from './tick/timersBundle'
 export { advanceAllTimers } from './tick/timersBundle'
 export type {

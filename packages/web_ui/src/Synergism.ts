@@ -12,8 +12,11 @@ import {
   crystalUpgrade4MaxExponent as logicCrystalUpgrade4MaxExponent,
   resetCurrency as logicResetCurrency,
   resourceGain as logicResourceGain,
-  tackMiddle as logicTackMiddle,
-  tackTail as logicTackTail,
+  tackBody as logicTackBody,
+  type TackMiddleInput,
+  type TackMiddleResult,
+  type TackTailInput,
+  type TackTailResult,
   updateAllMultiplier as logicUpdateAllMultiplier,
   updateAllTick as logicUpdateAllTick
 } from '@synergism/logic'
@@ -100,7 +103,12 @@ import { calculateAcceleratorCubeBlessing, calculateMultiplierCubeBlessing, upda
 import { generateEventHandlers } from './EventListeners'
 import { antSacrificeRewards } from './Features/Ants/AntSacrifice/Rewards/calculate-rewards'
 import { calculateAvailableRebornELO } from './Features/Ants/AntSacrifice/Rewards/ELO/RebornELO/lib/calculate'
-import { autoSacrificeModeToLogic, getAutoSacrificeInterval, tackHeadTimers } from './Helper'
+import {
+  applyHeadTimersResult,
+  autoSacrificeModeToLogic,
+  buildHeadTimersInput,
+  getAutoSacrificeInterval
+} from './Helper'
 import { resetHistoryRenderAllTables } from './History'
 import {
   refundOvercapResearches,
@@ -4030,82 +4038,52 @@ const tick = () => {
   }
 }
 
-// eslint-disable-next-line no-shadow
-const tack = (dt: number) => {
-  if (!G.timeWarp) {
-    // Adds Resources (coins, ants, etc)
-    const timeMult = calculateGlobalSpeedMult()
-    resourceGain(dt * timeMult)
-    generateAntsAndCrumbs(dt)
-
-    // Adds time (in milliseconds) to all reset functions, and quarks timer.
-    // Bundled head: all 11 timer cases composed into a single logic call
-    // (prestige, transcension, reincarnation, ascension, quarks,
-    //  goldenQuarks, octeracts, singularity, autoPotion, ambrosia,
-    //  redAmbrosia). autoPotion's useConsumable side effect is dispatched
-    // through the `auto-potion-fired` CoreEvent handler in
-    // tickEventHandlers.ts.
-    tackHeadTimers(dt)
-
-    // Per-tick middle — single logic call composing runeSacrifice +
-    // antSacrifice + addObtainium-or-recompute + auto-research dispatch.
-    // Events flow through the central dispatcher in tickEventHandlers.ts.
-    // The obtainium else branch (research61 !== 1) surfaces as the
-    // `obtainium-multiplier-recompute-requested` event which the
-    // dispatcher translates back into the legacy `calculateObtainium()`
-    // vestigial-calc call.
-    const middleAutoSacrificeMode = autoSacrificeModeToLogic(player.ants.toggles.autoSacrificeMode)
-    const middleImmortalELOGain = middleAutoSacrificeMode === 'ImmortalELOGain'
-      ? antSacrificeRewards().immortalELO
-      : 0
-    const middleResult = logicTackMiddle({
-      dt,
-      runeSacrificeEnabled: player.autoSacrificeToggle && Boolean(getShopUpgradeEffects('offeringAuto', 'autoRune')),
-      sacrificeTimer: player.sacrificeTimer,
-      autoSacrificeInterval: getAutoSacrificeInterval(),
-      offerings: player.offerings,
-      antSacrificeUnlocked: Boolean(getAchievementReward('antSacrificeUnlock')),
-      globalDelta: getGQUpgradeEffect('halfMind', 'unlocked') ? 10 : calculateGlobalSpeedMult(),
-      antSacrificeTimer: player.antSacrificeTimer,
-      antSacrificeTimerReal: player.antSacrificeTimerReal,
-      autoSacrificeMode: middleAutoSacrificeMode,
-      crumbsThisSacrifice: player.ants.crumbsThisSacrifice,
-      autoSacrificeEnabled: player.ants.toggles.autoSacrificeEnabled,
-      availableRebornELO: calculateAvailableRebornELO(),
-      onlySacrificeMaxRebornELO: player.ants.toggles.onlySacrificeMaxRebornELO,
-      alwaysSacrificeMaxRebornELO: player.ants.toggles.alwaysSacrificeMaxRebornELO,
-      autoSacrificeThreshold: player.ants.toggles.autoSacrificeThreshold,
-      immortalELOGain: middleImmortalELOGain,
-      immortalELO: player.ants.immortalELO,
-      rebornELO: player.ants.rebornELO,
-      research61: player.researches[61],
-      obtainium: player.obtainium,
-      obtainiumGain: player.researches[61] === 1
-        ? calculateResearchAutomaticObtainium(dt)
-        : new Decimal(0),
-      ascensionChallenge: player.currentChallenge.ascension,
-      taxmanLastStandEnabled: player.singularityChallenges.taxmanLastStand.enabled,
-      taxmanLastStandCompletions: player.singularityChallenges.taxmanLastStand.completions,
-      autoResearchToggle: player.autoResearchToggle,
-      autoResearch: player.autoResearch,
-      autoResearchMode: player.autoResearchMode,
-      roombaUnlocked: roombaResearchEnabled(),
-      challengecompletions14: player.challengecompletions[14]
-    })
-    player.sacrificeTimer = middleResult.sacrificeTimer
-    player.antSacrificeTimer = middleResult.antSacrificeTimer
-    player.antSacrificeTimerReal = middleResult.antSacrificeTimerReal
-    player.obtainium = middleResult.obtainium
-    for (const event of middleResult.events) {
-      dispatchTickEvent(event)
-    }
+/** Build the TackMiddleInput struct for the orchestrator. */
+const buildMiddleInput = (dt: number): TackMiddleInput => {
+  const mode = autoSacrificeModeToLogic(player.ants.toggles.autoSacrificeMode)
+  const immortalELOGain = mode === 'ImmortalELOGain'
+    ? antSacrificeRewards().immortalELO
+    : 0
+  return {
+    dt,
+    runeSacrificeEnabled: player.autoSacrificeToggle && Boolean(getShopUpgradeEffects('offeringAuto', 'autoRune')),
+    sacrificeTimer: player.sacrificeTimer,
+    autoSacrificeInterval: getAutoSacrificeInterval(),
+    offerings: player.offerings,
+    antSacrificeUnlocked: Boolean(getAchievementReward('antSacrificeUnlock')),
+    globalDelta: getGQUpgradeEffect('halfMind', 'unlocked') ? 10 : calculateGlobalSpeedMult(),
+    antSacrificeTimer: player.antSacrificeTimer,
+    antSacrificeTimerReal: player.antSacrificeTimerReal,
+    autoSacrificeMode: mode,
+    crumbsThisSacrifice: player.ants.crumbsThisSacrifice,
+    autoSacrificeEnabled: player.ants.toggles.autoSacrificeEnabled,
+    availableRebornELO: calculateAvailableRebornELO(),
+    onlySacrificeMaxRebornELO: player.ants.toggles.onlySacrificeMaxRebornELO,
+    alwaysSacrificeMaxRebornELO: player.ants.toggles.alwaysSacrificeMaxRebornELO,
+    autoSacrificeThreshold: player.ants.toggles.autoSacrificeThreshold,
+    immortalELOGain,
+    immortalELO: player.ants.immortalELO,
+    rebornELO: player.ants.rebornELO,
+    research61: player.researches[61],
+    obtainium: player.obtainium,
+    obtainiumGain: player.researches[61] === 1
+      ? calculateResearchAutomaticObtainium(dt)
+      : new Decimal(0),
+    ascensionChallenge: player.currentChallenge.ascension,
+    taxmanLastStandEnabled: player.singularityChallenges.taxmanLastStand.enabled,
+    taxmanLastStandCompletions: player.singularityChallenges.taxmanLastStand.completions,
+    autoResearchToggle: player.autoResearchToggle,
+    autoResearch: player.autoResearch,
+    autoResearchMode: player.autoResearchMode,
+    roombaUnlocked: roombaResearchEnabled(),
+    challengecompletions14: player.challengecompletions[14]
   }
+}
 
-  // Per-tick tail — single logic call composing addOfferings (when c3+) +
-  // tickChallengeSweep + applyAutoResets. Events flow through the central
-  // dispatcher in tickEventHandlers.ts.
+/** Build the TackTailInput struct for the orchestrator. */
+const buildTailInput = (dt: number): TackTailInput => {
   const sweepInput = prepareSweepInputForTackTail()
-  const tailResult = logicTackTail({
+  return {
     dt,
     highestchallengecompletions3: player.highestchallengecompletions[3],
     autoOfferingCounter: G.autoOfferingCounter,
@@ -4148,16 +4126,71 @@ const tack = (dt: number) => {
     ascensionChallenge: player.currentChallenge.ascension,
     transcensionChallenge: player.currentChallenge.transcension,
     reincarnationChallenge: player.currentChallenge.reincarnation
+  }
+}
+
+/** Apply a TackMiddleResult to player. No event dispatch — the
+ * orchestrator dispatches all events at the end. */
+const applyMiddleResult = (result: TackMiddleResult): void => {
+  player.sacrificeTimer = result.sacrificeTimer
+  player.antSacrificeTimer = result.antSacrificeTimer
+  player.antSacrificeTimerReal = result.antSacrificeTimerReal
+  player.obtainium = result.obtainium
+}
+
+/** Apply a TackTailResult to player + G. No event dispatch. */
+const applyTailResult = (result: TackTailResult): void => {
+  G.autoOfferingCounter = result.autoOfferingCounter
+  player.offerings = result.offerings
+  applySweepResult(result.sweepState, result.timeSinceLastStateChange)
+  G.autoResetTimers.prestige = result.autoResetTimerPrestige
+  G.autoResetTimers.transcension = result.autoResetTimerTranscension
+  G.autoResetTimers.reincarnation = result.autoResetTimerReincarnation
+}
+
+// eslint-disable-next-line no-shadow
+const tack = (dt: number) => {
+  // Pre-tick orchestration — resourceGain + generateAntsAndCrumbs run
+  // before the bundled tack body because each has its own pre-tick state
+  // that the rest of the tick reads (calculateTotalAcceleratorBoost,
+  // updateAllTick, updateAllMultiplier, multipliers, calculatetax,
+  // resetCurrency). Keeping them as separate calls preserves the legacy
+  // pre-tick ordering 1:1.
+  if (!G.timeWarp) {
+    const timeMult = calculateGlobalSpeedMult()
+    resourceGain(dt * timeMult)
+    generateAntsAndCrumbs(dt)
+  }
+
+  // Phase 4 bundled tick body. logic.tackBody composes
+  // advanceAllTimers (head) + tackMiddle (middle) + tackTail (tail) and
+  // returns per-bundle writebacks plus a flat event list. The head +
+  // middle bundles run only when !timeWarp; tail runs every tick.
+  //
+  // Trade vs. the previous 3-call form: all events dispatch *after* the
+  // bundle returns instead of between bundles. This shifts a tiny amount
+  // of state observation (autoPotion grants, runeSacrifice spends) by
+  // one tick — see the tackBody.ts header for the full caveat. The
+  // simpler boundary is required for the eventual Rust port.
+  const headInput = G.timeWarp ? undefined : buildHeadTimersInput(dt)
+  const middleInput = G.timeWarp ? undefined : buildMiddleInput(dt)
+  const tailInput = buildTailInput(dt)
+
+  const result = logicTackBody({
+    timeWarp: G.timeWarp,
+    head: headInput,
+    middle: middleInput,
+    tail: tailInput
   })
-  G.autoOfferingCounter = tailResult.autoOfferingCounter
-  player.offerings = tailResult.offerings
-  applySweepResult(tailResult.sweepState, tailResult.timeSinceLastStateChange)
-  G.autoResetTimers.prestige = tailResult.autoResetTimerPrestige
-  G.autoResetTimers.transcension = tailResult.autoResetTimerTranscension
-  G.autoResetTimers.reincarnation = tailResult.autoResetTimerReincarnation
-  for (const event of tailResult.events) {
+
+  if (result.head !== undefined) applyHeadTimersResult(result.head)
+  if (result.middle !== undefined) applyMiddleResult(result.middle)
+  applyTailResult(result.tail)
+
+  for (const event of result.events) {
     dispatchTickEvent(event)
   }
+
   calculateOfferings()
 }
 

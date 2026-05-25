@@ -2,6 +2,8 @@ import {
   addObtainium as logicAddObtainium,
   addOfferings as logicAddOfferings,
   advanceAllTimers as logicAdvanceAllTimers,
+  type AdvanceAllTimersInput as LogicAdvanceAllTimersInput,
+  type AdvanceAllTimersResult as LogicAdvanceAllTimersResult,
   advanceAmbrosiaTimer as logicAdvanceAmbrosiaTimer,
   advanceAntSacrificeTimers as logicAdvanceAntSacrificeTimers,
   advanceAscensionTimer as logicAdvanceAscensionTimer,
@@ -263,19 +265,10 @@ export const addTimers = (input: TimerInput, time = 0) => {
   }
 }
 
-/**
- * Per-tick "head" timer bundle. Replaces the 11 `addTimers(...)`
- * switch dispatches in `tack` (Synergism.ts) with a single composed
- * `advanceAllTimers` call from `@synergism/logic`.
- *
- * Pre-evaluates the same speed multipliers, caps, and stat-derived
- * inputs the per-case shims used to evaluate inline, threads them
- * through the bundle, then writes the result back to `player` / `G`
- * and dispatches the composed event list. autoPotion's
- * `useConsumable` side effect runs in the UI dispatcher (see
- * `tickEventHandlers.ts`'s `auto-potion-fired` handler).
- */
-export const tackHeadTimers = (dt: number): void => {
+/** Build the AdvanceAllTimersInput struct for `dt`. Pre-evaluates every
+ * speed multiplier / cap / stat-derived input the 11 timer cases need.
+ * Used by the tackBody orchestrator in Synergism.ts:tack(). */
+export const buildHeadTimersInput = (dt: number): LogicAdvanceAllTimersInput => {
   const globalTimeMultiplier = getGQUpgradeEffect('halfMind', 'unlocked')
     ? 10
     : calculateGlobalSpeedMult()
@@ -287,15 +280,14 @@ export const tackHeadTimers = (dt: number): void => {
 
   // Octeract pre-eval: only meaningful when the GQ-giveaway block will
   // run (highestSingularityCount >= 160). Below threshold we pass 1 —
-  // the bundle ignores this value when the gate fails. Matches the
-  // per-case `addTimers('octeracts', ...)` shim in this file.
+  // the bundle ignores this value when the gate fails.
   let goldenQuarksMultiplierExcludingBase = 1
   if (octeractUnlocked && player.highestSingularityCount >= 160) {
     const gqStats = allGoldenQuarkMultiplierStats.map(s => s.stat())
     goldenQuarksMultiplierExcludingBase = gqStats.slice(1).reduce((a, b) => a * b, 1)
   }
 
-  const result = logicAdvanceAllTimers({
+  return {
     dt,
     globalTimeMultiplier,
     prestigecounter: player.prestigecounter,
@@ -353,8 +345,13 @@ export const tackHeadTimers = (dt: number): void => {
     ambrosiaTimePerRedAmbrosia: getRedAmbrosiaUpgradeEffects('redAmbrosiaAccelerator', 'ambrosiaTimePerRedAmbrosia'),
     timePerRedAmbrosia: G.TIME_PER_RED_AMBROSIA,
     redAmbrosiaBarRequirementMultiplier: getSingularityChallengeEffect('limitedTime', 'barRequirementMultiplier')
-  })
+  }
+}
 
+/** Apply an AdvanceAllTimersResult to player + G. Does NOT dispatch
+ * events — the orchestrator merges events from all bundles and
+ * dispatches in a single pass. */
+export const applyHeadTimersResult = (result: LogicAdvanceAllTimersResult): void => {
   player.prestigecounter = result.prestigecounter
   player.transcendcounter = result.transcendcounter
   player.reincarnationcounter = result.reincarnationcounter
@@ -382,7 +379,18 @@ export const tackHeadTimers = (dt: number): void => {
   player.redAmbrosia = result.redAmbrosia
   player.lifetimeRedAmbrosia = result.lifetimeRedAmbrosia
   player.seed[Seed.RedAmbrosia] = result.redAmbrosiaSeed
+}
 
+/**
+ * Per-tick "head" timer bundle. Calls `buildHeadTimersInput` →
+ * `logicAdvanceAllTimers` → `applyHeadTimersResult` → dispatch events.
+ * Kept for any caller that wants the full standalone pass; the per-tick
+ * tack body uses the build/apply pair directly via the tackBody
+ * orchestrator (in Synergism.ts:tack).
+ */
+export const tackHeadTimers = (dt: number): void => {
+  const result = logicAdvanceAllTimers(buildHeadTimersInput(dt))
+  applyHeadTimersResult(result)
   for (const event of result.events) {
     dispatchTickEvent(event)
   }
