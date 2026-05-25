@@ -17,6 +17,8 @@ import { dispatchSweepTransition } from './Challenges'
 import type { CoreEvent } from '@synergism/logic'
 import { sacrificeAnts } from './Features/Ants/AntSacrifice/sacrifice'
 import { executeRuneAutoSacrifice } from './Helper'
+import { player } from './Synergism'
+import { buyResearch, runRoombaResearchSweep, updateResearchAuto } from './Research'
 import { reset } from './Reset'
 import { useConsumable } from './Shop'
 import { Tabs } from './Tabs'
@@ -137,6 +139,17 @@ export function dispatchTickEvent (event: CoreEvent): void {
     // the inline branches that mirror the legacy automaticTools body.
     case 'rune-sacrifice-triggered':
       executeRuneAutoSacrifice()
+      return
+
+    // ─── auto-research events ────────────────────────────────────────
+    // Logic's processAutoResearchTick emits one of these when the per-
+    // tick auto-research dispatcher fires its manual or Roomba branch.
+    case 'auto-research-manual-requested':
+      buyResearch(player.autoResearch, true, false)
+      updateResearchAuto(player.autoResearch)
+      return
+    case 'auto-research-roomba-requested':
+      runRoombaResearchSweep(event.maxCount)
       return
   }
 }

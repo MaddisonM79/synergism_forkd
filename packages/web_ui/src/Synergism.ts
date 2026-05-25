@@ -10,6 +10,7 @@ import {
   crystalUpgrade3CrystalMultiplier as logicCrystalUpgrade3CrystalMultiplier,
   crystalUpgrade3MaxBase as logicCrystalUpgrade3MaxBase,
   crystalUpgrade4MaxExponent as logicCrystalUpgrade4MaxExponent,
+  processAutoResearchTick as logicProcessAutoResearchTick,
   resetCurrency as logicResetCurrency,
   resourceGain as logicResourceGain,
   tackTail as logicTackTail,
@@ -99,15 +100,10 @@ import { generateEventHandlers } from './EventListeners'
 import { automaticTools, tackHeadTimers } from './Helper'
 import { resetHistoryRenderAllTables } from './History'
 import {
-  buyResearch,
-  isResearchUnlocked,
   refundOvercapResearches,
-  researchData,
   researchOrderByCost,
   roombaResearchEnabled,
-  updateResearchAuto,
-  updateResearchBG,
-  updateResearchRoomba
+  updateResearchBG
 } from './Research'
 import {
   reset,
@@ -4065,48 +4061,19 @@ const tack = (dt: number) => {
       calculateObtainium()
     }
 
-    // Regular Research Automation (only once)
-    if (player.autoResearchToggle && player.autoResearch > 0 && player.autoResearchMode === 'manual') {
-      const auto = true
-      const hover = false
-      buyResearch(player.autoResearch, auto, hover)
-      updateResearchAuto(player.autoResearch)
-    }
-
-    // Roomba! (Cube Upgrade 1x9)
-    if (
-      player.autoResearchToggle
-      && player.autoResearch > 0
-      && roombaResearchEnabled()
-      && player.autoResearchMode === 'cheapest'
-    ) {
-      let counter = 0
-      const maxCount = 1 + Math.floor(CalcECC('ascension', player.challengecompletions[14]))
-      while (counter < maxCount) {
-        const currIndex = player.autoResearch
-        if (isResearchUnlocked(currIndex)) {
-          if (currIndex > 0) {
-            const auto = true
-            const hover = false
-            buyResearch(currIndex, auto, hover)
-          } else {
-            break
-          }
-          /* Why do we need to do this?
-             If a new research is unlocked in the interim, that is
-             Less expensive than the research we currently autobuy,
-             We want to go back to that one... Also, we don't want to
-             keep iterating over the research list if we can't afford the least
-             expensive one. */
-          if (player.researches[currIndex] < researchData[currIndex].maxLevel) {
-            player.roombaResearchIndex = 0
-            player.autoResearch = 1
-            break
-          }
-        }
-        updateResearchRoomba()
-        counter++
-      }
+    // Per-tick auto-research dispatch (manual + Roomba modes). Logic
+    // evaluates the gates + computes Roomba maxCount; events flow through
+    // the central dispatcher in tickEventHandlers.ts → buyResearch +
+    // updateResearchAuto (manual) or runRoombaResearchSweep (Roomba).
+    const autoResearchResult = logicProcessAutoResearchTick({
+      autoResearchToggle: player.autoResearchToggle,
+      autoResearch: player.autoResearch,
+      autoResearchMode: player.autoResearchMode,
+      roombaUnlocked: roombaResearchEnabled(),
+      challengecompletions14: player.challengecompletions[14]
+    })
+    for (const event of autoResearchResult.events) {
+      dispatchTickEvent(event)
     }
   }
 

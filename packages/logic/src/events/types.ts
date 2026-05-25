@@ -175,3 +175,20 @@ export type CoreEvent =
       // dispatcher re-reads the latest player state itself (singularity
       // count gates, cube upgrade gates, autoSacrifice rune index, etc.).
     }
+  | {
+      kind: 'auto-research-manual-requested'
+      // Emitted by processAutoResearchTick when autoResearchToggle is on,
+      // autoResearch > 0, and mode === 'manual'. UI dispatcher calls
+      // buyResearch(autoResearch, true, false) + updateResearchAuto. No
+      // payload — the dispatcher reads player.autoResearch itself.
+    }
+  | {
+      kind: 'auto-research-roomba-requested'
+      // Emitted by processAutoResearchTick when the Roomba gates pass
+      // (autoResearchToggle, autoResearch > 0, roombaUnlocked, mode ===
+      // 'cheapest'). UI dispatcher runs the bounded while-loop in
+      // runRoombaResearchSweep(maxCount).
+      /** Max iterations for the Roomba sweep this tick — computed as
+       * `1 + Math.floor(CalcECC('ascension', challengecompletions[14]))`. */
+      maxCount: number
+    }

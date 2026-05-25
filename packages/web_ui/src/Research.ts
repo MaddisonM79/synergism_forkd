@@ -164,6 +164,51 @@ export const updateResearchRoomba = () => {
 export const roombaResearchEnabled = (): boolean => {
   return (player.cubeUpgrades[9] === 1 || player.highestSingularityCount > 10)
 }
+
+/**
+ * Execute a single tick of the Roomba research sweep. Invoked by the
+ * `auto-research-roomba-requested` event dispatcher with the pre-computed
+ * `maxCount` (`1 + floor(CalcECC('ascension', challengecompletions[14]))`).
+ *
+ * Bug-for-bug copy of the legacy while-loop that was inline in tack
+ * (Synergism.ts). Two early exits remain:
+ *   - currIndex === 0: nothing selected, break out.
+ *   - new research unlocked mid-loop with researches[currIndex] <
+ *     researchData[currIndex].maxLevel — reset to the start of the cost
+ *     queue and break.
+ *
+ * Reads + writes `player.autoResearch` and `player.roombaResearchIndex`
+ * directly; the per-iteration `buyResearch` + `updateResearchRoomba` calls
+ * have their own DOM side effects.
+ */
+export const runRoombaResearchSweep = (maxCount: number): void => {
+  let counter = 0
+  while (counter < maxCount) {
+    const currIndex = player.autoResearch
+    if (isResearchUnlocked(currIndex)) {
+      if (currIndex > 0) {
+        const auto = true
+        const hover = false
+        buyResearch(currIndex, auto, hover)
+      } else {
+        break
+      }
+      /* Why do we need to do this?
+         If a new research is unlocked in the interim, that is
+         Less expensive than the research we currently autobuy,
+         We want to go back to that one... Also, we don't want to
+         keep iterating over the research list if we can't afford the least
+         expensive one. */
+      if (player.researches[currIndex] < researchData[currIndex].maxLevel) {
+        player.roombaResearchIndex = 0
+        player.autoResearch = 1
+        break
+      }
+    }
+    updateResearchRoomba()
+    counter++
+  }
+}
 /**
  * Attempts to buy the research of the index selected. This is hopefully an improvement over buyResearch. Fuck
  * @param index

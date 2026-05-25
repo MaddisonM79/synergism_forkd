@@ -967,6 +967,12 @@ export type {
 } from './tick/autoReset'
 export { applyAutoResets } from './tick/autoReset'
 export type {
+  AutoResearchMode,
+  ProcessAutoResearchTickInput,
+  ProcessAutoResearchTickResult
+} from './tick/autoResearch'
+export { processAutoResearchTick } from './tick/autoResearch'
+export type {
   SweepStates,
   TickChallengeSweepInput,
   TickChallengeSweepResult
