@@ -1,28 +1,52 @@
-// Multi-tick parity harness for the tackTail composition.
+// Multi-tick parity harnesses for the migrated tick bundles.
 //
 // Per-leaf and per-case parity tests cover individual function correctness;
-// this harness exercises tackTail across N=1000 ticks against a small set
-// of fixtures, catching composition-level drift the per-case tests can't:
+// these harnesses exercise the bundles across N=1000 ticks against a small
+// set of fixtures, catching composition-level drift the per-case tests
+// can't:
 //   - Sweep state machine cycling correctly over many ticks.
-//   - Timer accumulators (autoResetTimers, sweep elapsed) staying in sync.
+//   - Timer accumulators (autoResetTimers, sweep elapsed, octeract /
+//     ambrosia / red-ambrosia fractional buckets) staying in sync.
 //   - Event counts and ordering invariants across long runs.
-//   - Floating-point drift between the migrated `tackTail` and the
-//     verbatim three-subsystem oracle.
+//   - Floating-point drift between the migrated bundles and a verbatim
+//     inline composition oracle.
 //
-// Scope caveat: this harness covers the migrated tail only. The full
-// pre-migration tack body (resourceGain through Roomba) still has holes
-// for un-migrated subsystems (generateAntsAndCrumbs, octeracts /
-// autoPotion timers, rune/ant sacrifice, auto-research / Roomba), so a
-// complete legacy-vs-new tack comparison would require reconstructing
-// the legacy body — out of scope here. As those subsystems migrate,
-// this harness can be extended to cover them.
+// Two harnesses live here:
+//   1. `tackTail` (Phase 5 partial) — tail-only fixtures.
+//   2. `tackBody` (Phase 5) — full head + middle + tail composition,
+//      including a `timeWarp=true` fixture exercising the tail-only path.
+//
+// Scope caveat: the harnesses compare migrated bundles to a verbatim
+// composition oracle, not to the pre-Phase-4 legacy in-place tack body
+// (which dispatched events between bundles). That dispatch-ordering
+// difference is documented in packages/logic/src/tick/tack.ts and is
+// self-correcting within a tick. resourceGain + generateAntsAndCrumbs
+// run as pre-tick web_ui calls and are out of scope here.
 
 import { describe, expect, it } from 'vitest'
 import { Decimal } from '../../src/math/bignum'
 import { addOfferings } from '../../src/tick/automaticTools'
 import { applyAutoResets } from '../../src/tick/autoReset'
 import { type SweepStates, tickChallengeSweep } from '../../src/tick/challengeSweep'
+import {
+  tackBody,
+  type TackBodyInput,
+  type TackBodyResult
+} from '../../src/tick/tack'
+import {
+  advanceAllTimers,
+  type AdvanceAllTimersResult
+} from '../../src/tick/timersBundle'
+import {
+  tackMiddle,
+  type TackMiddleResult
+} from '../../src/tick/tackMiddle'
 import { tackTail, type TackTailInput, type TackTailResult } from '../../src/tick/tackTail'
+import {
+  BODY_FIXTURES,
+  bodySnapshot,
+  runBodyTicks
+} from '../fixtures/tackBodyFixtures'
 
 // Verbatim three-subsystem oracle — same body as the tackTail
 // implementation, used as the comparison target.
@@ -339,6 +363,50 @@ describe('parity harness: tackTail over N=1000 ticks', () => {
       const migrated = runTicks(f.statics, f.initial, f.dt, f.ticks, tackTail)
       const oracle = runTicks(f.statics, f.initial, f.dt, f.ticks, oracleTackTail)
       expect(stateSnapshot(migrated.finalState)).toEqual(stateSnapshot(oracle.finalState))
+      expect(migrated.totalEventCount).toBe(oracle.totalEventCount)
+    })
+  }
+})
+
+// ═════════════════════════════════════════════════════════════════════════
+// Phase 5 — full tackBody harness (head + middle + tail composition).
+//
+// Drives `tackBody` across N=1000 ticks per fixture and compares state +
+// event counts against an inline-composed oracle. The oracle calls the
+// same three bundle functions in the same order tackBody does, so any
+// drift signals a refactor regression in the orchestrator's composition
+// (not in any individual bundle — those are covered by their own parity
+// tests).
+//
+// Fixture definitions + the runBodyTicks driver live in
+// test/fixtures/tackBodyFixtures.ts so the parity, bench, and budget
+// suites all exercise the exact same shapes.
+// ═════════════════════════════════════════════════════════════════════════
+
+const oracleTackBody = (input: TackBodyInput): TackBodyResult => {
+  const events: TackBodyResult['events'] = []
+  let head: AdvanceAllTimersResult | undefined
+  let middle: TackMiddleResult | undefined
+  if (!input.timeWarp) {
+    if (input.head === undefined || input.middle === undefined) {
+      throw new Error('oracle: head and middle required when timeWarp === false')
+    }
+    head = advanceAllTimers(input.head)
+    for (const e of head.events) events.push(e)
+    middle = tackMiddle(input.middle)
+    for (const e of middle.events) events.push(e)
+  }
+  const tail = tackTail(input.tail)
+  for (const e of tail.events) events.push(e)
+  return { head, middle, tail, events }
+}
+
+describe('parity harness: tackBody over N=1000 ticks', () => {
+  for (const f of BODY_FIXTURES) {
+    it(`${f.name} — migrated matches oracle`, () => {
+      const migrated = runBodyTicks(f.statics, f.initial, f.dt, f.ticks, f.timeWarp, tackBody)
+      const oracle = runBodyTicks(f.statics, f.initial, f.dt, f.ticks, f.timeWarp, oracleTackBody)
+      expect(bodySnapshot(migrated.finalState)).toEqual(bodySnapshot(oracle.finalState))
       expect(migrated.totalEventCount).toBe(oracle.totalEventCount)
     })
   }
