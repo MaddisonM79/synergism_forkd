@@ -396,7 +396,7 @@ type AutoToolInput =
 
 /** Translate the AutoSacrificeModes numeric enum (web_ui-side UI config)
  * to the string union the logic API uses. Bug-for-bug 1:1 mapping. */
-const autoSacrificeModeToLogic = (mode: AutoSacrificeModes): LogicAutoSacrificeMode => {
+export const autoSacrificeModeToLogic = (mode: AutoSacrificeModes): LogicAutoSacrificeMode => {
   switch (mode) {
     case AutoSacrificeModes.InGameTime:
       return 'InGameTime'
@@ -419,6 +419,11 @@ const calculateAutoSacrificeInterval = () => {
   return interval
 }
 let autoSacrificeInterval = 1
+
+/** Read the cached autoSacrificeInterval. Refreshed inside
+ * `executeRuneAutoSacrifice` each time a rune sacrifice fires; the tack
+ * body / tackMiddle bundle passes this value into logic on every tick. */
+export const getAutoSacrificeInterval = (): number => autoSacrificeInterval
 
 /**
  * Assortment of tools which are used when actions are automated.

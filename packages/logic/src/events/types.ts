@@ -192,3 +192,12 @@ export type CoreEvent =
        * `1 + Math.floor(CalcECC('ascension', challengecompletions[14]))`. */
       maxCount: number
     }
+  | {
+      kind: 'obtainium-multiplier-recompute-requested'
+      // Emitted by tackMiddle's obtainium branch when `research61 !== 1`,
+      // mirroring the legacy `else { calculateObtainium() }` arm of the
+      // research61 gate in tack. The legacy call discarded its return —
+      // it's a vestigial "warm the calc" side-effect path. UI dispatcher
+      // invokes calculateObtainium() (in Calculate.ts) to preserve the
+      // existing behavior.
+    }

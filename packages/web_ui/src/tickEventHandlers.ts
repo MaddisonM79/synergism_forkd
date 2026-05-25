@@ -13,6 +13,7 @@
 // emits them.
 
 import { type AchievementGroups, awardAchievementGroup, challengeAchievementCheck, resetAchievementCheck } from './Achievements'
+import { calculateObtainium } from './Calculate'
 import { dispatchSweepTransition } from './Challenges'
 import type { CoreEvent } from '@synergism/logic'
 import { sacrificeAnts } from './Features/Ants/AntSacrifice/sacrifice'
@@ -150,6 +151,15 @@ export function dispatchTickEvent (event: CoreEvent): void {
       return
     case 'auto-research-roomba-requested':
       runRoombaResearchSweep(event.maxCount)
+      return
+
+    // ─── obtainium recompute event ───────────────────────────────────
+    // tackMiddle's obtainium branch emits this when research61 !== 1,
+    // mirroring the legacy `else { calculateObtainium() }` arm. The
+    // return value was always discarded — it's a vestigial "warm the
+    // calc" call. Preserved bug-for-bug.
+    case 'obtainium-multiplier-recompute-requested':
+      calculateObtainium()
       return
   }
 }

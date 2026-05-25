@@ -10,9 +10,9 @@ import {
   crystalUpgrade3CrystalMultiplier as logicCrystalUpgrade3CrystalMultiplier,
   crystalUpgrade3MaxBase as logicCrystalUpgrade3MaxBase,
   crystalUpgrade4MaxExponent as logicCrystalUpgrade4MaxExponent,
-  processAutoResearchTick as logicProcessAutoResearchTick,
   resetCurrency as logicResetCurrency,
   resourceGain as logicResourceGain,
+  tackMiddle as logicTackMiddle,
   tackTail as logicTackTail,
   updateAllMultiplier as logicUpdateAllMultiplier,
   updateAllTick as logicUpdateAllTick
@@ -78,6 +78,7 @@ import {
   calculateObtainium,
   calculateOfferings,
   calculateOffline,
+  calculateResearchAutomaticObtainium,
   calculateTotalAcceleratorBoost,
   calculateTotalCoinOwned,
   dailyResetCheck,
@@ -97,7 +98,9 @@ import {
 } from './Corruptions'
 import { calculateAcceleratorCubeBlessing, calculateMultiplierCubeBlessing, updateCubeUpgradeBG } from './Cubes'
 import { generateEventHandlers } from './EventListeners'
-import { automaticTools, tackHeadTimers } from './Helper'
+import { antSacrificeRewards } from './Features/Ants/AntSacrifice/Rewards/calculate-rewards'
+import { calculateAvailableRebornELO } from './Features/Ants/AntSacrifice/Rewards/ELO/RebornELO/lib/calculate'
+import { autoSacrificeModeToLogic, getAutoSacrificeInterval, tackHeadTimers } from './Helper'
 import { resetHistoryRenderAllTables } from './History'
 import {
   refundOvercapResearches,
@@ -267,6 +270,7 @@ import { getShopUpgradeEffects, updateShopLevels } from './Shop'
 import {
   blankGQLevelObject,
   calculateMaxSingularityLookahead,
+  getGQUpgradeEffect,
   goldenQuarkUpgrades,
   type SingularityDataKeys
 } from './singularity'
@@ -4043,36 +4047,56 @@ const tack = (dt: number) => {
     // tickEventHandlers.ts.
     tackHeadTimers(dt)
 
-    // Triggers automatic rune sacrifice (adds milliseconds to payload timer)
-    if (player.autoSacrificeToggle && getShopUpgradeEffects('offeringAuto', 'autoRune')) {
-      automaticTools('runeSacrifice', dt)
-    }
-
-    // Triggers automatic ant sacrifice (adds milliseonds to payload timers)
-    if (getAchievementReward('antSacrificeUnlock')) {
-      automaticTools('antSacrifice', dt)
-    }
-
-    /*Triggers automatic obtainium gain if research [2x11] is unlocked,
-        Otherwise it just calculates obtainium multiplier values. */
-    if (player.researches[61] === 1) {
-      automaticTools('addObtainium', dt)
-    } else {
-      calculateObtainium()
-    }
-
-    // Per-tick auto-research dispatch (manual + Roomba modes). Logic
-    // evaluates the gates + computes Roomba maxCount; events flow through
-    // the central dispatcher in tickEventHandlers.ts → buyResearch +
-    // updateResearchAuto (manual) or runRoombaResearchSweep (Roomba).
-    const autoResearchResult = logicProcessAutoResearchTick({
+    // Per-tick middle — single logic call composing runeSacrifice +
+    // antSacrifice + addObtainium-or-recompute + auto-research dispatch.
+    // Events flow through the central dispatcher in tickEventHandlers.ts.
+    // The obtainium else branch (research61 !== 1) surfaces as the
+    // `obtainium-multiplier-recompute-requested` event which the
+    // dispatcher translates back into the legacy `calculateObtainium()`
+    // vestigial-calc call.
+    const middleAutoSacrificeMode = autoSacrificeModeToLogic(player.ants.toggles.autoSacrificeMode)
+    const middleImmortalELOGain = middleAutoSacrificeMode === 'ImmortalELOGain'
+      ? antSacrificeRewards().immortalELO
+      : 0
+    const middleResult = logicTackMiddle({
+      dt,
+      runeSacrificeEnabled: player.autoSacrificeToggle && Boolean(getShopUpgradeEffects('offeringAuto', 'autoRune')),
+      sacrificeTimer: player.sacrificeTimer,
+      autoSacrificeInterval: getAutoSacrificeInterval(),
+      offerings: player.offerings,
+      antSacrificeUnlocked: Boolean(getAchievementReward('antSacrificeUnlock')),
+      globalDelta: getGQUpgradeEffect('halfMind', 'unlocked') ? 10 : calculateGlobalSpeedMult(),
+      antSacrificeTimer: player.antSacrificeTimer,
+      antSacrificeTimerReal: player.antSacrificeTimerReal,
+      autoSacrificeMode: middleAutoSacrificeMode,
+      crumbsThisSacrifice: player.ants.crumbsThisSacrifice,
+      autoSacrificeEnabled: player.ants.toggles.autoSacrificeEnabled,
+      availableRebornELO: calculateAvailableRebornELO(),
+      onlySacrificeMaxRebornELO: player.ants.toggles.onlySacrificeMaxRebornELO,
+      alwaysSacrificeMaxRebornELO: player.ants.toggles.alwaysSacrificeMaxRebornELO,
+      autoSacrificeThreshold: player.ants.toggles.autoSacrificeThreshold,
+      immortalELOGain: middleImmortalELOGain,
+      immortalELO: player.ants.immortalELO,
+      rebornELO: player.ants.rebornELO,
+      research61: player.researches[61],
+      obtainium: player.obtainium,
+      obtainiumGain: player.researches[61] === 1
+        ? calculateResearchAutomaticObtainium(dt)
+        : new Decimal(0),
+      ascensionChallenge: player.currentChallenge.ascension,
+      taxmanLastStandEnabled: player.singularityChallenges.taxmanLastStand.enabled,
+      taxmanLastStandCompletions: player.singularityChallenges.taxmanLastStand.completions,
       autoResearchToggle: player.autoResearchToggle,
       autoResearch: player.autoResearch,
       autoResearchMode: player.autoResearchMode,
       roombaUnlocked: roombaResearchEnabled(),
       challengecompletions14: player.challengecompletions[14]
     })
-    for (const event of autoResearchResult.events) {
+    player.sacrificeTimer = middleResult.sacrificeTimer
+    player.antSacrificeTimer = middleResult.antSacrificeTimer
+    player.antSacrificeTimerReal = middleResult.antSacrificeTimerReal
+    player.obtainium = middleResult.obtainium
+    for (const event of middleResult.events) {
       dispatchTickEvent(event)
     }
   }
