@@ -1,9 +1,10 @@
 // Parity tests for the migrated pure cases of automaticTools.
 // Old bodies transcribed verbatim from packages/web_ui/src/Helper.ts
 // (automaticTools, addObtainium + addOfferings + antSacrifice timer
-// portion pre-migration).
+// portion + canAutoSacrifice pre-migration).
 
 import { describe, expect, it } from 'vitest'
+import type { CoreEvent } from '../../src/events/types'
 import { Decimal } from '../../src/math/bignum'
 import {
   type AddObtainiumInput,
@@ -14,7 +15,10 @@ import {
   addOfferings as newAddOfferings,
   type AdvanceAntSacrificeTimersInput,
   type AdvanceAntSacrificeTimersResult,
-  advanceAntSacrificeTimers as newAdvanceAntSacrificeTimers
+  advanceAntSacrificeTimers as newAdvanceAntSacrificeTimers,
+  type CheckAntSacrificeReadyInput,
+  type CheckAntSacrificeReadyResult,
+  checkAntSacrificeReady as newCheckAntSacrificeReady
 } from '../../src/tick/automaticTools'
 
 // ─── addObtainium ───────────────────────────────────────────────────────
@@ -326,6 +330,235 @@ describe('parity: advanceAntSacrificeTimers', () => {
       const oldR = oldAdvanceAntSacrificeTimers(c.input)
       expect(newR.antSacrificeTimer).toBe(oldR.antSacrificeTimer)
       expect(newR.antSacrificeTimerReal).toBe(oldR.antSacrificeTimerReal)
+    })
+  }
+})
+
+// ─── checkAntSacrificeReady ─────────────────────────────────────────────
+
+// Verbatim legacy `canAutoSacrifice` body, returning the same `events` shape
+// the new logic function returns so the parity test can compare 1:1.
+const oldCheckAntSacrificeReady = (
+  input: CheckAntSacrificeReadyInput
+): CheckAntSacrificeReadyResult => {
+  // Mirrors web_ui constants. Kept inline so the parity reference is
+  // self-contained — the production constants live in
+  // packages/web_ui/src/Features/Ants/AntSacrifice/constants.ts and
+  // packages/web_ui/src/Features/Ants/Automation/sacrifice.ts (the 0.001
+  // tolerance used by the maxRebornELO derivation + MaxRebornELO mode).
+  const MIN_CRUMBS = 1e40
+  const MIN_DELAY = 0.05
+  const TOLERANCE = 0.001
+
+  const availableRebornELO = input.availableRebornELO
+  const maxRebornELO = availableRebornELO < TOLERANCE
+
+  const onlySacrificeMaxReborn = input.onlySacrificeMaxRebornELO
+  if (onlySacrificeMaxReborn && !maxRebornELO) {
+    return { events: [] }
+  }
+
+  const hasEnoughCrumbs = input.crumbsThisSacrifice.gte(MIN_CRUMBS)
+  const offCooldown = input.antSacrificeTimerReal >= MIN_DELAY
+  const universalChecks = hasEnoughCrumbs && offCooldown && input.autoSacrificeEnabled
+
+  let specificCheck = false
+  switch (input.mode) {
+    case 'InGameTime':
+      specificCheck = input.antSacrificeTimer >= input.autoSacrificeThreshold
+      break
+    case 'RealTime':
+      specificCheck = input.antSacrificeTimerReal >= input.autoSacrificeThreshold
+      break
+    case 'ImmortalELOGain':
+      specificCheck = input.immortalELOGain >= input.autoSacrificeThreshold
+      break
+    case 'MaxRebornELO':
+      specificCheck = (input.immortalELO - input.rebornELO) <= TOLERANCE
+      break
+  }
+
+  const alwaysSacrificeMaxReborn = input.alwaysSacrificeMaxRebornELO
+  const ready = alwaysSacrificeMaxReborn
+    ? universalChecks && (maxRebornELO || specificCheck)
+    : universalChecks && specificCheck
+
+  const events: CoreEvent[] = ready ? [{ kind: 'ant-sacrifice-triggered' }] : []
+  return { events }
+}
+
+const defaultCheckInput = (
+  overrides: Partial<CheckAntSacrificeReadyInput> = {}
+): CheckAntSacrificeReadyInput => ({
+  // Default: late-game-feasible setup, InGameTime mode, all gates clear,
+  // mode-specific check passes.
+  mode: 'InGameTime',
+  crumbsThisSacrifice: new Decimal(1e50),
+  antSacrificeTimerReal: 60,
+  autoSacrificeEnabled: true,
+  availableRebornELO: 5,
+  onlySacrificeMaxRebornELO: false,
+  alwaysSacrificeMaxRebornELO: false,
+  antSacrificeTimer: 120,
+  autoSacrificeThreshold: 60,
+  immortalELOGain: 0,
+  immortalELO: 100,
+  rebornELO: 50,
+  ...overrides
+})
+
+describe('parity: checkAntSacrificeReady', () => {
+  const cases: Array<{ name: string, input: CheckAntSacrificeReadyInput }> = [
+    {
+      name: 'InGameTime — all gates clear, specific check passes',
+      input: defaultCheckInput()
+    },
+    {
+      name: 'InGameTime — timer below threshold (no fire)',
+      input: defaultCheckInput({ antSacrificeTimer: 30, autoSacrificeThreshold: 60 })
+    },
+    {
+      name: 'RealTime mode — wall-clock timer crosses threshold',
+      input: defaultCheckInput({
+        mode: 'RealTime',
+        antSacrificeTimer: 0,
+        antSacrificeTimerReal: 75,
+        autoSacrificeThreshold: 60
+      })
+    },
+    {
+      name: 'RealTime mode — wall-clock timer below threshold',
+      input: defaultCheckInput({
+        mode: 'RealTime',
+        antSacrificeTimerReal: 30,
+        autoSacrificeThreshold: 60
+      })
+    },
+    {
+      name: 'ImmortalELOGain mode — gain meets threshold',
+      input: defaultCheckInput({
+        mode: 'ImmortalELOGain',
+        immortalELOGain: 1500,
+        autoSacrificeThreshold: 1000
+      })
+    },
+    {
+      name: 'ImmortalELOGain mode — gain below threshold',
+      input: defaultCheckInput({
+        mode: 'ImmortalELOGain',
+        immortalELOGain: 500,
+        autoSacrificeThreshold: 1000
+      })
+    },
+    {
+      name: 'MaxRebornELO mode — delta within tolerance (fire)',
+      input: defaultCheckInput({
+        mode: 'MaxRebornELO',
+        immortalELO: 100.0005,
+        rebornELO: 100
+      })
+    },
+    {
+      name: 'MaxRebornELO mode — delta exceeds tolerance (no fire)',
+      input: defaultCheckInput({
+        mode: 'MaxRebornELO',
+        immortalELO: 100.5,
+        rebornELO: 100
+      })
+    },
+    {
+      name: 'master gate off — never fires',
+      input: defaultCheckInput({ autoSacrificeEnabled: false })
+    },
+    {
+      name: 'crumbs below 1e40 — never fires',
+      input: defaultCheckInput({ crumbsThisSacrifice: new Decimal(1e39) })
+    },
+    {
+      name: 'cooldown not elapsed (timerReal < 0.05) — never fires',
+      input: defaultCheckInput({ antSacrificeTimerReal: 0.025 })
+    },
+    {
+      name: 'onlySacrificeMaxRebornELO on, but reborn not maxed — never fires',
+      input: defaultCheckInput({
+        onlySacrificeMaxRebornELO: true,
+        availableRebornELO: 5
+      })
+    },
+    {
+      name: 'onlySacrificeMaxRebornELO on, reborn is maxed (proceed with mode check)',
+      input: defaultCheckInput({
+        onlySacrificeMaxRebornELO: true,
+        availableRebornELO: 0
+      })
+    },
+    {
+      name: 'alwaysSacrificeMaxRebornELO + reborn maxed (fires even when mode check fails)',
+      input: defaultCheckInput({
+        alwaysSacrificeMaxRebornELO: true,
+        availableRebornELO: 0,
+        antSacrificeTimer: 0,
+        autoSacrificeThreshold: 60
+      })
+    },
+    {
+      name: 'alwaysSacrificeMaxRebornELO + reborn NOT maxed, mode check passes (fires)',
+      input: defaultCheckInput({
+        alwaysSacrificeMaxRebornELO: true,
+        availableRebornELO: 10,
+        antSacrificeTimer: 120,
+        autoSacrificeThreshold: 60
+      })
+    },
+    {
+      name: 'alwaysSacrificeMaxRebornELO + reborn NOT maxed + mode fails (no fire)',
+      input: defaultCheckInput({
+        alwaysSacrificeMaxRebornELO: true,
+        availableRebornELO: 10,
+        antSacrificeTimer: 30,
+        autoSacrificeThreshold: 60
+      })
+    },
+    {
+      name: 'cooldown exactly at 0.05 boundary (passes)',
+      input: defaultCheckInput({ antSacrificeTimerReal: 0.05 })
+    },
+    {
+      name: 'crumbs exactly at 1e40 boundary (passes)',
+      input: defaultCheckInput({ crumbsThisSacrifice: new Decimal(1e40) })
+    },
+    {
+      name: 'MaxRebornELO mode — delta exactly at 0.001 tolerance (passes)',
+      input: defaultCheckInput({
+        mode: 'MaxRebornELO',
+        immortalELO: 100.001,
+        rebornELO: 100
+      })
+    },
+    {
+      name: 'availableRebornELO exactly at 0.001 tolerance — not "maxed"',
+      input: defaultCheckInput({
+        mode: 'InGameTime',
+        availableRebornELO: 0.001,
+        onlySacrificeMaxRebornELO: true
+      })
+    },
+    {
+      name: 'all bells and whistles — autoSacrificeEnabled off blocks everything',
+      input: defaultCheckInput({
+        autoSacrificeEnabled: false,
+        alwaysSacrificeMaxRebornELO: true,
+        availableRebornELO: 0,
+        antSacrificeTimer: 99999
+      })
+    }
+  ]
+
+  for (const c of cases) {
+    it(c.name, () => {
+      const newR = newCheckAntSacrificeReady(c.input)
+      const oldR = oldCheckAntSacrificeReady(c.input)
+      expect(newR.events).toEqual(oldR.events)
     })
   }
 })

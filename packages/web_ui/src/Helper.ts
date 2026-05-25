@@ -11,7 +11,9 @@ import {
   advanceQuarksTimer as logicAdvanceQuarksTimer,
   advanceRedAmbrosiaTimer as logicAdvanceRedAmbrosiaTimer,
   advanceResetCounter as logicAdvanceResetCounter,
-  advanceSingularityTimer as logicAdvanceSingularityTimer
+  advanceSingularityTimer as logicAdvanceSingularityTimer,
+  type AutoSacrificeMode as LogicAutoSacrificeMode,
+  checkAntSacrificeReady as logicCheckAntSacrificeReady
 } from '@synergism/logic'
 import Decimal from 'break_infinity.js'
 import { getAmbrosiaUpgradeEffects } from './BlueberryUpgrades'
@@ -25,8 +27,9 @@ import {
   calculateRedAmbrosiaLuck,
   calculateResearchAutomaticObtainium
 } from './Calculate'
-import { sacrificeAnts } from './Features/Ants/AntSacrifice/sacrifice'
-import { canAutoSacrifice } from './Features/Ants/Automation/sacrifice'
+import { antSacrificeRewards } from './Features/Ants/AntSacrifice/Rewards/calculate-rewards'
+import { calculateAvailableRebornELO } from './Features/Ants/AntSacrifice/Rewards/ELO/RebornELO/lib/calculate'
+import { AutoSacrificeModes } from './Features/Ants/toggles/structs/sacrifice'
 import { getLevelMilestone } from './Levels'
 import { getOcteractUpgradeEffect } from './Octeracts'
 import { quarkHandler } from './Quark'
@@ -390,6 +393,21 @@ type AutoToolInput =
   | 'runeSacrifice'
   | 'antSacrifice'
 
+/** Translate the AutoSacrificeModes numeric enum (web_ui-side UI config)
+ * to the string union the logic API uses. Bug-for-bug 1:1 mapping. */
+const autoSacrificeModeToLogic = (mode: AutoSacrificeModes): LogicAutoSacrificeMode => {
+  switch (mode) {
+    case AutoSacrificeModes.InGameTime:
+      return 'InGameTime'
+    case AutoSacrificeModes.RealTime:
+      return 'RealTime'
+    case AutoSacrificeModes.ImmortalELOGain:
+      return 'ImmortalELOGain'
+    case AutoSacrificeModes.MaxRebornELO:
+      return 'MaxRebornELO'
+  }
+}
+
 const calculateAutoSacrificeInterval = () => {
   let interval = 1
   interval /= getShopUpgradeEffects('offeringAuto', 'autoRuneSpeedMult')
@@ -499,13 +517,29 @@ export const automaticTools = (input: AutoToolInput, time: number) => {
       player.antSacrificeTimer = timerR.antSacrificeTimer
       player.antSacrificeTimerReal = timerR.antSacrificeTimerReal
 
-      const timeElapsed = player.antSacrificeTimerReal
-      const crumbs = player.ants.crumbsThisSacrifice
-      const mode = player.ants.toggles.autoSacrificeMode
-      if (
-        canAutoSacrifice(crumbs, mode, timeElapsed)
-      ) {
-        sacrificeAnts()
+      // Only pre-evaluate the ImmortalELOGain mode's lookup when that
+      // mode is active — antSacrificeRewards() pulls in calculate-rewards
+      // and is comparatively expensive. Other modes don't read it.
+      const mode = autoSacrificeModeToLogic(player.ants.toggles.autoSacrificeMode)
+      const immortalELOGain = mode === 'ImmortalELOGain'
+        ? antSacrificeRewards().immortalELO
+        : 0
+      const checkR = logicCheckAntSacrificeReady({
+        mode,
+        crumbsThisSacrifice: player.ants.crumbsThisSacrifice,
+        antSacrificeTimerReal: player.antSacrificeTimerReal,
+        autoSacrificeEnabled: player.ants.toggles.autoSacrificeEnabled,
+        availableRebornELO: calculateAvailableRebornELO(),
+        onlySacrificeMaxRebornELO: player.ants.toggles.onlySacrificeMaxRebornELO,
+        alwaysSacrificeMaxRebornELO: player.ants.toggles.alwaysSacrificeMaxRebornELO,
+        antSacrificeTimer: player.antSacrificeTimer,
+        autoSacrificeThreshold: player.ants.toggles.autoSacrificeThreshold,
+        immortalELOGain,
+        immortalELO: player.ants.immortalELO,
+        rebornELO: player.ants.rebornELO
+      })
+      for (const event of checkR.events) {
+        dispatchTickEvent(event)
       }
       break
     }

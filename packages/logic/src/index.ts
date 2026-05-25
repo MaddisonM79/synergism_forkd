@@ -944,12 +944,19 @@ export type {
   AddOfferingsInput,
   AddOfferingsResult,
   AdvanceAntSacrificeTimersInput,
-  AdvanceAntSacrificeTimersResult
+  AdvanceAntSacrificeTimersResult,
+  AutoSacrificeMode,
+  CheckAntSacrificeReadyInput,
+  CheckAntSacrificeReadyResult
 } from './tick/automaticTools'
 export {
   addObtainium,
   addOfferings,
-  advanceAntSacrificeTimers
+  advanceAntSacrificeTimers,
+  checkAntSacrificeReady,
+  MINIMUM_CRUMBS_FOR_SACRIFICE,
+  MINIMUM_SECONDS_DELAY_BETWEEN_SACRIFICES,
+  REBORN_ELO_MAXED_TOLERANCE
 } from './tick/automaticTools'
 export type {
   ApplyAutoResetsInput,

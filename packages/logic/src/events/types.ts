@@ -158,3 +158,11 @@ export type CoreEvent =
        * skips the shopUpgrades count decrement. */
       fastMode: boolean
     }
+  | {
+      kind: 'ant-sacrifice-triggered'
+      // Emitted by checkAntSacrificeReady when canAutoSacrifice's conditions
+      // are met this tick. UI dispatcher invokes sacrificeAnts() which fans
+      // out into resetAnts, talisman/achievement awards, and history record
+      // (all un-migrated). No payload — the event is a pure intent signal;
+      // sacrificeAnts() re-reads the latest player state itself.
+    }

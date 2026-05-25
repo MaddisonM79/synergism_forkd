@@ -15,6 +15,7 @@
 import { type AchievementGroups, awardAchievementGroup, challengeAchievementCheck, resetAchievementCheck } from './Achievements'
 import { dispatchSweepTransition } from './Challenges'
 import type { CoreEvent } from '@synergism/logic'
+import { sacrificeAnts } from './Features/Ants/AntSacrifice/sacrifice'
 import { reset } from './Reset'
 import { useConsumable } from './Shop'
 import { Tabs } from './Tabs'
@@ -115,6 +116,16 @@ export function dispatchTickEvent (event: CoreEvent): void {
     // ─── challengeSweep events ───────────────────────────────────────
     case 'challenge-sweep-transitioned':
       dispatchSweepTransition(event.from, event.to)
+      return
+
+    // ─── antSacrifice events ─────────────────────────────────────────
+    // Logic's checkAntSacrificeReady emits this when canAutoSacrifice's
+    // conditions are met for the active mode. sacrificeAnts() reads the
+    // latest player state itself (no payload needed) and fans out into
+    // reward credit, ant reset, talisman + achievement awards, and
+    // history record — all un-migrated subsystems that stay in web_ui.
+    case 'ant-sacrifice-triggered':
+      sacrificeAnts()
       return
   }
 }
