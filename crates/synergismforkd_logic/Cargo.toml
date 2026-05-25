@@ -1,0 +1,12 @@
+[package]
+name = "synergismforkd_logic"
+description = "Headless game logic for Synergism Forkd — state, math, mechanics, events, tick. Boundary mirrors the legacy `packages/logic` crate: no DOM, no UI imports, no i18n."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+synergismforkd_bignum = { path = "../synergismforkd_bignum" }
+synergismforkd_common = { path = "../synergismforkd_common" }

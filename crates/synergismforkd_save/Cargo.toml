@@ -1,0 +1,12 @@
+[package]
+name = "synergismforkd_save"
+description = "Save format, (de)serialization, and migration framework for Synergism Forkd."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+synergismforkd_common = { path = "../synergismforkd_common" }
+synergismforkd_logic = { path = "../synergismforkd_logic" }

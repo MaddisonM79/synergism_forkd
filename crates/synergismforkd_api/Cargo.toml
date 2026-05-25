@@ -1,0 +1,17 @@
+[package]
+name = "synergismforkd_api"
+description = "Backend API server for Synergism Forkd — long-term replacement for the legacy TS backend behind Login.ts. Will use axum + tower."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[[bin]]
+name = "synergismforkd-api"
+path = "src/main.rs"
+
+[dependencies]
+synergismforkd_common = { path = "../synergismforkd_common" }
+synergismforkd_logic = { path = "../synergismforkd_logic" }
+synergismforkd_save = { path = "../synergismforkd_save" }

@@ -1,0 +1,10 @@
+[package]
+name = "synergismforkd_bignum"
+description = "Big-number type for Synergism Forkd — thin wrapper around break_eternity semantics. Currently a stub; the real impl lands when the maintained fork is published."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]

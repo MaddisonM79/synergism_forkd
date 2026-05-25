@@ -1,0 +1,17 @@
+[package]
+name = "synergismforkd_testkit"
+description = "Test fixtures, mock state builders, seeded RNG, headless sim runner, and parity-snapshot helpers for Synergism Forkd. Includes the `synergismforkd-sim` CLI."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[[bin]]
+name = "synergismforkd-sim"
+path = "src/bin/synergismforkd_sim.rs"
+
+[dependencies]
+synergismforkd_bignum = { path = "../synergismforkd_bignum" }
+synergismforkd_logic = { path = "../synergismforkd_logic" }
+synergismforkd_save = { path = "../synergismforkd_save" }
