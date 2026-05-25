@@ -1,0 +1,35 @@
+node_modules/
+*.js
+!scripts/*.js
+!mockServiceWorker.js
+dist
+!.eslintrc.js
+.idea
+
+.project
+.settings/*
+Pictures/Thumbs.db
+Pictures/Splash/Thumbs.db
+Pictures/TransparentPics/Thumbs.db
+
+**/.DS_Store
+release
+Kong.zip
+targetdir/
+build/
+dist/dist/
+!electron/**/*.js
+
+# Local env override files. .env is committed with the legacy synergism.cc
+# fallbacks; anything ending in .local is private and gitignored.
+.env.local
+.env.*.local
+
+# husky v9 auto-manages this folder via `npm run prepare`
+.husky/_/
+
+# wrangler local state
+.wrangler/
+
+# Claude Code local-only settings (per-user permission allowlist, etc.)
+.claude/settings.local.json

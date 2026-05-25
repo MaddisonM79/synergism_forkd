@@ -1,0 +1,12 @@
+[package]
+name = "synergismforkd_ui"
+description = "Platform-agnostic Dioxus components, hooks, and signals. Consumed by synergismforkd_ui_web (browser) and synergismforkd_ui_desktop (Tauri shell)."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+synergismforkd_common = { path = "../synergismforkd_common" }
+synergismforkd_logic = { path = "../synergismforkd_logic" }

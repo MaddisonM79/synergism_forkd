@@ -1,0 +1,23 @@
+[package]
+name = "synergismforkd_ui_desktop"
+description = "Tauri shell for Synergism Forkd — wraps the synergismforkd_ui_web WASM bundle in a desktop window. One crate, three OS build targets (.msi/.dmg/.deb) via CI matrix."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[[bin]]
+name = "synergismforkd-desktop"
+path = "src/main.rs"
+
+[dependencies]
+synergismforkd_logic = { path = "../synergismforkd_logic" }
+synergismforkd_save = { path = "../synergismforkd_save" }
+synergismforkd_ui = { path = "../synergismforkd_ui" }
+
+# Tauri is intentionally not wired here in the scaffold. The follow-up
+# Tauri-integration PR adds:
+#   tauri = { version = "2", features = ["..."] }
+#   tauri-build = { version = "2" }
+# plus build.rs, tauri.conf.json, and icons.

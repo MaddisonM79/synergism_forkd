@@ -1,0 +1,29 @@
+# Cloudflare Pages _headers template — applied at the edge to every response.
+# Reference: https://developers.cloudflare.com/pages/configuration/headers/
+#
+# This file is the source of truth. scripts/stage.mjs renders it into
+# build/_headers, substituting {{API_BASE_URL}} and {{WS_BASE_URL}} from the
+# environment. Do not edit build/_headers directly — it is regenerated on
+# every build.
+#
+# The Content-Security-Policy below mirrors the <meta http-equiv> in
+# index.html (added in PR #177). The HTTP-header form takes precedence; the
+# meta tag remains as a fallback for local file:// loads.
+
+/*
+  Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline' https://challenges.cloudflare.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' {{API_BASE_URL}} {{WS_BASE_URL}} https://challenges.cloudflare.com; frame-src https://challenges.cloudflare.com; worker-src 'self' blob:; object-src 'none'; base-uri 'self';
+  Strict-Transport-Security: max-age=63072000; includeSubDomains; preload
+  X-Content-Type-Options: nosniff
+  X-Frame-Options: DENY
+  Referrer-Policy: strict-origin-when-cross-origin
+  Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=(), usb=()
+  Cross-Origin-Opener-Policy: same-origin
+
+# Vite emits content-hashed filenames under /assets/, so the bundle is
+# immutable — any code change produces a new URL.
+/assets/*
+  Cache-Control: public, max-age=31536000, immutable
+
+# Static art is immutable per release.
+/Pictures/*
+  Cache-Control: public, max-age=86400

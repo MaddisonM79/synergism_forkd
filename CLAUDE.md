@@ -1,110 +1,168 @@
-# Synergism Project Context for Claude
+# Synergism Forkd — Project Context for Claude
 
-## Project Overview
-- **Name**: Synergism (idle game)
-- **Tech Stack**: TypeScript, HTML, CSS
-- **URL**: https://synergism.cc
-- **Repository**: npm workspaces monorepo. Frontend code lives in `packages/web_ui`; portable game logic lives in `packages/logic`; `packages/desktop_ui` is a placeholder for the planned Tauri integration.
-- **Backend**: Connected via `packages/web_ui/src/Login.ts` with mocking in `packages/web_ui/src/mock/`
+## Project overview
 
-## Agent Role & Workflow
-### Primary Tasks
-- Implement frontend features
-- Fix bugs and issues
-- Architect new feature systems
+- **Name**: Synergism Forkd (Rust port of the TypeScript game Synergism)
+- **Tech stack**: Rust (workspace of 12 crates), Dioxus for UI, Tauri for the desktop shell, axum for the backend
+- **Status**: bare-bones scaffold. Most crates contain a single placeholder function; real porting is the long-term work
+- **Repository**: Cargo workspace at repo root
+- **Legacy TS** lives in `legacy_original/` (pre-split) and `legacy_core_split/` (current `packages/`) — frozen reference, **not maintained**
 
-### Required Actions
-1. **Always ask permission** before adding variables to `player` object (affects savefile size)
-2. **Check back with user** after writing significant code
-3. **Ask questions** when task requirements are unclear
+## Repo layout
 
-## File Structure Rules
 ```
-packages/
-  logic/                   # Headless, DOM-free game logic (future Rust port target)
-    src/
-      state/               # GameState type, defaults, migrations, serialize
-      math/                # bignum wrapper, pure formatters
-      mechanics/           # one mechanic per file; cubes/ for the cube family
-      events/              # CoreEvent union
-      tick/                # pure tick body
-  web_ui/                  # Browser frontend (current Synergism.cc)
-    src/                   # Existing game UI code
-    index.html
-    Synergism.css
-    Pictures/
-    translations/en.json   # Required for all new text strings (UI tier)
-    scripts/               # build/staging helpers (cwd-relative)
-  desktop_ui/              # Placeholder for the planned Tauri runtime
+/  (repo root)
+├── Cargo.toml                          # workspace manifest
+├── rust-toolchain.toml                 # stable + clippy + rustfmt + wasm32 target
+├── .cargo/config.toml
+├── crates/
+│   ├── synergismforkd_bignum/          # break_eternity wrapper (Decimal); stub
+│   ├── synergismforkd_common/          # shared types, IDs, error enums
+│   ├── synergismforkd_logic/           # headless game logic (state/math/mechanics/events/tick)
+│   ├── synergismforkd_save/            # save format + (de)serialization + migrations
+│   ├── synergismforkd_ui/              # platform-agnostic Dioxus components
+│   ├── synergismforkd_ui_web/          # WASM browser entry point
+│   ├── synergismforkd_ui_desktop/      # Tauri shell (Win/Mac/Linux)
+│   ├── synergismforkd_api/             # axum backend (future replacement for legacy backend)
+│   ├── synergismforkd_testkit/         # fixtures, mock state, sim runner, parity helpers + synergismforkd-sim CLI
+│   ├── synergismforkd_audio/           # reserved
+│   ├── synergismforkd_netcode/         # reserved
+│   └── synergismforkd_modding/         # reserved
+├── assets/
+│   ├── translations/en.json
+│   ├── pictures/
+│   └── sounds/
+├── .github/workflows/
+│   ├── rust-ci.yml                     # build + test + clippy on Win/Mac/Linux
+│   ├── rust-bench.yml                  # nightly criterion
+│   └── desktop-release.yml             # tagged Tauri releases
+├── legacy_original/                    # frozen pre-split TS, reference only
+└── legacy_core_split/                  # current packages/ snapshot (TS logic + web_ui)
 ```
 
-## Package boundary: `packages/logic`
+## Agent role & workflow
 
-`packages/logic` is the long-term target for a Rust port (browser via WASM, Tauri desktop, server-side simulators). Keep it portable.
+### Primary tasks
+- Port mechanics from `legacy_core_split/packages/logic/src/mechanics/` into `crates/synergismforkd_logic/src/mechanics/`
+- Flesh out the Dioxus UI tree in `synergismforkd_ui` (consumed by web + desktop)
+- Wire Tauri integration in `synergismforkd_ui_desktop` once the UI tree is non-empty
+- Build the backend API in `synergismforkd_api`
+- Maintain parity with the TS implementation through the porting period
 
-**Nothing under `packages/logic/src/` may:**
-- Import anything outside `packages/logic/`.
-- Reference `document`, `window`, `localStorage`, `sessionStorage`, `navigator`, `location`.
-- Reference `DOMCacheGetOrSet` or any DOM cache utility.
-- Call `i18next.t()` or import `i18next` at all.
-- Call `Alert`, `Confirm`, `Prompt`, `Notification` (the modal helpers in `packages/web_ui/src/`).
-- Import from `@synergism/web_ui` or `@synergism/desktop_ui`. Direction is **UI → logic** only.
-- Read or write UI state: `currentTab`, `saveString`, modal-visibility flags, theme selection, etc.
+### Required actions
+1. **Always ask permission** before adding fields to the game-state schema in `synergismforkd_logic/src/state/` (the Rust equivalent of "before touching `player`" — it affects save-file size).
+2. **Check back with user** after writing significant code.
+3. **Ask questions** when task requirements are unclear.
 
-Public logic functions follow the shape `(state, input) => { state, events }`. Side effects live in the UI tier; logic communicates intent via the `events` array.
+## Crate boundary rules
 
-Enforcement: `packages/logic/tsconfig.json` excludes the DOM lib, and `.oxlintrc.json` has an `overrides` block scoped to `packages/logic/**/*.ts` that adds `no-restricted-globals` / `no-restricted-imports`.
+The TS-era boundary (`packages/logic` could not touch DOM / UI / i18n) generalizes to the whole Rust workspace.
 
-## Development Patterns
+### `synergismforkd_bignum`
+- Thin re-export of the maintained [`break-eternity-rs`](https://crates.io/crates/break-eternity-rs) crate. `Decimal` is `Copy`, supports the standard arithmetic operators, and exposes the full BE.js helper set (`log10`, `ln`, `pow`, `tetrate`, `iteratedexp`, `iteratedlog`, `slog`, `sqrt`, `cbrt`, `gamma`, `factorial`, `lambertw`, …).
+- Other crates depend on `synergismforkd_bignum` only, never on the upstream crate directly — that keeps the underlying impl swappable later.
 
-### String Internationalization
-- i18next: Add all user-facing text to `packages/web_ui/translations/en.json`
-- **Styling**: `<<color|{{text}}>>` for colored text
-- i18n is a UI-tier concern only — never call `i18next.t()` from `packages/logic`.
+### `synergismforkd_logic`
+- **No** `wasm-bindgen`, `web-sys`, `js-sys`, network, filesystem, time-of-day, or async runtime.
+- **No** Dioxus, no Tauri, no axum.
+- Public functions follow `(state, input) -> (state, events)` shape. Side effects live in the UI / API tiers; logic communicates intent via the returned events.
 
-### Save System Variables
-**CRITICAL**: Before adding to `player` object:
-1. Get explicit permission from user
-2. Add to `packages/web_ui/src/types/Synergism.ts`
-3. Add to `packages/web_ui/src/saves/PlayerSchema.ts`
-4. Variable location: `player` in `packages/web_ui/src/Synergism.ts`
+### `synergismforkd_ui`
+- Dioxus components only. **No platform-specific code** (`#[cfg(target_arch = "wasm32")]`, Tauri imports, filesystem). Those live in `ui_web` or `ui_desktop`.
 
-Once mechanics start migrating to `packages/logic`, the game-state portion of these types will move to `packages/logic/src/state/schema.ts`; UI-state fields stay in `web_ui`.
+### `synergismforkd_ui_web`
+- WASM entry point. May use `wasm-bindgen`, `web-sys`, `dioxus-web`. Should not contain game logic.
 
-## Code Conventions
+### `synergismforkd_ui_desktop`
+- Tauri shell. May use `tauri`, Tauri commands, OS APIs. Loads the `ui_web` bundle in its webview.
+- Game logic runs in-process in WASM alongside the UI to avoid per-tick IPC. Tauri commands are reserved for native-only operations (file pickers, Steam SDK, Discord RPC).
 
-### Critical Performance & Style Requirements
-- **DOM Access (web_ui only)**: ALWAYS use `DOMCacheGetOrSet('elementId')` instead of `document.getElementById`
-  - Import: `import { DOMCacheGetOrSet } from './Cache/DOM'`
-  - Reason: Performance optimization through caching
-  - `packages/logic` must not touch the DOM at all — see the boundary section above.
+### `synergismforkd_api`
+- Server-side. May use `axum`, `tower`, a DB layer. Imports `logic` and `save` for shared types.
 
-### General Patterns
-- Follow existing TypeScript patterns in codebase
-- Use established import/export structures
-- Match existing naming conventions
-- Maintain consistency with current architecture
+### `synergismforkd_testkit`
+- Test-only utilities. Re-exports fixtures, mock builders, the sim runner, parity helpers. Other crates depend on `testkit` from `[dev-dependencies]` only.
 
-### Desktop / Steam (deferred)
+Direction is **UI / API → logic → bignum, common**. Never the reverse.
 
-The Electron-based Steam build was removed. The plan is to reintroduce a desktop runtime via Tauri + Rust later in the roadmap, with Steam SDK integration and Discord Rich Presence reimplemented on that side. Until then, treat this as a browser-only codebase — there is no `platform === 'steam'` gate, no `PLATFORM` build-time macro, no `src/steam/` contract layer. Don't reintroduce a Steam/Electron abstraction. New desktop-only work should wait for the Tauri integration.
+## Save system
 
-### Recommended Patterns
-- Objects and arrays that are constant should be hoisted to the module scope when possible.
+The Rust save format is **fresh** — no compatibility with the TS savefile.
 
-Example (wrong):
-```ts
-function myFunction () {
-  const arr = [1, 2, 3, 4, 5]
-  return arr
+**Before adding a field to `synergismforkd_logic::state`:**
+1. Get explicit permission from the user.
+2. Add the field to the right slice in `crates/synergismforkd_logic/src/state/`.
+3. If the field needs to persist, add it to the save schema in `crates/synergismforkd_save/src/` and write a migration if the schema version bumps.
+
+## Development patterns
+
+### String internationalization
+- All user-facing text goes in `assets/translations/en.json`.
+- i18n is a UI-tier concern only — never look up translation keys from `synergismforkd_logic`, `synergismforkd_save`, `synergismforkd_api`, or `synergismforkd_bignum`.
+- The UI crates load translations at build time (or via the asset pipeline once it exists).
+
+### Bignum
+- Always import `Decimal` from `synergismforkd_bignum`, never directly from `break_eternity` (or whatever underlies it).
+- `Decimal` is `Copy` — pass by value, no `&` or `.clone()` needed at call sites. Operators (`+`, `-`, `*`, `/`) consume copies of their operands.
+
+### Module structure (logic)
+Mirror the TS `packages/logic/src/` layout exactly:
+- `state/` — sliced state types, one slice per mechanic family
+- `math/` — RNG, sigmoid, summation, increment helpers (not bignum)
+- `mechanics/` — one file per mechanic; subdirs for families (`cubes/`, etc.)
+- `events/` — `CoreEvent` enum, one variant per outcome
+- `tick/` — orchestrator (`tack`, `tack_middle`, `tack_tail`)
+
+Each mechanic function takes a state **slice**, not the full game state. Composition happens at the boundary (UI or testkit).
+
+## Code conventions
+
+### Critical
+- **Run `cargo fmt` and `cargo clippy --workspace --all-targets`** before submitting. CI rejects warnings.
+- **No `unsafe`** unless explicitly justified in a comment and approved by the user.
+- **Boundary discipline**: see the per-crate rules above. If a crate needs something it shouldn't import, that's usually a sign the API in `logic` is wrong — fix the API, don't break the boundary.
+
+### General
+- Match existing module / file structure within each crate.
+- Prefer `pub(crate)` over `pub` for internal helpers.
+- Avoid premature abstraction — port the TS function verbatim first, then refactor if needed once tests cover it.
+- Hoist module-scope constants out of hot loops:
+
+```rust
+// wrong
+fn my_function() -> Vec<i32> {
+    vec![1, 2, 3, 4, 5]
+}
+
+// right
+const ARR: &[i32] = &[1, 2, 3, 4, 5];
+fn my_function() -> &'static [i32] {
+    ARR
 }
 ```
 
-Example (correct):
-```ts
-const arr = [1, 2, 3, 4, 5]
+## Desktop / Steam (deferred)
 
-function myFunction () {
-  return arr
-}
-```
+Steam SDK integration and Discord Rich Presence are planned for the Tauri shell (`synergismforkd_ui_desktop`) but not wired in the scaffold. Until that PR lands, treat the workspace as browser-first. The Tauri shell currently ships a placeholder `main`.
+
+## Legacy folders
+
+`legacy_original/` and `legacy_core_split/` are reference material. **Do not** modify their contents; **do not** add CI for them. Reading them while porting mechanics is encouraged. Each folder's own `package.json` still works locally if you want to run the TS for comparison (`cd legacy_core_split && npm test`).
+
+## Testing
+
+- `cargo test --workspace` runs unit + integration tests.
+- `cargo run -p synergismforkd_testkit --bin synergismforkd-sim` drives the headless sim.
+- `cargo bench` runs criterion (once benches are added under `crates/<crate>/benches/`).
+- Bench shapes mirror the TS perf harness in `legacy_core_split/packages/logic/test/perf/` for cross-side comparability.
+
+## Quick reference
+
+| What | Command |
+|---|---|
+| Build everything | `cargo build --workspace` |
+| Run tests | `cargo test --workspace` |
+| Lint | `cargo clippy --workspace --all-targets -- -D warnings` |
+| Format | `cargo fmt --all` |
+| Headless sim | `cargo run -p synergismforkd_testkit --bin synergismforkd-sim` |
+| WASM build | `cargo build -p synergismforkd_ui_web --target wasm32-unknown-unknown` |

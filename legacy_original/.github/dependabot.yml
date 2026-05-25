@@ -1,0 +1,45 @@
+version: 2
+updates:
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "chore"
+      prefix-development: "chore"
+      include: "scope"
+    groups:
+      dev-deps:
+        dependency-type: "development"
+        update-types: ["minor", "patch"]
+      prod-deps:
+        dependency-type: "production"
+        update-types: ["patch"]
+    ignore:
+      # Majors below have dedicated wave issues — let those PRs land first.
+      - dependency-name: "zod"                       # #153 Wave 5
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "typescript"                # #152 Wave 4
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "stylelint"                 # #152 Wave 4
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "stylelint-config-standard" # #152 Wave 4
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "i18next"                   # #151 Wave 3
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "electron"                  # #151 Wave 3
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "discord-rpc"               # #150 Wave 2 replacement
+      - dependency-name: "husky"                     # #150 Wave 2 major bump
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "ci"
+      include: "scope"

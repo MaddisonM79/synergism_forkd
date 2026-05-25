@@ -1,0 +1,52 @@
+name: desktop-release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+    name: ${{ matrix.target.name }}
+    runs-on: ${{ matrix.target.os }}
+    permissions:
+      contents: write
+    strategy:
+      fail-fast: false
+      matrix:
+        target:
+          - { name: linux,   os: ubuntu-latest,  artifact: '*.deb' }
+          - { name: macos,   os: macos-latest,   artifact: '*.dmg' }
+          - { name: windows, os: windows-latest, artifact: '*.msi' }
+
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+
+      - name: Cache cargo registry & target
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: cargo-desktop-${{ matrix.target.name }}-${{ hashFiles('Cargo.lock', 'rust-toolchain.toml') }}
+
+      # The Tauri build commands land in the follow-up Tauri-integration PR.
+      # For now this workflow just builds the placeholder binary so the
+      # matrix shape is wired and the tag event reliably triggers a run.
+      - name: cargo build --release
+        run: cargo build -p synergismforkd_ui_desktop --release
+
+      # When Tauri wiring lands, replace the step above with:
+      #   uses: tauri-apps/tauri-action@v0
+      #   with:
+      #     projectPath: crates/synergismforkd_ui_desktop
+      #     tagName: ${{ github.ref_name }}
+      #     releaseName: 'Synergism Forkd ${{ github.ref_name }}'
+      #     releaseBody: 'See CHANGELOG.md for release notes.'

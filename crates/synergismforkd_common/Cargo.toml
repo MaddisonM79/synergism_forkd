@@ -1,0 +1,10 @@
+[package]
+name = "synergismforkd_common"
+description = "Cross-cutting types, newtypes, and error enums shared across Synergism Forkd crates."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]

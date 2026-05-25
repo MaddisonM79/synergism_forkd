@@ -1,0 +1,30 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/synergismforkd_bignum",
+    "crates/synergismforkd_common",
+    "crates/synergismforkd_logic",
+    "crates/synergismforkd_save",
+    "crates/synergismforkd_ui",
+    "crates/synergismforkd_ui_web",
+    "crates/synergismforkd_ui_desktop",
+    "crates/synergismforkd_api",
+    "crates/synergismforkd_testkit",
+    "crates/synergismforkd_audio",
+    "crates/synergismforkd_netcode",
+    "crates/synergismforkd_modding",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.95"
+license = "MIT"
+repository = "https://github.com/MaddisonM79/unknown_game"
+
+[workspace.lints.clippy]
+all = { level = "warn", priority = -1 }
+
+[profile.release]
+lto = "thin"
+codegen-units = 1
