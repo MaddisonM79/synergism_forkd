@@ -28,6 +28,7 @@ pub mod cube_blessings;
 pub mod cube_upgrades;
 pub mod event_buffs;
 pub mod exalt_penalties;
+pub mod global_multipliers;
 pub mod golden_quark_upgrades;
 pub mod gq_upgrade_cost;
 pub mod gq_upgrade_levels;
