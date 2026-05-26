@@ -271,20 +271,20 @@ fn phase_generation(
     state.campaigns.ascend_shards = result.ascend_shards;
 
     // ─── Generated counters (tier 1..4; tier 5 is terminal) ──────────────
-    state.diamond_producers.first_generated = result.first_generated_diamonds;
-    state.diamond_producers.second_generated = result.second_generated_diamonds;
-    state.diamond_producers.third_generated = result.third_generated_diamonds;
-    state.diamond_producers.fourth_generated = result.fourth_generated_diamonds;
+    state.diamond_producers.tiers[0].generated = result.first_generated_diamonds;
+    state.diamond_producers.tiers[1].generated = result.second_generated_diamonds;
+    state.diamond_producers.tiers[2].generated = result.third_generated_diamonds;
+    state.diamond_producers.tiers[3].generated = result.fourth_generated_diamonds;
 
-    state.mythos_producers.first_generated = result.first_generated_mythos;
-    state.mythos_producers.second_generated = result.second_generated_mythos;
-    state.mythos_producers.third_generated = result.third_generated_mythos;
-    state.mythos_producers.fourth_generated = result.fourth_generated_mythos;
+    state.mythos_producers.tiers[0].generated = result.first_generated_mythos;
+    state.mythos_producers.tiers[1].generated = result.second_generated_mythos;
+    state.mythos_producers.tiers[2].generated = result.third_generated_mythos;
+    state.mythos_producers.tiers[3].generated = result.fourth_generated_mythos;
 
-    state.particle_producers.first_generated = result.first_generated_particles;
-    state.particle_producers.second_generated = result.second_generated_particles;
-    state.particle_producers.third_generated = result.third_generated_particles;
-    state.particle_producers.fourth_generated = result.fourth_generated_particles;
+    state.particle_producers.tiers[0].generated = result.first_generated_particles;
+    state.particle_producers.tiers[1].generated = result.second_generated_particles;
+    state.particle_producers.tiers[2].generated = result.third_generated_particles;
+    state.particle_producers.tiers[3].generated = result.fourth_generated_particles;
 
     state.tesseract_buildings.ascend_building_1.generated = result.ascend_building_1_generated;
     state.tesseract_buildings.ascend_building_2.generated = result.ascend_building_2_generated;
@@ -522,6 +522,6 @@ mod tests {
 
         let _ = tack(&mut state, &input);
         // Bought at least one of tier-1 Coin producer.
-        assert!(state.coin_producers.first_owned > 0.0);
+        assert!(state.coin_producers.tiers[0].owned > 0.0);
     }
 }

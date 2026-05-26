@@ -346,35 +346,35 @@ pub fn resource_gain(state: &GameState, pre: &ResourceGainPre, dt: f64) -> Resou
     // ─── Diamond cascade ─────────────────────────────────────────────────
     let diamonds = &state.diamond_producers;
     let gcm = pre.global_crystal_multiplier;
-    let produce_first_diamonds = (diamonds.first_generated
-        + Decimal::from_finite(diamonds.first_owned))
+    let produce_first_diamonds = (diamonds.tiers[0].generated
+        + Decimal::from_finite(diamonds.tiers[0].owned))
         * Decimal::from_finite(pre.first_produce_diamonds)
         * gcm;
-    let produce_second_diamonds = (diamonds.second_generated
-        + Decimal::from_finite(diamonds.second_owned))
+    let produce_second_diamonds = (diamonds.tiers[1].generated
+        + Decimal::from_finite(diamonds.tiers[1].owned))
         * Decimal::from_finite(pre.second_produce_diamonds)
         * gcm;
-    let produce_third_diamonds = (diamonds.third_generated
-        + Decimal::from_finite(diamonds.third_owned))
+    let produce_third_diamonds = (diamonds.tiers[2].generated
+        + Decimal::from_finite(diamonds.tiers[2].owned))
         * Decimal::from_finite(pre.third_produce_diamonds)
         * gcm;
-    let produce_fourth_diamonds = (diamonds.fourth_generated
-        + Decimal::from_finite(diamonds.fourth_owned))
+    let produce_fourth_diamonds = (diamonds.tiers[3].generated
+        + Decimal::from_finite(diamonds.tiers[3].owned))
         * Decimal::from_finite(pre.fourth_produce_diamonds)
         * gcm;
-    let produce_fifth_diamonds = (diamonds.fifth_generated
-        + Decimal::from_finite(diamonds.fifth_owned))
+    let produce_fifth_diamonds = (diamonds.tiers[4].generated
+        + Decimal::from_finite(diamonds.tiers[4].owned))
         * Decimal::from_finite(pre.fifth_produce_diamonds)
         * gcm;
 
     let fourth_generated_diamonds =
-        diamonds.fourth_generated + produce_fifth_diamonds * dt_scaled_dec;
+        diamonds.tiers[3].generated + produce_fifth_diamonds * dt_scaled_dec;
     let third_generated_diamonds =
-        diamonds.third_generated + produce_fourth_diamonds * dt_scaled_dec;
+        diamonds.tiers[2].generated + produce_fourth_diamonds * dt_scaled_dec;
     let second_generated_diamonds =
-        diamonds.second_generated + produce_third_diamonds * dt_scaled_dec;
+        diamonds.tiers[1].generated + produce_third_diamonds * dt_scaled_dec;
     let first_generated_diamonds =
-        diamonds.first_generated + produce_second_diamonds * dt_scaled_dec;
+        diamonds.tiers[0].generated + produce_second_diamonds * dt_scaled_dec;
     let produce_diamonds = produce_first_diamonds;
 
     let mut prestige_shards = state.reset_counters.prestige_shards;
@@ -387,35 +387,38 @@ pub fn resource_gain(state: &GameState, pre: &ResourceGainPre, dt: f64) -> Resou
     // ─── Mythos cascade ──────────────────────────────────────────────────
     let mythos = &state.mythos_producers;
     let gmm = pre.global_mythos_multiplier;
-    let produce_fifth_mythos = (mythos.fifth_generated + Decimal::from_finite(mythos.fifth_owned))
+    let produce_fifth_mythos = (mythos.tiers[4].generated
+        + Decimal::from_finite(mythos.tiers[4].owned))
         * Decimal::from_finite(pre.fifth_produce_mythos)
         * gmm
         * pre.grandmaster_multiplier
         * pre.mythosupgrade_15;
-    let produce_fourth_mythos = (mythos.fourth_generated
-        + Decimal::from_finite(mythos.fourth_owned))
+    let produce_fourth_mythos = (mythos.tiers[3].generated
+        + Decimal::from_finite(mythos.tiers[3].owned))
         * Decimal::from_finite(pre.fourth_produce_mythos)
         * gmm;
-    let produce_third_mythos = (mythos.third_generated + Decimal::from_finite(mythos.third_owned))
+    let produce_third_mythos = (mythos.tiers[2].generated
+        + Decimal::from_finite(mythos.tiers[2].owned))
         * Decimal::from_finite(pre.third_produce_mythos)
         * gmm
         * pre.mythosupgrade_14;
-    let produce_second_mythos = (mythos.second_generated
-        + Decimal::from_finite(mythos.second_owned))
+    let produce_second_mythos = (mythos.tiers[1].generated
+        + Decimal::from_finite(mythos.tiers[1].owned))
         * Decimal::from_finite(pre.second_produce_mythos)
         * gmm;
-    let produce_first_mythos = (mythos.first_generated + Decimal::from_finite(mythos.first_owned))
+    let produce_first_mythos = (mythos.tiers[0].generated
+        + Decimal::from_finite(mythos.tiers[0].owned))
         * Decimal::from_finite(pre.first_produce_mythos)
         * gmm
         * pre.mythosupgrade_13;
 
-    let fourth_generated_mythos = mythos.fourth_generated + produce_fifth_mythos * dt_scaled_dec;
-    let third_generated_mythos = mythos.third_generated + produce_fourth_mythos * dt_scaled_dec;
-    let second_generated_mythos = mythos.second_generated + produce_third_mythos * dt_scaled_dec;
-    let first_generated_mythos = mythos.first_generated + produce_second_mythos * dt_scaled_dec;
+    let fourth_generated_mythos = mythos.tiers[3].generated + produce_fifth_mythos * dt_scaled_dec;
+    let third_generated_mythos = mythos.tiers[2].generated + produce_fourth_mythos * dt_scaled_dec;
+    let second_generated_mythos = mythos.tiers[1].generated + produce_third_mythos * dt_scaled_dec;
+    let first_generated_mythos = mythos.tiers[0].generated + produce_second_mythos * dt_scaled_dec;
 
     // produceMythos: recomputed after mutations using post-tick first_generated_mythos.
-    let produce_mythos = (first_generated_mythos + Decimal::from_finite(mythos.first_owned))
+    let produce_mythos = (first_generated_mythos + Decimal::from_finite(mythos.tiers[0].owned))
         * Decimal::from_finite(pre.first_produce_mythos)
         * gmm
         * pre.mythosupgrade_13;
@@ -741,7 +744,7 @@ mod tests {
     fn transcension_challenge_3_disables_shard_gains() {
         let mut state = GameState::default();
         state.challenges.current_transcension_challenge = 3;
-        state.diamond_producers.first_generated = Decimal::from_finite(10.0);
+        state.diamond_producers.tiers[0].generated = Decimal::from_finite(10.0);
         let pre = ResourceGainPre {
             first_produce_diamonds: 1.0,
             ..ResourceGainPre::default()
@@ -755,7 +758,7 @@ mod tests {
     fn reincarnation_challenge_10_disables_shard_gains() {
         let mut state = GameState::default();
         state.challenges.current_reincarnation_challenge = 10;
-        state.diamond_producers.first_generated = Decimal::from_finite(10.0);
+        state.diamond_producers.tiers[0].generated = Decimal::from_finite(10.0);
         let pre = ResourceGainPre {
             first_produce_diamonds: 1.0,
             ..ResourceGainPre::default()
@@ -809,7 +812,7 @@ mod tests {
     #[test]
     fn diamond_cascade_propagates_one_step() {
         let mut state = GameState::default();
-        state.diamond_producers.fifth_generated = Decimal::from_finite(10.0);
+        state.diamond_producers.tiers[4].generated = Decimal::from_finite(10.0);
         let pre = ResourceGainPre {
             fifth_produce_diamonds: 1.0,
             ..ResourceGainPre::default()

@@ -581,22 +581,13 @@ mod tests {
     }
 
     fn empty_family() -> ProducerFamilyState {
+        let tier = |i: u8| crate::state::ProducerTier {
+            owned: 0.0,
+            cost: get_producer_cost(i, ProducerType::Coin, 1.0, cost_input()),
+            generated: Decimal::zero(),
+        };
         ProducerFamilyState {
-            first_owned: 0.0,
-            first_cost: get_producer_cost(1, ProducerType::Coin, 1.0, cost_input()),
-            first_generated: Decimal::zero(),
-            second_owned: 0.0,
-            second_cost: get_producer_cost(2, ProducerType::Coin, 1.0, cost_input()),
-            second_generated: Decimal::zero(),
-            third_owned: 0.0,
-            third_cost: get_producer_cost(3, ProducerType::Coin, 1.0, cost_input()),
-            third_generated: Decimal::zero(),
-            fourth_owned: 0.0,
-            fourth_cost: get_producer_cost(4, ProducerType::Coin, 1.0, cost_input()),
-            fourth_generated: Decimal::zero(),
-            fifth_owned: 0.0,
-            fifth_cost: get_producer_cost(5, ProducerType::Coin, 1.0, cost_input()),
-            fifth_generated: Decimal::zero(),
+            tiers: [tier(1), tier(2), tier(3), tier(4), tier(5)],
         }
     }
 
@@ -724,7 +715,7 @@ mod tests {
         let mut state = empty_family();
         let mut resource = Decimal::zero();
         let events = buy_max(&mut state, &mut resource, buy_max_input());
-        assert_eq!(state.first_owned, 0.0);
+        assert_eq!(state.tiers[0].owned, 0.0);
         assert!(events.is_empty());
     }
 
@@ -734,7 +725,7 @@ mod tests {
         let mut resource = Decimal::from_finite(1e6);
         let baseline_resource = resource;
         let events = buy_max(&mut state, &mut resource, buy_max_input());
-        assert!(state.first_owned > 0.0);
+        assert!(state.tiers[0].owned > 0.0);
         assert!(resource < baseline_resource);
         assert_eq!(events.len(), 1);
         match &events[0] {
@@ -748,7 +739,7 @@ mod tests {
                 assert_eq!(*producer_type, ProducerType::Coin);
                 assert_eq!(*index, 1);
                 assert_eq!(*before, 0.0);
-                assert_eq!(*after, state.first_owned);
+                assert_eq!(*after, state.tiers[0].owned);
             }
             other => panic!("expected ProducersPurchased, got {other:?}"),
         }
@@ -758,21 +749,21 @@ mod tests {
     fn buy_max_targets_only_the_requested_index() {
         let mut state = empty_family();
         let mut resource = Decimal::from_finite(1e15);
-        let baseline_first_cost = state.first_cost;
-        let baseline_fifth_cost = state.fifth_cost;
+        let baseline_first_cost = state.tiers[0].cost;
+        let baseline_fifth_cost = state.tiers[4].cost;
         let input = BuyMaxInput {
             index: 3,
             ..buy_max_input()
         };
         let _ = buy_max(&mut state, &mut resource, input);
-        assert!(state.third_owned > 0.0);
-        assert_eq!(state.first_owned, 0.0);
-        assert_eq!(state.second_owned, 0.0);
-        assert_eq!(state.fourth_owned, 0.0);
-        assert_eq!(state.fifth_owned, 0.0);
+        assert!(state.tiers[2].owned > 0.0);
+        assert_eq!(state.tiers[0].owned, 0.0);
+        assert_eq!(state.tiers[1].owned, 0.0);
+        assert_eq!(state.tiers[3].owned, 0.0);
+        assert_eq!(state.tiers[4].owned, 0.0);
         // Untouched cost fields are preserved.
-        assert_eq!(state.first_cost, baseline_first_cost);
-        assert_eq!(state.fifth_cost, baseline_fifth_cost);
+        assert_eq!(state.tiers[0].cost, baseline_first_cost);
+        assert_eq!(state.tiers[4].cost, baseline_fifth_cost);
     }
 
     #[test]
@@ -801,17 +792,15 @@ mod tests {
             ProducerType::Mythos,
             ProducerType::Particles,
         ] {
-            let mut state = ProducerFamilyState {
-                first_cost: get_producer_cost(1, ty, 1.0, cost_input()),
-                ..empty_family()
-            };
+            let mut state = empty_family();
+            state.tiers[0].cost = get_producer_cost(1, ty, 1.0, cost_input());
             let mut resource = Decimal::from_finite(1e20);
             let input = BuyMaxInput {
                 producer_type: ty,
                 ..buy_max_input()
             };
             let _ = buy_max(&mut state, &mut resource, input);
-            assert!(state.first_owned > 0.0, "tier-1 {ty:?} did not advance");
+            assert!(state.tiers[0].owned > 0.0, "tier-1 {ty:?} did not advance");
         }
     }
 
@@ -836,7 +825,7 @@ mod tests {
         let mut state = empty_family();
         let mut resource = Decimal::zero();
         let events = buy_producer(&mut state, &mut resource, buy_producer_input());
-        assert_eq!(state.first_owned, 0.0);
+        assert_eq!(state.tiers[0].owned, 0.0);
         assert!(events.is_empty());
     }
 
@@ -851,7 +840,7 @@ mod tests {
             ..buy_producer_input()
         };
         let events = buy_producer(&mut state, &mut resource, capped);
-        assert_eq!(state.first_owned, 1.0);
+        assert_eq!(state.tiers[0].owned, 1.0);
         assert_eq!(events.len(), 1);
     }
 
@@ -868,9 +857,9 @@ mod tests {
         };
         let _ = buy_producer(&mut state, &mut resource, auto);
         assert!(
-            state.first_owned <= 500.0,
+            state.tiers[0].owned <= 500.0,
             "autobuyer ran past 500 iterations: got {}",
-            state.first_owned
+            state.tiers[0].owned
         );
     }
 }

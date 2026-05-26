@@ -64,7 +64,7 @@ pub use level::LevelState;
 pub use multiplier::MultiplierState;
 pub use octeract_upgrades::{OcteractUpgrade, OcteractUpgradesState};
 pub use particle_buildings::ParticleBuildingsState;
-pub use producer::{BuyAmount, ProducerFamilyState};
+pub use producer::{BuyAmount, ProducerFamilyState, ProducerTier};
 pub use quarks::QuarksState;
 pub use red_ambrosia::{RedAmbrosiaState, RedAmbrosiaUpgrade};
 pub use researches::ResearchesState;
@@ -218,13 +218,13 @@ mod tests {
     #[test]
     fn each_producer_family_is_independent() {
         let mut state = GameState::default();
-        state.coin_producers.first_owned = 1.0;
-        state.diamond_producers.first_owned = 2.0;
-        state.mythos_producers.first_owned = 3.0;
-        state.particle_producers.first_owned = 4.0;
-        assert_eq!(state.coin_producers.first_owned, 1.0);
-        assert_eq!(state.diamond_producers.first_owned, 2.0);
-        assert_eq!(state.mythos_producers.first_owned, 3.0);
-        assert_eq!(state.particle_producers.first_owned, 4.0);
+        state.coin_producers.tiers[0].owned = 1.0;
+        state.diamond_producers.tiers[0].owned = 2.0;
+        state.mythos_producers.tiers[0].owned = 3.0;
+        state.particle_producers.tiers[0].owned = 4.0;
+        assert_eq!(state.coin_producers.tiers[0].owned, 1.0);
+        assert_eq!(state.diamond_producers.tiers[0].owned, 2.0);
+        assert_eq!(state.mythos_producers.tiers[0].owned, 3.0);
+        assert_eq!(state.particle_producers.tiers[0].owned, 4.0);
     }
 }
