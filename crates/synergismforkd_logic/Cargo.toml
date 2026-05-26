@@ -10,3 +10,5 @@ repository.workspace = true
 [dependencies]
 synergismforkd_bignum = { path = "../synergismforkd_bignum" }
 synergismforkd_common = { path = "../synergismforkd_common" }
+rand = { version = "0.8", default-features = false, features = ["std", "std_rng"] }
+rand_chacha = { version = "0.3", default-features = false, features = ["std"] }
