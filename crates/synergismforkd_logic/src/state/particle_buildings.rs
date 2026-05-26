@@ -12,7 +12,7 @@ use synergismforkd_bignum::Decimal;
 
 /// Slice of `GameState` read/written by the particle-building-purchase
 /// machinery.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, Default, PartialEq)]
 pub struct ParticleBuildingsState {
     /// The spend resource (reincarnation points).
     pub reincarnation_points: Decimal,
@@ -20,22 +20,35 @@ pub struct ParticleBuildingsState {
     pub first_owned_particles: f64,
     /// Tier-1 next cost.
     pub first_cost_particles: Decimal,
+    /// Tier-1 generated count — auto-generated from the tier-2 building's
+    /// per-tick production. Mirrors `player.firstGeneratedParticles`.
+    pub first_generated_particles: Decimal,
     /// Tier-2 owned count.
     pub second_owned_particles: f64,
     /// Tier-2 next cost.
     pub second_cost_particles: Decimal,
+    /// Tier-2 generated count — see `first_generated_particles`.
+    pub second_generated_particles: Decimal,
     /// Tier-3 owned count.
     pub third_owned_particles: f64,
     /// Tier-3 next cost.
     pub third_cost_particles: Decimal,
+    /// Tier-3 generated count — see `first_generated_particles`.
+    pub third_generated_particles: Decimal,
     /// Tier-4 owned count.
     pub fourth_owned_particles: f64,
     /// Tier-4 next cost.
     pub fourth_cost_particles: Decimal,
+    /// Tier-4 generated count — see `first_generated_particles`.
+    pub fourth_generated_particles: Decimal,
     /// Tier-5 owned count.
     pub fifth_owned_particles: f64,
     /// Tier-5 next cost.
     pub fifth_cost_particles: Decimal,
+    /// Tier-5 generated count — see `first_generated_particles`. Note:
+    /// the fifth tier has no "tier 6" producer to feed it, so this field
+    /// never changes in the cascade; tracked here for shape uniformity.
+    pub fifth_generated_particles: Decimal,
 }
 
 impl ParticleBuildingsState {

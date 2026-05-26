@@ -17,3 +17,17 @@ pub struct CrystalUpgradesState {
     /// function takes a 1-based `i` to match the legacy convention.
     pub crystal_upgrades: Vec<f64>,
 }
+
+/// Default crystal-upgrade slot count. Matches the legacy
+/// `crystalUpgrades: [0, 0, 0, 0, 0, 0, 0, 0]` initial state.
+pub const CRYSTAL_UPGRADES_DEFAULT_LEN: usize = 8;
+
+impl Default for CrystalUpgradesState {
+    /// Zero shards, all-zero upgrade levels at the legacy slot count.
+    fn default() -> Self {
+        Self {
+            prestige_shards: Decimal::zero(),
+            crystal_upgrades: vec![0.0; CRYSTAL_UPGRADES_DEFAULT_LEN],
+        }
+    }
+}

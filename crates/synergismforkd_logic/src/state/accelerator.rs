@@ -32,3 +32,18 @@ pub struct AcceleratorState {
     /// Same flag, reincarnation lineage.
     pub reincarnate_no_accelerator: bool,
 }
+
+impl Default for AcceleratorState {
+    /// Zeroed counters; achievement flags start `true` because no
+    /// accelerator has been purchased yet.
+    fn default() -> Self {
+        Self {
+            accelerator_bought: 0.0,
+            accelerator_cost: Decimal::zero(),
+            coins: Decimal::zero(),
+            prestige_no_accelerator: true,
+            transcend_no_accelerator: true,
+            reincarnate_no_accelerator: true,
+        }
+    }
+}

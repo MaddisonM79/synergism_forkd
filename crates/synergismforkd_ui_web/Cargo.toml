@@ -12,3 +12,14 @@ crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 synergismforkd_ui = { path = "../synergismforkd_ui" }
+
+# When this crate is built for wasm32-unknown-unknown, the transitive
+# `getrandom` dep (pulled in by `rand`/`rand_chacha` inside
+# `synergismforkd_logic::state::rng`) needs its `js` feature enabled or
+# the wasm linker errors with "the wasm*-unknown-unknown targets are not
+# supported by default". Enabling the feature here is the standard
+# Cargo-feature-unification fix; the `js` feature lives in the wasm host
+# crate (which already crosses the JS boundary) and stays out of
+# `synergismforkd_logic` per the crate-boundary rules.
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+getrandom = { version = "0.2", features = ["js"] }

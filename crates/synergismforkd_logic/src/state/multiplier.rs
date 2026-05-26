@@ -26,3 +26,18 @@ pub struct MultiplierState {
     /// Same flag, reincarnation lineage.
     pub reincarnate_no_multiplier: bool,
 }
+
+impl Default for MultiplierState {
+    /// Zeroed counters; achievement flags start `true` because no
+    /// multiplier has been purchased yet.
+    fn default() -> Self {
+        Self {
+            multiplier_bought: 0.0,
+            multiplier_cost: Decimal::zero(),
+            coins: Decimal::zero(),
+            prestige_no_multiplier: true,
+            transcend_no_multiplier: true,
+            reincarnate_no_multiplier: true,
+        }
+    }
+}

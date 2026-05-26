@@ -579,14 +579,19 @@ mod tests {
             resource: Decimal::zero(),
             first_owned: 0.0,
             first_cost: get_producer_cost(1, ProducerType::Coin, 1.0, cost_input()),
+            first_generated: Decimal::zero(),
             second_owned: 0.0,
             second_cost: get_producer_cost(2, ProducerType::Coin, 1.0, cost_input()),
+            second_generated: Decimal::zero(),
             third_owned: 0.0,
             third_cost: get_producer_cost(3, ProducerType::Coin, 1.0, cost_input()),
+            third_generated: Decimal::zero(),
             fourth_owned: 0.0,
             fourth_cost: get_producer_cost(4, ProducerType::Coin, 1.0, cost_input()),
+            fourth_generated: Decimal::zero(),
             fifth_owned: 0.0,
             fifth_cost: get_producer_cost(5, ProducerType::Coin, 1.0, cost_input()),
+            fifth_generated: Decimal::zero(),
         }
     }
 

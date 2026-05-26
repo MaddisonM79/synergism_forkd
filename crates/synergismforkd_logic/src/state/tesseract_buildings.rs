@@ -1,27 +1,34 @@
 //! Tesseract (ascension-tier) building state slice.
 //!
 //! Mirrors `TesseractBuildingsState` + `AscendBuildingState` from the
-//! legacy TS `packages/logic/src/state/schema.ts`. All resources here
-//! are plain `f64` — `Decimal` isn't needed because buying caps out
-//! long before `1e308` per the legacy comment.
+//! legacy TS `packages/logic/src/state/schema.ts`. Buy-side resources
+//! are plain `f64` (purchase counts cap below `1e308`); the `generated`
+//! cascade counter is `Decimal` because production can climb beyond
+//! that ceiling in long ascensions.
+
+use synergismforkd_bignum::Decimal;
 
 /// One position of the ascension-tier building family. Subset of the
-/// legacy `player.ascendBuildingN` shape — only the fields the buy
-/// machinery touches; generated/multiplier stay in the UI tier until
-/// those mechanics migrate.
-#[derive(Debug, Clone, Copy, PartialEq)]
+/// legacy `player.ascendBuildingN` shape — the `multiplier` cache stays
+/// in the UI tier until that mechanic migrates.
+#[derive(Debug, Clone, Copy, Default, PartialEq)]
 pub struct AscendBuildingState {
     /// Count owned.
     pub owned: f64,
     /// Cached cost of the next building.
     pub cost: f64,
+    /// Auto-generated count from the next-tier ascend building's per-tick
+    /// production. Mirrors `player.ascendBuildingN.generated`. Tier-5's
+    /// `generated` never changes in the cascade (no tier 6 to feed it),
+    /// but it's tracked uniformly across all five tiers.
+    pub generated: Decimal,
 }
 
 /// Slice of `GameState` read/written by the tesseract-building-purchase
 /// machinery. `wow_tesseracts` is the spend resource (mirrored as an
 /// `f64` via `Number(player.wowTesseracts)` at the boundary — the
 /// `WowTesseracts` wrapper class stays in the UI tier).
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq)]
 pub struct TesseractBuildingsState {
     /// Spend resource — the player's `wowTesseracts` balance.
     pub wow_tesseracts: f64,

@@ -1,6 +1,8 @@
 //! Core event enum — one variant per tick outcome or purchase confirmation.
 //! The UI tier consumes the event stream and orchestrates side effects.
 
+use std::collections::BTreeSet;
+
 use synergismforkd_bignum::Decimal;
 
 /// Which producer family a [`CoreEvent::ProducersPurchased`] event refers to.
@@ -29,6 +31,122 @@ pub enum UpgradeTier {
     Transcend,
     /// Bought with reincarnation points (Particles layer).
     Reincarnation,
+}
+
+/// Achievement-group identifier — passed to `awardAchievementGroup()` in the
+/// legacy UI tier. Closed enum because every emitter names the group at
+/// compile time. Extend with new variants as more groups are wired up.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum AchievementGroup {
+    /// `'constant'` — awarded by [`resourceGain`](crate::mechanics::resource_gain)
+    /// when `ascensionCount > 0`.
+    Constant,
+}
+
+/// Which reset tier auto-fired this tick. Payload of
+/// [`CoreEvent::AutoResetTriggered`]. Mirrors the legacy
+/// `'prestige' | 'transcension' | 'reincarnation' | 'ascension'` union.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AutoResetTier {
+    /// Prestige auto-reset.
+    Prestige,
+    /// Transcension auto-reset.
+    Transcension,
+    /// Reincarnation auto-reset.
+    Reincarnation,
+    /// Ascension auto-reset.
+    Ascension,
+}
+
+/// Whether the auto-reset gate that fired was point-amount based or
+/// wall-clock based. Payload of [`CoreEvent::AutoResetTriggered`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AutoResetMode {
+    /// Resource-amount threshold ("autoPrestigeAmount" etc.).
+    Amount,
+    /// Wall-clock threshold ("autoPrestigeTime" etc.).
+    Time,
+}
+
+/// Which `automaticTools()` branch fired. Payload of
+/// [`CoreEvent::AutoToolFired`]. Mirrors the legacy
+/// `'runeSacrifice' | 'antSacrifice' | 'addObtainium' | 'addOfferings'`
+/// union.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AutoTool {
+    /// Auto-rune-sacrifice fired this tick.
+    RuneSacrifice,
+    /// Auto-ant-sacrifice fired this tick.
+    AntSacrifice,
+    /// `addObtainium` branch fired this tick.
+    AddObtainium,
+    /// `addOfferings` branch fired this tick.
+    AddOfferings,
+}
+
+/// Which legacy `revealStuff()` trigger fired. Payload of
+/// [`CoreEvent::RevealNeeded`]. The TS names are the four coin-tier
+/// reveal checks in `resourceGain`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RevealTrigger {
+    /// `'coinone'` — first coin-tier reveal check.
+    CoinOne,
+    /// `'cointwo'` — second coin-tier reveal check.
+    CoinTwo,
+    /// `'cointhree'` — third coin-tier reveal check.
+    CoinThree,
+    /// `'coinfour'` — fourth coin-tier reveal check.
+    CoinFour,
+}
+
+/// Which side of the auto-potion dispenser fired. Payload of
+/// [`CoreEvent::AutoPotionFired`]. The UI dispatcher maps to
+/// `useConsumable('offeringPotion' | 'obtainiumPotion', …)`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AutoPotionType {
+    /// Offering potion.
+    Offering,
+    /// Obtainium potion.
+    Obtainium,
+}
+
+/// State of the auto-challenge sweep machine. Mirrors the legacy
+/// `SweepStates` discriminated union in
+/// `legacy_core_split/packages/logic/src/tick/challengeSweep.ts`.
+///
+/// The `Active` and `EnterWait` variants carry an `explored` set so a
+/// single sweep cycle doesn't repeat challenges. `BTreeSet<u8>` matches
+/// the TS `Set<number>` with the small fixed range of challenge indices
+/// (1..=10).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum SweepState {
+    /// Sweep is off — autoChallenge toggle is disabled.
+    Idle,
+    /// Initial 5-second pause before the first sweep starts.
+    InitialWait,
+    /// About to enter `to_index`. `explored` tracks which challenges
+    /// have already been visited this cycle.
+    EnterWait {
+        /// 1-based challenge index the sweep is about to enter.
+        to_index: u8,
+        /// Set of challenge indices already visited this cycle.
+        explored: BTreeSet<u8>,
+    },
+    /// Currently running challenge `index`. `explored` tracks which
+    /// challenges have already been visited this cycle.
+    Active {
+        /// 1-based challenge index currently active.
+        index: u8,
+        /// Set of challenge indices already visited this cycle.
+        explored: BTreeSet<u8>,
+    },
+    /// 5-second pause when the player can auto-gain challenge-15
+    /// exponent (autoAscend + cubeUpgrade 10 + realAscensionTime mode).
+    C15Wait,
+    /// Every regular challenge (1-10) is maxed; sweep parks until a
+    /// max-completions cap changes.
+    Finished,
 }
 
 /// Events emitted by mechanic functions. The closed set lets the UI dispatch
@@ -118,4 +236,247 @@ pub enum CoreEvent {
         /// `wow_tesseracts` removed from the player's balance.
         spent: f64,
     },
+    /// An achievement group should be checked/awarded. The UI tier maps
+    /// the group identifier to its `awardAchievementGroup()` call.
+    AchievementGroupAwarded {
+        /// Which group to evaluate.
+        group: AchievementGroup,
+    },
+    /// One of challenges 1..=5 was auto-completed this tick. Fires when
+    /// the research-71..75 gates are met and the coin threshold is crossed.
+    ChallengeAutoCompleted {
+        /// 1-based challenge index, `1..=5`.
+        challenge_index: u8,
+        /// New completion count after the increment.
+        new_completions: f64,
+    },
+    /// Per-tick resource gain delta. Emitted by the tick orchestrator once
+    /// the resource-cascade pass completes. All fields are *deltas* applied
+    /// this tick (zero when the gate didn't fire).
+    ///
+    /// The tick orchestrator emitter isn't ported yet — variant declared
+    /// for the closed-set match contract.
+    ResourcesGained {
+        /// Per-tick coin gain (after `taxdivisor` + `maxexponent` clamp).
+        /// Zero if `produceTotal < 0.001`.
+        coins: Decimal,
+        /// Per-tick prestige-point gain from upgrade-93 (zero otherwise).
+        prestige_points: Decimal,
+        /// Per-tick transcend-point gain from upgrade-100 (zero otherwise).
+        transcend_points: Decimal,
+        /// Per-tick reincarnation-point gain from `cubeUpgrade-28` (zero otherwise).
+        reincarnation_points: Decimal,
+        /// Per-tick `prestigeShards` gain (zero in t-chal 3 / r-chal 10).
+        prestige_shards: Decimal,
+        /// Per-tick `transcendShards` gain (zero in t-chal 3 / r-chal 10).
+        transcend_shards: Decimal,
+        /// Per-tick `reincarnationShards` gain.
+        reincarnation_shards: Decimal,
+        /// Per-tick `ascendShards` gain from the first ascension building.
+        ascend_shards: Decimal,
+    },
+    /// One of the four reset tiers auto-fired this tick.
+    ///
+    /// Emitted by the auto-reset state machine (tick-side, not yet
+    /// ported).
+    AutoResetTriggered {
+        /// Which reset tier auto-fired this tick.
+        tier: AutoResetTier,
+        /// Whether the threshold check was point-amount based or wall-clock based.
+        mode: AutoResetMode,
+    },
+    /// One of the four `automaticTools()` branches fired this tick.
+    ///
+    /// Emitted by the auto-tool state machine (tick-side, not yet
+    /// ported).
+    AutoToolFired {
+        /// Which auto-tool branch fired this tick.
+        tool: AutoTool,
+    },
+    /// The auto-challenge sweep machine transitioned from one state to
+    /// another. The UI dispatcher routes resetCheck by `from.index` when
+    /// `from` is `Active`, and `toggleChallenges(to.index, true)` when
+    /// `to` is `Active`.
+    ///
+    /// Emitted by the auto-challenge sweep machine (tick-side, not yet
+    /// ported).
+    ChallengeSweepTransitioned {
+        /// Full sweep state transitioned out of.
+        from: SweepState,
+        /// Full sweep state transitioned into.
+        to: SweepState,
+    },
+    /// A legacy `revealStuff()` trigger fired — coin-tier visibility
+    /// gate the UI should re-evaluate.
+    ///
+    /// Emitted by the resource-gain branch when a tier-visibility
+    /// threshold is crossed (tick-side, not yet ported).
+    RevealNeeded {
+        /// Which trigger fired.
+        trigger: RevealTrigger,
+    },
+    /// Total ambrosia gained this tick (sum across all loop iterations).
+    ///
+    /// Emitted by the ambrosia tick branch (not yet ported).
+    AmbrosiaGained {
+        /// Amount of ambrosia gained this tick.
+        amount: f64,
+    },
+    /// Total red ambrosia gained this tick (sum across all loop
+    /// iterations).
+    ///
+    /// Emitted by the red-ambrosia tick branch (not yet ported).
+    RedAmbrosiaGained {
+        /// Amount of red ambrosia gained this tick.
+        amount: f64,
+    },
+    /// One or more integer 1-second giveaway buckets crossed this tick
+    /// for the octeract subsystem. Always `≥ 1` when emitted.
+    ///
+    /// Emitted by the octeract tick branch (not yet ported).
+    OcteractTickFired {
+        /// Number of 1-second giveaway buckets that crossed this tick.
+        amount_of_giveaways: u32,
+    },
+    /// The auto-potion dispenser fired. The UI dispatcher maps to
+    /// `useConsumable('offeringPotion' | 'obtainiumPotion', …)`.
+    ///
+    /// Emitted by the auto-potion tick branch (not yet ported).
+    AutoPotionFired {
+        /// Which side of the dispenser fired this tick.
+        potion_type: AutoPotionType,
+        /// Number of potions to dispense this tick. Always `≥ 1`.
+        amount: u32,
+        /// Whether fast mode was active for this dispense (skips
+        /// `shopUpgrades` count decrement when `false`).
+        fast_mode: bool,
+    },
+    /// The auto-ant-sacrifice gate's conditions were met this tick.
+    /// Pure intent signal — the UI dispatcher invokes `sacrificeAnts()`
+    /// which re-reads the latest player state itself.
+    ///
+    /// Emitted by `checkAntSacrificeReady` (tick-side, not yet ported).
+    AntSacrificeTriggered,
+    /// The auto-rune-sacrifice timer crossed `autoSacrificeInterval`
+    /// and offerings > 0. Pure intent signal — the UI dispatcher runs
+    /// the blessing/spirit/talisman/per-rune-or-all purchase fan-out.
+    ///
+    /// Emitted by `advanceRuneSacrifice` (tick-side, not yet ported).
+    RuneSacrificeTriggered,
+    /// The autoResearch toggle is on and the mode is `manual`. The UI
+    /// dispatcher calls `buyResearch(autoResearch, true, false)` +
+    /// `updateResearchAuto`.
+    ///
+    /// Emitted by `processAutoResearchTick` (tick-side, not yet
+    /// ported).
+    AutoResearchManualRequested,
+    /// The autoResearch toggle is on, the Roomba gates pass, and the
+    /// mode is `cheapest`. The UI dispatcher runs the bounded
+    /// while-loop in `runRoombaResearchSweep(max_count)`.
+    ///
+    /// Emitted by `processAutoResearchTick` (tick-side, not yet
+    /// ported).
+    AutoResearchRoombaRequested {
+        /// Max iterations for the Roomba sweep this tick — `1 +
+        /// floor(CalcECC('ascension', challengecompletions[14]))`.
+        max_count: u32,
+    },
+    /// `tackMiddle`'s obtainium branch fires this when `research61 !=
+    /// 1`, mirroring the vestigial `else { calculateObtainium() }` arm
+    /// of the legacy code. The UI dispatcher invokes
+    /// `calculateObtainium()` to preserve existing behavior; the return
+    /// value is discarded.
+    ///
+    /// Emitted by `tackMiddle` (tick-side, not yet ported).
+    ObtainiumMultiplierRecomputeRequested,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn unit_event_variants_construct() {
+        // Compile-time assertion that the no-payload variants are usable
+        // without struct-init syntax.
+        let _ = CoreEvent::AntSacrificeTriggered;
+        let _ = CoreEvent::RuneSacrificeTriggered;
+        let _ = CoreEvent::AutoResearchManualRequested;
+        let _ = CoreEvent::ObtainiumMultiplierRecomputeRequested;
+    }
+
+    #[test]
+    fn payload_event_variants_construct_and_equate() {
+        let a = CoreEvent::AmbrosiaGained { amount: 1.5 };
+        let b = CoreEvent::AmbrosiaGained { amount: 1.5 };
+        assert_eq!(a, b);
+        assert_ne!(
+            CoreEvent::AmbrosiaGained { amount: 1.5 },
+            CoreEvent::RedAmbrosiaGained { amount: 1.5 }
+        );
+    }
+
+    #[test]
+    fn sweep_state_variants_construct() {
+        let _ = SweepState::Idle;
+        let _ = SweepState::InitialWait;
+        let _ = SweepState::Active {
+            index: 3,
+            explored: BTreeSet::from([1u8, 2]),
+        };
+        let _ = SweepState::EnterWait {
+            to_index: 5,
+            explored: BTreeSet::new(),
+        };
+        let _ = SweepState::C15Wait;
+        let _ = SweepState::Finished;
+    }
+
+    #[test]
+    fn sweep_state_equality_compares_explored_set() {
+        let a = SweepState::Active {
+            index: 1,
+            explored: BTreeSet::from([1u8, 2]),
+        };
+        let b = SweepState::Active {
+            index: 1,
+            explored: BTreeSet::from([2u8, 1]),
+        };
+        assert_eq!(a, b); // BTreeSet is order-independent
+        let c = SweepState::Active {
+            index: 1,
+            explored: BTreeSet::from([1u8]),
+        };
+        assert_ne!(a, c);
+    }
+
+    #[test]
+    fn challenge_sweep_transitioned_carries_both_states() {
+        let event = CoreEvent::ChallengeSweepTransitioned {
+            from: SweepState::Idle,
+            to: SweepState::InitialWait,
+        };
+        match event {
+            CoreEvent::ChallengeSweepTransitioned { from, to } => {
+                assert_eq!(from, SweepState::Idle);
+                assert_eq!(to, SweepState::InitialWait);
+            }
+            _ => panic!("variant mismatch"),
+        }
+    }
+
+    #[test]
+    fn auto_reset_triggered_combines_tier_and_mode() {
+        let event = CoreEvent::AutoResetTriggered {
+            tier: AutoResetTier::Reincarnation,
+            mode: AutoResetMode::Time,
+        };
+        match event {
+            CoreEvent::AutoResetTriggered { tier, mode } => {
+                assert_eq!(tier, AutoResetTier::Reincarnation);
+                assert_eq!(mode, AutoResetMode::Time);
+            }
+            _ => panic!("variant mismatch"),
+        }
+    }
 }
