@@ -8,4 +8,4 @@ license.workspace = true
 repository.workspace = true
 
 [dependencies]
-break-eternity-rs = "0.1.0"
+break-eternity-rs = "0.3.0"
