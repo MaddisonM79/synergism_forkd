@@ -38,7 +38,10 @@ pub struct AntProducerData {
 /// [`Decimal::from_mantissa_exponent`].
 #[must_use]
 pub fn ant_producer_data(index: u8) -> AntProducerData {
-    debug_assert!(matches!(index, 0..=8), "ant producer index out of range: {index}");
+    debug_assert!(
+        matches!(index, 0..=8),
+        "ant producer index out of range: {index}"
+    );
     match index {
         // Workers (0) — top of chain
         0 => AntProducerData {
