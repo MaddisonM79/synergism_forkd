@@ -12,6 +12,11 @@ use crate::state::{AcceleratorState, BuyAmount};
 
 const BUYMAX: f64 = 1e15;
 
+// Same f64 safe-integer-window guard as
+// [`crate::mechanics::multipliers`] — the +1/-1 arithmetic in the
+// binary-search recursion requires BUYMAX < 2^53.
+const _: () = assert!(BUYMAX < (1_u64 << 53) as f64);
+
 /// Input to [`get_cost_accelerator`]. Mirrors `GetCostAcceleratorInput` in
 /// the TS source — the `player.*` / `G.*` reads from the legacy `web_ui`
 /// hoisted into an explicit parameter for portability.

@@ -14,6 +14,14 @@ use crate::state::{BuyAmount, MultiplierState};
 
 const BUYMAX: f64 = 1e15;
 
+// The recursion guard inside `get_cost_multiplier` relies on `BUYMAX + 1.0`
+// being exact in f64. That holds only while BUYMAX stays under the f64
+// safe-integer window (`2^53 ≈ 9.007e15`). Per Ledger Finding 5, if
+// BUYMAX is ever bumped past this threshold the +1 arithmetic silently
+// collapses and the binary search loses 1-step resolution. Fail to
+// compile rather than silently regress.
+const _: () = assert!(BUYMAX < (1_u64 << 53) as f64);
+
 /// Input to [`get_cost_multiplier`]. Mirrors `GetCostMultiplierInput` in the
 /// TS source — the `player.*` / `G.*` reads hoisted into an explicit
 /// parameter.

@@ -17,6 +17,11 @@ use crate::state::ProducerFamilyState;
 /// "diminishing-returns" tail (mirror of `getCostAccelerator`'s BUYMAX).
 const BUYMAX: f64 = 1e15;
 
+// Same f64 safe-integer-window guard as
+// [`crate::mechanics::multipliers`] — the +1/-1 arithmetic in the
+// binary-search recursion requires BUYMAX < 2^53.
+const _: () = assert!(BUYMAX < (1_u64 << 53) as f64);
+
 /// Coin/exponent ceiling guard. Mirrors the original `buyMax`'s
 /// `coinmax = 1e99` degenerate-case check — once the next cost's exponent
 /// crosses this we bail rather than continue doubling `buy_inc` into
