@@ -5,13 +5,15 @@
 //! exists per family (Coin / Diamonds / Mythos / Particles) in the composed
 //! `GameState` — the shape is family-agnostic.
 
+use serde::{Deserialize, Serialize};
+
 use synergismforkd_bignum::Decimal;
 
 /// Slice of `GameState` read/written by the producer-purchase machinery.
 /// Five positions (first..fifth) each have an owned count plus a current
 /// cost; the shared resource is the family's spend currency
 /// (coins / `prestigePoints` / `transcendPoints` / `reincarnationPoints`).
-#[derive(Debug, Clone, Default, PartialEq)]
+#[derive(Serialize, Deserialize, Debug, Clone, Default, PartialEq)]
 pub struct ProducerFamilyState {
     /// Resource the family buys with.
     pub resource: Decimal,
@@ -59,7 +61,7 @@ pub struct ProducerFamilyState {
 /// `x1 / x10 / x100 / ...` selector. The discriminants are the actual
 /// cap values — call [`BuyAmount::as_f64`] to get the cap as a float for
 /// the buy loops.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u32)]
 pub enum BuyAmount {
     /// One purchase per click.

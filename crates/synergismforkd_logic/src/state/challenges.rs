@@ -9,7 +9,9 @@
 /// Slice of `GameState` for challenge completion + current-challenge
 /// tracking. Indices `1..=15` are used; index `0` is unused and held
 /// at `0` to match the legacy shape.
-#[derive(Debug, Clone, PartialEq)]
+use serde::{Deserialize, Serialize};
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct ChallengesState {
     /// Current completion count per challenge (resets with the
     /// relevant prestige tier).

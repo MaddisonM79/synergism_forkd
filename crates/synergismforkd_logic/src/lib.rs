@@ -1,3 +1,5 @@
+#![cfg_attr(not(test), deny(clippy::unwrap_used))]
+
 //! Synergism Forkd — headless game logic.
 //!
 //! Public surface organized by tier:
@@ -20,6 +22,8 @@
 //! functions follow the `(state, input) -> (state, events)` shape so side
 //! effects are routed through the UI tier.
 
+use synergismforkd_common as _;
+
 pub mod events;
 pub mod math;
 pub mod mechanics;
@@ -36,6 +40,10 @@ pub use events::{
     AchievementGroup, AutoPotionType, AutoResetMode, AutoResetTier, AutoTool, CoreEvent,
     ProducerType, RevealTrigger, SweepState, UpgradeTier,
 };
+
+// ─── Tick orchestrator ───────────────────────────────────────────────────
+
+pub use tick::{tack, BuyRequest, PlayerAction, TackInput, TickOutput};
 
 // ─── Per-tick aggregator entry points ────────────────────────────────────
 

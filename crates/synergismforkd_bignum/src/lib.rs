@@ -22,6 +22,15 @@ pub use break_eternity::{
     NUMBER_EXP_MAX, NUMBER_EXP_MIN, OMEGA, TWO_PI,
 };
 
+// The whole arithmetic style across the workspace assumes `Decimal: Copy`
+// (pass by value, no `&` or `.clone()`). Codify the assumption — if a
+// future `break-eternity-rs` removes `Copy`, this fails at compile time
+// instead of silently turning every call site into a clone.
+const _: () = {
+    const fn assert_copy<T: Copy>() {}
+    assert_copy::<Decimal>();
+};
+
 #[cfg(test)]
 mod tests {
     use super::*;

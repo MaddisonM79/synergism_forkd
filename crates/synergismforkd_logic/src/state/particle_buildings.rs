@@ -8,11 +8,13 @@
 //! own cost curve (`base * 2^buyingTo` + a quadratic-in-exponent tail) and
 //! no per-position "didn't buy" achievement gates.
 
+use serde::{Deserialize, Serialize};
+
 use synergismforkd_bignum::Decimal;
 
 /// Slice of `GameState` read/written by the particle-building-purchase
 /// machinery.
-#[derive(Debug, Clone, Default, PartialEq)]
+#[derive(Serialize, Deserialize, Debug, Clone, Default, PartialEq)]
 pub struct ParticleBuildingsState {
     /// The spend resource (reincarnation points).
     pub reincarnation_points: Decimal,

@@ -9,6 +9,8 @@
 //! [`crate::mechanics::rune_spirit_effects`], and
 //! [`crate::mechanics::rune_level_bonuses`].
 
+use serde::{Deserialize, Serialize};
+
 use synergismforkd_bignum::Decimal;
 
 /// Number of rune slots. Legacy synergism has 7: speed,
@@ -18,7 +20,7 @@ pub const RUNE_COUNT: usize = 7;
 
 /// Slice of `GameState` for rune levels + XP + blessings + spirits
 /// + the rune-shards spend resource.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct RunesState {
     /// Per-rune level. Indexed `0..=6` to match the legacy rune
     /// enum order.

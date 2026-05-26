@@ -8,4 +8,7 @@ license.workspace = true
 repository.workspace = true
 
 [dependencies]
-break-eternity-rs = "0.3.0"
+break-eternity-rs = { version = "0.3.0", features = ["serde"] }
+
+[lints]
+workspace = true

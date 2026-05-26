@@ -11,7 +11,9 @@
 
 /// One octeract upgrade's per-player state. Mirrors
 /// `player.octeractUpgrades.<name>`.
-#[derive(Debug, Clone, Copy, PartialEq, Default)]
+use serde::{Deserialize, Serialize};
+
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Default)]
 pub struct OcteractUpgrade {
     /// Purchased level.
     pub level: f64,
@@ -23,7 +25,7 @@ pub struct OcteractUpgrade {
 }
 
 /// Slice of `GameState` for the octeract upgrades + octeract timer.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct OcteractUpgradesState {
     /// `player.octeractTimer` — accumulator that drives octeract
     /// generation.

@@ -6,7 +6,9 @@
 
 /// Shop buy-max toggle. Mirrors `player.shopBuyMaxToggle` in the
 /// legacy schema.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+use serde::{Deserialize, Serialize};
+
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum ShopBuyMaxMode {
     /// Buy exactly one per click.
     #[default]
@@ -16,7 +18,7 @@ pub enum ShopBuyMaxMode {
 }
 
 /// Slice of `GameState` for the shop feature.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct ShopState {
     /// Per-upgrade purchased level. UI maintains the name ↔ index
     /// mapping. Legacy has 83 named upgrades.

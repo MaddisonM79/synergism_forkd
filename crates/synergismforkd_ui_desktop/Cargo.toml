@@ -21,3 +21,6 @@ synergismforkd_ui = { path = "../synergismforkd_ui" }
 #   tauri = { version = "2", features = ["..."] }
 #   tauri-build = { version = "2" }
 # plus build.rs, tauri.conf.json, and icons.
+
+[lints]
+workspace = true

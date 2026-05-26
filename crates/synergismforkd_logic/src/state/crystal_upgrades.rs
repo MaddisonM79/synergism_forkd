@@ -6,10 +6,12 @@
 //! crystal-upgrade index (0-based). Callers pass 1-based `i` as input —
 //! the mechanic function does the `-1` internally.
 
+use serde::{Deserialize, Serialize};
+
 use synergismforkd_bignum::Decimal;
 
 /// Slice of `GameState` read/written by `buy_crystal_upgrades`.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct CrystalUpgradesState {
     /// Spend resource — `player.prestigeShards` in the legacy schema.
     pub prestige_shards: Decimal,

@@ -4,4 +4,6 @@
 //! `synergismforkd_ui` Dioxus root component into the page. Also built
 //! as `rlib` so the desktop crate can depend on it.
 
+use synergismforkd_ui as _;
+
 pub fn placeholder() {}

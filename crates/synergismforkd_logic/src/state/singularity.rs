@@ -10,7 +10,9 @@
 
 /// Per-challenge tracker for one singularity (Exalt) challenge.
 /// Mirrors `player.singularityChallenges.X` shape.
-#[derive(Debug, Clone, Copy, PartialEq, Default)]
+use serde::{Deserialize, Serialize};
+
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Default)]
 pub struct SingularityChallengeState {
     /// Whether the player is currently inside this challenge.
     pub enabled: bool,
@@ -22,7 +24,7 @@ pub struct SingularityChallengeState {
 }
 
 /// Slice of `GameState` for the singularity feature.
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq)]
 pub struct SingularityState {
     /// Current singularity count (resets each ascension-reset).
     pub singularity_count: f64,

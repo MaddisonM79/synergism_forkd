@@ -12,6 +12,8 @@
 //! maxLevel, canExceedCap, qualityOfLife, specialCostForm) so the
 //! cost / effect dispatchers don't need to look it up elsewhere.
 
+use serde::{Deserialize, Serialize};
+
 use synergismforkd_bignum::Decimal;
 
 /// Special-cost-form selector for one GQ upgrade — pinned here
@@ -19,7 +21,7 @@ use synergismforkd_bignum::Decimal;
 /// in [`crate::mechanics::gq_upgrade_cost::GQUpgradeSpecialCostForm`].
 /// Stored as a `u8` for `Copy` + small footprint:
 /// `0 = Exponential2, 1 = Cubic, 2 = Quadratic, 3 = None`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum StoredSpecialCostForm {
     /// `Exponential2` form — soft sqrt(overcap) × `2^level`.
     Exponential2,
@@ -34,7 +36,7 @@ pub enum StoredSpecialCostForm {
 
 /// One GQ upgrade's per-player state. Mirrors the legacy
 /// `player.singularityUpgrades.<name>` shape.
-#[derive(Debug, Clone, Copy, PartialEq, Default)]
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Default)]
 pub struct GoldenQuarkUpgrade {
     /// Purchased level.
     pub level: f64,
@@ -55,7 +57,7 @@ pub struct GoldenQuarkUpgrade {
 }
 
 /// Slice of `GameState` for the golden-quark feature.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct GoldenQuarksState {
     /// `player.goldenQuarks` — the currency balance.
     pub golden_quarks: Decimal,

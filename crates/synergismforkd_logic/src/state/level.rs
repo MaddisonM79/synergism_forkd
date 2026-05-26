@@ -4,10 +4,12 @@
 //! Backs [`crate::mechanics::level_milestones`] and
 //! [`crate::mechanics::level_rewards`].
 
+use serde::{Deserialize, Serialize};
+
 use synergismforkd_bignum::Decimal;
 
 /// Slice of `GameState` for the level system.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct LevelState {
     /// `player.level` — current level within the active tier.
     pub level: f64,

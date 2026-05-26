@@ -10,6 +10,8 @@
 //! here are plain `f64` — `Decimal` isn't needed (buying caps out
 //! long before `1e308`).
 
+use smallvec::SmallVec;
+
 use crate::events::CoreEvent;
 use crate::state::TesseractBuildingsState;
 
@@ -228,13 +230,13 @@ pub struct BuyTesseractBuildingInput {
 /// event when the count changes.
 #[must_use]
 pub fn buy_tesseract_building(
-    state: &TesseractBuildingsState,
+    state: &mut TesseractBuildingsState,
     input: BuyTesseractBuildingInput,
-) -> (TesseractBuildingsState, Vec<CoreEvent>) {
-    let mut events: Vec<CoreEvent> = Vec::new();
-    let mut next = *state;
+) -> SmallVec<[CoreEvent; 4]> {
+    let mut events: SmallVec<[CoreEvent; 4]> = SmallVec::new();
+    let starting_tesseracts = state.wow_tesseracts;
     let int_cost = TESSERACT_BUILDING_COSTS[usize::from(input.index - 1)];
-    let buy_start = next.building(input.index).owned;
+    let buy_start = state.building(input.index).owned;
     let (buy_to, actual_cost) = get_tesseract_cost(
         input.index,
         GetTesseractCostInput {
@@ -242,25 +244,25 @@ pub fn buy_tesseract_building(
             check_can_afford: true,
             buy_from: None,
         },
-        &next,
+        state,
     );
 
-    let mut target = next.building(input.index);
+    let mut target = state.building(input.index);
     target.owned = buy_to;
     target.cost = int_cost * (1.0 + buy_to).powi(3);
-    next.set_building(input.index, target);
-    next.wow_tesseracts = (next.wow_tesseracts - actual_cost).max(0.0);
+    state.set_building(input.index, target);
+    state.wow_tesseracts = (state.wow_tesseracts - actual_cost).max(0.0);
 
     if buy_to > buy_start {
         events.push(CoreEvent::TesseractBuildingsPurchased {
             index: input.index,
             before: buy_start,
             after: buy_to,
-            spent: state.wow_tesseracts - next.wow_tesseracts,
+            spent: starting_tesseracts - state.wow_tesseracts,
         });
     }
 
-    (next, events)
+    events
 }
 
 #[cfg(test)]
@@ -356,33 +358,34 @@ mod tests {
 
     #[test]
     fn buy_is_noop_with_zero_tesseracts() {
-        let state = empty_state();
-        let (next, events) = buy_tesseract_building(
-            &state,
+        let mut state = empty_state();
+        let events = buy_tesseract_building(
+            &mut state,
             BuyTesseractBuildingInput {
                 index: 1,
                 amount: 10.0,
             },
         );
-        assert_eq!(next.ascend_building_1.owned, 0.0);
+        assert_eq!(state.ascend_building_1.owned, 0.0);
         assert!(events.is_empty());
     }
 
     #[test]
     fn buy_purchases_when_affordable() {
-        let state = TesseractBuildingsState {
+        let mut state = TesseractBuildingsState {
             wow_tesseracts: 100.0,
             ..empty_state()
         };
-        let (next, events) = buy_tesseract_building(
-            &state,
+        let baseline_tesseracts = state.wow_tesseracts;
+        let events = buy_tesseract_building(
+            &mut state,
             BuyTesseractBuildingInput {
                 index: 1,
                 amount: 100.0,
             },
         );
-        assert!(next.ascend_building_1.owned > 0.0);
-        assert!(next.wow_tesseracts < state.wow_tesseracts);
+        assert!(state.ascend_building_1.owned > 0.0);
+        assert!(state.wow_tesseracts < baseline_tesseracts);
         assert_eq!(events.len(), 1);
         match &events[0] {
             CoreEvent::TesseractBuildingsPurchased {
@@ -393,7 +396,7 @@ mod tests {
             } => {
                 assert_eq!(*index, 1);
                 assert_eq!(*before, 0.0);
-                assert_eq!(*after, next.ascend_building_1.owned);
+                assert_eq!(*after, state.ascend_building_1.owned);
             }
             other => panic!("expected TesseractBuildingsPurchased, got {other:?}"),
         }
@@ -401,38 +404,38 @@ mod tests {
 
     #[test]
     fn buy_targets_only_the_requested_index() {
-        let state = TesseractBuildingsState {
+        let mut state = TesseractBuildingsState {
             wow_tesseracts: 100_000.0,
             ..empty_state()
         };
-        let (next, _) = buy_tesseract_building(
-            &state,
+        let _ = buy_tesseract_building(
+            &mut state,
             BuyTesseractBuildingInput {
                 index: 3,
                 amount: 100.0,
             },
         );
-        assert!(next.ascend_building_3.owned > 0.0);
-        assert_eq!(next.ascend_building_1.owned, 0.0);
-        assert_eq!(next.ascend_building_2.owned, 0.0);
-        assert_eq!(next.ascend_building_4.owned, 0.0);
-        assert_eq!(next.ascend_building_5.owned, 0.0);
+        assert!(state.ascend_building_3.owned > 0.0);
+        assert_eq!(state.ascend_building_1.owned, 0.0);
+        assert_eq!(state.ascend_building_2.owned, 0.0);
+        assert_eq!(state.ascend_building_4.owned, 0.0);
+        assert_eq!(state.ascend_building_5.owned, 0.0);
     }
 
     #[test]
     fn buy_amount_caps_purchase() {
-        let state = TesseractBuildingsState {
+        let mut state = TesseractBuildingsState {
             wow_tesseracts: 1e20, // enormous budget
             ..empty_state()
         };
-        let (next, _) = buy_tesseract_building(
-            &state,
+        let _ = buy_tesseract_building(
+            &mut state,
             BuyTesseractBuildingInput {
                 index: 1,
                 amount: 5.0,
             },
         );
         // Capped at amount = 5 even with huge budget.
-        assert_eq!(next.ascend_building_1.owned, 5.0);
+        assert_eq!(state.ascend_building_1.owned, 5.0);
     }
 }

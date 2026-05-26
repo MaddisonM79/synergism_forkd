@@ -8,10 +8,12 @@
 //! see the per-tier flip matrix in
 //! [`crate::mechanics::upgrades::buy_upgrades`].
 
+use serde::{Deserialize, Serialize};
+
 use synergismforkd_bignum::Decimal;
 
 /// Slice of `GameState` read/written by `buy_upgrades`.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct UpgradesState {
     /// `player.coins`.
     pub coins: Decimal,

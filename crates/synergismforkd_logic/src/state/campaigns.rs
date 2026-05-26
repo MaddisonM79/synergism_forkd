@@ -4,10 +4,12 @@
 //! the legacy schema. Backs [`crate::mechanics::campaign_token_rewards`]
 //! and the constant-upgrade reads scattered across the tick layer.
 
+use serde::{Deserialize, Serialize};
+
 use synergismforkd_bignum::Decimal;
 
 /// Slice of `GameState` for campaigns + constant upgrades.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct CampaignsState {
     /// Per-campaign completion count. UI maintains the name ↔
     /// index mapping. Legacy has ~10 campaigns.

@@ -4,6 +4,8 @@
 //! `player.obtainium` fields. Backs [`crate::mechanics::researches`]
 //! and is read by many of the per-tick aggregators.
 
+use serde::{Deserialize, Serialize};
+
 use synergismforkd_bignum::Decimal;
 
 /// Slice of `GameState` read/written by research mechanics.
@@ -12,7 +14,7 @@ use synergismforkd_bignum::Decimal;
 /// this slice preserves that — callers pass `1..=N` and the vec
 /// holds the value at the matching position. Length is taken at
 /// runtime from the data table.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct ResearchesState {
     /// Per-research level. 1-indexed (index 0 is unused and held
     /// at `0` to preserve the legacy shape).

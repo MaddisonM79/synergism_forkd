@@ -7,7 +7,9 @@
 //! `cubeUpgradeN`/`platonicUpgradeN` scalar input.
 
 /// Slice of `GameState` holding cube + platonic upgrade levels.
-#[derive(Debug, Clone, PartialEq)]
+use serde::{Deserialize, Serialize};
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct CubeUpgradeLevelsState {
     /// `player.cubeUpgrades` — per-cube-upgrade level. 1-indexed
     /// (index 0 unused) to match the legacy shape.

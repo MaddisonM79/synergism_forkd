@@ -4,10 +4,12 @@
 //! ascension counters, and the unlock-gate booleans. Backs the
 //! ascension-related formulas and is read across the tick layer.
 
+use serde::{Deserialize, Serialize};
+
 use synergismforkd_bignum::Decimal;
 
 /// Slice of `GameState` for reset counters + ascension timers.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct ResetCountersState {
     /// `player.prestigeCount`.
     pub prestige_count: f64,

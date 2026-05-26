@@ -5,6 +5,7 @@
 //! mirrors [`crate::mechanics::accelerators`] — same two-path buy loop and
 //! flag-flip rules, different cost-curve constants.
 
+use smallvec::SmallVec;
 use synergismforkd_bignum::Decimal;
 
 use crate::events::CoreEvent;
@@ -112,19 +113,18 @@ impl BuyMultiplierInput {
 /// algorithm — this is a parallel implementation with different field names.
 #[must_use]
 pub fn buy_multiplier(
-    state: &MultiplierState,
+    state: &mut MultiplierState,
     input: BuyMultiplierInput,
-) -> (MultiplierState, Vec<CoreEvent>) {
+) -> SmallVec<[CoreEvent; 4]> {
     let cost_input = input.cost_input();
-    let mut events: Vec<CoreEvent> = Vec::new();
-    let mut next = state.clone();
+    let mut events: SmallVec<[CoreEvent; 4]> = SmallVec::new();
     let starting_coins = state.coins;
-    let buy_start = next.multiplier_bought;
+    let buy_start = state.multiplier_bought;
 
     // High-end binary search path.
     if buy_start >= BUYMAX {
         let diminishing_exponent = 1.0_f64 / 8.0;
-        let log10_resource = next.coins.log10().to_number();
+        let log10_resource = state.coins.log10().to_number();
         let log10_quadrillion_cost = get_cost_multiplier(BUYMAX, cost_input).log10().to_number();
 
         let mut hi = (BUYMAX
@@ -136,28 +136,28 @@ pub fn buy_multiplier(
             if mid == lo || mid == hi {
                 break;
             }
-            if next.coins < get_cost_multiplier(mid, cost_input) {
+            if state.coins < get_cost_multiplier(mid, cost_input) {
                 hi = mid;
             } else {
                 lo = mid;
             }
         }
         let buyable = lo;
-        next.multiplier_bought = buyable;
-        next.multiplier_cost = get_cost_multiplier(buyable, cost_input);
-        if next.multiplier_bought > 0.0 {
-            next.prestige_no_multiplier = false;
-            next.transcend_no_multiplier = false;
-            next.reincarnate_no_multiplier = false;
+        state.multiplier_bought = buyable;
+        state.multiplier_cost = get_cost_multiplier(buyable, cost_input);
+        if state.multiplier_bought > 0.0 {
+            state.prestige_no_multiplier = false;
+            state.transcend_no_multiplier = false;
+            state.reincarnate_no_multiplier = false;
         }
-        if next.multiplier_bought > buy_start {
+        if state.multiplier_bought > buy_start {
             events.push(CoreEvent::MultipliersPurchased {
                 before: buy_start,
-                after: next.multiplier_bought,
-                spent: starting_coins - next.coins,
+                after: state.multiplier_bought,
+                spent: starting_coins - state.coins,
             });
         }
-        return (next, events);
+        return events;
     }
 
     // Normal path: bracket with 4× doubling, refine with stepdown, walk forward.
@@ -165,13 +165,13 @@ pub fn buy_multiplier(
     let mut buy_to = buydefault;
 
     let mut cash_to_buy = get_cost_multiplier(buy_to, cost_input);
-    while next.coins >= cash_to_buy {
+    while state.coins >= cash_to_buy {
         buy_to *= 4.0;
         cash_to_buy = get_cost_multiplier(buy_to, cost_input);
     }
     let mut stepdown = (buy_to / 8.0).floor();
     while stepdown >= smallest_inc(buy_to) {
-        if get_cost_multiplier(buy_to - stepdown, cost_input) <= next.coins {
+        if get_cost_multiplier(buy_to - stepdown, cost_input) <= state.coins {
             stepdown = (stepdown / 2.0).floor();
         } else {
             buy_to -= smallest_inc(buy_to).max(stepdown);
@@ -179,7 +179,7 @@ pub fn buy_multiplier(
     }
 
     if !input.autobuyer {
-        let cap_to = next.multiplier_bought + input.coinbuyamount.as_f64();
+        let cap_to = state.multiplier_bought + input.coinbuyamount.as_f64();
         if cap_to < buy_to {
             buy_to = cap_to;
         }
@@ -187,35 +187,35 @@ pub fn buy_multiplier(
 
     let mut buy_from = (buy_to - 6.0 - smallest_inc(buy_to)).max(buydefault);
     let mut this_cost = get_cost_multiplier(buy_from, cost_input);
-    while buy_from <= buy_to && next.coins >= this_cost {
+    while buy_from <= buy_to && state.coins >= this_cost {
         if buy_from >= BUYMAX {
             buy_from = BUYMAX;
         }
-        next.coins -= this_cost;
-        next.multiplier_bought = buy_from;
+        state.coins -= this_cost;
+        state.multiplier_bought = buy_from;
         buy_from += smallest_inc(buy_from);
         this_cost = get_cost_multiplier(buy_from, cost_input);
-        next.multiplier_cost = this_cost;
+        state.multiplier_cost = this_cost;
         if buy_from >= BUYMAX {
             break;
         }
     }
 
-    if next.multiplier_bought > 0.0 {
-        next.prestige_no_multiplier = false;
-        next.transcend_no_multiplier = false;
-        next.reincarnate_no_multiplier = false;
+    if state.multiplier_bought > 0.0 {
+        state.prestige_no_multiplier = false;
+        state.transcend_no_multiplier = false;
+        state.reincarnate_no_multiplier = false;
     }
 
-    if next.multiplier_bought > buy_start {
+    if state.multiplier_bought > buy_start {
         events.push(CoreEvent::MultipliersPurchased {
             before: buy_start,
-            after: next.multiplier_bought,
-            spent: starting_coins - next.coins,
+            after: state.multiplier_bought,
+            spent: starting_coins - state.coins,
         });
     }
 
-    (next, events)
+    events
 }
 
 #[cfg(test)]
@@ -346,40 +346,42 @@ mod tests {
 
     #[test]
     fn buy_is_noop_with_zero_coins() {
-        let state = empty_state();
-        let (next, events) = buy_multiplier(&state, buy_input());
-        assert_eq!(next.multiplier_bought, 0.0);
-        assert_eq!(next.coins, Decimal::zero());
+        let mut state = empty_state();
+        let events = buy_multiplier(&mut state, buy_input());
+        assert_eq!(state.multiplier_bought, 0.0);
+        assert_eq!(state.coins, Decimal::zero());
         assert!(events.is_empty());
-        assert!(next.prestige_no_multiplier);
-        assert!(next.transcend_no_multiplier);
-        assert!(next.reincarnate_no_multiplier);
+        assert!(state.prestige_no_multiplier);
+        assert!(state.transcend_no_multiplier);
+        assert!(state.reincarnate_no_multiplier);
     }
 
     #[test]
     fn buy_purchases_at_least_one_when_affordable() {
         // First multiplier costs 1e4 coins. Give the player 1e5.
-        let state = MultiplierState {
+        let mut state = MultiplierState {
             coins: Decimal::from_finite(1e5),
             ..empty_state()
         };
-        let (next, events) = buy_multiplier(&state, buy_input());
-        assert!(next.multiplier_bought > 0.0);
-        assert!(next.coins < state.coins);
+        let baseline_coins = state.coins;
+        let events = buy_multiplier(&mut state, buy_input());
+        assert!(state.multiplier_bought > 0.0);
+        assert!(state.coins < baseline_coins);
         assert_eq!(events.len(), 1);
-        assert!(!next.prestige_no_multiplier);
-        assert!(!next.transcend_no_multiplier);
-        assert!(!next.reincarnate_no_multiplier);
+        assert!(!state.prestige_no_multiplier);
+        assert!(!state.transcend_no_multiplier);
+        assert!(!state.reincarnate_no_multiplier);
     }
 
     #[test]
     fn buy_event_spent_matches_resource_delta() {
-        let state = MultiplierState {
+        let mut state = MultiplierState {
             coins: Decimal::from_finite(1e8),
             ..empty_state()
         };
-        let (next, events) = buy_multiplier(&state, buy_input());
-        let spent = state.coins - next.coins;
+        let baseline_coins = state.coins;
+        let events = buy_multiplier(&mut state, buy_input());
+        let spent = baseline_coins - state.coins;
         assert_eq!(events.len(), 1);
         match &events[0] {
             CoreEvent::MultipliersPurchased {
@@ -388,7 +390,7 @@ mod tests {
                 spent: ev_spent,
             } => {
                 assert_eq!(*before, 0.0);
-                assert_eq!(*after, next.multiplier_bought);
+                assert_eq!(*after, state.multiplier_bought);
                 assert_eq!(*ev_spent, spent);
             }
             other => panic!("expected MultipliersPurchased, got {other:?}"),
@@ -397,7 +399,7 @@ mod tests {
 
     #[test]
     fn per_click_cap_limits_purchases() {
-        let state = MultiplierState {
+        let mut state = MultiplierState {
             coins: Decimal::from_finite(1e20),
             ..empty_state()
         };
@@ -405,13 +407,13 @@ mod tests {
             coinbuyamount: BuyAmount::One,
             ..buy_input()
         };
-        let (next, _) = buy_multiplier(&state, capped);
-        assert_eq!(next.multiplier_bought, 1.0);
+        let _ = buy_multiplier(&mut state, capped);
+        assert_eq!(state.multiplier_bought, 1.0);
     }
 
     #[test]
     fn autobuyer_ignores_per_click_cap() {
-        let state = MultiplierState {
+        let mut state = MultiplierState {
             coins: Decimal::from_finite(1e20),
             ..empty_state()
         };
@@ -420,7 +422,7 @@ mod tests {
             coinbuyamount: BuyAmount::One,
             ..buy_input()
         };
-        let (next, _) = buy_multiplier(&state, auto);
-        assert!(next.multiplier_bought > 1.0);
+        let _ = buy_multiplier(&mut state, auto);
+        assert!(state.multiplier_bought > 1.0);
     }
 }

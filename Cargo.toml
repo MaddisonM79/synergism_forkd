@@ -8,11 +8,7 @@ members = [
     "crates/synergismforkd_ui",
     "crates/synergismforkd_ui_web",
     "crates/synergismforkd_ui_desktop",
-    "crates/synergismforkd_api",
     "crates/synergismforkd_testkit",
-    "crates/synergismforkd_audio",
-    "crates/synergismforkd_netcode",
-    "crates/synergismforkd_modding",
 ]
 
 [workspace.package]
@@ -21,6 +17,13 @@ edition = "2021"
 rust-version = "1.95"
 license = "MIT"
 repository = "https://github.com/MaddisonM79/unknown_game"
+
+[workspace.dependencies]
+serde = { version = "1", default-features = false, features = ["derive", "alloc"] }
+postcard = { version = "1", default-features = false, features = ["alloc"] }
+
+[workspace.lints.rust]
+unused_crate_dependencies = "warn"
 
 [workspace.lints.clippy]
 all = { level = "warn", priority = -1 }

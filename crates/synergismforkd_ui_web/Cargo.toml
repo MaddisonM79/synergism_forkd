@@ -23,3 +23,6 @@ synergismforkd_ui = { path = "../synergismforkd_ui" }
 # `synergismforkd_logic` per the crate-boundary rules.
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 getrandom = { version = "0.2", features = ["js"] }
+
+[lints]
+workspace = true

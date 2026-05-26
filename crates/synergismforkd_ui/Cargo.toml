@@ -10,3 +10,6 @@ repository.workspace = true
 [dependencies]
 synergismforkd_common = { path = "../synergismforkd_common" }
 synergismforkd_logic = { path = "../synergismforkd_logic" }
+
+[lints]
+workspace = true

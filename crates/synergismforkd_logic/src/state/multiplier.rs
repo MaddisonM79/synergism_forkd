@@ -4,13 +4,15 @@
 //! `packages/logic/src/state/schema.ts`. Same shape as `AcceleratorState`
 //! with different field names — the flag pattern is identical.
 
+use serde::{Deserialize, Serialize};
+
 use synergismforkd_bignum::Decimal;
 
 /// Slice of `GameState` read/written by the multiplier-purchase machinery.
 ///
 /// See [`crate::state::AcceleratorState`] for the rationale on `f64` for the
 /// owned-count field.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct MultiplierState {
     /// Total multipliers owned.
     pub multiplier_bought: f64,

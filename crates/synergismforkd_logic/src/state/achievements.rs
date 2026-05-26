@@ -8,7 +8,9 @@
 /// Saved cache for one progressive-achievement entry. The legacy
 /// shape stores a single cached value used to detect updates each
 /// tick; all 8 progressive achievements share this shape.
-#[derive(Debug, Clone, Copy, PartialEq, Default)]
+use serde::{Deserialize, Serialize};
+
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Default)]
 pub struct ProgressiveAchievementCache {
     /// Cached input value last evaluated. Drives the
     /// recompute-on-change detection.
@@ -18,7 +20,7 @@ pub struct ProgressiveAchievementCache {
 }
 
 /// Slice of `GameState` read/written by achievement mechanics.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct AchievementsState {
     /// `player.achievements[i]` — 0 = unowned, non-zero = unlocked.
     /// 1-indexed (index 0 unused) to match legacy.

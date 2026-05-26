@@ -10,6 +10,8 @@
 //! corruptions added by mechanic-tier extensions.
 
 /// Index of the "viscosity" corruption (`CorruptionIndices.viscosity`).
+use serde::{Deserialize, Serialize};
+
 pub const VISCOSITY_INDEX: usize = 0;
 /// Index of the "dilation" corruption (`CorruptionIndices.dilation`).
 pub const DILATION_INDEX: usize = 1;
@@ -28,7 +30,7 @@ pub const RECESSION_INDEX: usize = 7;
 
 /// One per-corruption-type loadout. Mirrors the 14 named corruption
 /// fields on `player.corruptions.used` / `.next`.
-#[derive(Debug, Clone, Copy, PartialEq, Default)]
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Default)]
 pub struct CorruptionLoadout {
     /// Active corruption levels indexed by the legacy `CorruptionIndices`
     /// values — see the module-level `*_INDEX` constants. Slots 0..=7
@@ -41,7 +43,7 @@ pub struct CorruptionLoadout {
 }
 
 /// Slice of `GameState` for corruption state.
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq)]
 pub struct CorruptionsState {
     /// Currently-applied corruption loadout (drives this-ascension
     /// formulas).

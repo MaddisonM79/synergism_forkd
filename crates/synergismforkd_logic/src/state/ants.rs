@@ -10,11 +10,13 @@
 //! [`crate::mechanics::ant_sacrifice_reward_calc`], and
 //! [`crate::mechanics::ant_sacrifice_rewards`].
 
+use serde::{Deserialize, Serialize};
+
 use synergismforkd_bignum::Decimal;
 
 /// One ant-producer's per-player state. Mirrors the legacy
 /// `PlayerAntProducers` record entry.
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq)]
 pub struct PlayerAntProducer {
     /// `purchased` — number of this producer bought.
     pub purchased: f64,
@@ -25,7 +27,7 @@ pub struct PlayerAntProducer {
 
 /// One ant-mastery's per-player state. Mirrors the legacy
 /// `PlayerAntMasteries` record entry.
-#[derive(Debug, Clone, Copy, PartialEq, Default)]
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Default)]
 pub struct PlayerAntMastery {
     /// Current mastery level (`0..=12`).
     pub mastery: u8,
@@ -34,7 +36,7 @@ pub struct PlayerAntMastery {
 }
 
 /// Single entry on the reborn-ELO leaderboard.
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq)]
 pub struct RebornELOEntry {
     /// Effective ant ELO at the sacrifice.
     pub elo: f64,
@@ -45,7 +47,7 @@ pub struct RebornELOEntry {
 
 /// Auto-sacrifice mode selector. Mirrors the legacy
 /// `AutoSacrificeModes` enum.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AutoSacrificeMode {
     /// Auto-sacrifice disabled.
     Off,
@@ -59,7 +61,7 @@ pub enum AutoSacrificeMode {
 
 /// Ant-feature toggles. Mirrors the legacy `toggles` field on
 /// `PlayerAnts`.
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq)]
 pub struct AntsToggles {
     /// Autobuy producers on tick.
     pub autobuy_producers: bool,
@@ -102,7 +104,7 @@ impl Default for AntsToggles {
 }
 
 /// Slice of `GameState` read/written by the ant mechanics.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct AntsState {
     /// Per-producer state, indexed `0..=8` (Workers .. HolySpirit).
     pub producers: [PlayerAntProducer; 9],

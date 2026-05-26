@@ -6,6 +6,8 @@
 //! functions may take either the full `&GameState` (aggregators) or a
 //! narrower `&XState` slice (single-family operations).
 
+use serde::{Deserialize, Serialize};
+
 pub mod accelerator;
 pub mod achievements;
 pub mod ambrosia;
@@ -90,9 +92,9 @@ pub use upgrades::{UpgradesState, UPGRADES_DEFAULT_LEN};
 /// [`CRYSTAL_UPGRADES_DEFAULT_LEN`]).
 ///
 /// `PartialEq` is intentionally not derived because [`RngState`] holds
-/// `ChaCha8Rng` internals that don't usefully compare. Tests that need to
-/// compare states should assert on individual slices.
-#[derive(Debug, Clone, Default)]
+/// `Xoshiro256PlusPlus` internals that don't usefully compare. Tests that
+/// need to compare states should assert on individual slices.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct GameState {
     /// Accelerator purchases — `player.acceleratorBought` and friends.
     pub accelerator: AcceleratorState,

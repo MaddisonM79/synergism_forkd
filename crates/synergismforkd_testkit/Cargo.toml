@@ -15,3 +15,6 @@ path = "src/bin/synergismforkd_sim.rs"
 synergismforkd_bignum = { path = "../synergismforkd_bignum" }
 synergismforkd_logic = { path = "../synergismforkd_logic" }
 synergismforkd_save = { path = "../synergismforkd_save" }
+
+[lints]
+workspace = true

@@ -4,6 +4,8 @@
 //! `packages/logic/src/state/schema.ts`. The `*_no_accelerator` flags are
 //! achievement gates flipped to `false` once any accelerator is owned.
 
+use serde::{Deserialize, Serialize};
+
 use synergismforkd_bignum::Decimal;
 
 /// Slice of `GameState` read/written by the accelerator-purchase machinery.
@@ -13,7 +15,7 @@ use synergismforkd_bignum::Decimal;
 /// the same float semantics as the legacy TS implementation.
 ///
 /// [`smallest_inc`]: crate::math::smallest_inc
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct AcceleratorState {
     /// Total accelerators owned. Walked past `MAX_SAFE_INTEGER` in the
     /// high-end binary-search branch.

@@ -8,7 +8,9 @@
 
 /// One ambrosia upgrade's per-player state. Mirrors
 /// `player.ambrosiaUpgrades.<name>`.
-#[derive(Debug, Clone, Copy, PartialEq, Default)]
+use serde::{Deserialize, Serialize};
+
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Default)]
 pub struct AmbrosiaUpgrade {
     /// Purchased level.
     pub level: f64,
@@ -17,7 +19,7 @@ pub struct AmbrosiaUpgrade {
 }
 
 /// Slice of `GameState` for the ambrosia/blueberry feature.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct AmbrosiaState {
     /// `player.ambrosia` — current balance (resets on use).
     pub ambrosia: f64,

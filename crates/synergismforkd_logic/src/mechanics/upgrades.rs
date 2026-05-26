@@ -8,6 +8,7 @@
 //! unconditionally per call (not gated on affordability) — matches the
 //! original behavior.
 
+use smallvec::SmallVec;
 use synergismforkd_bignum::Decimal;
 
 use crate::events::{CoreEvent, UpgradeTier};
@@ -43,44 +44,43 @@ pub struct BuyUpgradeInput {
 /// - **transcend** → flips 2 flags (2 reincarnate)
 /// - **reincarnation** → no flips
 #[must_use]
-pub fn buy_upgrades(
-    state: &UpgradesState,
-    input: BuyUpgradeInput,
-) -> (UpgradesState, Vec<CoreEvent>) {
-    let mut events: Vec<CoreEvent> = Vec::new();
-    let mut next = state.clone();
+pub fn buy_upgrades(state: &mut UpgradesState, input: BuyUpgradeInput) -> SmallVec<[CoreEvent; 4]> {
+    let mut events: SmallVec<[CoreEvent; 4]> = SmallVec::new();
 
     // Out-of-bounds guard from the original buy_upgrades. Returns the
-    // cloned state untouched (no flag flips, no purchase) when the
-    // requirement entry doesn't exist.
+    // state untouched (no flag flips, no purchase) when the requirement
+    // entry doesn't exist.
     if !input.requirement_exists {
-        return (next, events);
+        return events;
     }
 
     let cost = Decimal::from_finite(10.0).pow(Decimal::from_finite(input.cost_exponent));
 
     // Helper: read the currency for the requested tier.
     let current = match input.tier {
-        UpgradeTier::Coin => next.coins,
-        UpgradeTier::Prestige => next.prestige_points,
-        UpgradeTier::Transcend => next.transcend_points,
-        UpgradeTier::Reincarnation => next.reincarnation_points,
+        UpgradeTier::Coin => state.coins,
+        UpgradeTier::Prestige => state.prestige_points,
+        UpgradeTier::Transcend => state.transcend_points,
+        UpgradeTier::Reincarnation => state.reincarnation_points,
     };
 
     let pos_index = input.pos as usize;
-    let already_owned = next.upgrades.get(pos_index).is_none_or(|&owned| owned != 0);
+    let already_owned = state
+        .upgrades
+        .get(pos_index)
+        .is_none_or(|&owned| owned != 0);
 
     // Purchase attempt. Mirrors the legacy guard exactly: affordable AND
     // not already owned. On success, deduct cost, set bitmap entry, emit
     // event.
     if current >= cost && !already_owned {
         match input.tier {
-            UpgradeTier::Coin => next.coins -= cost,
-            UpgradeTier::Prestige => next.prestige_points -= cost,
-            UpgradeTier::Transcend => next.transcend_points -= cost,
-            UpgradeTier::Reincarnation => next.reincarnation_points -= cost,
+            UpgradeTier::Coin => state.coins -= cost,
+            UpgradeTier::Prestige => state.prestige_points -= cost,
+            UpgradeTier::Transcend => state.transcend_points -= cost,
+            UpgradeTier::Reincarnation => state.reincarnation_points -= cost,
         }
-        next.upgrades[pos_index] = 1;
+        state.upgrades[pos_index] = 1;
         events.push(CoreEvent::UpgradePurchased {
             tier: input.tier,
             pos: input.pos,
@@ -91,28 +91,28 @@ pub fn buy_upgrades(
     // Flag-flip matrix — independent of buy success.
     match input.tier {
         UpgradeTier::Transcend => {
-            next.reincarnate_no_coin_prestige_or_transcend_upgrades = false;
-            next.reincarnate_no_coin_prestige_transcend_or_generator_upgrades = false;
+            state.reincarnate_no_coin_prestige_or_transcend_upgrades = false;
+            state.reincarnate_no_coin_prestige_transcend_or_generator_upgrades = false;
         }
         UpgradeTier::Prestige => {
-            next.transcend_no_coin_or_prestige_upgrades = false;
-            next.reincarnate_no_coin_or_prestige_upgrades = false;
-            next.reincarnate_no_coin_prestige_or_transcend_upgrades = false;
-            next.reincarnate_no_coin_prestige_transcend_or_generator_upgrades = false;
+            state.transcend_no_coin_or_prestige_upgrades = false;
+            state.reincarnate_no_coin_or_prestige_upgrades = false;
+            state.reincarnate_no_coin_prestige_or_transcend_upgrades = false;
+            state.reincarnate_no_coin_prestige_transcend_or_generator_upgrades = false;
         }
         UpgradeTier::Coin => {
-            next.prestige_no_coin_upgrades = false;
-            next.transcend_no_coin_upgrades = false;
-            next.transcend_no_coin_or_prestige_upgrades = false;
-            next.reincarnate_no_coin_upgrades = false;
-            next.reincarnate_no_coin_or_prestige_upgrades = false;
-            next.reincarnate_no_coin_prestige_or_transcend_upgrades = false;
-            next.reincarnate_no_coin_prestige_transcend_or_generator_upgrades = false;
+            state.prestige_no_coin_upgrades = false;
+            state.transcend_no_coin_upgrades = false;
+            state.transcend_no_coin_or_prestige_upgrades = false;
+            state.reincarnate_no_coin_upgrades = false;
+            state.reincarnate_no_coin_or_prestige_upgrades = false;
+            state.reincarnate_no_coin_prestige_or_transcend_upgrades = false;
+            state.reincarnate_no_coin_prestige_transcend_or_generator_upgrades = false;
         }
         UpgradeTier::Reincarnation => {}
     }
 
-    (next, events)
+    events
 }
 
 #[cfg(test)]
@@ -147,24 +147,26 @@ mod tests {
 
     #[test]
     fn missing_requirement_is_noop() {
-        let state = baseline_state();
+        let mut state = baseline_state();
+        let baseline_upgrades = state.upgrades.clone();
+        let baseline_coins = state.coins;
         let mut inp = input(UpgradeTier::Coin, 1, 2.0);
         inp.requirement_exists = false;
-        let (next, events) = buy_upgrades(&state, inp);
-        assert_eq!(next.upgrades, state.upgrades);
-        assert_eq!(next.coins, state.coins);
+        let events = buy_upgrades(&mut state, inp);
+        assert_eq!(state.upgrades, baseline_upgrades);
+        assert_eq!(state.coins, baseline_coins);
         assert!(events.is_empty());
         // Flag flips skipped too.
-        assert!(next.prestige_no_coin_upgrades);
+        assert!(state.prestige_no_coin_upgrades);
     }
 
     #[test]
     fn buy_coin_upgrade_deducts_coins_and_sets_bitmap() {
-        let state = baseline_state();
+        let mut state = baseline_state();
         // Cost = 10^2 = 100.
-        let (next, events) = buy_upgrades(&state, input(UpgradeTier::Coin, 5, 2.0));
-        assert_eq!(next.upgrades[5], 1);
-        assert!((next.coins.to_number() - (1e10 - 100.0)).abs() < 1.0);
+        let events = buy_upgrades(&mut state, input(UpgradeTier::Coin, 5, 2.0));
+        assert_eq!(state.upgrades[5], 1);
+        assert!((state.coins.to_number() - (1e10 - 100.0)).abs() < 1.0);
         assert_eq!(events.len(), 1);
         match &events[0] {
             CoreEvent::UpgradePurchased { tier, pos, spent } => {
@@ -178,112 +180,118 @@ mod tests {
 
     #[test]
     fn unaffordable_buy_is_skipped_but_flips_flags() {
-        let state = UpgradesState {
+        let mut state = UpgradesState {
             coins: Decimal::from_finite(50.0),
             ..baseline_state()
         };
+        let baseline_coins = state.coins;
         // Cost 100, only 50 coins.
-        let (next, events) = buy_upgrades(&state, input(UpgradeTier::Coin, 5, 2.0));
-        assert_eq!(next.upgrades[5], 0);
-        assert_eq!(next.coins, state.coins);
+        let events = buy_upgrades(&mut state, input(UpgradeTier::Coin, 5, 2.0));
+        assert_eq!(state.upgrades[5], 0);
+        assert_eq!(state.coins, baseline_coins);
         assert!(events.is_empty());
         // Flag flips still fire — coin-tier touch.
-        assert!(!next.prestige_no_coin_upgrades);
-        assert!(!next.transcend_no_coin_upgrades);
-        assert!(!next.reincarnate_no_coin_upgrades);
+        assert!(!state.prestige_no_coin_upgrades);
+        assert!(!state.transcend_no_coin_upgrades);
+        assert!(!state.reincarnate_no_coin_upgrades);
     }
 
     #[test]
     fn already_owned_is_skipped_but_flips_flags() {
         let mut state = baseline_state();
         state.upgrades[5] = 1;
-        let (next, events) = buy_upgrades(&state, input(UpgradeTier::Coin, 5, 2.0));
-        assert_eq!(next.coins, state.coins);
+        let baseline_coins = state.coins;
+        let events = buy_upgrades(&mut state, input(UpgradeTier::Coin, 5, 2.0));
+        assert_eq!(state.coins, baseline_coins);
         assert!(events.is_empty());
-        assert!(!next.prestige_no_coin_upgrades);
+        assert!(!state.prestige_no_coin_upgrades);
     }
 
     #[test]
     fn coin_tier_flips_all_seven_flags() {
-        let state = baseline_state();
-        let (next, _) = buy_upgrades(&state, input(UpgradeTier::Coin, 5, 2.0));
-        assert!(!next.prestige_no_coin_upgrades);
-        assert!(!next.transcend_no_coin_upgrades);
-        assert!(!next.transcend_no_coin_or_prestige_upgrades);
-        assert!(!next.reincarnate_no_coin_upgrades);
-        assert!(!next.reincarnate_no_coin_or_prestige_upgrades);
-        assert!(!next.reincarnate_no_coin_prestige_or_transcend_upgrades);
-        assert!(!next.reincarnate_no_coin_prestige_transcend_or_generator_upgrades);
+        let mut state = baseline_state();
+        let _ = buy_upgrades(&mut state, input(UpgradeTier::Coin, 5, 2.0));
+        assert!(!state.prestige_no_coin_upgrades);
+        assert!(!state.transcend_no_coin_upgrades);
+        assert!(!state.transcend_no_coin_or_prestige_upgrades);
+        assert!(!state.reincarnate_no_coin_upgrades);
+        assert!(!state.reincarnate_no_coin_or_prestige_upgrades);
+        assert!(!state.reincarnate_no_coin_prestige_or_transcend_upgrades);
+        assert!(!state.reincarnate_no_coin_prestige_transcend_or_generator_upgrades);
     }
 
     #[test]
     fn prestige_tier_flips_only_prestige_aware_flags() {
-        let state = baseline_state();
-        let (next, _) = buy_upgrades(&state, input(UpgradeTier::Prestige, 5, 2.0));
+        let mut state = baseline_state();
+        let _ = buy_upgrades(&mut state, input(UpgradeTier::Prestige, 5, 2.0));
         // Coin-aware flags should still be true.
-        assert!(next.prestige_no_coin_upgrades);
-        assert!(next.transcend_no_coin_upgrades);
-        assert!(next.reincarnate_no_coin_upgrades);
+        assert!(state.prestige_no_coin_upgrades);
+        assert!(state.transcend_no_coin_upgrades);
+        assert!(state.reincarnate_no_coin_upgrades);
         // Prestige-aware flags should flip.
-        assert!(!next.transcend_no_coin_or_prestige_upgrades);
-        assert!(!next.reincarnate_no_coin_or_prestige_upgrades);
-        assert!(!next.reincarnate_no_coin_prestige_or_transcend_upgrades);
-        assert!(!next.reincarnate_no_coin_prestige_transcend_or_generator_upgrades);
+        assert!(!state.transcend_no_coin_or_prestige_upgrades);
+        assert!(!state.reincarnate_no_coin_or_prestige_upgrades);
+        assert!(!state.reincarnate_no_coin_prestige_or_transcend_upgrades);
+        assert!(!state.reincarnate_no_coin_prestige_transcend_or_generator_upgrades);
     }
 
     #[test]
     fn transcend_tier_flips_two_reincarnate_flags() {
-        let state = baseline_state();
-        let (next, _) = buy_upgrades(&state, input(UpgradeTier::Transcend, 5, 2.0));
+        let mut state = baseline_state();
+        let _ = buy_upgrades(&mut state, input(UpgradeTier::Transcend, 5, 2.0));
         // Only the two transcend-aware reincarnate flags flip.
-        assert!(next.prestige_no_coin_upgrades);
-        assert!(next.transcend_no_coin_upgrades);
-        assert!(next.transcend_no_coin_or_prestige_upgrades);
-        assert!(next.reincarnate_no_coin_upgrades);
-        assert!(next.reincarnate_no_coin_or_prestige_upgrades);
-        assert!(!next.reincarnate_no_coin_prestige_or_transcend_upgrades);
-        assert!(!next.reincarnate_no_coin_prestige_transcend_or_generator_upgrades);
+        assert!(state.prestige_no_coin_upgrades);
+        assert!(state.transcend_no_coin_upgrades);
+        assert!(state.transcend_no_coin_or_prestige_upgrades);
+        assert!(state.reincarnate_no_coin_upgrades);
+        assert!(state.reincarnate_no_coin_or_prestige_upgrades);
+        assert!(!state.reincarnate_no_coin_prestige_or_transcend_upgrades);
+        assert!(!state.reincarnate_no_coin_prestige_transcend_or_generator_upgrades);
     }
 
     #[test]
     fn reincarnation_tier_flips_no_flags() {
-        let state = baseline_state();
-        let (next, _) = buy_upgrades(&state, input(UpgradeTier::Reincarnation, 5, 2.0));
+        let mut state = baseline_state();
+        let _ = buy_upgrades(&mut state, input(UpgradeTier::Reincarnation, 5, 2.0));
         // Every flag still true.
-        assert!(next.prestige_no_coin_upgrades);
-        assert!(next.transcend_no_coin_upgrades);
-        assert!(next.transcend_no_coin_or_prestige_upgrades);
-        assert!(next.reincarnate_no_coin_upgrades);
-        assert!(next.reincarnate_no_coin_or_prestige_upgrades);
-        assert!(next.reincarnate_no_coin_prestige_or_transcend_upgrades);
-        assert!(next.reincarnate_no_coin_prestige_transcend_or_generator_upgrades);
+        assert!(state.prestige_no_coin_upgrades);
+        assert!(state.transcend_no_coin_upgrades);
+        assert!(state.transcend_no_coin_or_prestige_upgrades);
+        assert!(state.reincarnate_no_coin_upgrades);
+        assert!(state.reincarnate_no_coin_or_prestige_upgrades);
+        assert!(state.reincarnate_no_coin_prestige_or_transcend_upgrades);
+        assert!(state.reincarnate_no_coin_prestige_transcend_or_generator_upgrades);
     }
 
     #[test]
     fn each_tier_pays_from_correct_currency() {
         let cost_exp = 2.0; // 100 in each currency
+        let baseline = baseline_state();
 
         // Coin
-        let state = baseline_state();
-        let (next, _) = buy_upgrades(&state, input(UpgradeTier::Coin, 5, cost_exp));
-        assert!(next.coins < state.coins);
-        assert_eq!(next.prestige_points, state.prestige_points);
+        let mut state = baseline.clone();
+        let _ = buy_upgrades(&mut state, input(UpgradeTier::Coin, 5, cost_exp));
+        assert!(state.coins < baseline.coins);
+        assert_eq!(state.prestige_points, baseline.prestige_points);
 
         // Prestige
-        let (next, _) = buy_upgrades(&state, input(UpgradeTier::Prestige, 6, cost_exp));
-        assert_eq!(next.coins, state.coins);
-        assert!(next.prestige_points < state.prestige_points);
-        assert_eq!(next.transcend_points, state.transcend_points);
+        let mut state = baseline.clone();
+        let _ = buy_upgrades(&mut state, input(UpgradeTier::Prestige, 6, cost_exp));
+        assert_eq!(state.coins, baseline.coins);
+        assert!(state.prestige_points < baseline.prestige_points);
+        assert_eq!(state.transcend_points, baseline.transcend_points);
 
         // Transcend
-        let (next, _) = buy_upgrades(&state, input(UpgradeTier::Transcend, 7, cost_exp));
-        assert_eq!(next.prestige_points, state.prestige_points);
-        assert!(next.transcend_points < state.transcend_points);
-        assert_eq!(next.reincarnation_points, state.reincarnation_points);
+        let mut state = baseline.clone();
+        let _ = buy_upgrades(&mut state, input(UpgradeTier::Transcend, 7, cost_exp));
+        assert_eq!(state.prestige_points, baseline.prestige_points);
+        assert!(state.transcend_points < baseline.transcend_points);
+        assert_eq!(state.reincarnation_points, baseline.reincarnation_points);
 
         // Reincarnation
-        let (next, _) = buy_upgrades(&state, input(UpgradeTier::Reincarnation, 8, cost_exp));
-        assert_eq!(next.transcend_points, state.transcend_points);
-        assert!(next.reincarnation_points < state.reincarnation_points);
+        let mut state = baseline.clone();
+        let _ = buy_upgrades(&mut state, input(UpgradeTier::Reincarnation, 8, cost_exp));
+        assert_eq!(state.transcend_points, baseline.transcend_points);
+        assert!(state.reincarnation_points < baseline.reincarnation_points);
     }
 }

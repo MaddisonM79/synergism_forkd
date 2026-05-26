@@ -11,4 +11,9 @@ repository.workspace = true
 synergismforkd_bignum = { path = "../synergismforkd_bignum" }
 synergismforkd_common = { path = "../synergismforkd_common" }
 rand = { version = "0.8", default-features = false, features = ["std", "std_rng"] }
-rand_chacha = { version = "0.3", default-features = false, features = ["std"] }
+rand_xoshiro = { version = "0.6", default-features = false, features = ["serde1"] }
+serde = { workspace = true }
+smallvec = { version = "1", default-features = false, features = ["serde"] }
+
+[lints]
+workspace = true

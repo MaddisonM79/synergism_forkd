@@ -28,9 +28,11 @@
 //! into `GameState` (matching the `(state, input) -> (state, events)`
 //! convention used elsewhere in the crate).
 
+use smallvec::SmallVec;
+use synergismforkd_bignum::Decimal;
+
 use crate::events::{AchievementGroup, CoreEvent};
 use crate::state::GameState;
-use synergismforkd_bignum::Decimal;
 
 /// Cross-mechanic pre-computed values the aggregator needs that don't
 /// live in any state slice. Built by the caller from earlier per-tick
@@ -276,8 +278,10 @@ pub struct ResourceGainResult {
     pub produce_per_second_particles: Decimal,
     /// `G.ascendBuildingProduction`.
     pub ascend_building_production: AscendBuildingProduction,
-    /// Events for the UI tier to dispatch.
-    pub events: Vec<CoreEvent>,
+    /// Events for the UI tier to dispatch. `[CoreEvent; 8]` covers the
+    /// typical worst case (1 achievement + up to 5 challenge auto-completions
+    /// + headroom) without heap allocation.
+    pub events: SmallVec<[CoreEvent; 8]>,
 }
 
 /// Per-tick resource generation. Pure given `state` + `pre` + `dt`; returns
@@ -292,7 +296,7 @@ pub fn resource_gain(state: &GameState, pre: &ResourceGainPre, dt: f64) -> Resou
     let dt_dec = Decimal::from_finite(dt);
     let ten = Decimal::from_finite(10.0);
     let one = Decimal::one();
-    let mut events: Vec<CoreEvent> = Vec::new();
+    let mut events: SmallVec<[CoreEvent; 8]> = SmallVec::new();
 
     // ─── Direct player-state reads ───────────────────────────────────────
     let upgrade = |i: usize| f64::from(state.upgrades.upgrades[i]);

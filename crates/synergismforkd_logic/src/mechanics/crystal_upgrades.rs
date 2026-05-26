@@ -11,6 +11,7 @@
 //! one and deducts the cost (manual path only — the autobuyer is granted
 //! free levels to dodge a late-game precision issue).
 
+use smallvec::SmallVec;
 use synergismforkd_bignum::Decimal;
 
 use crate::events::CoreEvent;
@@ -67,11 +68,10 @@ fn calculate_crystal_buy(
 /// max-affordable solve in the legacy TS — no loop, no per-level fee.
 #[must_use]
 pub fn buy_crystal_upgrades(
-    state: &CrystalUpgradesState,
+    state: &mut CrystalUpgradesState,
     input: BuyCrystalUpgradesInput,
-) -> (CrystalUpgradesState, Vec<CoreEvent>) {
-    let mut events: Vec<CoreEvent> = Vec::new();
-    let mut next = state.clone();
+) -> SmallVec<[CoreEvent; 4]> {
+    let mut events: SmallVec<[CoreEvent; 4]> = SmallVec::new();
     let u = usize::from(input.i - 1);
 
     // Bonus levels: +10 when player owns upgrade 73 AND is currently
@@ -83,13 +83,13 @@ pub fn buy_crystal_upgrades(
     }
 
     let to_buy = calculate_crystal_buy(
-        next.prestige_shards,
+        state.prestige_shards,
         input.prism_cost_divisor_log10,
         input.crystal_upgrades_cost,
         input.crystal_upgrade_cost_increment,
     );
 
-    let before = next.crystal_upgrades[u];
+    let before = state.crystal_upgrades[u];
     let target = to_buy + c;
 
     if target > before {
@@ -97,24 +97,24 @@ pub fn buy_crystal_upgrades(
         // no-op multiplier; the operation is mathematically equivalent
         // to a plain assignment, so it's dropped (clippy's `eq_op` would
         // refuse to compile the literal otherwise).
-        next.crystal_upgrades[u] = target;
-        let starting_shards = next.prestige_shards;
+        state.crystal_upgrades[u] = target;
+        let starting_shards = state.prestige_shards;
         if to_buy > 0.0 && !input.auto {
             let cost_log10 = input.crystal_upgrades_cost - input.prism_cost_divisor_log10
                 + input.crystal_upgrade_cost_increment
                     * (1.0 / 2.0 * (to_buy - 1.0 / 2.0).powi(2) - 1.0 / 8.0);
             let cost = Decimal::from_finite(10.0).pow(Decimal::from_finite(cost_log10));
-            next.prestige_shards = (next.prestige_shards - cost).max(Decimal::zero());
+            state.prestige_shards = (state.prestige_shards - cost).max(Decimal::zero());
         }
         events.push(CoreEvent::CrystalUpgradePurchased {
             i: input.i,
             before,
-            after: next.crystal_upgrades[u],
-            spent: starting_shards - next.prestige_shards,
+            after: state.crystal_upgrades[u],
+            spent: starting_shards - state.prestige_shards,
         });
     }
 
-    (next, events)
+    events
 }
 
 #[cfg(test)]
@@ -142,21 +142,22 @@ mod tests {
 
     #[test]
     fn no_shards_buys_nothing() {
-        let state = baseline_state();
-        let (next, events) = buy_crystal_upgrades(&state, baseline_input());
-        assert_eq!(next.crystal_upgrades[0], 0.0);
+        let mut state = baseline_state();
+        let events = buy_crystal_upgrades(&mut state, baseline_input());
+        assert_eq!(state.crystal_upgrades[0], 0.0);
         assert!(events.is_empty());
     }
 
     #[test]
     fn enough_shards_advances_level() {
-        let state = CrystalUpgradesState {
+        let mut state = CrystalUpgradesState {
             prestige_shards: Decimal::from_finite(1e8),
             ..baseline_state()
         };
-        let (next, events) = buy_crystal_upgrades(&state, baseline_input());
-        assert!(next.crystal_upgrades[0] > 0.0);
-        assert!(next.prestige_shards < state.prestige_shards);
+        let baseline_shards = state.prestige_shards;
+        let events = buy_crystal_upgrades(&mut state, baseline_input());
+        assert!(state.crystal_upgrades[0] > 0.0);
+        assert!(state.prestige_shards < baseline_shards);
         assert_eq!(events.len(), 1);
     }
 
@@ -164,17 +165,18 @@ mod tests {
     fn autobuyer_grants_free_levels() {
         // Autobuyer skips the deduction → shards unchanged but level
         // advances.
-        let state = CrystalUpgradesState {
+        let mut state = CrystalUpgradesState {
             prestige_shards: Decimal::from_finite(1e8),
             ..baseline_state()
         };
+        let baseline_shards = state.prestige_shards;
         let auto = BuyCrystalUpgradesInput {
             auto: true,
             ..baseline_input()
         };
-        let (next, events) = buy_crystal_upgrades(&state, auto);
-        assert!(next.crystal_upgrades[0] > 0.0);
-        assert_eq!(next.prestige_shards, state.prestige_shards);
+        let events = buy_crystal_upgrades(&mut state, auto);
+        assert!(state.crystal_upgrades[0] > 0.0);
+        assert_eq!(state.prestige_shards, baseline_shards);
         assert_eq!(events.len(), 1);
     }
 
@@ -182,31 +184,32 @@ mod tests {
     fn upgrade_73_in_reincarnation_grants_plus_ten_bonus() {
         // No shards → calculate_crystal_buy returns 0; but the +10 bonus
         // still applies if upgrade_73 owned and in reincarnation challenge.
-        let state = baseline_state();
+        let mut state = baseline_state();
+        let baseline_shards = state.prestige_shards;
         let with_bonus = BuyCrystalUpgradesInput {
             upgrade_73: 1.0,
             in_any_reincarnation_challenge: true,
             ..baseline_input()
         };
-        let (next, events) = buy_crystal_upgrades(&state, with_bonus);
-        assert_eq!(next.crystal_upgrades[0], 10.0);
+        let events = buy_crystal_upgrades(&mut state, with_bonus);
+        assert_eq!(state.crystal_upgrades[0], 10.0);
         // No shards were deducted (to_buy == 0 guard).
-        assert_eq!(next.prestige_shards, state.prestige_shards);
+        assert_eq!(state.prestige_shards, baseline_shards);
         // Event is emitted because target > before.
         assert_eq!(events.len(), 1);
     }
 
     #[test]
     fn upgrade_73_only_grants_bonus_in_reincarnation_challenge() {
-        let state = baseline_state();
+        let mut state = baseline_state();
         let outside = BuyCrystalUpgradesInput {
             upgrade_73: 1.0,
             in_any_reincarnation_challenge: false,
             ..baseline_input()
         };
-        let (next, events) = buy_crystal_upgrades(&state, outside);
+        let events = buy_crystal_upgrades(&mut state, outside);
         // Without the challenge flag, no bonus.
-        assert_eq!(next.crystal_upgrades[0], 0.0);
+        assert_eq!(state.crystal_upgrades[0], 0.0);
         assert!(events.is_empty());
     }
 
@@ -214,24 +217,26 @@ mod tests {
     fn already_at_target_is_noop() {
         // Pre-set the level to the calculated buy value; the function
         // should not change state or emit an event.
-        let state = CrystalUpgradesState {
+        let mut state = CrystalUpgradesState {
             prestige_shards: Decimal::from_finite(1e8),
             crystal_upgrades: vec![1_000_000.0; 5], // far above any reasonable buy
         };
-        let (next, events) = buy_crystal_upgrades(&state, baseline_input());
-        assert_eq!(next.crystal_upgrades[0], 1_000_000.0);
-        assert_eq!(next.prestige_shards, state.prestige_shards);
+        let baseline_shards = state.prestige_shards;
+        let events = buy_crystal_upgrades(&mut state, baseline_input());
+        assert_eq!(state.crystal_upgrades[0], 1_000_000.0);
+        assert_eq!(state.prestige_shards, baseline_shards);
         assert!(events.is_empty());
     }
 
     #[test]
     fn event_spent_matches_resource_delta() {
-        let state = CrystalUpgradesState {
+        let mut state = CrystalUpgradesState {
             prestige_shards: Decimal::from_finite(1e8),
             ..baseline_state()
         };
-        let (next, events) = buy_crystal_upgrades(&state, baseline_input());
-        let spent = state.prestige_shards - next.prestige_shards;
+        let baseline_shards = state.prestige_shards;
+        let events = buy_crystal_upgrades(&mut state, baseline_input());
+        let spent = baseline_shards - state.prestige_shards;
         assert_eq!(events.len(), 1);
         match &events[0] {
             CoreEvent::CrystalUpgradePurchased {
@@ -242,7 +247,7 @@ mod tests {
             } => {
                 assert_eq!(*i, 1);
                 assert_eq!(*before, 0.0);
-                assert_eq!(*after, next.crystal_upgrades[0]);
+                assert_eq!(*after, state.crystal_upgrades[0]);
                 assert_eq!(*ev_spent, spent);
             }
             other => panic!("expected CrystalUpgradePurchased, got {other:?}"),
@@ -260,10 +265,12 @@ mod tests {
             prism_cost_divisor_log10: 3.0, // divides effective cost by 1000
             ..plain
         };
-        let (plain_next, _) = buy_crystal_upgrades(&small_state, plain);
-        let (prism_next, _) = buy_crystal_upgrades(&small_state, with_prism);
+        let mut plain_state = small_state.clone();
+        let _ = buy_crystal_upgrades(&mut plain_state, plain);
+        let mut prism_state = small_state.clone();
+        let _ = buy_crystal_upgrades(&mut prism_state, with_prism);
         // With prism divisor, the player should reach a higher level.
-        assert!(prism_next.crystal_upgrades[0] > plain_next.crystal_upgrades[0]);
+        assert!(prism_state.crystal_upgrades[0] > plain_state.crystal_upgrades[0]);
     }
 
     #[test]
@@ -272,11 +279,11 @@ mod tests {
         // deduction formula can produce a value slightly different
         // (rounded down). The .max(0) clamp guarantees non-negative shards
         // even if the deduction overshoots.
-        let state = CrystalUpgradesState {
+        let mut state = CrystalUpgradesState {
             prestige_shards: Decimal::from_finite(1e6),
             ..baseline_state()
         };
-        let (next, _) = buy_crystal_upgrades(&state, baseline_input());
-        assert!(next.prestige_shards >= Decimal::zero());
+        let _ = buy_crystal_upgrades(&mut state, baseline_input());
+        assert!(state.prestige_shards >= Decimal::zero());
     }
 }
