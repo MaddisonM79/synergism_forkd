@@ -183,24 +183,137 @@ pub fn tack(state: &mut GameState, input: &TackInput) -> TickOutput {
 /// cache, not [`TackInput`], so the cache becomes the single screen on
 /// which a designer can audit how mechanics flow into each other.
 ///
-/// **Today the cache is built by forwarding the four `*Pre` bundles
-/// from [`TackInput`].** As each upstream effect ports (rune effects,
-/// ant effects, hepteract effects, achievement rewards, challenge-15
-/// rewards), its computation moves into this function — reading from
-/// `state` — and the corresponding caller-provided `*Pre` field shrinks
-/// or disappears. The cache is the migration target; `TackInput` is the
+/// **Migration in progress.** Each `*Pre` field is being moved from
+/// caller-provided to compute-from-state as the upstream mechanic
+/// ports settle. State-derivable fields are overridden here even when
+/// the caller supplied them — the caller value still backs fields
+/// whose upstream isn't trivially state-readable (e.g., G-cache values
+/// like `taxdivisor` and `total_accelerator_boost`, which depend on
+/// other aggregator outputs and need a multi-pass solution).
+///
+/// As mechanics port, the override list grows and `TackInput.*_pre`
+/// shrinks. The cache is the migration target; `TackInput` is the
 /// temporary input mechanism.
-fn phase_cross_mechanic_precompute(_state: &GameState, input: &TackInput) -> CrossMechanicCache {
-    // TODO(cross-mechanic-cache): replace each field with a
-    // compute-from-state once the upstream mechanic ports. The
-    // forwarding shape lets phase consumers read from the cache today
-    // even though every field is still caller-provided. All four
-    // `*Pre` bundles are `Copy`, so this is a cheap struct-of-copies.
+fn phase_cross_mechanic_precompute(state: &GameState, input: &TackInput) -> CrossMechanicCache {
     CrossMechanicCache {
         global_multipliers_pre: input.global_multipliers_pre,
-        update_all_multiplier_pre: input.update_all_multiplier_pre,
-        update_all_tick_pre: input.update_all_tick_pre,
+        update_all_multiplier_pre: compute_update_all_multiplier_pre(
+            state,
+            &input.update_all_multiplier_pre,
+        ),
+        update_all_tick_pre: compute_update_all_tick_pre(state, &input.update_all_tick_pre),
         resource_gain_pre: input.resource_gain_pre,
+    }
+}
+
+/// State-derive the [`UpdateAllMultiplierPre`] fields whose upstream
+/// is a pure function of [`GameState`]. Fields whose upstream depends
+/// on cross-aggregator outputs (the `G.*` cache) keep their
+/// caller-provided value from `fallback`.
+///
+/// Migration coverage today:
+/// - `sum_of_rune_levels`               ✓ state-derived
+/// - `multiplicative_multipliers_rune`  ✓ state-derived (Duplication rune)
+/// - `multiplier_boosts_rune`           ✓ state-derived (Duplication rune)
+/// - `multiplier_boosts_rune_blessing`  ✓ state-derived (Duplication blessing)
+/// - `ant_multiplier_mult`              ✓ state-derived (Multipliers ant upgrade)
+/// - `hepteract_multiplier`             ✓ state-derived
+/// - `hepteract_multiplier_mult`        ✓ state-derived
+/// - `multipliers_achievement`          forwarded (achievement-reward table not ported)
+/// - `multiplier_cube_blessing`         forwarded (needs cube/tesseract/upgrade plumbing)
+/// - `total_accelerator_boost`          forwarded (G.*, cross-aggregator)
+/// - `taxdivisor`                       forwarded (cross-mechanic tax pipeline)
+/// - `viscosity_power`                  forwarded (G.viscosityPower table not ported)
+/// - `challenge_15_reward_multiplier`   forwarded (challenge-15 rewards not ported)
+#[must_use]
+fn compute_update_all_multiplier_pre(
+    state: &GameState,
+    fallback: &UpdateAllMultiplierPre,
+) -> UpdateAllMultiplierPre {
+    use crate::mechanics::ant_upgrades::multipliers_ant_upgrade_effect;
+    use crate::mechanics::hepteract_effects::multiplier_hepteract_effects;
+    use crate::mechanics::rune_blessing_effects::duplication_rune_blessing_effects;
+    use crate::mechanics::rune_effects::{duplication_rune_effects, DuplicationRuneKey};
+    use crate::state::RUNE_DUPLICATION;
+
+    /// Ant-upgrade index for "Multipliers". Mirrors the legacy
+    /// `AntUpgrades.Multipliers = 4` enum value.
+    const ANT_UPGRADE_MULTIPLIERS: usize = 4;
+
+    let sum_of_rune_levels: f64 = state.runes.rune_levels.iter().sum();
+    let duplication_level = state.runes.rune_levels[RUNE_DUPLICATION];
+    let duplication_blessing_level = state.runes.rune_blessing_levels[RUNE_DUPLICATION];
+    let hept_mult = multiplier_hepteract_effects(state.hepteracts.multiplier.bal);
+
+    UpdateAllMultiplierPre {
+        sum_of_rune_levels,
+        multiplicative_multipliers_rune: duplication_rune_effects(
+            duplication_level,
+            DuplicationRuneKey::MultiplicativeMultipliers,
+        ),
+        multiplier_boosts_rune: duplication_rune_effects(
+            duplication_level,
+            DuplicationRuneKey::MultiplierBoosts,
+        ),
+        multiplier_boosts_rune_blessing: duplication_rune_blessing_effects(
+            duplication_blessing_level,
+        )
+        .multiplier_boosts,
+        ant_multiplier_mult: multipliers_ant_upgrade_effect(
+            state.ants.upgrades[ANT_UPGRADE_MULTIPLIERS],
+        ),
+        hepteract_multiplier: hept_mult.multiplier,
+        hepteract_multiplier_mult: hept_mult.multiplier_multiplier,
+        // Forwarded — upstream mechanic not yet plumbed.
+        multipliers_achievement: fallback.multipliers_achievement,
+        multiplier_cube_blessing: fallback.multiplier_cube_blessing,
+        total_accelerator_boost: fallback.total_accelerator_boost,
+        taxdivisor: fallback.taxdivisor,
+        viscosity_power: fallback.viscosity_power,
+        challenge_15_reward_multiplier: fallback.challenge_15_reward_multiplier,
+    }
+}
+
+/// State-derive the [`UpdateAllTickPre`] fields whose upstream is a
+/// pure function of [`GameState`].
+///
+/// Migration coverage today:
+/// - `multiplicative_accelerators_rune` ✓ state-derived (Speed rune)
+/// - `accelerator_power_rune`           ✓ state-derived (Speed rune)
+/// - `hepteract_accelerators`           ✓ state-derived
+/// - `hepteract_accelerator_mult`       ✓ state-derived
+/// - `accelerators_achievement`         forwarded (achievement-reward table)
+/// - `accelerator_power_achievement`    forwarded (achievement-reward table)
+/// - `accelerator_cube_blessing`        forwarded (deep blessing chain)
+/// - `total_accelerator_boost`          forwarded (G.*, cross-aggregator)
+/// - `accelerator_multiplier`           forwarded (G.*, cross-aggregator)
+/// - `viscosity_power`                  forwarded (G.viscosityPower not ported)
+/// - `challenge_15_reward_accelerator`  forwarded (challenge-15 rewards)
+#[must_use]
+fn compute_update_all_tick_pre(state: &GameState, fallback: &UpdateAllTickPre) -> UpdateAllTickPre {
+    use crate::mechanics::hepteract_effects::accelerator_hepteract_effects;
+    use crate::mechanics::rune_effects::{speed_rune_effects, SpeedRuneKey};
+    use crate::state::RUNE_SPEED;
+
+    let speed_level = state.runes.rune_levels[RUNE_SPEED];
+    let hept_acc = accelerator_hepteract_effects(state.hepteracts.accelerator.bal);
+
+    UpdateAllTickPre {
+        multiplicative_accelerators_rune: speed_rune_effects(
+            speed_level,
+            SpeedRuneKey::MultiplicativeAccelerators,
+        ),
+        accelerator_power_rune: speed_rune_effects(speed_level, SpeedRuneKey::AcceleratorPower),
+        hepteract_accelerators: hept_acc.accelerators,
+        hepteract_accelerator_mult: hept_acc.accelerator_multiplier,
+        // Forwarded — upstream mechanic not yet plumbed.
+        accelerators_achievement: fallback.accelerators_achievement,
+        accelerator_power_achievement: fallback.accelerator_power_achievement,
+        accelerator_cube_blessing: fallback.accelerator_cube_blessing,
+        total_accelerator_boost: fallback.total_accelerator_boost,
+        accelerator_multiplier: fallback.accelerator_multiplier,
+        viscosity_power: fallback.viscosity_power,
+        challenge_15_reward_accelerator: fallback.challenge_15_reward_accelerator,
     }
 }
 
@@ -398,6 +511,55 @@ mod tests {
         let output = tack(&mut state, &input);
         // Default state has zero of everything — no events should fire.
         assert!(output.events.is_empty());
+    }
+
+    #[test]
+    fn cross_mechanic_cache_overrides_state_derived_fields() {
+        // State-derived fields ignore the caller's *Pre values. A
+        // duplication rune at level 800 raises
+        // `multiplicative_multipliers_rune` from the identity 1.0 to
+        // `1 + 800/400 = 3.0`, regardless of what the caller supplied.
+        let mut state = GameState::default();
+        state.runes.rune_levels[crate::state::RUNE_DUPLICATION] = 800.0;
+        state.hepteracts.multiplier.bal = 5.0; // hept-multiplier
+        state.runes.rune_levels[crate::state::RUNE_SPEED] = 400.0;
+        state.hepteracts.accelerator.bal = 10.0;
+
+        // Caller passes garbage values; the state-derived fields must
+        // ignore them.
+        let input = TackInput {
+            dt: 0.025,
+            update_all_multiplier_pre: UpdateAllMultiplierPre {
+                multiplicative_multipliers_rune: 99.0, // ignored
+                hepteract_multiplier: 99.0,            // ignored
+                ..UpdateAllMultiplierPre::default()
+            },
+            update_all_tick_pre: UpdateAllTickPre {
+                multiplicative_accelerators_rune: 99.0, // ignored
+                hepteract_accelerators: 99.0,           // ignored
+                ..UpdateAllTickPre::default()
+            },
+            ..TackInput::default()
+        };
+
+        let cache = phase_cross_mechanic_precompute(&state, &input);
+
+        // Duplication rune at 800: 1 + 800/400 = 3.0.
+        assert!(
+            (cache
+                .update_all_multiplier_pre
+                .multiplicative_multipliers_rune
+                - 3.0)
+                .abs()
+                < 1e-9
+        );
+        // Hept-multiplier at 5: 1000 * 5 = 5000.
+        assert!((cache.update_all_multiplier_pre.hepteract_multiplier - 5_000.0).abs() < 1e-9);
+
+        // Speed rune at 400: 1 + 400/400 = 2.0.
+        assert!((cache.update_all_tick_pre.multiplicative_accelerators_rune - 2.0).abs() < 1e-9);
+        // Hept-accelerator at 10: 2000 * 10 = 20_000.
+        assert!((cache.update_all_tick_pre.hepteract_accelerators - 20_000.0).abs() < 1e-9);
     }
 
     #[test]

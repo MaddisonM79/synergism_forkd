@@ -18,6 +18,21 @@ use synergismforkd_bignum::Decimal;
 /// finiteDescent.
 pub const RUNE_COUNT: usize = 7;
 
+/// Index of the Speed rune in [`RunesState::rune_levels`] etc.
+pub const RUNE_SPEED: usize = 0;
+/// Index of the Duplication rune.
+pub const RUNE_DUPLICATION: usize = 1;
+/// Index of the Prism rune.
+pub const RUNE_PRISM: usize = 2;
+/// Index of the Thrift rune.
+pub const RUNE_THRIFT: usize = 3;
+/// Index of the Superior Intellect rune.
+pub const RUNE_SUPERIOR_INTELLECT: usize = 4;
+/// Index of the Antiquities rune (5th-prestige rune).
+pub const RUNE_ANTIQUITIES: usize = 5;
+/// Index of the Finite Descent rune (6th-prestige rune).
+pub const RUNE_FINITE_DESCENT: usize = 6;
+
 /// Slice of `GameState` for rune levels + XP + blessings + spirits
 /// + the rune-shards spend resource.
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]

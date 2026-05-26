@@ -70,7 +70,10 @@ pub use red_ambrosia::{RedAmbrosiaState, RedAmbrosiaUpgrade};
 pub use researches::ResearchesState;
 pub use reset_counters::ResetCountersState;
 pub use rng::{RngPurpose, RngState};
-pub use runes::{RunesState, RUNE_COUNT};
+pub use runes::{
+    RunesState, RUNE_ANTIQUITIES, RUNE_COUNT, RUNE_DUPLICATION, RUNE_FINITE_DESCENT, RUNE_PRISM,
+    RUNE_SPEED, RUNE_SUPERIOR_INTELLECT, RUNE_THRIFT,
+};
 pub use shop::{ShopBuyMaxMode, ShopState};
 pub use singularity::{SingularityChallengeState, SingularityState};
 pub use talismans::{TalismanRuneAssignment, TalismansState, TALISMAN_COUNT};
