@@ -61,24 +61,25 @@ pub struct ProducerFamilyState {
 }
 
 /// Player-configurable per-click purchase cap. Mirrors the UI's
-/// `x1 / x10 / x100 / ...` selector. The discriminants are the actual
-/// cap values — call [`BuyAmount::as_f64`] to get the cap as a float for
-/// the buy loops.
+/// `x1 / x10 / x100 / ...` selector.
+///
+/// Discriminants are not load-bearing — [`BuyAmount::as_f64`] matches
+/// arms explicitly so adding a `Custom(u32)` variant later doesn't
+/// silently break the `discriminant-as-cap` pun. (Anvil F9.)
 #[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq)]
-#[repr(u32)]
 pub enum BuyAmount {
     /// One purchase per click.
-    One = 1,
+    One,
     /// Ten purchases per click.
-    Ten = 10,
+    Ten,
     /// 100 purchases per click.
-    Hundred = 100,
+    Hundred,
     /// 1 000 purchases per click.
-    Thousand = 1_000,
+    Thousand,
     /// 10 000 purchases per click.
-    TenThousand = 10_000,
+    TenThousand,
     /// 100 000 purchases per click.
-    HundredThousand = 100_000,
+    HundredThousand,
 }
 
 impl BuyAmount {
@@ -86,7 +87,14 @@ impl BuyAmount {
     /// purchase loops.
     #[must_use]
     pub fn as_f64(self) -> f64 {
-        f64::from(self as u32)
+        match self {
+            Self::One => 1.0,
+            Self::Ten => 10.0,
+            Self::Hundred => 100.0,
+            Self::Thousand => 1_000.0,
+            Self::TenThousand => 10_000.0,
+            Self::HundredThousand => 100_000.0,
+        }
     }
 }
 

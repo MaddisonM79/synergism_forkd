@@ -4,8 +4,8 @@
 //! `legacy_core_split/packages/logic/src/mechanics/antProducers.ts`.
 //! The data table is indexed `0..=8` to match the legacy
 //! `AntProducers` enum (Workers=0 .. HolySpirit=8). UI-only fields
-//! (additional-texts closures) stay in the UI tier — only the pure
-//! `baseCost / costIncrease / baseProduction / color / produces`
+//! (additional-texts closures, palette colors) stay in the UI tier —
+//! only the pure `baseCost / costIncrease / baseProduction / produces`
 //! fields move here.
 //!
 //! Cost shape differs from `antUpgrades`: per-producer
@@ -25,12 +25,15 @@ pub struct AntProducerData {
     pub cost_increase: f64,
     /// Per-producer baseline production rate.
     pub base_production: Decimal,
-    /// UI hint color — pure string, kept here for completeness.
-    pub color: &'static str,
     /// Index of the producer this one generates; `None` for
     /// Workers (top of chain).
     pub produces: Option<u8>,
 }
+
+// (The legacy `color: &'static str` field was removed per Anvil F11 —
+// UI-tier concerns don't belong in the headless logic crate. When the
+// UI lands an ant-producer palette, it lives parallel to this table
+// keyed by index.)
 
 /// 9-entry data table, indexed `0..=8`. The Decimal fields are built
 /// on demand because some values (`1e145`, `1e700`, …, `1e1000000`)
@@ -48,7 +51,6 @@ pub fn ant_producer_data(index: u8) -> AntProducerData {
             base_cost: Decimal::from_finite(1.0),
             cost_increase: 3.0,
             base_production: Decimal::from_finite(0.01),
-            color: "#AB8654",
             produces: None,
         },
         // Breeders (1) → produces Workers
@@ -56,7 +58,6 @@ pub fn ant_producer_data(index: u8) -> AntProducerData {
             base_cost: Decimal::from_finite(10.0),
             cost_increase: 10.0,
             base_production: Decimal::from_finite(1.5e-4),
-            color: "#B77D48",
             produces: Some(0),
         },
         // MetaBreeders (2) → produces Breeders
@@ -64,7 +65,6 @@ pub fn ant_producer_data(index: u8) -> AntProducerData {
             base_cost: Decimal::from_finite(1e5),
             cost_increase: 1e2,
             base_production: Decimal::from_finite(5e-6),
-            color: "#C2783D",
             produces: Some(1),
         },
         // MegaBreeders (3) → produces MetaBreeders
@@ -72,7 +72,6 @@ pub fn ant_producer_data(index: u8) -> AntProducerData {
             base_cost: Decimal::from_finite(1e12),
             cost_increase: 1e4,
             base_production: Decimal::from_finite(3e-5),
-            color: "#CA7035",
             produces: Some(2),
         },
         // Queens (4) → produces MegaBreeders
@@ -80,7 +79,6 @@ pub fn ant_producer_data(index: u8) -> AntProducerData {
             base_cost: Decimal::from_mantissa_exponent(1.0, 145.0),
             cost_increase: 1e8,
             base_production: Decimal::from_mantissa_exponent(1.0, -30.0),
-            color: "#D26B2D",
             produces: Some(3),
         },
         // LordRoyals (5) → produces Queens
@@ -88,7 +86,6 @@ pub fn ant_producer_data(index: u8) -> AntProducerData {
             base_cost: Decimal::from_mantissa_exponent(1.0, 700.0),
             cost_increase: 1e16,
             base_production: Decimal::from_mantissa_exponent(1.0, -90.0),
-            color: "#DC6623",
             produces: Some(4),
         },
         // Almighties (6) → produces LordRoyals
@@ -96,7 +93,6 @@ pub fn ant_producer_data(index: u8) -> AntProducerData {
             base_cost: Decimal::from_mantissa_exponent(1.0, 5_000.0),
             cost_increase: 1e32,
             base_production: Decimal::from_mantissa_exponent(1.0, -600.0),
-            color: "#E76118",
             produces: Some(5),
         },
         // Disciples (7) → produces Almighties
@@ -104,7 +100,6 @@ pub fn ant_producer_data(index: u8) -> AntProducerData {
             base_cost: Decimal::from_mantissa_exponent(1.0, 25_000.0),
             cost_increase: 1e64,
             base_production: Decimal::from_mantissa_exponent(1.0, -3_500.0),
-            color: "#F65D09",
             produces: Some(6),
         },
         // HolySpirit (8) → produces Disciples
@@ -112,7 +107,6 @@ pub fn ant_producer_data(index: u8) -> AntProducerData {
             base_cost: Decimal::from_mantissa_exponent(1.0, 1_000_000.0),
             cost_increase: 1e128,
             base_production: Decimal::from_mantissa_exponent(1.0, -110_000.0),
-            color: "#FFFFFF",
             produces: Some(7),
         },
     }
@@ -228,8 +222,11 @@ pub struct BaseAntsToBeGeneratedInput {
     /// `calculate_self_speed_from_mastery(index)` — the per-producer
     /// mastery mult.
     pub self_speed_mult: Decimal,
-    /// Optional outer ant-speed mult (defaults to `1`).
-    pub ant_speed_mult: Option<Decimal>,
+    /// Outer ant-speed mult. The "no multiplier" case is
+    /// [`Decimal::one`] — passing `Decimal::one()` is the canonical
+    /// way to bypass this term. (Anvil F10: dropped the surrounding
+    /// `Option` because `Decimal` already has a multiplicative identity.)
+    pub ant_speed_mult: Decimal,
 }
 
 /// Per-tick base production from this producer:
@@ -239,11 +236,10 @@ pub struct BaseAntsToBeGeneratedInput {
 /// ```
 #[must_use]
 pub fn calculate_base_ants_to_be_generated(input: &BaseAntsToBeGeneratedInput) -> Decimal {
-    let ant_speed_mult = input.ant_speed_mult.unwrap_or(Decimal::one());
     (input.generated + Decimal::from_finite(input.purchased))
         * input.base_production
         * input.self_speed_mult
-        * ant_speed_mult
+        * input.ant_speed_mult
 }
 
 #[cfg(test)]
@@ -305,7 +301,7 @@ mod tests {
             purchased: 5.0,
             base_production: Decimal::from_finite(0.01),
             self_speed_mult: Decimal::from_finite(2.0),
-            ant_speed_mult: Some(Decimal::from_finite(3.0)),
+            ant_speed_mult: Decimal::from_finite(3.0),
         });
         assert!((result.to_number() - 0.9).abs() < 1e-12);
     }
@@ -317,7 +313,7 @@ mod tests {
             purchased: 0.0,
             base_production: Decimal::from_finite(0.01),
             self_speed_mult: Decimal::from_finite(2.0),
-            ant_speed_mult: None,
+            ant_speed_mult: Decimal::one(),
         });
         // 10 * 0.01 * 2 * 1 = 0.2
         assert!((result.to_number() - 0.2).abs() < 1e-12);
