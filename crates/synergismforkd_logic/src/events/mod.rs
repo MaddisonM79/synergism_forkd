@@ -105,4 +105,17 @@ pub enum CoreEvent {
         /// Currency removed from the player's balance.
         spent: Decimal,
     },
+    /// One tier of the tesseract (ascension) building family was
+    /// purchased. `spent` is in `wow_tesseracts` (an `f64` because the
+    /// resource caps out well below `1e308`).
+    TesseractBuildingsPurchased {
+        /// Tier index, 1..=5.
+        index: u8,
+        /// Owned count before the purchase loop ran.
+        before: f64,
+        /// Owned count after the purchase loop ran.
+        after: f64,
+        /// `wow_tesseracts` removed from the player's balance.
+        spent: f64,
+    },
 }
