@@ -53,6 +53,7 @@ pub mod red_ambrosia_upgrades;
 pub mod researches;
 pub mod reset_currency;
 pub mod reset_time_and_auto_obtainium;
+pub mod resource_gain;
 pub mod rune_blessing_effects;
 pub mod rune_effects;
 pub mod rune_exp_multiplier;

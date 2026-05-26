@@ -31,6 +31,17 @@ pub enum UpgradeTier {
     Reincarnation,
 }
 
+/// Achievement-group identifier — passed to `awardAchievementGroup()` in the
+/// legacy UI tier. Closed enum because every emitter names the group at
+/// compile time. Extend with new variants as more groups are wired up.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum AchievementGroup {
+    /// `'constant'` — awarded by [`resourceGain`](crate::mechanics::resource_gain)
+    /// when `ascensionCount > 0`.
+    Constant,
+}
+
 /// Events emitted by mechanic functions. The closed set lets the UI dispatch
 /// on the variant without a string-typed kind field, and `#[non_exhaustive]`
 /// means new variants can land without breaking downstream `match` arms.
@@ -117,5 +128,19 @@ pub enum CoreEvent {
         after: f64,
         /// `wow_tesseracts` removed from the player's balance.
         spent: f64,
+    },
+    /// An achievement group should be checked/awarded. The UI tier maps
+    /// the group identifier to its `awardAchievementGroup()` call.
+    AchievementGroupAwarded {
+        /// Which group to evaluate.
+        group: AchievementGroup,
+    },
+    /// One of challenges 1..=5 was auto-completed this tick. Fires when
+    /// the research-71..75 gates are met and the coin threshold is crossed.
+    ChallengeAutoCompleted {
+        /// 1-based challenge index, `1..=5`.
+        challenge_index: u8,
+        /// New completion count after the increment.
+        new_completions: f64,
     },
 }
