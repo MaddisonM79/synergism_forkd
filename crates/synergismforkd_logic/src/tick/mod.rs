@@ -124,6 +124,40 @@ pub struct TickOutput {
     pub events: SmallVec<[CoreEvent; 16]>,
 }
 
+/// Cross-mechanic precomputed values, computed once per tick at the top
+/// of [`tack`] and threaded through every downstream phase. **The
+/// canonical artifact for cross-mechanic flow** — when a designer wants
+/// to read "where does Corruption affect Cubes affect Ants?", the
+/// answer is this struct and the function that populates it
+/// ([`phase_cross_mechanic_precompute`]).
+///
+/// Per Loom's tack-design memo, the goal of the cache is to make the
+/// synergy graph **legible**. The legacy TS scattered these
+/// computations across the four aggregators' `*Pre` parameters, which
+/// every caller hand-packed — silently dropping a field gave a working
+/// tick that produced slightly less, with no compile error.
+///
+/// Today this struct holds the four `*Pre` bundles directly. Each
+/// future commit migrates one upstream effect into compute-from-state
+/// inside [`phase_cross_mechanic_precompute`], at which point the
+/// corresponding `*Pre` field becomes a `From<&CrossMechanicCache>`
+/// view and the caller stops providing it. Eventually
+/// [`TackInput::global_multipliers_pre`] et al. all disappear and the
+/// cache is fully self-derived from `&GameState`.
+#[derive(Debug, Clone, Default)]
+pub struct CrossMechanicCache {
+    /// Pre-evaluated bundle for [`compute_global_multipliers`]. Owned
+    /// by the cache so mechanics never read this from
+    /// [`TackInput`] directly.
+    pub global_multipliers_pre: GlobalMultipliersPreEvaluated,
+    /// Pre-evaluated bundle for [`update_all_multiplier`].
+    pub update_all_multiplier_pre: UpdateAllMultiplierPre,
+    /// Pre-evaluated bundle for [`update_all_tick`].
+    pub update_all_tick_pre: UpdateAllTickPre,
+    /// Pre-evaluated bundle for [`resource_gain`].
+    pub resource_gain_pre: ResourceGainPre,
+}
+
 /// Run one tick.
 ///
 /// Phase ordering is canonical — see module docs. Reordering is a design
@@ -131,12 +165,12 @@ pub struct TickOutput {
 pub fn tack(state: &mut GameState, input: &TackInput) -> TickOutput {
     let mut output = TickOutput::default();
 
-    phase_cross_mechanic_precompute(state, input);
-    phase_global_state(state, input);
+    let cache = phase_cross_mechanic_precompute(state, input);
+    phase_global_state(state, &cache);
     phase_player_input(state, input, &mut output);
-    phase_generation(state, input, &mut output);
+    phase_generation(state, &cache, input.dt, &mut output);
     if !input.time_warp {
-        phase_automation(state, input, &mut output);
+        phase_automation(state, &cache, &mut output);
     }
 
     output
@@ -144,45 +178,45 @@ pub fn tack(state: &mut GameState, input: &TackInput) -> TickOutput {
 
 /// **Phase 1** — Cross-mechanic precompute.
 ///
-/// **Status: stub.** The locked tick contract calls for a single
-/// `CrossMechanicCache` computed here, then threaded through the rest of
-/// the tick. The cache cannot be built until the upstream mechanics
-/// (rune effects, ant effects, hepteract effects, achievement rewards,
-/// challenge-15 rewards) finish porting. Until then, the `*Pre` bundles
-/// stay on [`TackInput`] and the caller assembles them.
+/// Builds the [`CrossMechanicCache`] — the canonical artifact for every
+/// downstream phase's cross-mechanic reads. Phases 2 / 4 / 5 take the
+/// cache, not [`TackInput`], so the cache becomes the single screen on
+/// which a designer can audit how mechanics flow into each other.
 ///
-/// When this phase materializes, every aggregator's `*Pre` becomes a
-/// `From<&CrossMechanicCache>` view so contributors never pack a bundle
-/// directly.
-fn phase_cross_mechanic_precompute(_state: &GameState, _input: &TackInput) {
-    // Intentionally empty. See module docs.
+/// **Today the cache is built by forwarding the four `*Pre` bundles
+/// from [`TackInput`].** As each upstream effect ports (rune effects,
+/// ant effects, hepteract effects, achievement rewards, challenge-15
+/// rewards), its computation moves into this function — reading from
+/// `state` — and the corresponding caller-provided `*Pre` field shrinks
+/// or disappears. The cache is the migration target; `TackInput` is the
+/// temporary input mechanism.
+fn phase_cross_mechanic_precompute(_state: &GameState, input: &TackInput) -> CrossMechanicCache {
+    // TODO(cross-mechanic-cache): replace each field with a
+    // compute-from-state once the upstream mechanic ports. The
+    // forwarding shape lets phase consumers read from the cache today
+    // even though every field is still caller-provided. All four
+    // `*Pre` bundles are `Copy`, so this is a cheap struct-of-copies.
+    CrossMechanicCache {
+        global_multipliers_pre: input.global_multipliers_pre,
+        update_all_multiplier_pre: input.update_all_multiplier_pre,
+        update_all_tick_pre: input.update_all_tick_pre,
+        resource_gain_pre: input.resource_gain_pre,
+    }
 }
 
 /// **Phase 2** — Global state aggregators.
 ///
-/// **Status: stub.** The four aggregators are pure reads whose results
-/// belong in a `state.g_cache: GCacheState` slice that does not yet
-/// exist. Adding the slice is a state-schema change that requires user
-/// permission (CLAUDE.md), so for now Phase 4 receives the
-/// caller-provided `*Pre` bundle directly (which mirrors the legacy
-/// `G.*` reads).
-///
-/// When `g_cache` lands, this phase will:
-/// 1. Call [`compute_global_multipliers`] → write to `state.g_cache`
-/// 2. Call [`update_all_multiplier`] → write to `state.g_cache`
-/// 3. Call [`update_all_tick`] with the multiplier-stage `total_multiplier`
-///    → write to `state.g_cache`
-/// 4. Re-run a slim subset of [`compute_global_multipliers`] for the
-///    `accelerator_effect` feedback loop the legacy TS handles in a
-///    second pass.
-fn phase_global_state(state: &mut GameState, input: &TackInput) {
-    // Aggregator outputs are dropped for now — they have no home on
-    // `GameState` until `g_cache` lands. Calls are kept so any panic /
-    // arithmetic-overflow regressions surface in this tick rather than
-    // later. Once `g_cache` lands, replace the `_` bindings with writes.
-    let _ = compute_global_multipliers(state, &input.global_multipliers_pre);
-    let mult = update_all_multiplier(state, &input.update_all_multiplier_pre);
-    let _ = update_all_tick(state, &input.update_all_tick_pre, mult.total_multiplier);
+/// Reads the precomputed bundles out of [`CrossMechanicCache`] and runs
+/// the four pure aggregators in dependency order. Aggregator outputs
+/// have no home on [`GameState`] until a `g_cache` slice lands (a
+/// state-schema change requiring user permission per CLAUDE.md); for
+/// now they're dropped, but the calls are kept so any panic /
+/// arithmetic-overflow regressions surface in this tick rather than
+/// later.
+fn phase_global_state(state: &mut GameState, cache: &CrossMechanicCache) {
+    let _ = compute_global_multipliers(state, &cache.global_multipliers_pre);
+    let mult = update_all_multiplier(state, &cache.update_all_multiplier_pre);
+    let _ = update_all_tick(state, &cache.update_all_tick_pre, mult.total_multiplier);
 }
 
 /// **Phase 3** — Player input drain.
@@ -202,17 +236,22 @@ fn phase_player_input(state: &mut GameState, input: &TackInput, output: &mut Tic
 
 /// **Phase 4** — Resource generation + challenge auto-completion.
 ///
-/// Calls [`resource_gain`] and writes its result back into the
-/// corresponding [`GameState`] slices. Events emitted by `resource_gain`
-/// (achievement awards, challenge auto-completions) flow into
-/// [`TickOutput::events`].
+/// Calls [`resource_gain`] with the cache's `resource_gain_pre` bundle
+/// and writes the result back into the corresponding [`GameState`]
+/// slices. Events emitted by `resource_gain` (achievement awards,
+/// challenge auto-completions) flow into [`TickOutput::events`].
 ///
 /// Per Ledger Finding 1, the currency fields now have a single
 /// source-of-truth in `state.upgrades`; `buy_*` mutators read/write them
 /// through `&mut Decimal` parameters rather than via per-slice
 /// duplicates. No mid-tick sync workaround is needed.
-fn phase_generation(state: &mut GameState, input: &TackInput, output: &mut TickOutput) {
-    let result = resource_gain(state, &input.resource_gain_pre, input.dt);
+fn phase_generation(
+    state: &mut GameState,
+    cache: &CrossMechanicCache,
+    dt: f64,
+    output: &mut TickOutput,
+) {
+    let result = resource_gain(state, &cache.resource_gain_pre, dt);
 
     // ─── Canonical writeback (state.upgrades, state.coin_counters) ───────
     state.upgrades.coins = result.coins;
@@ -273,7 +312,7 @@ fn phase_generation(state: &mut GameState, input: &TackInput, output: &mut TickO
 ///
 /// Each sub-phase is gated on its own auto-toggle flag; the orchestrator
 /// reads those flags from `state` slices that haven't been wired yet.
-fn phase_automation(_state: &mut GameState, _input: &TackInput, _output: &mut TickOutput) {
+fn phase_automation(_state: &mut GameState, _cache: &CrossMechanicCache, _output: &mut TickOutput) {
     // Intentionally empty. See module docs.
 }
 
@@ -359,6 +398,40 @@ mod tests {
         let output = tack(&mut state, &input);
         // Default state has zero of everything — no events should fire.
         assert!(output.events.is_empty());
+    }
+
+    #[test]
+    fn cross_mechanic_cache_forwards_pre_bundles_from_input() {
+        // Today the cache is built by copying the four *Pre bundles
+        // from TackInput. Future commits will replace these with
+        // compute-from-state calls; this test pins the forwarding
+        // behavior so a future "did I wire the new compute function
+        // correctly?" can compare against expected forwarded values.
+        let state = GameState::default();
+        let input = TackInput {
+            dt: 0.025,
+            ..TackInput::default()
+        };
+        let cache = phase_cross_mechanic_precompute(&state, &input);
+
+        // Default-equality check on each *Pre field — forwarding
+        // preserves bit-equal values from input to cache.
+        assert_eq!(
+            cache.global_multipliers_pre.crystal_mult,
+            input.global_multipliers_pre.crystal_mult
+        );
+        assert_eq!(
+            cache.update_all_multiplier_pre.multipliers_achievement,
+            input.update_all_multiplier_pre.multipliers_achievement
+        );
+        assert_eq!(
+            cache.update_all_tick_pre.accelerators_achievement,
+            input.update_all_tick_pre.accelerators_achievement
+        );
+        assert_eq!(
+            cache.resource_gain_pre.produce_total,
+            input.resource_gain_pre.produce_total
+        );
     }
 
     #[test]

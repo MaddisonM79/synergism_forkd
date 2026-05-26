@@ -48,7 +48,7 @@ pub use currency::{Coins, PrestigePoints, ReincarnationPoints, TranscendPoints};
 
 // ─── Tick orchestrator ───────────────────────────────────────────────────
 
-pub use tick::{tack, BuyRequest, PlayerAction, TackInput, TickOutput};
+pub use tick::{tack, BuyRequest, CrossMechanicCache, PlayerAction, TackInput, TickOutput};
 
 // ─── Per-tick aggregator entry points ────────────────────────────────────
 
