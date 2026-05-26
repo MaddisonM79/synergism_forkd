@@ -1,0 +1,457 @@
+//! Corruption math.
+//!
+//! Verbatim port of
+//! `legacy_core_split/packages/logic/src/mechanics/corruptions.ts`
+//! (migrated from the legacy `packages/web_ui/src/Corruptions.ts`). The
+//! `CorruptionLoadout` / `CorruptionSaves` classes and the UI loadout
+//! table stay in the UI tier — this module owns the per-corruption
+//! multipliers, the cap formula, and the score / difficulty
+//! calculators.
+
+// ─── Cap on per-corruption level ───────────────────────────────────────────
+
+/// Inputs to [`max_corruption_level`].
+#[derive(Debug, Clone, Copy)]
+pub struct MaxCorruptionLevelInput {
+    /// `player.challengecompletions[11]`. `+5` to cap when any
+    /// completion exists.
+    pub challenge_11_completions: f64,
+    /// `player.challengecompletions[12]`. `+2` when any.
+    pub challenge_12_completions: f64,
+    /// `player.challengecompletions[13]`. `+2` when any.
+    pub challenge_13_completions: f64,
+    /// `player.challengecompletions[14]`. `+2` when any.
+    pub challenge_14_completions: f64,
+    /// `player.platonicUpgrades[5]`. `+1` when any.
+    pub platonic_upgrade_5: f64,
+    /// `player.platonicUpgrades[10]`. `+1` when any.
+    pub platonic_upgrade_10: f64,
+    /// `getGQUpgradeEffect('platonicTau', 'unlocked')`. Floors at 13 —
+    /// applied **after** the challenge/platonic adds, **before**
+    /// `corruption_fourteen`.
+    pub platonic_tau_unlocked: bool,
+    /// `getGQUpgradeEffect('corruptionFourteen', 'unlocked')`. `+1` to
+    /// the final cap (after the platonic-tau floor).
+    pub corruption_fourteen_unlocked: bool,
+    /// `getOcteractUpgradeEffect('octeractCorruption', 'corruptionLevelCapIncrease')`.
+    /// Added to the final cap.
+    pub octeract_corruption_cap_increase: f64,
+}
+
+/// Maximum corruption level players can set on any single corruption.
+/// Sum of challenge / platonic / GQ / octeract contributions, with a
+/// `platonic_tau` floor of `13` if that upgrade is unlocked.
+#[must_use]
+pub fn max_corruption_level(input: &MaxCorruptionLevelInput) -> f64 {
+    let mut max = 0.0_f64;
+    if input.challenge_11_completions > 0.0 {
+        max += 5.0;
+    }
+    if input.challenge_12_completions > 0.0 {
+        max += 2.0;
+    }
+    if input.challenge_13_completions > 0.0 {
+        max += 2.0;
+    }
+    if input.challenge_14_completions > 0.0 {
+        max += 2.0;
+    }
+    if input.platonic_upgrade_5 > 0.0 {
+        max += 1.0;
+    }
+    if input.platonic_upgrade_10 > 0.0 {
+        max += 1.0;
+    }
+
+    if input.platonic_tau_unlocked {
+        max = max.max(13.0);
+    }
+
+    if input.corruption_fourteen_unlocked {
+        max += 1.0;
+    }
+    max += input.octeract_corruption_cap_increase;
+
+    max
+}
+
+// ─── Per-corruption effect calculators ─────────────────────────────────────
+
+/// Inputs to [`viscosity_effect`].
+#[derive(Debug, Clone, Copy)]
+pub struct ViscosityEffectInput {
+    /// `G.viscosityPower[level]` — the level-indexed base exponent.
+    pub base_power: f64,
+    /// `player.platonicUpgrades[6]`. Multiplies base by
+    /// `(1 + n / 30)`.
+    pub platonic_upgrade_6: f64,
+}
+
+/// Viscosity production exponent. Clamped to `≤ 1` — buffs can only
+/// soften the corruption, never reverse it.
+#[must_use]
+pub fn viscosity_effect(input: &ViscosityEffectInput) -> f64 {
+    (input.base_power * (1.0 + input.platonic_upgrade_6 / 30.0)).min(1.0)
+}
+
+/// Inputs to [`drought_effect`].
+#[derive(Debug, Clone, Copy)]
+pub struct DroughtEffectInput {
+    /// `G.droughtSalvage[level]`.
+    pub base_salvage: f64,
+    /// `player.platonicUpgrades[13]`. When `> 0`, halves the salvage
+    /// reduction.
+    pub platonic_upgrade_13: f64,
+}
+
+/// Drought salvage reduction multiplier. Platonic 13 halves the
+/// reduction.
+#[must_use]
+pub fn drought_effect(input: &DroughtEffectInput) -> f64 {
+    if input.platonic_upgrade_13 > 0.0 {
+        input.base_salvage * 0.5
+    } else {
+        input.base_salvage
+    }
+}
+
+/// Inputs to [`illiteracy_effect`].
+#[derive(Debug, Clone, Copy)]
+pub struct IlliteracyEffectInput {
+    /// `G.illiteracyPower[level]`.
+    pub base_power: f64,
+    /// `player.platonicUpgrades[9]`.
+    pub platonic_upgrade_9: f64,
+    /// `player.obtainium.gte(1)` AND `log10(player.obtainium)` — the
+    /// obtainium-based boost only applies when `obtainium ≥ 1`. Pass:
+    /// - `None` if `obtainium < 1` (boost path skipped)
+    /// - the `log10` value otherwise (this function clamps to 100)
+    ///
+    /// Keeping `Option<f64>` here keeps the `Decimal` dependency on
+    /// the wrapper side.
+    pub obtainium_log10: Option<f64>,
+}
+
+/// Illiteracy production exponent. When `obtainium ≥ 1`, gets bumped
+/// by `1 + (platonic_9 / 100) * min(100, log10(obtainium))`. Clamped
+/// to `≤ 1`.
+#[must_use]
+pub fn illiteracy_effect(input: &IlliteracyEffectInput) -> f64 {
+    let multiplier = match input.obtainium_log10 {
+        None => 1.0,
+        Some(log10) => 1.0 + (1.0 / 100.0) * input.platonic_upgrade_9 * 100.0_f64.min(log10),
+    };
+    (input.base_power * multiplier).min(1.0)
+}
+
+/// Inputs to [`hyperchallenge_effect`].
+#[derive(Debug, Clone, Copy)]
+pub struct HyperchallengeEffectInput {
+    /// `G.hyperchallengeMultiplier[level]`.
+    pub base_effect: f64,
+    /// `player.platonicUpgrades[8]`. Divides base by
+    /// `(1 + 2/5 * n)`.
+    pub platonic_upgrade_8: f64,
+}
+
+/// Hyperchallenge requirement multiplier. Floored at `1` — platonic-8
+/// can soften the corruption but never make challenges easier than
+/// baseline.
+#[must_use]
+pub fn hyperchallenge_effect(input: &HyperchallengeEffectInput) -> f64 {
+    let divisor = 1.0 + 2.0 / 5.0 * input.platonic_upgrade_8;
+    (input.base_effect / divisor).max(1.0)
+}
+
+// ─── Per-corruption score multiplier ───────────────────────────────────────
+
+/// Score-multiplier table indexed by total corruption level (level +
+/// bonus levels). For total levels at or beyond the last index, the
+/// formula extrapolates with a `1.2^x` geometric tail.
+pub const CORRUPTION_SCORE_MULTS: [f64; 19] = [
+    1.0, 3.0, 4.0, 5.0, 6.0, 7.0, 7.75, 8.5, 9.25, 10.0, 10.75, 11.5, 12.25, 13.0, 16.0, 20.0,
+    25.0, 33.0, 35.0,
+];
+
+/// Inputs to [`calculate_corruption_raw_multiplier`].
+#[derive(Debug, Clone, Copy)]
+pub struct CorruptionRawMultiplierInput {
+    /// Per-corruption level + bonus levels (cookieGrandma + GQ
+    /// corruption15 + SC oneChallengeCap + finiteDescent rune).
+    pub total_level: f64,
+    /// Additive score increase applied inside the power base. Sum of:
+    /// - `getGQUpgradeEffect('advancedPack', 'corruptionScoreIncrease')`
+    /// - `getSingularityChallengeEffect('oneChallengeCap', 'corrScoreIncrease')`
+    /// - `0.3 * player.cubeUpgrades[74]`
+    pub bonus_val: f64,
+    /// Exponent applied to the result. Equal to `1` in the common
+    /// case. When `player.platonicUpgrades[17] > 0` AND the corruption
+    /// is `viscosity` AND `levels.viscosity >= 10`, callers pass
+    /// `3 + 0.04 * platonicUpgrades[17]` (the P4x2 "exponent" buff).
+    pub viscosity_power: f64,
+}
+
+/// Per-corruption score multiplier. Interpolates the static
+/// [`CORRUPTION_SCORE_MULTS`] table for total levels under the table
+/// length, then extrapolates with a `1.2^x` geometric tail for higher
+/// levels. Both branches raised to `viscosity_power`.
+#[must_use]
+pub fn calculate_corruption_raw_multiplier(input: &CorruptionRawMultiplierInput) -> f64 {
+    let score_mult_length = CORRUPTION_SCORE_MULTS.len() as f64;
+    let total_level = input.total_level;
+
+    if total_level < score_mult_length - 1.0 {
+        let portion_above_level = total_level.ceil() - total_level;
+        let floor_idx = total_level.floor() as usize;
+        let ceil_idx = total_level.ceil() as usize;
+        (CORRUPTION_SCORE_MULTS[floor_idx]
+            + input.bonus_val
+            + portion_above_level
+                * (CORRUPTION_SCORE_MULTS[ceil_idx] - CORRUPTION_SCORE_MULTS[floor_idx]))
+            .powf(input.viscosity_power)
+    } else {
+        ((CORRUPTION_SCORE_MULTS[CORRUPTION_SCORE_MULTS.len() - 1] + input.bonus_val)
+            * 1.2_f64.powf(total_level - score_mult_length + 1.0))
+        .powf(input.viscosity_power)
+    }
+}
+
+// ─── Difficulty score ──────────────────────────────────────────────────────
+
+/// Total corruption difficulty score. Starts at 400 and adds
+/// `16 * (total_level)²` per corruption. Callers pass the
+/// per-corruption total levels (level + bonus levels), in any order.
+#[must_use]
+pub fn calculate_corruption_difficulty_score(total_levels: &[f64]) -> f64 {
+    let mut base_points = 400.0_f64;
+    for &lvl in total_levels {
+        base_points += 16.0 * lvl * lvl;
+    }
+    base_points
+}
+
+// ─── Level clipping / validation ───────────────────────────────────────────
+
+/// Clip a single corruption level to a valid stored value. Returns
+/// `0` if the input isn't a finite integer; otherwise clamps to
+/// `[0, max_level]`.
+#[must_use]
+pub fn clip_corruption_level(level: f64, max_level: f64) -> f64 {
+    if !level.is_finite() || level.is_nan() || level.fract() != 0.0 {
+        return 0.0;
+    }
+    level.clamp(0.0, max_level)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn baseline_max_input() -> MaxCorruptionLevelInput {
+        MaxCorruptionLevelInput {
+            challenge_11_completions: 0.0,
+            challenge_12_completions: 0.0,
+            challenge_13_completions: 0.0,
+            challenge_14_completions: 0.0,
+            platonic_upgrade_5: 0.0,
+            platonic_upgrade_10: 0.0,
+            platonic_tau_unlocked: false,
+            corruption_fourteen_unlocked: false,
+            octeract_corruption_cap_increase: 0.0,
+        }
+    }
+
+    #[test]
+    fn max_corruption_level_baseline_is_zero() {
+        assert_eq!(max_corruption_level(&baseline_max_input()), 0.0);
+    }
+
+    #[test]
+    fn max_corruption_level_full_challenges_and_platonics() {
+        let input = MaxCorruptionLevelInput {
+            challenge_11_completions: 1.0,
+            challenge_12_completions: 1.0,
+            challenge_13_completions: 1.0,
+            challenge_14_completions: 1.0,
+            platonic_upgrade_5: 1.0,
+            platonic_upgrade_10: 1.0,
+            ..baseline_max_input()
+        };
+        // 5 + 2 + 2 + 2 + 1 + 1 = 13
+        assert_eq!(max_corruption_level(&input), 13.0);
+    }
+
+    #[test]
+    fn max_corruption_level_platonic_tau_floor_at_13() {
+        let input = MaxCorruptionLevelInput {
+            platonic_tau_unlocked: true,
+            ..baseline_max_input()
+        };
+        assert_eq!(max_corruption_level(&input), 13.0);
+    }
+
+    #[test]
+    fn max_corruption_level_corruption_fourteen_after_floor() {
+        let input = MaxCorruptionLevelInput {
+            platonic_tau_unlocked: true,
+            corruption_fourteen_unlocked: true,
+            ..baseline_max_input()
+        };
+        assert_eq!(max_corruption_level(&input), 14.0);
+    }
+
+    #[test]
+    fn viscosity_clamped_at_one() {
+        let result = viscosity_effect(&ViscosityEffectInput {
+            base_power: 1.5,
+            platonic_upgrade_6: 30.0, // multiplier of 2 → base 3
+        });
+        assert_eq!(result, 1.0);
+    }
+
+    #[test]
+    fn viscosity_below_one_unchanged() {
+        let result = viscosity_effect(&ViscosityEffectInput {
+            base_power: 0.5,
+            platonic_upgrade_6: 0.0,
+        });
+        assert_eq!(result, 0.5);
+    }
+
+    #[test]
+    fn drought_platonic_13_halves() {
+        let base = 0.4;
+        let plain = drought_effect(&DroughtEffectInput {
+            base_salvage: base,
+            platonic_upgrade_13: 0.0,
+        });
+        let halved = drought_effect(&DroughtEffectInput {
+            base_salvage: base,
+            platonic_upgrade_13: 1.0,
+        });
+        assert_eq!(plain, base);
+        assert_eq!(halved, base * 0.5);
+    }
+
+    #[test]
+    fn illiteracy_no_obtainium_unchanged() {
+        let result = illiteracy_effect(&IlliteracyEffectInput {
+            base_power: 0.5,
+            platonic_upgrade_9: 10.0,
+            obtainium_log10: None,
+        });
+        // multiplier = 1 → result = 0.5
+        assert_eq!(result, 0.5);
+    }
+
+    #[test]
+    fn illiteracy_with_obtainium_bumps_base() {
+        // base = 0.5, platonic_9 = 100, log10 = 50
+        // multiplier = 1 + (1/100) * 100 * 50 = 1 + 50 = 51
+        // result = min(0.5 * 51, 1) = min(25.5, 1) = 1
+        let result = illiteracy_effect(&IlliteracyEffectInput {
+            base_power: 0.5,
+            platonic_upgrade_9: 100.0,
+            obtainium_log10: Some(50.0),
+        });
+        assert_eq!(result, 1.0);
+    }
+
+    #[test]
+    fn illiteracy_obtainium_log_capped_at_100() {
+        // log10 = 1000 → clamped to 100
+        let capped_at_100 = illiteracy_effect(&IlliteracyEffectInput {
+            base_power: 0.0,
+            platonic_upgrade_9: 1.0,
+            obtainium_log10: Some(1_000.0),
+        });
+        let no_cap_needed = illiteracy_effect(&IlliteracyEffectInput {
+            base_power: 0.0,
+            platonic_upgrade_9: 1.0,
+            obtainium_log10: Some(100.0),
+        });
+        // Both should give same result since 100 ≤ 100.
+        assert_eq!(capped_at_100, no_cap_needed);
+    }
+
+    #[test]
+    fn hyperchallenge_floored_at_one() {
+        let result = hyperchallenge_effect(&HyperchallengeEffectInput {
+            base_effect: 0.5,
+            platonic_upgrade_8: 10.0,
+        });
+        assert_eq!(result, 1.0);
+    }
+
+    #[test]
+    fn hyperchallenge_normal_divisor() {
+        // base = 100, platonic_8 = 5 → divisor = 1 + 2/5 * 5 = 3
+        let result = hyperchallenge_effect(&HyperchallengeEffectInput {
+            base_effect: 100.0,
+            platonic_upgrade_8: 5.0,
+        });
+        assert!((result - 100.0 / 3.0).abs() < 1e-9);
+    }
+
+    #[test]
+    fn corruption_raw_multiplier_at_zero_level() {
+        let result = calculate_corruption_raw_multiplier(&CorruptionRawMultiplierInput {
+            total_level: 0.0,
+            bonus_val: 0.0,
+            viscosity_power: 1.0,
+        });
+        // table[0] = 1, raised to 1 → 1
+        assert_eq!(result, 1.0);
+    }
+
+    #[test]
+    fn corruption_raw_multiplier_interpolates() {
+        // total_level = 0.5: floor=0 (1.0), ceil=1 (3.0)
+        // portion_above = ceil - level = 1 - 0.5 = 0.5
+        // (1 + 0.5*(3-1)) ^ 1 = 1 + 1 = 2
+        let result = calculate_corruption_raw_multiplier(&CorruptionRawMultiplierInput {
+            total_level: 0.5,
+            bonus_val: 0.0,
+            viscosity_power: 1.0,
+        });
+        assert!((result - 2.0).abs() < 1e-9);
+    }
+
+    #[test]
+    fn corruption_raw_multiplier_extrapolates_past_table() {
+        // total_level = 19 (== len), table[len-1] = 35
+        // formula = 35 * 1.2^(19 - 19 + 1) = 35 * 1.2 = 42
+        let result = calculate_corruption_raw_multiplier(&CorruptionRawMultiplierInput {
+            total_level: 19.0,
+            bonus_val: 0.0,
+            viscosity_power: 1.0,
+        });
+        assert!((result - 42.0).abs() < 1e-9);
+    }
+
+    #[test]
+    fn corruption_difficulty_score_baseline_400() {
+        assert_eq!(calculate_corruption_difficulty_score(&[]), 400.0);
+    }
+
+    #[test]
+    fn corruption_difficulty_score_sums_squares() {
+        // 400 + 16*1 + 16*4 + 16*9 = 400 + 16 + 64 + 144 = 624
+        let result = calculate_corruption_difficulty_score(&[1.0, 2.0, 3.0]);
+        assert_eq!(result, 624.0);
+    }
+
+    #[test]
+    fn clip_corruption_level_rejects_non_integers() {
+        assert_eq!(clip_corruption_level(1.5, 10.0), 0.0);
+        assert_eq!(clip_corruption_level(f64::NAN, 10.0), 0.0);
+        assert_eq!(clip_corruption_level(f64::INFINITY, 10.0), 0.0);
+    }
+
+    #[test]
+    fn clip_corruption_level_clamps_to_range() {
+        assert_eq!(clip_corruption_level(-5.0, 10.0), 0.0);
+        assert_eq!(clip_corruption_level(5.0, 10.0), 5.0);
+        assert_eq!(clip_corruption_level(15.0, 10.0), 10.0);
+    }
+}

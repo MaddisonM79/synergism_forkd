@@ -16,9 +16,10 @@
 //! [`break-eternity-rs`]: https://crates.io/crates/break-eternity-rs
 
 pub use break_eternity::{
-    decimal_places, sign, to_fixed, BreakEternityError, Decimal, EXPN1, EXPONENT_LIMIT,
-    FIRST_NEG_LAYER, LAYER_REDUCTION_THRESHOLD, MAX_ES_IN_A_ROW, MAX_FLOAT_PRECISION,
-    MAX_POWERS_OF_TEN, NUMBER_EXP_MAX, NUMBER_EXP_MIN, OMEGA, TWO_PI,
+    decimal_places, sign, to_fixed, ArithmeticError, ArithmeticErrorKind, BreakEternityError,
+    Decimal, TetrationMode, COMPARE_EPSILON, EXPN1, EXPONENT_LIMIT, FIRST_NEG_LAYER,
+    LAYER_REDUCTION_THRESHOLD, MAX_ES_IN_A_ROW, MAX_FLOAT_PRECISION, MAX_POWERS_OF_TEN,
+    NUMBER_EXP_MAX, NUMBER_EXP_MIN, OMEGA, TWO_PI,
 };
 
 #[cfg(test)]
@@ -34,8 +35,8 @@ mod tests {
     #[test]
     fn small_arithmetic_matches_f64() {
         // `Decimal` is `Copy`, so passing by value is the idiomatic call form.
-        let a = Decimal::from_number(2.0);
-        let b = Decimal::from_number(3.0);
+        let a = Decimal::from_finite(2.0);
+        let b = Decimal::from_finite(3.0);
         assert_eq!((a + b).to_number(), 5.0);
         assert_eq!((a * b).to_number(), 6.0);
     }
