@@ -19,22 +19,40 @@ pub struct ProducerFamilyState {
     pub first_owned: f64,
     /// Tier-1 next cost.
     pub first_cost: Decimal,
+    /// Tier-1 generated count — auto-generated from the tier-2 producer's
+    /// per-tick production. Tracked separately from `first_owned` because
+    /// purchased and generated units obey different mechanic gates (only
+    /// purchased units count toward "no producer purchased" achievements
+    /// and toward certain reset bonuses). Mirrors the legacy
+    /// `player.{first}Generated{Family}` field.
+    pub first_generated: Decimal,
     /// Tier-2 owned count.
     pub second_owned: f64,
     /// Tier-2 next cost.
     pub second_cost: Decimal,
+    /// Tier-2 generated count — see `first_generated`.
+    pub second_generated: Decimal,
     /// Tier-3 owned count.
     pub third_owned: f64,
     /// Tier-3 next cost.
     pub third_cost: Decimal,
+    /// Tier-3 generated count — see `first_generated`.
+    pub third_generated: Decimal,
     /// Tier-4 owned count.
     pub fourth_owned: f64,
     /// Tier-4 next cost.
     pub fourth_cost: Decimal,
+    /// Tier-4 generated count — see `first_generated`.
+    pub fourth_generated: Decimal,
     /// Tier-5 owned count.
     pub fifth_owned: f64,
     /// Tier-5 next cost.
     pub fifth_cost: Decimal,
+    /// Tier-5 generated count — see `first_generated`. Note: the fifth
+    /// tier has no "tier 6" producer to feed it, so this field never
+    /// actually changes in the cascade, but it's tracked here for shape
+    /// uniformity with the other four tiers.
+    pub fifth_generated: Decimal,
 }
 
 /// Player-configurable per-click purchase cap. Mirrors the UI's

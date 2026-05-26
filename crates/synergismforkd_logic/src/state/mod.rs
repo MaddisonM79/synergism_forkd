@@ -48,7 +48,10 @@ pub use blessings::{BlessingValues, PlatonicBlessings};
 pub use campaigns::CampaignsState;
 pub use challenges::ChallengesState;
 pub use coin_counters::CoinCountersState;
-pub use corruptions::{CorruptionLoadout, CorruptionsState};
+pub use corruptions::{
+    CorruptionLoadout, CorruptionsState, DEFLATION_INDEX, DILATION_INDEX, DROUGHT_INDEX,
+    EXTINCTION_INDEX, HYPERCHALLENGE_INDEX, ILLITERACY_INDEX, RECESSION_INDEX, VISCOSITY_INDEX,
+};
 pub use crystal_upgrades::{CrystalUpgradesState, CRYSTAL_UPGRADES_DEFAULT_LEN};
 pub use cube_balances::CubeBalancesState;
 pub use cube_upgrade_levels::CubeUpgradeLevelsState;
