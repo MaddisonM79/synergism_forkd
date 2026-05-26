@@ -7,6 +7,8 @@ pub mod accelerator_multipliers;
 pub mod accelerators;
 pub mod achievement_levels;
 pub mod achievement_points;
+pub mod ant_sacrifice_rewards;
+pub mod ant_upgrade_levels;
 pub mod ascensions;
 pub mod campaign_token_rewards;
 pub mod challenges;
