@@ -70,4 +70,6 @@ pub mod talisman_levels;
 pub mod tax;
 pub mod tesseract_blessings;
 pub mod tesseract_buildings;
+pub mod update_all_multiplier;
+pub mod update_all_tick;
 pub mod upgrades;
