@@ -6,6 +6,7 @@
 
 pub mod accelerator;
 pub mod achievements;
+pub mod ambrosia;
 pub mod ants;
 pub mod blessings;
 pub mod challenges;
@@ -19,8 +20,10 @@ pub mod multiplier;
 pub mod octeract_upgrades;
 pub mod particle_buildings;
 pub mod producer;
+pub mod red_ambrosia;
 pub mod researches;
 pub mod runes;
+pub mod shop;
 pub mod singularity;
 pub mod talismans;
 pub mod tesseract_buildings;
@@ -28,6 +31,7 @@ pub mod upgrades;
 
 pub use accelerator::AcceleratorState;
 pub use achievements::{AchievementsState, ProgressiveAchievementCache};
+pub use ambrosia::{AmbrosiaState, AmbrosiaUpgrade};
 pub use ants::{
     AntsState, AntsToggles, AutoSacrificeMode, PlayerAntMastery, PlayerAntProducer, RebornELOEntry,
 };
@@ -43,8 +47,10 @@ pub use multiplier::MultiplierState;
 pub use octeract_upgrades::{OcteractUpgrade, OcteractUpgradesState};
 pub use particle_buildings::ParticleBuildingsState;
 pub use producer::{BuyAmount, ProducerFamilyState};
+pub use red_ambrosia::{RedAmbrosiaState, RedAmbrosiaUpgrade};
 pub use researches::ResearchesState;
 pub use runes::{RunesState, RUNE_COUNT};
+pub use shop::{ShopBuyMaxMode, ShopState};
 pub use singularity::{SingularityChallengeState, SingularityState};
 pub use talismans::{TalismanRuneAssignment, TalismansState, TALISMAN_COUNT};
 pub use tesseract_buildings::{AscendBuildingState, TesseractBuildingsState};
