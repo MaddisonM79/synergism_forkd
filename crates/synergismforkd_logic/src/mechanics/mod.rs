@@ -53,6 +53,7 @@ pub mod rune_levels;
 pub mod rune_spirit_effects;
 pub mod rune_upgrade_progression;
 pub mod shop_costs;
+pub mod shop_upgrades;
 pub mod talisman_costs;
 pub mod talisman_effects;
 pub mod talisman_levels;
