@@ -3,7 +3,9 @@
 //! octeracts, singularities, talismans, runes, and so on.
 
 pub mod accelerator_boosts;
+pub mod accelerator_multipliers;
 pub mod accelerators;
+pub mod ascensions;
 pub mod challenges;
 pub mod coin_production;
 pub mod corruptions;
@@ -11,6 +13,7 @@ pub mod crystal_and_building_power;
 pub mod crystal_upgrades;
 pub mod cube_blessings;
 pub mod cube_upgrades;
+pub mod exalt_penalties;
 pub mod hepteract_effects;
 pub mod hepteract_values;
 pub mod hypercube_blessings;
