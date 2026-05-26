@@ -4,4 +4,9 @@
 
 pub mod accelerator_boosts;
 pub mod accelerators;
+pub mod challenges;
+pub mod coin_production;
 pub mod multipliers;
+pub mod producers;
+pub mod reset_currency;
+pub mod tax;

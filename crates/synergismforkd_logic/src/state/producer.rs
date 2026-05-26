@@ -66,3 +66,74 @@ impl BuyAmount {
         f64::from(self as u32)
     }
 }
+
+impl ProducerFamilyState {
+    /// Read the owned count for tier `index` (1..=5). Mirrors the
+    /// `readOwned` helper in the legacy TS source. In release, indices
+    /// outside `1..=5` fall through to the fifth tier (matching the TS
+    /// `else state.fifthOwned` default); a debug assertion catches the
+    /// mistake during development.
+    #[must_use]
+    pub fn owned(&self, index: u8) -> f64 {
+        debug_assert!(
+            matches!(index, 1..=5),
+            "producer index out of range: {index}"
+        );
+        match index {
+            1 => self.first_owned,
+            2 => self.second_owned,
+            3 => self.third_owned,
+            4 => self.fourth_owned,
+            _ => self.fifth_owned,
+        }
+    }
+
+    /// Read the cost cache for tier `index` (1..=5). Same out-of-range
+    /// behavior as [`Self::owned`].
+    #[must_use]
+    pub fn cost(&self, index: u8) -> Decimal {
+        debug_assert!(
+            matches!(index, 1..=5),
+            "producer index out of range: {index}"
+        );
+        match index {
+            1 => self.first_cost,
+            2 => self.second_cost,
+            3 => self.third_cost,
+            4 => self.fourth_cost,
+            _ => self.fifth_cost,
+        }
+    }
+
+    /// Write the owned count for tier `index` (1..=5). Same out-of-range
+    /// behavior as [`Self::owned`].
+    pub fn set_owned(&mut self, index: u8, value: f64) {
+        debug_assert!(
+            matches!(index, 1..=5),
+            "producer index out of range: {index}"
+        );
+        match index {
+            1 => self.first_owned = value,
+            2 => self.second_owned = value,
+            3 => self.third_owned = value,
+            4 => self.fourth_owned = value,
+            _ => self.fifth_owned = value,
+        }
+    }
+
+    /// Write the cost cache for tier `index` (1..=5). Same out-of-range
+    /// behavior as [`Self::owned`].
+    pub fn set_cost(&mut self, index: u8, value: Decimal) {
+        debug_assert!(
+            matches!(index, 1..=5),
+            "producer index out of range: {index}"
+        );
+        match index {
+            1 => self.first_cost = value,
+            2 => self.second_cost = value,
+            3 => self.third_cost = value,
+            4 => self.fourth_cost = value,
+            _ => self.fifth_cost = value,
+        }
+    }
+}
