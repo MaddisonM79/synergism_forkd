@@ -12,7 +12,7 @@ use synergismforkd_bignum::Decimal;
 
 /// Slice of `GameState` read/written by the particle-building-purchase
 /// machinery.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, Default, PartialEq)]
 pub struct ParticleBuildingsState {
     /// The spend resource (reincarnation points).
     pub reincarnation_points: Decimal,

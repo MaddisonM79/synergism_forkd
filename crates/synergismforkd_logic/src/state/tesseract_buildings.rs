@@ -9,7 +9,7 @@
 /// legacy `player.ascendBuildingN` shape — only the fields the buy
 /// machinery touches; generated/multiplier stay in the UI tier until
 /// those mechanics migrate.
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq)]
 pub struct AscendBuildingState {
     /// Count owned.
     pub owned: f64,
@@ -21,7 +21,7 @@ pub struct AscendBuildingState {
 /// machinery. `wow_tesseracts` is the spend resource (mirrored as an
 /// `f64` via `Number(player.wowTesseracts)` at the boundary — the
 /// `WowTesseracts` wrapper class stays in the UI tier).
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq)]
 pub struct TesseractBuildingsState {
     /// Spend resource — the player's `wowTesseracts` balance.
     pub wow_tesseracts: f64,

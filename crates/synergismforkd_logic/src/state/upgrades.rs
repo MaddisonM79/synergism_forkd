@@ -44,3 +44,29 @@ pub struct UpgradesState {
     /// the four tier currencies for this gate.)
     pub reincarnate_no_coin_prestige_transcend_or_generator_upgrades: bool,
 }
+
+/// Default upgrade-bitmap length. Matches the legacy
+/// `Array(141).fill(0)` initial state.
+pub const UPGRADES_DEFAULT_LEN: usize = 141;
+
+impl Default for UpgradesState {
+    /// Zeroed resources, all-zero upgrade bitmap (`UPGRADES_DEFAULT_LEN`
+    /// entries), and every achievement flag set to `true` because no
+    /// upgrade has been purchased yet.
+    fn default() -> Self {
+        Self {
+            coins: Decimal::zero(),
+            prestige_points: Decimal::zero(),
+            transcend_points: Decimal::zero(),
+            reincarnation_points: Decimal::zero(),
+            upgrades: vec![0; UPGRADES_DEFAULT_LEN],
+            prestige_no_coin_upgrades: true,
+            transcend_no_coin_upgrades: true,
+            transcend_no_coin_or_prestige_upgrades: true,
+            reincarnate_no_coin_upgrades: true,
+            reincarnate_no_coin_or_prestige_upgrades: true,
+            reincarnate_no_coin_prestige_or_transcend_upgrades: true,
+            reincarnate_no_coin_prestige_transcend_or_generator_upgrades: true,
+        }
+    }
+}

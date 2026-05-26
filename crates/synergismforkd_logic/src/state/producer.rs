@@ -11,7 +11,7 @@ use synergismforkd_bignum::Decimal;
 /// Five positions (first..fifth) each have an owned count plus a current
 /// cost; the shared resource is the family's spend currency
 /// (coins / `prestigePoints` / `transcendPoints` / `reincarnationPoints`).
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, Default, PartialEq)]
 pub struct ProducerFamilyState {
     /// Resource the family buys with.
     pub resource: Decimal,
