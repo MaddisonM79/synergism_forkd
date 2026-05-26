@@ -225,46 +225,19 @@ mod tests {
     }
 
     fn empty_state() -> ParticleBuildingsState {
+        let tier = |index: u8| crate::state::ProducerTier {
+            owned: 0.0,
+            cost: get_particle_cost(
+                1.0,
+                GetParticleCostInput {
+                    index,
+                    in_ascension_challenge_15: false,
+                },
+            ),
+            generated: Decimal::zero(),
+        };
         ParticleBuildingsState {
-            first_owned_particles: 0.0,
-            first_cost_particles: get_particle_cost(1.0, cost_input()),
-            first_generated_particles: Decimal::zero(),
-            second_owned_particles: 0.0,
-            second_cost_particles: get_particle_cost(
-                1.0,
-                GetParticleCostInput {
-                    index: 2,
-                    ..cost_input()
-                },
-            ),
-            second_generated_particles: Decimal::zero(),
-            third_owned_particles: 0.0,
-            third_cost_particles: get_particle_cost(
-                1.0,
-                GetParticleCostInput {
-                    index: 3,
-                    ..cost_input()
-                },
-            ),
-            third_generated_particles: Decimal::zero(),
-            fourth_owned_particles: 0.0,
-            fourth_cost_particles: get_particle_cost(
-                1.0,
-                GetParticleCostInput {
-                    index: 4,
-                    ..cost_input()
-                },
-            ),
-            fourth_generated_particles: Decimal::zero(),
-            fifth_owned_particles: 0.0,
-            fifth_cost_particles: get_particle_cost(
-                1.0,
-                GetParticleCostInput {
-                    index: 5,
-                    ..cost_input()
-                },
-            ),
-            fifth_generated_particles: Decimal::zero(),
+            tiers: [tier(1), tier(2), tier(3), tier(4), tier(5)],
         }
     }
 
@@ -331,7 +304,7 @@ mod tests {
         let mut state = empty_state();
         let mut points = Decimal::zero();
         let events = buy_particle_building(&mut state, &mut points, buy_input());
-        assert_eq!(state.first_owned_particles, 0.0);
+        assert_eq!(state.tiers[0].owned, 0.0);
         assert!(events.is_empty());
     }
 
@@ -342,7 +315,7 @@ mod tests {
         let mut points = Decimal::from_finite(100.0);
         let baseline_points = points;
         let events = buy_particle_building(&mut state, &mut points, buy_input());
-        assert!(state.first_owned_particles > 0.0);
+        assert!(state.tiers[0].owned > 0.0);
         assert!(points < baseline_points);
         assert_eq!(events.len(), 1);
         match &events[0] {
@@ -354,7 +327,7 @@ mod tests {
             } => {
                 assert_eq!(*index, 1);
                 assert_eq!(*before, 0.0);
-                assert_eq!(*after, state.first_owned_particles);
+                assert_eq!(*after, state.tiers[0].owned);
             }
             other => panic!("expected ParticleBuildingsPurchased, got {other:?}"),
         }
@@ -369,11 +342,11 @@ mod tests {
             ..buy_input()
         };
         let _ = buy_particle_building(&mut state, &mut points, input);
-        assert!(state.third_owned_particles > 0.0);
-        assert_eq!(state.first_owned_particles, 0.0);
-        assert_eq!(state.second_owned_particles, 0.0);
-        assert_eq!(state.fourth_owned_particles, 0.0);
-        assert_eq!(state.fifth_owned_particles, 0.0);
+        assert!(state.tiers[2].owned > 0.0);
+        assert_eq!(state.tiers[0].owned, 0.0);
+        assert_eq!(state.tiers[1].owned, 0.0);
+        assert_eq!(state.tiers[3].owned, 0.0);
+        assert_eq!(state.tiers[4].owned, 0.0);
     }
 
     #[test]
@@ -407,9 +380,9 @@ mod tests {
         // so with start=0 and amount=1 we get 1 + smallest_inc(1) = 2.
         // Either way the result must be small (within a handful of units).
         assert!(
-            state.first_owned_particles <= 2.0,
+            state.tiers[0].owned <= 2.0,
             "per-click cap exceeded: got {}",
-            state.first_owned_particles
+            state.tiers[0].owned
         );
     }
 
@@ -423,6 +396,6 @@ mod tests {
             ..buy_input()
         };
         let _ = buy_particle_building(&mut state, &mut points, auto);
-        assert!(state.first_owned_particles > 1.0);
+        assert!(state.tiers[0].owned > 1.0);
     }
 }

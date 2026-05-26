@@ -1,12 +1,12 @@
 //! Particle-buildings state slice.
 //!
 //! Mirrors `ParticleBuildingsState` from the legacy TS
-//! `packages/logic/src/state/schema.ts`. Five positions
-//! (`first..fifth_owned_particles`) plus per-position cost caches.
-//! Distinct from [`crate::state::ProducerFamilyState`] — particle
-//! buildings have their own cost curve (`base * 2^buyingTo` + a
-//! quadratic-in-exponent tail) and no per-position "didn't buy"
-//! achievement gates.
+//! `packages/logic/src/state/schema.ts`. Five tiers, same shape as
+//! [`crate::state::ProducerFamilyState`] — owned / cost / generated per
+//! tier. Particle buildings have their own cost curve
+//! (`base * 2^buyingTo` + a quadratic-in-exponent tail) and no
+//! per-position "didn't buy" achievement gates, but the state layout
+//! is identical, so we share the [`ProducerTier`] data type.
 //!
 //! The spend resource (`reincarnation_points`) is **not** stored here —
 //! `state.upgrades.reincarnation_points` is canonical.
@@ -17,110 +17,65 @@ use serde::{Deserialize, Serialize};
 
 use synergismforkd_bignum::Decimal;
 
+use crate::state::ProducerTier;
+
 /// Slice of `GameState` read/written by the particle-building-purchase
-/// machinery.
+/// machinery. Five tiers, accessed via `tiers[index - 1]` (1-based
+/// legacy convention preserved through the public accessor methods).
+///
+/// Out-of-bounds indices are compile-time `[_; 5]` errors. (Anvil F15
+/// follow-on: previously the 15 flat fields lived on this struct.)
 #[derive(Serialize, Deserialize, Debug, Clone, Default, PartialEq)]
 pub struct ParticleBuildingsState {
-    /// Tier-1 owned count.
-    pub first_owned_particles: f64,
-    /// Tier-1 next cost.
-    pub first_cost_particles: Decimal,
-    /// Tier-1 generated count — auto-generated from the tier-2 building's
-    /// per-tick production. Mirrors `player.firstGeneratedParticles`.
-    pub first_generated_particles: Decimal,
-    /// Tier-2 owned count.
-    pub second_owned_particles: f64,
-    /// Tier-2 next cost.
-    pub second_cost_particles: Decimal,
-    /// Tier-2 generated count — see `first_generated_particles`.
-    pub second_generated_particles: Decimal,
-    /// Tier-3 owned count.
-    pub third_owned_particles: f64,
-    /// Tier-3 next cost.
-    pub third_cost_particles: Decimal,
-    /// Tier-3 generated count — see `first_generated_particles`.
-    pub third_generated_particles: Decimal,
-    /// Tier-4 owned count.
-    pub fourth_owned_particles: f64,
-    /// Tier-4 next cost.
-    pub fourth_cost_particles: Decimal,
-    /// Tier-4 generated count — see `first_generated_particles`.
-    pub fourth_generated_particles: Decimal,
-    /// Tier-5 owned count.
-    pub fifth_owned_particles: f64,
-    /// Tier-5 next cost.
-    pub fifth_cost_particles: Decimal,
-    /// Tier-5 generated count — see `first_generated_particles`. Note:
-    /// the fifth tier has no "tier 6" producer to feed it, so this field
-    /// never changes in the cascade; tracked here for shape uniformity.
-    pub fifth_generated_particles: Decimal,
+    /// Five-tier particle-building ladder. Indexed `0..=4` directly;
+    /// the 1-based public accessors ([`Self::owned`], [`Self::cost`],
+    /// [`Self::set_owned`], [`Self::set_cost`]) subtract 1 to match
+    /// the legacy convention.
+    pub tiers: [ProducerTier; 5],
 }
 
 impl ParticleBuildingsState {
-    /// Read the owned count for tier `index` (1..=5). Debug-asserts the
-    /// invariant; in release, out-of-range falls through to the fifth tier
-    /// (matches the legacy fall-through default).
-    #[must_use]
-    pub fn owned(&self, index: u8) -> f64 {
+    /// Internal 0-based index from the 1-based public index. Indices
+    /// outside `1..=5` fall through to the fifth tier (matching the
+    /// legacy TS fall-through); a debug assertion catches the mistake
+    /// during development.
+    #[inline]
+    fn tier_index(index: u8) -> usize {
         debug_assert!(
             matches!(index, 1..=5),
             "particle index out of range: {index}"
         );
         match index {
-            1 => self.first_owned_particles,
-            2 => self.second_owned_particles,
-            3 => self.third_owned_particles,
-            4 => self.fourth_owned_particles,
-            _ => self.fifth_owned_particles,
+            1 => 0,
+            2 => 1,
+            3 => 2,
+            4 => 3,
+            _ => 4,
         }
+    }
+
+    /// Read the owned count for tier `index` (1..=5).
+    #[must_use]
+    pub fn owned(&self, index: u8) -> f64 {
+        self.tiers[Self::tier_index(index)].owned
     }
 
     /// Read the cost cache for tier `index` (1..=5). Same out-of-range
     /// behavior as [`Self::owned`].
     #[must_use]
     pub fn cost(&self, index: u8) -> Decimal {
-        debug_assert!(
-            matches!(index, 1..=5),
-            "particle index out of range: {index}"
-        );
-        match index {
-            1 => self.first_cost_particles,
-            2 => self.second_cost_particles,
-            3 => self.third_cost_particles,
-            4 => self.fourth_cost_particles,
-            _ => self.fifth_cost_particles,
-        }
+        self.tiers[Self::tier_index(index)].cost
     }
 
     /// Write the owned count for tier `index` (1..=5). Same out-of-range
     /// behavior as [`Self::owned`].
     pub fn set_owned(&mut self, index: u8, value: f64) {
-        debug_assert!(
-            matches!(index, 1..=5),
-            "particle index out of range: {index}"
-        );
-        match index {
-            1 => self.first_owned_particles = value,
-            2 => self.second_owned_particles = value,
-            3 => self.third_owned_particles = value,
-            4 => self.fourth_owned_particles = value,
-            _ => self.fifth_owned_particles = value,
-        }
+        self.tiers[Self::tier_index(index)].owned = value;
     }
 
     /// Write the cost cache for tier `index` (1..=5). Same out-of-range
     /// behavior as [`Self::owned`].
     pub fn set_cost(&mut self, index: u8, value: Decimal) {
-        debug_assert!(
-            matches!(index, 1..=5),
-            "particle index out of range: {index}"
-        );
-        match index {
-            1 => self.first_cost_particles = value,
-            2 => self.second_cost_particles = value,
-            3 => self.third_cost_particles = value,
-            4 => self.fourth_cost_particles = value,
-            _ => self.fifth_cost_particles = value,
-        }
+        self.tiers[Self::tier_index(index)].cost = value;
     }
 }

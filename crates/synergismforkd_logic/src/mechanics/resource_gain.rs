@@ -428,43 +428,43 @@ pub fn resource_gain(state: &GameState, pre: &ResourceGainPre, dt: f64) -> Resou
     let particles = &state.particle_buildings;
     let mut pm = Decimal::one();
     if upgrade(67) > 0.5 {
-        let total_owned = particles.first_owned_particles
-            + particles.second_owned_particles
-            + particles.third_owned_particles
-            + particles.fourth_owned_particles
-            + particles.fifth_owned_particles;
+        let total_owned = particles.tiers[0].owned
+            + particles.tiers[1].owned
+            + particles.tiers[2].owned
+            + particles.tiers[3].owned
+            + particles.tiers[4].owned;
         pm *= Decimal::from_finite(1.03).pow(Decimal::from_finite(total_owned));
     }
 
-    let produce_fifth_particles = (particles.fifth_generated_particles
-        + Decimal::from_finite(particles.fifth_owned_particles))
+    let produce_fifth_particles = (particles.tiers[4].generated
+        + Decimal::from_finite(particles.tiers[4].owned))
         * Decimal::from_finite(pre.fifth_produce_particles);
-    let produce_fourth_particles = (particles.fourth_generated_particles
-        + Decimal::from_finite(particles.fourth_owned_particles))
+    let produce_fourth_particles = (particles.tiers[3].generated
+        + Decimal::from_finite(particles.tiers[3].owned))
         * Decimal::from_finite(pre.fourth_produce_particles);
-    let produce_third_particles = (particles.third_generated_particles
-        + Decimal::from_finite(particles.third_owned_particles))
+    let produce_third_particles = (particles.tiers[2].generated
+        + Decimal::from_finite(particles.tiers[2].owned))
         * Decimal::from_finite(pre.third_produce_particles);
-    let produce_second_particles = (particles.second_generated_particles
-        + Decimal::from_finite(particles.second_owned_particles))
+    let produce_second_particles = (particles.tiers[1].generated
+        + Decimal::from_finite(particles.tiers[1].owned))
         * Decimal::from_finite(pre.second_produce_particles);
-    let produce_first_particles = (particles.first_generated_particles
-        + Decimal::from_finite(particles.first_owned_particles))
+    let produce_first_particles = (particles.tiers[0].generated
+        + Decimal::from_finite(particles.tiers[0].owned))
         * Decimal::from_finite(pre.first_produce_particles)
         * pm;
 
     let fourth_generated_particles =
-        particles.fourth_generated_particles + produce_fifth_particles * dt_scaled_dec;
+        particles.tiers[3].generated + produce_fifth_particles * dt_scaled_dec;
     let third_generated_particles =
-        particles.third_generated_particles + produce_fourth_particles * dt_scaled_dec;
+        particles.tiers[2].generated + produce_fourth_particles * dt_scaled_dec;
     let second_generated_particles =
-        particles.second_generated_particles + produce_third_particles * dt_scaled_dec;
+        particles.tiers[1].generated + produce_third_particles * dt_scaled_dec;
     let first_generated_particles =
-        particles.first_generated_particles + produce_second_particles * dt_scaled_dec;
+        particles.tiers[0].generated + produce_second_particles * dt_scaled_dec;
 
     // produceParticles: recomputed after mutations using post-tick first_generated_particles.
     let produce_particles = (first_generated_particles
-        + Decimal::from_finite(particles.first_owned_particles))
+        + Decimal::from_finite(particles.tiers[0].owned))
         * Decimal::from_finite(pre.first_produce_particles)
         * pm;
     let produce_per_second_particles = produce_particles * Decimal::from_finite(40.0);
