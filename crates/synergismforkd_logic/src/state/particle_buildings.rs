@@ -2,11 +2,16 @@
 //!
 //! Mirrors `ParticleBuildingsState` from the legacy TS
 //! `packages/logic/src/state/schema.ts`. Five positions
-//! (`first..fifth_owned_particles`) plus per-position cost caches; the
-//! shared resource is `reincarnation_points`. Distinct from
-//! [`crate::state::ProducerFamilyState`] — particle buildings have their
-//! own cost curve (`base * 2^buyingTo` + a quadratic-in-exponent tail) and
-//! no per-position "didn't buy" achievement gates.
+//! (`first..fifth_owned_particles`) plus per-position cost caches.
+//! Distinct from [`crate::state::ProducerFamilyState`] — particle
+//! buildings have their own cost curve (`base * 2^buyingTo` + a
+//! quadratic-in-exponent tail) and no per-position "didn't buy"
+//! achievement gates.
+//!
+//! The spend resource (`reincarnation_points`) is **not** stored here —
+//! `state.upgrades.reincarnation_points` is canonical.
+//! `buy_particle_building` reads/writes it as a separate `&mut Decimal`
+//! parameter. (Ledger Finding 1 — duplicate-field collapse.)
 
 use serde::{Deserialize, Serialize};
 
@@ -16,8 +21,6 @@ use synergismforkd_bignum::Decimal;
 /// machinery.
 #[derive(Serialize, Deserialize, Debug, Clone, Default, PartialEq)]
 pub struct ParticleBuildingsState {
-    /// The spend resource (reincarnation points).
-    pub reincarnation_points: Decimal,
     /// Tier-1 owned count.
     pub first_owned_particles: f64,
     /// Tier-1 next cost.

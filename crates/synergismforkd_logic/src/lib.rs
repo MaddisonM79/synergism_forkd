@@ -24,6 +24,7 @@
 
 use synergismforkd_common as _;
 
+pub mod currency;
 pub mod events;
 pub mod math;
 pub mod mechanics;
@@ -40,6 +41,10 @@ pub use events::{
     AchievementGroup, AutoPotionType, AutoResetMode, AutoResetTier, AutoTool, CoreEvent,
     ProducerType, RevealTrigger, SweepState, UpgradeTier,
 };
+
+// ─── Currency newtypes ───────────────────────────────────────────────────
+
+pub use currency::{Coins, PrestigePoints, ReincarnationPoints, TranscendPoints};
 
 // ─── Tick orchestrator ───────────────────────────────────────────────────
 

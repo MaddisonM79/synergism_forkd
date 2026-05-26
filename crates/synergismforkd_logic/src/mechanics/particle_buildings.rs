@@ -108,10 +108,11 @@ pub fn get_particle_cost(buying_to: f64, input: GetParticleCostInput) -> Decimal
 #[must_use]
 pub fn buy_particle_building(
     state: &mut ParticleBuildingsState,
+    reincarnation_points: &mut Decimal,
     input: BuyParticleBuildingInput,
 ) -> SmallVec<[CoreEvent; 4]> {
     let mut events: SmallVec<[CoreEvent; 4]> = SmallVec::new();
-    let starting_points = state.reincarnation_points;
+    let starting_points = *reincarnation_points;
     let original_cost = ORIGINAL_COSTS[usize::from(input.index - 1)];
     let cost_input = GetParticleCostInput {
         index: input.index,
@@ -122,7 +123,7 @@ pub fn buy_particle_building(
 
     if buy_start >= BUYMAX {
         let diminishing_exponent = 1.0_f64 / 8.0;
-        let log10_resource = state.reincarnation_points.log10().to_number();
+        let log10_resource = reincarnation_points.log10().to_number();
         let log10_quadrillion_cost =
             get_cost_internal(original_cost, BUYMAX, input.in_ascension_challenge_15)
                 .log10()
@@ -137,7 +138,7 @@ pub fn buy_particle_building(
             if mid == lo || mid == hi {
                 break;
             }
-            if state.reincarnation_points < get_particle_cost(mid, cost_input) {
+            if *reincarnation_points < get_particle_cost(mid, cost_input) {
                 hi = mid;
             } else {
                 lo = mid;
@@ -153,7 +154,7 @@ pub fn buy_particle_building(
                 index: input.index,
                 before: buy_start,
                 after: buyable,
-                spent: starting_points - state.reincarnation_points,
+                spent: starting_points - *reincarnation_points,
             });
         }
         return events;
@@ -164,7 +165,7 @@ pub fn buy_particle_building(
     let mut buy_to = buydefault;
 
     let mut cash_to_buy = get_particle_cost(buy_to, cost_input);
-    while state.reincarnation_points >= cash_to_buy {
+    while *reincarnation_points >= cash_to_buy {
         // Multiply target by 4 until cost just exceeds the available
         // budget.
         buy_to *= 4.0;
@@ -172,7 +173,7 @@ pub fn buy_particle_building(
     }
     let mut stepdown = (buy_to / 8.0).floor();
     while stepdown >= smallest_inc(buy_to) {
-        if get_particle_cost(buy_to - stepdown, cost_input) <= state.reincarnation_points {
+        if get_particle_cost(buy_to - stepdown, cost_input) <= *reincarnation_points {
             stepdown = (stepdown / 2.0).floor();
         } else {
             buy_to -= smallest_inc(buy_to).max(stepdown);
@@ -192,8 +193,8 @@ pub fn buy_particle_building(
     // subtracting per-purchase.
     let mut buy_from = (buy_to - 6.0 - smallest_inc(buy_to)).max(buydefault);
     let mut this_cost = get_particle_cost(buy_from, cost_input);
-    while buy_from <= buy_to && state.reincarnation_points >= this_cost {
-        state.reincarnation_points -= this_cost;
+    while buy_from <= buy_to && *reincarnation_points >= this_cost {
+        *reincarnation_points -= this_cost;
         state.set_owned(input.index, buy_from);
         buy_from += smallest_inc(buy_from);
         this_cost = get_particle_cost(buy_from, cost_input);
@@ -205,7 +206,7 @@ pub fn buy_particle_building(
             index: input.index,
             before: buy_start,
             after: state.owned(input.index),
-            spent: starting_points - state.reincarnation_points,
+            spent: starting_points - *reincarnation_points,
         });
     }
 
@@ -225,7 +226,6 @@ mod tests {
 
     fn empty_state() -> ParticleBuildingsState {
         ParticleBuildingsState {
-            reincarnation_points: Decimal::zero(),
             first_owned_particles: 0.0,
             first_cost_particles: get_particle_cost(1.0, cost_input()),
             first_generated_particles: Decimal::zero(),
@@ -329,7 +329,8 @@ mod tests {
     #[test]
     fn buy_is_noop_with_zero_reincarnation_points() {
         let mut state = empty_state();
-        let events = buy_particle_building(&mut state, buy_input());
+        let mut points = Decimal::zero();
+        let events = buy_particle_building(&mut state, &mut points, buy_input());
         assert_eq!(state.first_owned_particles, 0.0);
         assert!(events.is_empty());
     }
@@ -337,14 +338,12 @@ mod tests {
     #[test]
     fn buy_purchases_at_least_one_when_affordable() {
         // First particle building costs 1 reincarnation point.
-        let mut state = ParticleBuildingsState {
-            reincarnation_points: Decimal::from_finite(100.0),
-            ..empty_state()
-        };
-        let baseline_points = state.reincarnation_points;
-        let events = buy_particle_building(&mut state, buy_input());
+        let mut state = empty_state();
+        let mut points = Decimal::from_finite(100.0);
+        let baseline_points = points;
+        let events = buy_particle_building(&mut state, &mut points, buy_input());
         assert!(state.first_owned_particles > 0.0);
-        assert!(state.reincarnation_points < baseline_points);
+        assert!(points < baseline_points);
         assert_eq!(events.len(), 1);
         match &events[0] {
             CoreEvent::ParticleBuildingsPurchased {
@@ -363,15 +362,13 @@ mod tests {
 
     #[test]
     fn buy_targets_only_the_requested_index() {
-        let mut state = ParticleBuildingsState {
-            reincarnation_points: Decimal::from_finite(1e20),
-            ..empty_state()
-        };
+        let mut state = empty_state();
+        let mut points = Decimal::from_finite(1e20);
         let input = BuyParticleBuildingInput {
             index: 3,
             ..buy_input()
         };
-        let _ = buy_particle_building(&mut state, input);
+        let _ = buy_particle_building(&mut state, &mut points, input);
         assert!(state.third_owned_particles > 0.0);
         assert_eq!(state.first_owned_particles, 0.0);
         assert_eq!(state.second_owned_particles, 0.0);
@@ -381,13 +378,11 @@ mod tests {
 
     #[test]
     fn buy_event_spent_matches_resource_delta() {
-        let mut state = ParticleBuildingsState {
-            reincarnation_points: Decimal::from_finite(1e8),
-            ..empty_state()
-        };
-        let baseline_points = state.reincarnation_points;
-        let events = buy_particle_building(&mut state, buy_input());
-        let spent = baseline_points - state.reincarnation_points;
+        let mut state = empty_state();
+        let mut points = Decimal::from_finite(1e8);
+        let baseline_points = points;
+        let events = buy_particle_building(&mut state, &mut points, buy_input());
+        let spent = baseline_points - points;
         assert_eq!(events.len(), 1);
         match &events[0] {
             CoreEvent::ParticleBuildingsPurchased {
@@ -401,15 +396,13 @@ mod tests {
 
     #[test]
     fn per_click_cap_limits_purchases() {
-        let mut state = ParticleBuildingsState {
-            reincarnation_points: Decimal::from_finite(1e20),
-            ..empty_state()
-        };
+        let mut state = empty_state();
+        let mut points = Decimal::from_finite(1e20);
         let capped = BuyParticleBuildingInput {
             particlebuyamount: BuyAmount::One,
             ..buy_input()
         };
-        let _ = buy_particle_building(&mut state, capped);
+        let _ = buy_particle_building(&mut state, &mut points, capped);
         // The cap shape is `buy_start + amount + smallest_inc(buy_start + amount)`,
         // so with start=0 and amount=1 we get 1 + smallest_inc(1) = 2.
         // Either way the result must be small (within a handful of units).
@@ -422,16 +415,14 @@ mod tests {
 
     #[test]
     fn autobuyer_bypasses_per_click_cap() {
-        let mut state = ParticleBuildingsState {
-            reincarnation_points: Decimal::from_finite(1e20),
-            ..empty_state()
-        };
+        let mut state = empty_state();
+        let mut points = Decimal::from_finite(1e20);
         let auto = BuyParticleBuildingInput {
             autobuyer: true,
             particlebuyamount: BuyAmount::One,
             ..buy_input()
         };
-        let _ = buy_particle_building(&mut state, auto);
+        let _ = buy_particle_building(&mut state, &mut points, auto);
         assert!(state.first_owned_particles > 1.0);
     }
 }

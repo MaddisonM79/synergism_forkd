@@ -120,6 +120,7 @@ pub fn buy_crystal_upgrades(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::state::CRYSTAL_UPGRADES_DEFAULT_LEN;
 
     fn baseline_input() -> BuyCrystalUpgradesInput {
         BuyCrystalUpgradesInput {
@@ -136,7 +137,7 @@ mod tests {
     fn baseline_state() -> CrystalUpgradesState {
         CrystalUpgradesState {
             prestige_shards: Decimal::zero(),
-            crystal_upgrades: vec![0.0; 5],
+            crystal_upgrades: [0.0; CRYSTAL_UPGRADES_DEFAULT_LEN],
         }
     }
 
@@ -219,7 +220,7 @@ mod tests {
         // should not change state or emit an event.
         let mut state = CrystalUpgradesState {
             prestige_shards: Decimal::from_finite(1e8),
-            crystal_upgrades: vec![1_000_000.0; 5], // far above any reasonable buy
+            crystal_upgrades: [1_000_000.0; CRYSTAL_UPGRADES_DEFAULT_LEN], // far above any reasonable buy
         };
         let baseline_shards = state.prestige_shards;
         let events = buy_crystal_upgrades(&mut state, baseline_input());

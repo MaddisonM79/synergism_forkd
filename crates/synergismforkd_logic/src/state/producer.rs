@@ -11,12 +11,15 @@ use synergismforkd_bignum::Decimal;
 
 /// Slice of `GameState` read/written by the producer-purchase machinery.
 /// Five positions (first..fifth) each have an owned count plus a current
-/// cost; the shared resource is the family's spend currency
-/// (coins / `prestigePoints` / `transcendPoints` / `reincarnationPoints`).
+/// cost. The family's spend currency
+/// (coins / `prestigePoints` / `transcendPoints` / `reincarnationPoints`)
+/// is **not** stored here — it lives in `state.upgrades`, and `buy_max` /
+/// `buy_producer` take it as a separate `&mut Decimal` parameter. (Ledger
+/// Finding 1 — duplicate-field collapse. A future refactor may make
+/// `ProducerFamilyState` generic over a typed `Currency` to lock the
+/// caller-side resource pairing at compile time.)
 #[derive(Serialize, Deserialize, Debug, Clone, Default, PartialEq)]
 pub struct ProducerFamilyState {
-    /// Resource the family buys with.
-    pub resource: Decimal,
     /// Tier-1 owned count.
     pub first_owned: f64,
     /// Tier-1 next cost.

@@ -292,9 +292,13 @@ pub struct BuyMaxInput {
 /// the normal path brackets the affordable count and walks the last few
 /// steps subtracting per-purchase.
 #[must_use]
-pub fn buy_max(state: &mut ProducerFamilyState, input: BuyMaxInput) -> SmallVec<[CoreEvent; 4]> {
+pub fn buy_max(
+    state: &mut ProducerFamilyState,
+    resource: &mut Decimal,
+    input: BuyMaxInput,
+) -> SmallVec<[CoreEvent; 4]> {
     let mut events: SmallVec<[CoreEvent; 4]> = SmallVec::new();
-    let starting_resource = state.resource;
+    let starting_resource = *resource;
     let buy_start = state.owned(input.index);
 
     let cost = |buying_to: f64| -> Decimal {
@@ -308,7 +312,7 @@ pub fn buy_max(state: &mut ProducerFamilyState, input: BuyMaxInput) -> SmallVec<
 
     if buy_start >= BUYMAX {
         let diminishing_exponent = 1.0_f64 / 8.0;
-        let log10_resource = state.resource.log10().to_number();
+        let log10_resource = resource.log10().to_number();
         let log10_quadrillion_cost = cost(BUYMAX).log10().to_number();
 
         let mut hi = (BUYMAX
@@ -320,7 +324,7 @@ pub fn buy_max(state: &mut ProducerFamilyState, input: BuyMaxInput) -> SmallVec<
             if mid == lo || mid == hi {
                 break;
             }
-            if state.resource < cost(mid) {
+            if *resource < cost(mid) {
                 hi = mid;
             } else {
                 lo = mid;
@@ -335,7 +339,7 @@ pub fn buy_max(state: &mut ProducerFamilyState, input: BuyMaxInput) -> SmallVec<
                 index: input.index,
                 before: buy_start,
                 after: buyable,
-                spent: starting_resource - state.resource,
+                spent: starting_resource - *resource,
             });
         }
         return events;
@@ -349,18 +353,18 @@ pub fn buy_max(state: &mut ProducerFamilyState, input: BuyMaxInput) -> SmallVec<
 
     // Degenerate case: cost already past the exponent ceiling or
     // unaffordable.
-    if cash_to_buy.exponent() >= COIN_EXPONENT_CEILING || state.resource < cash_to_buy {
+    if cash_to_buy.exponent() >= COIN_EXPONENT_CEILING || *resource < cash_to_buy {
         return events;
     }
 
-    while cash_to_buy.exponent() < COIN_EXPONENT_CEILING && state.resource >= cash_to_buy {
+    while cash_to_buy.exponent() < COIN_EXPONENT_CEILING && *resource >= cash_to_buy {
         // Multiply target by 4 until cost just exceeds the available budget.
         buy_inc *= 4.0;
         cash_to_buy = cost(buy_start + buy_inc);
     }
     let mut stepdown = (buy_inc / 8.0).floor();
     while stepdown >= smallest_inc(buy_inc) {
-        if cost(buy_start + buy_inc - stepdown) <= state.resource {
+        if cost(buy_start + buy_inc - stepdown) <= *resource {
             stepdown = (stepdown / 2.0).floor();
         } else {
             buy_inc -= smallest_inc(buy_inc).max(stepdown);
@@ -378,15 +382,15 @@ pub fn buy_max(state: &mut ProducerFamilyState, input: BuyMaxInput) -> SmallVec<
             index: input.index,
             before: buy_start,
             after: BUYMAX,
-            spent: starting_resource - state.resource,
+            spent: starting_resource - *resource,
         });
         return events;
     }
 
     let mut buy_from = (buy_start + buy_inc - 6.0 - smallest_inc(buy_inc)).max(buydefault);
     let mut this_cost = cost(buy_from);
-    while buy_from <= buy_start + buy_inc && state.resource >= this_cost {
-        state.resource -= this_cost;
+    while buy_from <= buy_start + buy_inc && *resource >= this_cost {
+        *resource -= this_cost;
         state.set_owned(input.index, buy_from);
         buy_from += smallest_inc(buy_from);
         this_cost = cost(buy_from);
@@ -399,7 +403,7 @@ pub fn buy_max(state: &mut ProducerFamilyState, input: BuyMaxInput) -> SmallVec<
             index: input.index,
             before: buy_start,
             after: state.owned(input.index),
-            spent: starting_resource - state.resource,
+            spent: starting_resource - *resource,
         });
     }
 
@@ -460,10 +464,11 @@ const MAX_SAFE_INTEGER: f64 = 9_007_199_254_740_991.0;
 #[must_use]
 pub fn buy_producer(
     state: &mut ProducerFamilyState,
+    resource: &mut Decimal,
     input: BuyProducerInput,
 ) -> SmallVec<[CoreEvent; 4]> {
     let mut events: SmallVec<[CoreEvent; 4]> = SmallVec::new();
-    let starting_resource = state.resource;
+    let starting_resource = *resource;
     let buy_start = state.owned(input.index);
     let num = num_for(input.index, input.producer_type);
     let buythisamount = if input.autobuyer {
@@ -473,12 +478,12 @@ pub fn buy_producer(
     };
 
     let mut t = 0.0_f64;
-    while state.resource >= state.cost(input.index)
+    while *resource >= state.cost(input.index)
         && t < buythisamount
         && state.owned(input.index) < MAX_SAFE_INTEGER
     {
         let current_cost = state.cost(input.index);
-        state.resource -= current_cost;
+        *resource -= current_cost;
         state.set_owned(input.index, state.owned(input.index) + 1.0);
 
         let mut cost =
@@ -548,7 +553,7 @@ pub fn buy_producer(
             index: input.index,
             before: buy_start,
             after: state.owned(input.index),
-            spent: starting_resource - state.resource,
+            spent: starting_resource - *resource,
         });
     }
 
@@ -572,7 +577,6 @@ mod tests {
 
     fn empty_family() -> ProducerFamilyState {
         ProducerFamilyState {
-            resource: Decimal::zero(),
             first_owned: 0.0,
             first_cost: get_producer_cost(1, ProducerType::Coin, 1.0, cost_input()),
             first_generated: Decimal::zero(),
@@ -713,21 +717,20 @@ mod tests {
     #[test]
     fn buy_max_is_noop_with_zero_resource() {
         let mut state = empty_family();
-        let events = buy_max(&mut state, buy_max_input());
+        let mut resource = Decimal::zero();
+        let events = buy_max(&mut state, &mut resource, buy_max_input());
         assert_eq!(state.first_owned, 0.0);
         assert!(events.is_empty());
     }
 
     #[test]
     fn buy_max_purchases_when_resource_covers_first_cost() {
-        let mut state = ProducerFamilyState {
-            resource: Decimal::from_finite(1e6),
-            ..empty_family()
-        };
-        let baseline_resource = state.resource;
-        let events = buy_max(&mut state, buy_max_input());
+        let mut state = empty_family();
+        let mut resource = Decimal::from_finite(1e6);
+        let baseline_resource = resource;
+        let events = buy_max(&mut state, &mut resource, buy_max_input());
         assert!(state.first_owned > 0.0);
-        assert!(state.resource < baseline_resource);
+        assert!(resource < baseline_resource);
         assert_eq!(events.len(), 1);
         match &events[0] {
             CoreEvent::ProducersPurchased {
@@ -748,17 +751,15 @@ mod tests {
 
     #[test]
     fn buy_max_targets_only_the_requested_index() {
-        let mut state = ProducerFamilyState {
-            resource: Decimal::from_finite(1e15),
-            ..empty_family()
-        };
+        let mut state = empty_family();
+        let mut resource = Decimal::from_finite(1e15);
         let baseline_first_cost = state.first_cost;
         let baseline_fifth_cost = state.fifth_cost;
         let input = BuyMaxInput {
             index: 3,
             ..buy_max_input()
         };
-        let _ = buy_max(&mut state, input);
+        let _ = buy_max(&mut state, &mut resource, input);
         assert!(state.third_owned > 0.0);
         assert_eq!(state.first_owned, 0.0);
         assert_eq!(state.second_owned, 0.0);
@@ -771,13 +772,11 @@ mod tests {
 
     #[test]
     fn buy_max_event_spent_matches_resource_delta() {
-        let mut state = ProducerFamilyState {
-            resource: Decimal::from_finite(1e8),
-            ..empty_family()
-        };
-        let baseline_resource = state.resource;
-        let events = buy_max(&mut state, buy_max_input());
-        let spent = baseline_resource - state.resource;
+        let mut state = empty_family();
+        let mut resource = Decimal::from_finite(1e8);
+        let baseline_resource = resource;
+        let events = buy_max(&mut state, &mut resource, buy_max_input());
+        let spent = baseline_resource - resource;
         assert_eq!(events.len(), 1);
         match &events[0] {
             CoreEvent::ProducersPurchased {
@@ -798,15 +797,15 @@ mod tests {
             ProducerType::Particles,
         ] {
             let mut state = ProducerFamilyState {
-                resource: Decimal::from_finite(1e20),
                 first_cost: get_producer_cost(1, ty, 1.0, cost_input()),
                 ..empty_family()
             };
+            let mut resource = Decimal::from_finite(1e20);
             let input = BuyMaxInput {
                 producer_type: ty,
                 ..buy_max_input()
             };
-            let _ = buy_max(&mut state, input);
+            let _ = buy_max(&mut state, &mut resource, input);
             assert!(state.first_owned > 0.0, "tier-1 {ty:?} did not advance");
         }
     }
@@ -830,7 +829,8 @@ mod tests {
     #[test]
     fn buy_producer_is_noop_with_zero_resource() {
         let mut state = empty_family();
-        let events = buy_producer(&mut state, buy_producer_input());
+        let mut resource = Decimal::zero();
+        let events = buy_producer(&mut state, &mut resource, buy_producer_input());
         assert_eq!(state.first_owned, 0.0);
         assert!(events.is_empty());
     }
@@ -839,15 +839,13 @@ mod tests {
     fn buy_producer_caps_at_buyamount() {
         // First-tier Coin starts at 100 coins; with 1e6 coins available the
         // loop could go a long way, but `buyamount = 1` caps at one.
-        let mut state = ProducerFamilyState {
-            resource: Decimal::from_finite(1e6),
-            ..empty_family()
-        };
+        let mut state = empty_family();
+        let mut resource = Decimal::from_finite(1e6);
         let capped = BuyProducerInput {
             buyamount: 1.0,
             ..buy_producer_input()
         };
-        let events = buy_producer(&mut state, capped);
+        let events = buy_producer(&mut state, &mut resource, capped);
         assert_eq!(state.first_owned, 1.0);
         assert_eq!(events.len(), 1);
     }
@@ -856,16 +854,14 @@ mod tests {
     fn buy_producer_autobuyer_caps_at_500() {
         // Massive resource pool — without the autobuyer cap the loop would
         // run far more than 500 iterations.
-        let mut state = ProducerFamilyState {
-            resource: Decimal::from_mantissa_exponent(1.0, 30.0),
-            ..empty_family()
-        };
+        let mut state = empty_family();
+        let mut resource = Decimal::from_mantissa_exponent(1.0, 30.0);
         let auto = BuyProducerInput {
             autobuyer: true,
             buyamount: 100_000.0, // ignored when autobuyer is true
             ..buy_producer_input()
         };
-        let _ = buy_producer(&mut state, auto);
+        let _ = buy_producer(&mut state, &mut resource, auto);
         assert!(
             state.first_owned <= 500.0,
             "autobuyer ran past 500 iterations: got {}",

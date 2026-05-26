@@ -132,17 +132,18 @@ impl BuyAcceleratorInput {
 #[must_use]
 pub fn buy_accelerator(
     state: &mut AcceleratorState,
+    coins: &mut Decimal,
     input: BuyAcceleratorInput,
 ) -> SmallVec<[CoreEvent; 4]> {
     let cost_input = input.cost_input();
     let mut events: SmallVec<[CoreEvent; 4]> = SmallVec::new();
-    let starting_coins = state.coins;
+    let starting_coins = *coins;
     let buy_start = state.accelerator_bought;
 
     // High-end binary search path.
     if buy_start >= BUYMAX {
         let diminishing_exponent = 1.0_f64 / 8.0;
-        let log10_resource = state.coins.log10().to_number();
+        let log10_resource = coins.log10().to_number();
         let log10_quadrillion_cost = get_cost_accelerator(BUYMAX, cost_input).log10().to_number();
 
         let mut hi = (BUYMAX
@@ -154,7 +155,7 @@ pub fn buy_accelerator(
             if mid == lo || mid == hi {
                 break;
             }
-            if state.coins < get_cost_accelerator(mid, cost_input) {
+            if *coins < get_cost_accelerator(mid, cost_input) {
                 hi = mid;
             } else {
                 lo = mid;
@@ -172,7 +173,7 @@ pub fn buy_accelerator(
             events.push(CoreEvent::AcceleratorsPurchased {
                 before: buy_start,
                 after: state.accelerator_bought,
-                spent: starting_coins - state.coins,
+                spent: starting_coins - *coins,
             });
         }
         return events;
@@ -183,13 +184,13 @@ pub fn buy_accelerator(
     let mut buy_to = buydefault;
 
     let mut cash_to_buy = get_cost_accelerator(buy_to, cost_input);
-    while state.coins >= cash_to_buy {
+    while *coins >= cash_to_buy {
         buy_to *= 4.0;
         cash_to_buy = get_cost_accelerator(buy_to, cost_input);
     }
     let mut stepdown = (buy_to / 8.0).floor();
     while stepdown >= smallest_inc(buy_to) {
-        if get_cost_accelerator(buy_to - stepdown, cost_input) <= state.coins {
+        if get_cost_accelerator(buy_to - stepdown, cost_input) <= *coins {
             stepdown = (stepdown / 2.0).floor();
         } else {
             buy_to -= smallest_inc(buy_to).max(stepdown);
@@ -206,11 +207,11 @@ pub fn buy_accelerator(
 
     let mut buy_from = (buy_to - 6.0 - smallest_inc(buy_to)).max(buydefault);
     let mut this_cost = get_cost_accelerator(buy_from, cost_input);
-    while buy_from <= buy_to && state.coins >= this_cost {
+    while buy_from <= buy_to && *coins >= this_cost {
         if buy_from >= BUYMAX {
             buy_from = BUYMAX;
         }
-        state.coins -= this_cost;
+        *coins -= this_cost;
         state.accelerator_bought = buy_from;
         buy_from += smallest_inc(buy_from);
         this_cost = get_cost_accelerator(buy_from, cost_input);
@@ -230,7 +231,7 @@ pub fn buy_accelerator(
         events.push(CoreEvent::AcceleratorsPurchased {
             before: buy_start,
             after: state.accelerator_bought,
-            spent: starting_coins - state.coins,
+            spent: starting_coins - *coins,
         });
     }
 
@@ -345,7 +346,6 @@ mod tests {
         AcceleratorState {
             accelerator_bought: 0.0,
             accelerator_cost: get_cost_accelerator(1.0, baseline()),
-            coins: Decimal::zero(),
             prestige_no_accelerator: true,
             transcend_no_accelerator: true,
             reincarnate_no_accelerator: true,
@@ -366,9 +366,10 @@ mod tests {
     #[test]
     fn buy_is_noop_with_zero_coins() {
         let mut state = empty_state();
-        let events = buy_accelerator(&mut state, buy_input());
+        let mut coins = Decimal::zero();
+        let events = buy_accelerator(&mut state, &mut coins, buy_input());
         assert_eq!(state.accelerator_bought, 0.0);
-        assert_eq!(state.coins, Decimal::zero());
+        assert_eq!(coins, Decimal::zero());
         assert!(events.is_empty());
         // Flags stay raised when nothing was bought.
         assert!(state.prestige_no_accelerator);
@@ -379,14 +380,12 @@ mod tests {
     #[test]
     fn buy_purchases_at_least_one_when_affordable() {
         // First accelerator costs 500 coins. Give the player 1000.
-        let mut state = AcceleratorState {
-            coins: Decimal::from_finite(1000.0),
-            ..empty_state()
-        };
-        let baseline_coins = state.coins;
-        let events = buy_accelerator(&mut state, buy_input());
+        let mut state = empty_state();
+        let mut coins = Decimal::from_finite(1000.0);
+        let baseline_coins = coins;
+        let events = buy_accelerator(&mut state, &mut coins, buy_input());
         assert!(state.accelerator_bought > 0.0);
-        assert!(state.coins < baseline_coins);
+        assert!(coins < baseline_coins);
         assert_eq!(events.len(), 1);
         // First ownership flips the no-accelerator flags.
         assert!(!state.prestige_no_accelerator);
@@ -396,13 +395,11 @@ mod tests {
 
     #[test]
     fn buy_event_spent_matches_resource_delta() {
-        let mut state = AcceleratorState {
-            coins: Decimal::from_finite(1e6),
-            ..empty_state()
-        };
-        let baseline_coins = state.coins;
-        let events = buy_accelerator(&mut state, buy_input());
-        let spent = baseline_coins - state.coins;
+        let mut state = empty_state();
+        let mut coins = Decimal::from_finite(1e6);
+        let baseline_coins = coins;
+        let events = buy_accelerator(&mut state, &mut coins, buy_input());
+        let spent = baseline_coins - coins;
         assert_eq!(events.len(), 1);
         match &events[0] {
             CoreEvent::AcceleratorsPurchased {
@@ -421,30 +418,26 @@ mod tests {
     #[test]
     fn per_click_cap_limits_purchases() {
         // Plenty of coins, but coinbuyamount = One should cap at 1 purchase.
-        let mut state = AcceleratorState {
-            coins: Decimal::from_finite(1e10),
-            ..empty_state()
-        };
+        let mut state = empty_state();
+        let mut coins = Decimal::from_finite(1e10);
         let capped = BuyAcceleratorInput {
             coinbuyamount: BuyAmount::One,
             ..buy_input()
         };
-        let _ = buy_accelerator(&mut state, capped);
+        let _ = buy_accelerator(&mut state, &mut coins, capped);
         assert_eq!(state.accelerator_bought, 1.0);
     }
 
     #[test]
     fn autobuyer_ignores_per_click_cap() {
-        let mut state = AcceleratorState {
-            coins: Decimal::from_finite(1e10),
-            ..empty_state()
-        };
+        let mut state = empty_state();
+        let mut coins = Decimal::from_finite(1e10);
         let auto = BuyAcceleratorInput {
             autobuyer: true,
             coinbuyamount: BuyAmount::One,
             ..buy_input()
         };
-        let _ = buy_accelerator(&mut state, auto);
+        let _ = buy_accelerator(&mut state, &mut coins, auto);
         // Autobuyer with 1e10 coins buys far more than 1.
         assert!(state.accelerator_bought > 1.0);
     }

@@ -118,6 +118,7 @@ pub fn buy_upgrades(state: &mut UpgradesState, input: BuyUpgradeInput) -> SmallV
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::state::UPGRADES_DEFAULT_LEN;
 
     fn baseline_state() -> UpgradesState {
         UpgradesState {
@@ -125,7 +126,7 @@ mod tests {
             prestige_points: Decimal::from_finite(1e10),
             transcend_points: Decimal::from_finite(1e10),
             reincarnation_points: Decimal::from_finite(1e10),
-            upgrades: vec![0; 50],
+            upgrades: [0; UPGRADES_DEFAULT_LEN],
             prestige_no_coin_upgrades: true,
             transcend_no_coin_upgrades: true,
             transcend_no_coin_or_prestige_upgrades: true,
@@ -148,7 +149,7 @@ mod tests {
     #[test]
     fn missing_requirement_is_noop() {
         let mut state = baseline_state();
-        let baseline_upgrades = state.upgrades.clone();
+        let baseline_upgrades = state.upgrades;
         let baseline_coins = state.coins;
         let mut inp = input(UpgradeTier::Coin, 1, 2.0);
         inp.requirement_exists = false;

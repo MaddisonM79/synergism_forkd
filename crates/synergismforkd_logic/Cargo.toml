@@ -13,6 +13,7 @@ synergismforkd_common = { path = "../synergismforkd_common" }
 rand = { version = "0.8", default-features = false, features = ["std", "std_rng"] }
 rand_xoshiro = { version = "0.6", default-features = false, features = ["serde1"] }
 serde = { workspace = true }
+serde-big-array = { workspace = true }
 smallvec = { version = "1", default-features = false, features = ["serde"] }
 
 [lints]

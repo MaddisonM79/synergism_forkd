@@ -45,7 +45,7 @@ use crate::mechanics::tesseract_buildings::{buy_tesseract_building, BuyTesseract
 use crate::mechanics::update_all_multiplier::{update_all_multiplier, UpdateAllMultiplierPre};
 use crate::mechanics::update_all_tick::{update_all_tick, UpdateAllTickPre};
 use crate::mechanics::upgrades::{buy_upgrades, BuyUpgradeInput};
-use crate::state::{GameState, ProducerFamilyState};
+use crate::state::GameState;
 
 /// Inputs to [`tack`]. Owned by the caller — `logic` has no clock, no
 /// input device, no RNG seed source of its own.
@@ -207,12 +207,10 @@ fn phase_player_input(state: &mut GameState, input: &TackInput, output: &mut Tic
 /// (achievement awards, challenge auto-completions) flow into
 /// [`TickOutput::events`].
 ///
-/// **Known duplication**: `coins`, `prestige_points`, `transcend_points`,
-/// `reincarnation_points` live in multiple slices (upgrades, accelerator,
-/// multiplier, particle_buildings, producer-family `resource` fields).
-/// This phase writes the canonical copies in `state.upgrades`; the
-/// duplicates are synced as a workaround until the source-of-truth
-/// collapse lands (Ledger Finding 1 / Phase 2 of the audit plan).
+/// Per Ledger Finding 1, the currency fields now have a single
+/// source-of-truth in `state.upgrades`; `buy_*` mutators read/write them
+/// through `&mut Decimal` parameters rather than via per-slice
+/// duplicates. No mid-tick sync workaround is needed.
 fn phase_generation(state: &mut GameState, input: &TackInput, output: &mut TickOutput) {
     let result = resource_gain(state, &input.resource_gain_pre, input.dt);
 
@@ -261,18 +259,6 @@ fn phase_generation(state: &mut GameState, input: &TackInput, output: &mut TickO
     state.challenges.challenge_completions[4] = result.c4_completions;
     state.challenges.challenge_completions[5] = result.c5_completions;
 
-    // ─── Duplicate-field sync (workaround for Ledger Finding 1) ──────────
-    // The currency fields live in multiple slices. Until the source-of-
-    // truth consolidation lands, propagate the canonical values so
-    // mid-tick buy_* calls don't race against stale duplicates.
-    state.accelerator.coins = state.upgrades.coins;
-    state.multiplier.coins = state.upgrades.coins;
-    state.particle_buildings.reincarnation_points = state.upgrades.reincarnation_points;
-    state.coin_producers.resource = state.upgrades.coins;
-    state.diamond_producers.resource = state.upgrades.prestige_points;
-    state.mythos_producers.resource = state.upgrades.transcend_points;
-    state.particle_producers.resource = state.upgrades.reincarnation_points;
-
     // ─── Events ──────────────────────────────────────────────────────────
     output.events.extend(result.events);
 }
@@ -294,32 +280,68 @@ fn phase_automation(_state: &mut GameState, _input: &TackInput, _output: &mut Ti
 // ─── Dispatch helpers ────────────────────────────────────────────────────
 
 fn dispatch_buy(state: &mut GameState, req: &BuyRequest) -> SmallVec<[CoreEvent; 4]> {
+    // Each arm borrows disjoint `GameState` fields explicitly so the
+    // borrow checker can verify the per-slice mutator and the canonical
+    // `state.upgrades.*` currency don't alias. (A helper returning
+    // `&mut ProducerFamilyState` would force a single whole-state borrow
+    // and prevent the second `&mut` for the currency.)
     match req {
         BuyRequest::Upgrade(inp) => buy_upgrades(&mut state.upgrades, *inp),
-        BuyRequest::Multiplier(inp) => buy_multiplier(&mut state.multiplier, *inp),
-        BuyRequest::Accelerator(inp) => buy_accelerator(&mut state.accelerator, *inp),
-        BuyRequest::CrystalUpgrade(inp) => buy_crystal_upgrades(&mut state.crystal_upgrades, *inp),
-        BuyRequest::ParticleBuilding(inp) => {
-            buy_particle_building(&mut state.particle_buildings, *inp)
+        BuyRequest::Multiplier(inp) => {
+            buy_multiplier(&mut state.multiplier, &mut state.upgrades.coins, *inp)
         }
+        BuyRequest::Accelerator(inp) => {
+            buy_accelerator(&mut state.accelerator, &mut state.upgrades.coins, *inp)
+        }
+        BuyRequest::CrystalUpgrade(inp) => buy_crystal_upgrades(&mut state.crystal_upgrades, *inp),
+        BuyRequest::ParticleBuilding(inp) => buy_particle_building(
+            &mut state.particle_buildings,
+            &mut state.upgrades.reincarnation_points,
+            *inp,
+        ),
         BuyRequest::TesseractBuilding(inp) => {
             buy_tesseract_building(&mut state.tesseract_buildings, *inp)
         }
-        BuyRequest::ProducerMax(inp) => {
-            buy_max(producer_family_mut(state, inp.producer_type), *inp)
-        }
-        BuyRequest::Producer(inp) => {
-            buy_producer(producer_family_mut(state, inp.producer_type), *inp)
-        }
-    }
-}
-
-fn producer_family_mut(state: &mut GameState, ptype: ProducerType) -> &mut ProducerFamilyState {
-    match ptype {
-        ProducerType::Coin => &mut state.coin_producers,
-        ProducerType::Diamonds => &mut state.diamond_producers,
-        ProducerType::Mythos => &mut state.mythos_producers,
-        ProducerType::Particles => &mut state.particle_producers,
+        BuyRequest::ProducerMax(inp) => match inp.producer_type {
+            ProducerType::Coin => {
+                buy_max(&mut state.coin_producers, &mut state.upgrades.coins, *inp)
+            }
+            ProducerType::Diamonds => buy_max(
+                &mut state.diamond_producers,
+                &mut state.upgrades.prestige_points,
+                *inp,
+            ),
+            ProducerType::Mythos => buy_max(
+                &mut state.mythos_producers,
+                &mut state.upgrades.transcend_points,
+                *inp,
+            ),
+            ProducerType::Particles => buy_max(
+                &mut state.particle_producers,
+                &mut state.upgrades.reincarnation_points,
+                *inp,
+            ),
+        },
+        BuyRequest::Producer(inp) => match inp.producer_type {
+            ProducerType::Coin => {
+                buy_producer(&mut state.coin_producers, &mut state.upgrades.coins, *inp)
+            }
+            ProducerType::Diamonds => buy_producer(
+                &mut state.diamond_producers,
+                &mut state.upgrades.prestige_points,
+                *inp,
+            ),
+            ProducerType::Mythos => buy_producer(
+                &mut state.mythos_producers,
+                &mut state.upgrades.transcend_points,
+                *inp,
+            ),
+            ProducerType::Particles => buy_producer(
+                &mut state.particle_producers,
+                &mut state.upgrades.reincarnation_points,
+                *inp,
+            ),
+        },
     }
 }
 
@@ -401,10 +423,10 @@ mod tests {
 
     #[test]
     fn dispatch_buy_routes_producer_family_by_type() {
-        // Sanity-check the producer_family_mut dispatch — each variant
-        // hands back the right slice.
+        // Sanity-check the per-arm dispatch — each variant pairs the
+        // right producer family with the right currency in state.upgrades.
         let mut state = GameState::default();
-        state.coin_producers.resource = synergismforkd_bignum::Decimal::from_finite(1e6);
+        state.upgrades.coins = synergismforkd_bignum::Decimal::from_finite(1e6);
 
         let mut input = TackInput {
             dt: 0.025,
