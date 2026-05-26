@@ -9,6 +9,7 @@
 /// shape stores a single cached value used to detect updates each
 /// tick; all 8 progressive achievements share this shape.
 use serde::{Deserialize, Serialize};
+use serde_big_array::BigArray;
 
 #[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Default)]
 pub struct ProgressiveAchievementCache {
@@ -19,12 +20,18 @@ pub struct ProgressiveAchievementCache {
     pub cached_points: f64,
 }
 
+/// Fixed cardinality of the achievement bitmap — `280 + 1` for the
+/// legacy 1-indexed convention (index 0 unused). Tier B item 12 /
+/// Anvil F4.
+pub const ACHIEVEMENTS_LEN: usize = 281;
+
 /// Slice of `GameState` read/written by achievement mechanics.
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct AchievementsState {
     /// `player.achievements[i]` — 0 = unowned, non-zero = unlocked.
     /// 1-indexed (index 0 unused) to match legacy.
-    pub achievements: Vec<u8>,
+    #[serde(with = "BigArray")]
+    pub achievements: [u8; ACHIEVEMENTS_LEN],
     /// Total achievement points earned.
     pub achievement_points: f64,
     /// Progressive achievement caches:
@@ -36,22 +43,13 @@ pub struct AchievementsState {
     pub progressive: [ProgressiveAchievementCache; 12],
 }
 
-impl AchievementsState {
-    /// Build with `n_achievements + 1` slots.
-    #[must_use]
-    pub fn new(n_achievements: usize) -> Self {
+impl Default for AchievementsState {
+    fn default() -> Self {
         Self {
-            achievements: vec![0; n_achievements + 1],
+            achievements: [0; ACHIEVEMENTS_LEN],
             achievement_points: 0.0,
             progressive: [ProgressiveAchievementCache::default(); 12],
         }
-    }
-}
-
-impl Default for AchievementsState {
-    fn default() -> Self {
-        // Legacy synergism has ~280 achievements.
-        Self::new(280)
     }
 }
 
@@ -62,7 +60,7 @@ mod tests {
     #[test]
     fn default_has_281_slots() {
         let s = AchievementsState::default();
-        assert_eq!(s.achievements.len(), 281);
+        assert_eq!(s.achievements.len(), ACHIEVEMENTS_LEN);
         assert_eq!(s.achievement_points, 0.0);
     }
 

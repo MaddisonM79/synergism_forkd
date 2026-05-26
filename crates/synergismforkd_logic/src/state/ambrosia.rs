@@ -9,6 +9,7 @@
 /// One ambrosia upgrade's per-player state. Mirrors
 /// `player.ambrosiaUpgrades.<name>`.
 use serde::{Deserialize, Serialize};
+use serde_big_array::BigArray;
 
 #[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Default)]
 pub struct AmbrosiaUpgrade {
@@ -17,6 +18,9 @@ pub struct AmbrosiaUpgrade {
     /// Accumulated free levels.
     pub free_level: f64,
 }
+
+/// Fixed cardinality of the ambrosia-upgrade array. Tier B item 12.
+pub const AMBROSIA_UPGRADES_LEN: usize = 35;
 
 /// Slice of `GameState` for the ambrosia/blueberry feature.
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
@@ -33,28 +37,20 @@ pub struct AmbrosiaState {
     /// to upgrades.
     pub spent_blueberries: f64,
     /// Per-upgrade state. UI maintains the name ↔ index mapping.
-    pub upgrades: Vec<AmbrosiaUpgrade>,
+    #[serde(with = "BigArray")]
+    pub upgrades: [AmbrosiaUpgrade; AMBROSIA_UPGRADES_LEN],
 }
 
-impl AmbrosiaState {
-    /// Build with `n_upgrades` slots. Legacy synergism has ~35
-    /// named ambrosia upgrades.
-    #[must_use]
-    pub fn new(n_upgrades: usize) -> Self {
+impl Default for AmbrosiaState {
+    fn default() -> Self {
         Self {
             ambrosia: 0.0,
             lifetime_ambrosia: 0.0,
             blueberry_time: 0.0,
             ambrosia_rng: 0.0,
             spent_blueberries: 0.0,
-            upgrades: vec![AmbrosiaUpgrade::default(); n_upgrades],
+            upgrades: [AmbrosiaUpgrade::default(); AMBROSIA_UPGRADES_LEN],
         }
-    }
-}
-
-impl Default for AmbrosiaState {
-    fn default() -> Self {
-        Self::new(35)
     }
 }
 
@@ -65,7 +61,7 @@ mod tests {
     #[test]
     fn default_has_35_upgrade_slots() {
         let s = AmbrosiaState::default();
-        assert_eq!(s.upgrades.len(), 35);
+        assert_eq!(s.upgrades.len(), AMBROSIA_UPGRADES_LEN);
         assert_eq!(s.lifetime_ambrosia, 0.0);
     }
 }

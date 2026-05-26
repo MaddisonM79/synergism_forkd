@@ -13,8 +13,12 @@
 //! cost / effect dispatchers don't need to look it up elsewhere.
 
 use serde::{Deserialize, Serialize};
+use serde_big_array::BigArray;
 
 use synergismforkd_bignum::Decimal;
+
+/// Fixed cardinality of the GQ-upgrade array. Tier B item 12.
+pub const GOLDEN_QUARK_UPGRADES_LEN: usize = 80;
 
 /// Special-cost-form selector for one GQ upgrade — pinned here
 /// alongside the state so the storage matches the dispatch shape
@@ -65,25 +69,17 @@ pub struct GoldenQuarksState {
     pub quarks_this_singularity: f64,
     /// Per-upgrade state. The UI/tier maintains the name ↔ index
     /// mapping; this slice holds the values.
-    pub upgrades: Vec<GoldenQuarkUpgrade>,
-}
-
-impl GoldenQuarksState {
-    /// Build with `n_upgrades` upgrade slots, each at default
-    /// values. The legacy synergism build has ~80 named GQ upgrades.
-    #[must_use]
-    pub fn new(n_upgrades: usize) -> Self {
-        Self {
-            golden_quarks: Decimal::zero(),
-            quarks_this_singularity: 0.0,
-            upgrades: vec![GoldenQuarkUpgrade::default(); n_upgrades],
-        }
-    }
+    #[serde(with = "BigArray")]
+    pub upgrades: [GoldenQuarkUpgrade; GOLDEN_QUARK_UPGRADES_LEN],
 }
 
 impl Default for GoldenQuarksState {
     fn default() -> Self {
-        Self::new(80)
+        Self {
+            golden_quarks: Decimal::zero(),
+            quarks_this_singularity: 0.0,
+            upgrades: [GoldenQuarkUpgrade::default(); GOLDEN_QUARK_UPGRADES_LEN],
+        }
     }
 }
 
@@ -94,7 +90,7 @@ mod tests {
     #[test]
     fn default_has_80_upgrade_slots() {
         let s = GoldenQuarksState::default();
-        assert_eq!(s.upgrades.len(), 80);
+        assert_eq!(s.upgrades.len(), GOLDEN_QUARK_UPGRADES_LEN);
         assert_eq!(s.golden_quarks.to_number(), 0.0);
     }
 
