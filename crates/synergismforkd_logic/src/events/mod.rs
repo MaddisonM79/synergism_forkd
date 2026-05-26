@@ -16,6 +16,21 @@ pub enum ProducerType {
     Particles,
 }
 
+/// Which resource tier a [`CoreEvent::UpgradePurchased`] event refers to.
+/// Mirrors the legacy `UpgradeTier` string union — coin / prestige
+/// (Diamonds) / transcend (Mythos) / reincarnation (Particles).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum UpgradeTier {
+    /// Bought with coins.
+    Coin,
+    /// Bought with prestige points (Diamonds layer).
+    Prestige,
+    /// Bought with transcend points (Mythos layer).
+    Transcend,
+    /// Bought with reincarnation points (Particles layer).
+    Reincarnation,
+}
+
 /// Events emitted by mechanic functions. The closed set lets the UI dispatch
 /// on the variant without a string-typed kind field, and `#[non_exhaustive]`
 /// means new variants can land without breaking downstream `match` arms.
@@ -54,6 +69,40 @@ pub enum CoreEvent {
         /// Owned count after the purchase loop ran.
         after: f64,
         /// Family resource removed from the player's balance.
+        spent: Decimal,
+    },
+    /// One of the five particle buildings was purchased.
+    ParticleBuildingsPurchased {
+        /// Tier index, 1..=5.
+        index: u8,
+        /// Owned count before the purchase loop ran.
+        before: f64,
+        /// Owned count after the purchase loop ran.
+        after: f64,
+        /// Reincarnation points removed from the player's balance.
+        spent: Decimal,
+    },
+    /// One crystal upgrade leveled up (zero-or-more levels at once via
+    /// the closed-form max-affordable solve).
+    CrystalUpgradePurchased {
+        /// 1-based crystal-upgrade index.
+        i: u8,
+        /// Level before the purchase.
+        before: f64,
+        /// Level after the purchase (includes any +10 bonus from owning
+        /// upgrade-73 while in a reincarnation challenge).
+        after: f64,
+        /// Prestige shards removed from the player's balance.
+        spent: Decimal,
+    },
+    /// A single-bit upgrade was purchased. The `spent` value is the cost
+    /// in the tier's currency.
+    UpgradePurchased {
+        /// Which resource tier paid for the upgrade.
+        tier: UpgradeTier,
+        /// Upgrade position in the bitmap.
+        pos: u32,
+        /// Currency removed from the player's balance.
         spent: Decimal,
     },
 }
