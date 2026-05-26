@@ -17,6 +17,7 @@ pub mod ant_upgrade_levels;
 pub mod ant_upgrades;
 pub mod ascensions;
 pub mod blueberry_upgrades;
+pub mod calculate;
 pub mod campaign_token_rewards;
 pub mod challenges;
 pub mod coin_production;
