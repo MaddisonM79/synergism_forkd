@@ -228,6 +228,7 @@ mod tests {
             reincarnation_points: Decimal::zero(),
             first_owned_particles: 0.0,
             first_cost_particles: get_particle_cost(1.0, cost_input()),
+            first_generated_particles: Decimal::zero(),
             second_owned_particles: 0.0,
             second_cost_particles: get_particle_cost(
                 1.0,
@@ -236,6 +237,7 @@ mod tests {
                     ..cost_input()
                 },
             ),
+            second_generated_particles: Decimal::zero(),
             third_owned_particles: 0.0,
             third_cost_particles: get_particle_cost(
                 1.0,
@@ -244,6 +246,7 @@ mod tests {
                     ..cost_input()
                 },
             ),
+            third_generated_particles: Decimal::zero(),
             fourth_owned_particles: 0.0,
             fourth_cost_particles: get_particle_cost(
                 1.0,
@@ -252,6 +255,7 @@ mod tests {
                     ..cost_input()
                 },
             ),
+            fourth_generated_particles: Decimal::zero(),
             fifth_owned_particles: 0.0,
             fifth_cost_particles: get_particle_cost(
                 1.0,
@@ -260,6 +264,7 @@ mod tests {
                     ..cost_input()
                 },
             ),
+            fifth_generated_particles: Decimal::zero(),
         }
     }
 

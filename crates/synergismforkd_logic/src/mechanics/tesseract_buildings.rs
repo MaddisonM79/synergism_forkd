@@ -272,6 +272,7 @@ mod tests {
         let zero = AscendBuildingState {
             owned: 0.0,
             cost: 1.0,
+            generated: synergismforkd_bignum::Decimal::zero(),
         };
         TesseractBuildingsState {
             wow_tesseracts: 0.0,
