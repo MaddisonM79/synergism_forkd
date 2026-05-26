@@ -199,6 +199,115 @@ currency_newtype! {
     ReincarnationPoints
 }
 
+// ─── Multiplier (dimensionless) ──────────────────────────────────────────
+
+/// A dimensionless multiplier. The composition layer between currency
+/// production and consumption — `Multiplier * Coins -> Coins` is the
+/// canonical "apply this multiplier to a currency" operation. (Anvil F11
+/// / Ledger F2 item 3.)
+///
+/// What's allowed:
+/// - `Multiplier + Multiplier -> Multiplier` (sum of additive
+///   contributions — common when combining several multiplier sources)
+/// - `Multiplier * Multiplier -> Multiplier` (chain multipliers
+///   together to get a total)
+/// - `Multiplier * <Currency> -> <Currency>` (apply to any currency)
+/// - `<Currency> * Multiplier -> <Currency>` (commutativity)
+/// - Comparison with self via [`PartialOrd`]
+///
+/// What's blocked at compile time:
+/// - `Multiplier - Multiplier`: subtraction isn't a natural multiplier
+///   operation — explicit `Multiplier::new(a.raw() - b.raw())` is
+///   available if a caller really needs it.
+/// - `Multiplier / Multiplier`: same — multipliers compose by
+///   multiplication, not division.
+/// - `Coins * Coins`: still blocked, because `Coins * Decimal` produces
+///   `Coins` (via the macro) but neither side of `Coins * Coins`
+///   matches.
+#[derive(Debug, Clone, Copy, Default, PartialEq, PartialOrd, Serialize, Deserialize)]
+#[serde(transparent)]
+pub struct Multiplier(Decimal);
+
+impl Multiplier {
+    /// Identity multiplier (`1.0`). `m * identity() == m`.
+    pub fn one() -> Self {
+        Self(Decimal::one())
+    }
+
+    /// Wrap a raw `Decimal` as a multiplier. The caller asserts that
+    /// the value is dimensionless.
+    pub const fn new(value: Decimal) -> Self {
+        Self(value)
+    }
+
+    /// Unwrap into the inner `Decimal`. Use sparingly — escape hatch
+    /// to raw arithmetic.
+    pub const fn raw(self) -> Decimal {
+        self.0
+    }
+
+    /// Magnitude as `f64`. Same precision caveats as
+    /// [`Decimal::to_number`].
+    pub fn to_number(self) -> f64 {
+        self.0.to_number()
+    }
+}
+
+impl From<Decimal> for Multiplier {
+    fn from(d: Decimal) -> Self {
+        Self(d)
+    }
+}
+
+impl core::ops::Add for Multiplier {
+    type Output = Self;
+    fn add(self, rhs: Self) -> Self {
+        Self(self.0 + rhs.0)
+    }
+}
+
+impl core::ops::AddAssign for Multiplier {
+    fn add_assign(&mut self, rhs: Self) {
+        self.0 = self.0 + rhs.0;
+    }
+}
+
+impl core::ops::Mul for Multiplier {
+    type Output = Self;
+    fn mul(self, rhs: Self) -> Self {
+        Self(self.0 * rhs.0)
+    }
+}
+
+impl core::ops::MulAssign for Multiplier {
+    fn mul_assign(&mut self, rhs: Self) {
+        self.0 = self.0 * rhs.0;
+    }
+}
+
+macro_rules! impl_multiplier_apply {
+    ($currency:ident) => {
+        impl core::ops::Mul<$currency> for Multiplier {
+            type Output = $currency;
+            fn mul(self, rhs: $currency) -> $currency {
+                $currency::new(self.0 * rhs.raw())
+            }
+        }
+
+        impl core::ops::Mul<Multiplier> for $currency {
+            type Output = $currency;
+            fn mul(self, rhs: Multiplier) -> $currency {
+                $currency::new(self.raw() * rhs.0)
+            }
+        }
+    };
+}
+
+impl_multiplier_apply!(Coins);
+impl_multiplier_apply!(PrestigePoints);
+impl_multiplier_apply!(TranscendPoints);
+impl_multiplier_apply!(ReincarnationPoints);
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -262,6 +371,38 @@ mod tests {
         let a = Coins::default();
         assert_eq!(a.raw(), Decimal::zero());
         assert_eq!(a, Coins::zero());
+    }
+
+    #[test]
+    fn multiplier_applies_to_each_currency() {
+        let m = Multiplier::new(Decimal::from_finite(2.0));
+        let coins = Coins::new(Decimal::from_finite(50.0));
+        let prestige = PrestigePoints::new(Decimal::from_finite(50.0));
+        let transcend = TranscendPoints::new(Decimal::from_finite(50.0));
+        let reincarn = ReincarnationPoints::new(Decimal::from_finite(50.0));
+        assert_eq!((m * coins).raw().to_number(), 100.0);
+        assert_eq!((coins * m).raw().to_number(), 100.0);
+        assert_eq!((m * prestige).raw().to_number(), 100.0);
+        assert_eq!((m * transcend).raw().to_number(), 100.0);
+        assert_eq!((m * reincarn).raw().to_number(), 100.0);
+    }
+
+    #[test]
+    fn multipliers_compose_via_mul() {
+        let a = Multiplier::new(Decimal::from_finite(2.0));
+        let b = Multiplier::new(Decimal::from_finite(3.0));
+        assert_eq!((a * b).raw().to_number(), 6.0);
+        let mut chain = Multiplier::one();
+        chain *= a;
+        chain *= b;
+        assert_eq!(chain.raw().to_number(), 6.0);
+    }
+
+    #[test]
+    fn multipliers_sum_via_add() {
+        let a = Multiplier::new(Decimal::from_finite(1.5));
+        let b = Multiplier::new(Decimal::from_finite(2.5));
+        assert_eq!((a + b).raw().to_number(), 4.0);
     }
 
     #[test]

@@ -44,7 +44,7 @@ pub use events::{
 
 // ─── Currency newtypes ───────────────────────────────────────────────────
 
-pub use currency::{Coins, PrestigePoints, ReincarnationPoints, TranscendPoints};
+pub use currency::{Coins, Multiplier, PrestigePoints, ReincarnationPoints, TranscendPoints};
 
 // ─── Tick orchestrator ───────────────────────────────────────────────────
 
