@@ -94,6 +94,23 @@ pub fn viscosity_power_at_level(level: u32) -> f64 {
     VISCOSITY_POWER.get(level as usize).copied().unwrap_or(0.0)
 }
 
+/// `G.recessionPower` lookup table — recession production exponent
+/// indexed by `player.corruptions.used.recession` corruption level.
+/// 17 entries (`0..=16`); levels past `16` collapse to the last
+/// value's tail. Verbatim port of the constant in
+/// `legacy_original/src/Variables.ts`.
+pub const RECESSION_POWER: [f64; 17] = [
+    1.0, 0.9, 0.7, 0.6, 0.5, 0.37, 0.30, 0.23, 0.18, 0.15, 0.12, 0.09, 0.03, 0.01, 0.007, 0.0007,
+    0.000_07,
+];
+
+/// `G.recessionPower[level]` with a safe out-of-range fallback to
+/// `0.0`.
+#[must_use]
+pub fn recession_power_at_level(level: u32) -> f64 {
+    RECESSION_POWER.get(level as usize).copied().unwrap_or(0.0)
+}
+
 /// Inputs to [`viscosity_effect`].
 #[derive(Debug, Clone, Copy)]
 pub struct ViscosityEffectInput {
@@ -273,6 +290,17 @@ mod tests {
         assert_eq!(viscosity_power_at_level(14), 0.0);
         // Past the last entry — saturates to 0 (matches the legacy tail).
         assert_eq!(viscosity_power_at_level(100), 0.0);
+    }
+
+    #[test]
+    fn recession_power_table_matches_legacy() {
+        // Legacy `G.recessionPower` from `legacy_original/src/Variables.ts`.
+        assert_eq!(recession_power_at_level(0), 1.0);
+        assert_eq!(recession_power_at_level(1), 0.9);
+        assert_eq!(recession_power_at_level(5), 0.37);
+        assert!((recession_power_at_level(16) - 0.000_07).abs() < 1e-9);
+        // Past the last entry — saturates to 0.
+        assert_eq!(recession_power_at_level(100), 0.0);
     }
 
     fn baseline_max_input() -> MaxCorruptionLevelInput {

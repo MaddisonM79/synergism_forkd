@@ -196,13 +196,99 @@ pub fn tack(state: &mut GameState, input: &TackInput) -> TickOutput {
 /// temporary input mechanism.
 fn phase_cross_mechanic_precompute(state: &GameState, input: &TackInput) -> CrossMechanicCache {
     CrossMechanicCache {
-        global_multipliers_pre: input.global_multipliers_pre,
+        global_multipliers_pre: compute_global_multipliers_pre(
+            state,
+            &input.global_multipliers_pre,
+        ),
         update_all_multiplier_pre: compute_update_all_multiplier_pre(
             state,
             &input.update_all_multiplier_pre,
         ),
         update_all_tick_pre: compute_update_all_tick_pre(state, &input.update_all_tick_pre),
         resource_gain_pre: input.resource_gain_pre,
+    }
+}
+
+/// State-derive the [`GlobalMultipliersPreEvaluated`] fields whose
+/// upstream is a pure function of [`GameState`] and existing ported
+/// mechanic helpers.
+///
+/// Migration coverage today:
+/// - `prism_production_log10`           ✓ state-derived (Prism rune)
+/// - `ant_multiplier`                   ✓ state-derived (Coins ant upgrade)
+/// - `total_coin_owned`                 ✓ state-derived (sum of coin tiers)
+/// - `recession_power`                  ✓ state-derived (G.recessionPower table)
+/// - `crystal_mult`                     forwarded (chained crystal-coin pipeline)
+/// - `building_power`                   forwarded (multi-input formula)
+/// - `building_power_mult`              forwarded (depends on building_power)
+/// - `crystal_upgrade_3_multiplier`     forwarded (depends on crystal_upgrade_3_base)
+/// - `crystal_multiplier_achievement`   forwarded (achievement-reward table)
+/// - `const_upgrade_1_buff_achievement` forwarded (achievement-reward table)
+/// - `const_upgrade_2_buff_achievement` forwarded (achievement-reward table)
+/// - `constant_ex_max_percent_increase` forwarded (shop-effect table not ported)
+/// - `ascend_building_dr_value`         forwarded (formula not yet ported)
+/// - `multiplier_effect`                forwarded (G.*, cross-aggregator)
+/// - `accelerator_effect`               forwarded (G.*, cross-aggregator)
+/// - `total_multiplier`                 forwarded (G.*, cross-aggregator)
+/// - `total_accelerator`                forwarded (G.*, cross-aggregator)
+/// - `total_accelerator_boost`          forwarded (G.*, cross-aggregator)
+/// - `challenge_15_coin_exponent`       forwarded (challenge-15 rewards)
+/// - `challenge_15_exponent_value`      forwarded (challenge-15 rewards)
+/// - `challenge_15_constant_bonus`      forwarded (challenge-15 rewards)
+#[must_use]
+fn compute_global_multipliers_pre(
+    state: &GameState,
+    fallback: &GlobalMultipliersPreEvaluated,
+) -> GlobalMultipliersPreEvaluated {
+    use crate::mechanics::ant_upgrades::{coins_ant_upgrade_effect, CoinsAntUpgradeInput};
+    use crate::mechanics::calculate::{calculate_total_coin_owned, CalculateTotalCoinOwnedInput};
+    use crate::mechanics::corruptions::recession_power_at_level;
+    use crate::mechanics::rune_effects::{prism_rune_effects, PrismRuneKey};
+    use crate::state::{RECESSION_INDEX, RUNE_PRISM};
+
+    /// Ant-upgrade index for "Coins". Mirrors the legacy
+    /// `AntUpgrades.Coins = 1` enum value.
+    const ANT_UPGRADE_COINS: usize = 1;
+
+    let prism_level = state.runes.rune_levels[RUNE_PRISM];
+    let coin_tiers = &state.coin_producers.tiers;
+    let total_coin_owned = calculate_total_coin_owned(&CalculateTotalCoinOwnedInput {
+        first_owned_coin: coin_tiers[0].owned,
+        second_owned_coin: coin_tiers[1].owned,
+        third_owned_coin: coin_tiers[2].owned,
+        fourth_owned_coin: coin_tiers[3].owned,
+        fifth_owned_coin: coin_tiers[4].owned,
+    });
+    let ant_effect = coins_ant_upgrade_effect(&CoinsAntUpgradeInput {
+        level: state.ants.upgrades[ANT_UPGRADE_COINS],
+        ascension_challenge: state.challenges.current_ascension_challenge,
+        crumbs: state.ants.crumbs,
+    });
+    let recession_level = state.corruptions.used.levels[RECESSION_INDEX];
+
+    GlobalMultipliersPreEvaluated {
+        prism_production_log10: prism_rune_effects(prism_level, PrismRuneKey::ProductionLog10),
+        total_coin_owned,
+        ant_multiplier: ant_effect.coin_multiplier,
+        recession_power: recession_power_at_level(recession_level),
+        // Forwarded — upstream mechanic not yet plumbed.
+        crystal_mult: fallback.crystal_mult,
+        building_power: fallback.building_power,
+        building_power_mult: fallback.building_power_mult,
+        crystal_upgrade_3_multiplier: fallback.crystal_upgrade_3_multiplier,
+        crystal_multiplier_achievement: fallback.crystal_multiplier_achievement,
+        const_upgrade_1_buff_achievement: fallback.const_upgrade_1_buff_achievement,
+        const_upgrade_2_buff_achievement: fallback.const_upgrade_2_buff_achievement,
+        constant_ex_max_percent_increase: fallback.constant_ex_max_percent_increase,
+        ascend_building_dr_value: fallback.ascend_building_dr_value,
+        multiplier_effect: fallback.multiplier_effect,
+        accelerator_effect: fallback.accelerator_effect,
+        total_multiplier: fallback.total_multiplier,
+        total_accelerator: fallback.total_accelerator,
+        total_accelerator_boost: fallback.total_accelerator_boost,
+        challenge_15_coin_exponent: fallback.challenge_15_coin_exponent,
+        challenge_15_exponent_value: fallback.challenge_15_exponent_value,
+        challenge_15_constant_bonus: fallback.challenge_15_constant_bonus,
     }
 }
 
