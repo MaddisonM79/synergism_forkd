@@ -35,15 +35,17 @@ use crate::events::{CoreEvent, ProducerType};
 use crate::mechanics::accelerators::{buy_accelerator, BuyAcceleratorInput};
 use crate::mechanics::crystal_upgrades::{buy_crystal_upgrades, BuyCrystalUpgradesInput};
 use crate::mechanics::global_multipliers::{
-    compute_global_multipliers, GlobalMultipliersPreEvaluated,
+    compute_global_multipliers, GlobalMultipliersPreEvaluated, GlobalMultipliersResult,
 };
 use crate::mechanics::multipliers::{buy_multiplier, BuyMultiplierInput};
 use crate::mechanics::particle_buildings::{buy_particle_building, BuyParticleBuildingInput};
 use crate::mechanics::producers::{buy_max, buy_producer, BuyMaxInput, BuyProducerInput};
 use crate::mechanics::resource_gain::{resource_gain, ResourceGainPre};
 use crate::mechanics::tesseract_buildings::{buy_tesseract_building, BuyTesseractBuildingInput};
-use crate::mechanics::update_all_multiplier::{update_all_multiplier, UpdateAllMultiplierPre};
-use crate::mechanics::update_all_tick::{update_all_tick, UpdateAllTickPre};
+use crate::mechanics::update_all_multiplier::{
+    update_all_multiplier, UpdateAllMultiplierPre, UpdateAllMultiplierResult,
+};
+use crate::mechanics::update_all_tick::{update_all_tick, UpdateAllTickPre, UpdateAllTickResult};
 use crate::mechanics::upgrades::{buy_upgrades, BuyUpgradeInput};
 use crate::state::GameState;
 
@@ -158,6 +160,26 @@ pub struct CrossMechanicCache {
     pub resource_gain_pre: ResourceGainPre,
 }
 
+/// Captured outputs of the three Phase 2 aggregators, so downstream
+/// phases can read aggregator-derived values without rerunning the
+/// math. (Replaces what would otherwise be `G.*`-style mutable globals
+/// in the legacy TS implementation.)
+///
+/// `update_all_multiplier` and `update_all_tick` fields aren't read
+/// by downstream phases yet — only `global_multipliers` feeds
+/// [`compute_resource_gain_pre`] today. The other two are captured
+/// for symmetry with the design and to make the future migration of
+/// the per-tier `produce_*` fields a local change rather than a
+/// signature change.
+#[derive(Debug, Clone, Copy)]
+struct AggregatorOutputs {
+    global_multipliers: GlobalMultipliersResult,
+    #[allow(dead_code)]
+    update_all_multiplier: UpdateAllMultiplierResult,
+    #[allow(dead_code)]
+    update_all_tick: UpdateAllTickResult,
+}
+
 /// Run one tick.
 ///
 /// Phase ordering is canonical — see module docs. Reordering is a design
@@ -165,8 +187,13 @@ pub struct CrossMechanicCache {
 pub fn tack(state: &mut GameState, input: &TackInput) -> TickOutput {
     let mut output = TickOutput::default();
 
-    let cache = phase_cross_mechanic_precompute(state, input);
-    phase_global_state(state, &cache);
+    let mut cache = phase_cross_mechanic_precompute(state, input);
+    let aggregator_outputs = phase_global_state(state, &cache);
+    // Phase 2 outputs feed Phase 4's `ResourceGainPre`. Re-compute the
+    // pre now that the aggregator results are available; fields whose
+    // upstream is only state still come through unchanged.
+    cache.resource_gain_pre =
+        compute_resource_gain_pre(state, &input.resource_gain_pre, &aggregator_outputs);
     phase_player_input(state, input, &mut output);
     phase_generation(state, &cache, input.dt, &mut output);
     if !input.time_warp {
@@ -452,16 +479,89 @@ fn compute_update_all_tick_pre(state: &GameState, fallback: &UpdateAllTickPre) -
 /// **Phase 2** — Global state aggregators.
 ///
 /// Reads the precomputed bundles out of [`CrossMechanicCache`] and runs
-/// the four pure aggregators in dependency order. Aggregator outputs
-/// have no home on [`GameState`] until a `g_cache` slice lands (a
-/// state-schema change requiring user permission per CLAUDE.md); for
-/// now they're dropped, but the calls are kept so any panic /
-/// arithmetic-overflow regressions surface in this tick rather than
-/// later.
-fn phase_global_state(state: &mut GameState, cache: &CrossMechanicCache) {
-    let _ = compute_global_multipliers(state, &cache.global_multipliers_pre);
-    let mult = update_all_multiplier(state, &cache.update_all_multiplier_pre);
-    let _ = update_all_tick(state, &cache.update_all_tick_pre, mult.total_multiplier);
+/// the three pure aggregators in dependency order. Their outputs flow
+/// into the [`AggregatorOutputs`] return value so Phase 4
+/// (`resource_gain`) can read cross-aggregator values like
+/// `global_crystal_multiplier` and `mythosupgrade_13` directly,
+/// instead of forwarding them from `TackInput`.
+fn phase_global_state(state: &mut GameState, cache: &CrossMechanicCache) -> AggregatorOutputs {
+    let global_multipliers = compute_global_multipliers(state, &cache.global_multipliers_pre);
+    let update_all_multiplier_result =
+        update_all_multiplier(state, &cache.update_all_multiplier_pre);
+    let update_all_tick_result = update_all_tick(
+        state,
+        &cache.update_all_tick_pre,
+        update_all_multiplier_result.total_multiplier,
+    );
+    AggregatorOutputs {
+        global_multipliers,
+        update_all_multiplier: update_all_multiplier_result,
+        update_all_tick: update_all_tick_result,
+    }
+}
+
+/// State + aggregator-output-derive the [`ResourceGainPre`] fields.
+///
+/// Migration coverage today (`✓` = derived from state / aggregator
+/// outputs, `forwarded` = caller-provided fallback):
+/// - `global_crystal_multiplier`        ✓ from GlobalMultipliersResult
+/// - `global_mythos_multiplier`         ✓ from GlobalMultipliersResult
+/// - `grandmaster_multiplier`           ✓ from GlobalMultipliersResult
+/// - `mythosupgrade_13`                 ✓ from GlobalMultipliersResult
+/// - `mythosupgrade_14`                 ✓ from GlobalMultipliersResult
+/// - `mythosupgrade_15`                 ✓ from GlobalMultipliersResult
+/// - `global_constant_mult`             ✓ from GlobalMultipliersResult
+/// - `challenge_base_requirements`      ✓ static legacy constant
+/// - everything else                    forwarded (depends on tax
+///   computation, reset-currency gains, or per-tier produce_* values
+///   set elsewhere in the legacy tick)
+#[must_use]
+fn compute_resource_gain_pre(
+    _state: &GameState,
+    fallback: &ResourceGainPre,
+    agg: &AggregatorOutputs,
+) -> ResourceGainPre {
+    /// Verbatim port of the legacy `G.challengeBaseRequirements` const.
+    /// Static lookup; no state read.
+    const CHALLENGE_BASE_REQUIREMENTS: [f64; 5] = [10.0, 100.0, 1_000.0, 10_000.0, 100_000.0];
+
+    let g = &agg.global_multipliers;
+    ResourceGainPre {
+        // From Phase 2 aggregator outputs.
+        global_crystal_multiplier: g.global_crystal_multiplier,
+        global_mythos_multiplier: g.global_mythos_multiplier,
+        grandmaster_multiplier: g.grandmaster_multiplier,
+        mythosupgrade_13: g.mythosupgrade_13,
+        mythosupgrade_14: g.mythosupgrade_14,
+        mythosupgrade_15: g.mythosupgrade_15,
+        global_constant_mult: g.global_constant_mult,
+        // Static legacy constant.
+        challenge_base_requirements: CHALLENGE_BASE_REQUIREMENTS,
+        // Forwarded — depends on tax / reset-currency / per-tier
+        // produce_* pipelines not yet captured by the orchestrator.
+        produce_total: fallback.produce_total,
+        taxdivisor: fallback.taxdivisor,
+        taxdivisorcheck: fallback.taxdivisorcheck,
+        maxexponent: fallback.maxexponent,
+        prestige_point_gain: fallback.prestige_point_gain,
+        transcend_point_gain: fallback.transcend_point_gain,
+        reincarnation_point_gain: fallback.reincarnation_point_gain,
+        first_produce_diamonds: fallback.first_produce_diamonds,
+        second_produce_diamonds: fallback.second_produce_diamonds,
+        third_produce_diamonds: fallback.third_produce_diamonds,
+        fourth_produce_diamonds: fallback.fourth_produce_diamonds,
+        fifth_produce_diamonds: fallback.fifth_produce_diamonds,
+        first_produce_mythos: fallback.first_produce_mythos,
+        second_produce_mythos: fallback.second_produce_mythos,
+        third_produce_mythos: fallback.third_produce_mythos,
+        fourth_produce_mythos: fallback.fourth_produce_mythos,
+        fifth_produce_mythos: fallback.fifth_produce_mythos,
+        first_produce_particles: fallback.first_produce_particles,
+        second_produce_particles: fallback.second_produce_particles,
+        third_produce_particles: fallback.third_produce_particles,
+        fourth_produce_particles: fallback.fourth_produce_particles,
+        fifth_produce_particles: fallback.fifth_produce_particles,
+    }
 }
 
 /// **Phase 3** — Player input drain.
