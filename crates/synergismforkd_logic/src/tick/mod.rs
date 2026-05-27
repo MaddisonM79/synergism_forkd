@@ -131,7 +131,7 @@ pub struct TickOutput {
 /// canonical artifact for cross-mechanic flow** — when a designer wants
 /// to read "where does Corruption affect Cubes affect Ants?", the
 /// answer is this struct and the function that populates it
-/// ([`phase_cross_mechanic_precompute`]).
+/// (`phase_cross_mechanic_precompute`).
 ///
 /// Per Loom's tack-design memo, the goal of the cache is to make the
 /// synergy graph **legible**. The legacy TS scattered these
@@ -141,7 +141,7 @@ pub struct TickOutput {
 ///
 /// Today this struct holds the four `*Pre` bundles directly. Each
 /// future commit migrates one upstream effect into compute-from-state
-/// inside [`phase_cross_mechanic_precompute`], at which point the
+/// inside `phase_cross_mechanic_precompute`, at which point the
 /// corresponding `*Pre` field becomes a `From<&CrossMechanicCache>`
 /// view and the caller stops providing it. Eventually
 /// [`TackInput::global_multipliers_pre`] et al. all disappear and the
@@ -174,9 +174,15 @@ pub struct CrossMechanicCache {
 #[derive(Debug, Clone, Copy)]
 struct AggregatorOutputs {
     global_multipliers: GlobalMultipliersResult,
-    #[allow(dead_code)]
+    #[expect(
+        dead_code,
+        reason = "captured for downstream phase migration; the lint will flip on as soon as a later phase reads it"
+    )]
     update_all_multiplier: UpdateAllMultiplierResult,
-    #[allow(dead_code)]
+    #[expect(
+        dead_code,
+        reason = "captured for downstream phase migration; the lint will flip on as soon as a later phase reads it"
+    )]
     update_all_tick: UpdateAllTickResult,
 }
 

@@ -1,3 +1,5 @@
+#![cfg_attr(not(test), deny(clippy::unwrap_used))]
+
 //! Synergism Forkd — save format, (de)serialization, and migrations.
 //!
 //! Owns a fresh, version-tagged save schema (no compatibility with the
@@ -7,17 +9,18 @@
 //!
 //! ## Versioning contract
 //!
-//! Every save starts with a [`SaveEnvelope`] that pins a `u16` version
-//! number on the wire. The current writer always emits the latest
-//! version; readers dispatch on the version field and run the
+//! Every save starts with a private `SaveEnvelope` that pins a `u16`
+//! version number on the wire. The current writer always emits the
+//! latest version; readers dispatch on the version field and run the
 //! appropriate migration chain to reach the current shape.
 //!
 //! Today there is one version: `SaveV1` is the [`GameState`] composed
 //! struct directly. At the first schema break, `SaveV2` becomes a
 //! separately-defined struct whose fields mirror what GameState looked
-//! like at that break, with [`SaveV1::migrate_to`] handling the
-//! conversion. The envelope's `version` field is what lets a fresh
-//! reader spot an old save and route through the migration chain.
+//! like at that break, with a `SaveV1::migrate_to` method (added in
+//! that future PR) handling the conversion. The envelope's `version`
+//! field is what lets a fresh reader spot an old save and route
+//! through the migration chain.
 //!
 //! ## SavedNumber design (intentionally omitted)
 //!
@@ -101,8 +104,15 @@ impl From<postcard::Error> for SaveError {
 
 /// Encode a [`GameState`] to a postcard byte stream.
 ///
-/// The encoded payload starts with a [`SaveEnvelope`] header carrying
+/// The encoded payload starts with a private envelope header carrying
 /// [`CURRENT_VERSION`]; readers route on that field.
+///
+/// # Errors
+///
+/// Returns [`SaveError::Postcard`] if the underlying postcard encoder
+/// fails. In practice this requires allocator exhaustion or a misbehaving
+/// `Serialize` impl on a state field — the happy-path GameState shape
+/// is always encodable.
 pub fn save(state: &GameState) -> Result<Vec<u8>, SaveError> {
     let envelope = SaveEnvelope {
         version: CURRENT_VERSION,
@@ -119,6 +129,13 @@ pub fn save(state: &GameState) -> Result<Vec<u8>, SaveError> {
 /// Today there is only `SaveV1`; older versions are unreachable. When
 /// `SaveV2` ships, this function gains a `match envelope.version` arm
 /// that deserializes the old struct shape and runs the migration.
+///
+/// # Errors
+///
+/// - [`SaveError::Postcard`] if the bytes are not a well-formed postcard
+///   stream or the encoded shape does not match the current envelope.
+/// - [`SaveError::UnknownVersion`] if the header reports a version
+///   greater than [`CURRENT_VERSION`] (a save written by a newer build).
 pub fn load(bytes: &[u8]) -> Result<GameState, SaveError> {
     let envelope: SaveEnvelope = from_bytes(bytes)?;
     if envelope.version > CURRENT_VERSION {

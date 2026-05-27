@@ -6,9 +6,16 @@ edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
+publish = false
+
+[features]
+# `serde` is on by default. Consumers that don't serialize state
+# (benchmarks, debug-only tools) can opt out with `default-features = false`.
+default = ["serde"]
+serde = ["break-eternity-rs/serde"]
 
 [dependencies]
-break-eternity-rs = { version = "0.3.0", features = ["serde"] }
+break-eternity-rs = { workspace = true }
 
 [lints]
 workspace = true

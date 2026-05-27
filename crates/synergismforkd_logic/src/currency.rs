@@ -45,6 +45,13 @@ macro_rules! currency_newtype {
         $name:ident
     ) => {
         $(#[$meta])*
+        // `Decimal` can hold NaN/INFINITY values (the `from_finite`
+        // constructor name implies non-finite values exist), so
+        // reflexivity is not guaranteed and `Eq` is intentionally not
+        // derived. The `clippy::derive_partial_eq_without_eq` lint
+        // (clippy::nursery) flags this; the suppression makes the
+        // intent explicit.
+        #[allow(clippy::derive_partial_eq_without_eq)]
         #[derive(
             Debug,
             Clone,

@@ -133,7 +133,15 @@ pub fn buy_particle_building(
             * 1.0_f64.max((log10_resource / log10_quadrillion_cost).powf(diminishing_exponent)))
         .floor();
         let mut lo = BUYMAX;
-        while hi - lo > 0.5 {
+        // Iteration cap is defense-in-depth: the loop terminates
+        // naturally when `mid` converges to an endpoint (inner break),
+        // but at extreme magnitudes f64 precision can stall the
+        // `hi - lo > 0.5` condition. 128 iters is well above
+        // log2(f64::MAX) and bounds tick latency.
+        for _ in 0..128 {
+            if hi - lo <= 0.5 {
+                break;
+            }
             let mid = (lo + (hi - lo) / 2.0).floor();
             if mid == lo || mid == hi {
                 break;

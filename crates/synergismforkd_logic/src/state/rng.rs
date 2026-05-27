@@ -61,6 +61,16 @@ impl RngState {
 
     /// Build an `RngState` from system entropy. Each per-purpose generator
     /// gets a fresh seed drawn from `OsRng`-backed master state.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the operating-system RNG (`OsRng`) is unavailable. On
+    /// Unix this calls `getrandom(2)`; on Windows it calls
+    /// `BCryptGenRandom`. On `wasm32` it requires the `js` feature on the
+    /// `getrandom` crate, which the `synergismforkd_ui_web` crate wires
+    /// for its WASM target. In practice the syscall path is reliable; the
+    /// WASM path requires the JS shim to be linked or the program would
+    /// have failed earlier.
     pub fn from_entropy() -> Self {
         let mut master = Xoshiro256PlusPlus::from_rng(OsRng).expect("OsRng should not fail");
         Self::seed_array_from(&mut master)
@@ -83,10 +93,13 @@ impl RngState {
 }
 
 impl Default for RngState {
-    /// Equivalent to [`RngState::from_entropy`]. Use [`RngState::from_seed`]
-    /// when reproducibility matters.
+    /// Deterministic — equivalent to `RngState::from_seed(0)`. This keeps
+    /// `GameState::default()` (used pervasively in tests) non-panicking
+    /// and reproducible. Use [`RngState::from_entropy`] when fresh
+    /// system entropy is required; that constructor can panic and is
+    /// explicitly opt-in.
     fn default() -> Self {
-        Self::from_entropy()
+        Self::from_seed(0)
     }
 }
 

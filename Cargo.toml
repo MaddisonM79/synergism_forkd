@@ -22,13 +22,34 @@ repository = "https://github.com/MaddisonM79/unknown_game"
 serde = { version = "1", default-features = false, features = ["derive", "alloc"] }
 serde-big-array = { version = "0.5", default-features = false }
 postcard = { version = "1", default-features = false, features = ["alloc"] }
+# break-eternity-rs is project-controlled (owner: MaddisonM79). The 0.3.0
+# series is stable; prior yanks were one-off fixes for inherited bugs and
+# are not expected to recur. `^0.3` lets patch releases flow through.
+break-eternity-rs = { version = "0.3", default-features = false }
+rand = { version = "0.8", default-features = false, features = ["std", "std_rng"] }
+rand_xoshiro = { version = "0.6", default-features = false, features = ["serde1"] }
+smallvec = { version = "1", default-features = false, features = ["serde"] }
 
 [workspace.lints.rust]
 unused_crate_dependencies = "warn"
+# CLAUDE.md mandates no unsafe; promote to forbid at the workspace boundary.
+unsafe_code = "forbid"
 
 [workspace.lints.clippy]
 all = { level = "warn", priority = -1 }
 
+[workspace.lints.rustdoc]
+broken_intra_doc_links = "deny"
+private_intra_doc_links = "deny"
+
 [profile.release]
 lto = "thin"
 codegen-units = 1
+
+# bignum-heavy tests are materially faster when deps compile at opt-level=1
+# while workspace crates stay at 0 for fast incremental rebuild.
+[profile.dev.package."*"]
+opt-level = 1
+
+[profile.test]
+inherits = "dev"

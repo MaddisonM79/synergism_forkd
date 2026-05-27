@@ -10,8 +10,8 @@
 //!
 //! The same name `compute_free_level_multiplier` exists in
 //! [`crate::mechanics::gq_upgrade_levels`] for golden-quark
-//! upgrades, but the formula differs (GQ reads shop + cube[75];
-//! Octeract reads cube[78]).
+//! upgrades, but the formula differs (GQ reads shop + `cube[75]`;
+//! Octeract reads `cube[78]`).
 
 /// Octeract free-level multiplier. `1 + 0.3% × cubeUpgrades[78]`.
 #[must_use]

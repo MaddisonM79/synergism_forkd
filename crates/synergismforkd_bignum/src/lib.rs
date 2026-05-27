@@ -1,3 +1,5 @@
+#![cfg_attr(not(test), deny(clippy::unwrap_used))]
+
 //! Synergism Forkd — bignum re-export.
 //!
 //! Thin wrapper around the maintained [`break-eternity-rs`] fork of

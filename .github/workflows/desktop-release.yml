@@ -13,8 +13,11 @@ jobs:
   build:
     name: ${{ matrix.target.name }}
     runs-on: ${{ matrix.target.os }}
+    # Build matrix only reads source; release publishing (when Tauri
+    # integration lands) moves to a separate job that gathers artifacts
+    # via actions/download-artifact and holds `contents: write` alone.
     permissions:
-      contents: write
+      contents: read
     strategy:
       fail-fast: false
       matrix:
@@ -24,12 +27,12 @@ jobs:
           - { name: windows, os: windows-latest, artifact: '*.msi' }
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           persist-credentials: false
 
       - name: Cache cargo registry & target
-        uses: actions/cache@v5
+        uses: actions/cache@8b402f58fbc84540c8b491a91e594a4576fec3d7 # v5.0.2
         with:
           path: |
             ~/.cargo/registry
@@ -44,9 +47,14 @@ jobs:
         run: cargo build -p synergismforkd_ui_desktop --release
 
       # When Tauri wiring lands, replace the step above with:
-      #   uses: tauri-apps/tauri-action@v0
+      #   uses: tauri-apps/tauri-action@<SHA>
       #   with:
       #     projectPath: crates/synergismforkd_ui_desktop
       #     tagName: ${{ github.ref_name }}
       #     releaseName: 'Synergism Forkd ${{ github.ref_name }}'
       #     releaseBody: 'See CHANGELOG.md for release notes.'
+      # And add a follow-up job with `permissions: contents: write` to
+      # gather per-OS artifacts (via actions/download-artifact) and call
+      # softprops/action-gh-release. Per Argus S-09 / RBP-037, the build
+      # matrix should never carry write perms; only the release step
+      # itself needs them.

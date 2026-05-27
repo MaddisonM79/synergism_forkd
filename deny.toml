@@ -1,0 +1,70 @@
+# cargo-deny configuration.
+# Run locally: cargo deny check all
+#
+# Prereq: every workspace crate sets `publish = false` in [package],
+# otherwise `allow-wildcard-paths` cannot suppress the workspace
+# path-dep wildcard warnings.
+
+[graph]
+all-features = true
+
+[advisories]
+version = 2
+yanked = "deny"
+ignore = []
+
+[licenses]
+version = 2
+# Allow-list tuned for an MIT-licensed game shipping a static desktop binary.
+# Anything outside this list trips the check — reviewer must explicitly
+# add to `exceptions` (with justification) or remove the dep.
+allow = [
+    "MIT",
+    "Apache-2.0",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "ISC",
+    "Unicode-DFS-2016",
+    "Unicode-3.0",
+    "Zlib",
+    "CC0-1.0",
+    "Unlicense",
+    # File-level copyleft; OK for static-linked binary provided MPL'd
+    # source files are not modified.
+    "MPL-2.0",
+]
+confidence-threshold = 0.93
+exceptions = []
+
+# Excluded — do not add without explicit review:
+#   GPL-*, AGPL-* (viral; incompatible with MIT redistribution)
+#   LGPL-*  (workable for dynamic linking; awkward for a single static binary)
+#   OpenSSL (advertising clause; legacy openssl-sys chain indicator)
+#   SSPL, BSL-*, Commons-Clause (non-OSI; commercial-use restrictions)
+
+[bans]
+# Cargo.lock currently has zero duplicate versions. `warn` surfaces drift
+# without breaking CI when a transitive dep legitimately introduces a
+# parallel major.
+multiple-versions = "warn"
+wildcards = "deny"
+# Allowed because every workspace crate sets `publish = false`.
+allow-wildcard-paths = true
+highlight = "all"
+workspace-default-features = "allow"
+external-default-features = "allow"
+allow = []
+deny = [
+    # Add specific bad-actor or deprecated crates here as discovered.
+    # Examples (not present in current tree):
+    # { name = "openssl-sys", reason = "Prefer rustls for cross-platform TLS." },
+    # { name = "failure",     reason = "Deprecated; use thiserror." },
+]
+skip = []
+skip-tree = []
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]
+allow-git = []

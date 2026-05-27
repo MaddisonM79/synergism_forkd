@@ -1,0 +1,9 @@
+# Stable-only rustfmt config. imports_granularity and group_imports
+# remain unstable and require nightly rustfmt; defer until they stabilize.
+edition = "2021"
+max_width = 100
+use_field_init_shorthand = true
+use_try_shorthand = true
+newline_style = "Unix"
+hard_tabs = false
+tab_spaces = 4
