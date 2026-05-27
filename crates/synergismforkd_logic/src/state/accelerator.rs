@@ -21,7 +21,7 @@ use synergismforkd_bignum::Decimal;
 /// otherwise fire the first time `buy_accelerator` and `buy_multiplier`
 /// ran in the same tick.)
 ///
-/// [`smallest_inc`]: crate::math::smallest_inc
+/// [`smallest_inc`]: crate::math::smallest_inc()
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct AcceleratorState {
     /// Total accelerators owned. Walked past `MAX_SAFE_INTEGER` in the

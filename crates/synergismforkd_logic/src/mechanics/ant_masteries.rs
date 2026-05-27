@@ -310,6 +310,12 @@ pub fn ant_mastery_self_speed_multiplier(producer: u8, level: u8) -> Decimal {
     // Workers (0) and Breeders (1) have small-integer multipliers at low
     // levels that don't fit the unit-mantissa pattern; encode mantissa
     // explicitly for those entries.
+    //
+    // Each arm maps 1:1 to a distinct entry in the legacy TS truth
+    // table. Combining arms with `|` would obscure parity and make
+    // future TS-side bug fixes harder to mirror — keep the table
+    // enumerated.
+    #[allow(clippy::match_same_arms)]
     let (mantissa, exp): (f64, f64) = match (producer, level) {
         // Workers (0) — Decimal.fromString('1' / '3' / '9' / '20' / '100' / '1e4' / …)
         (0, 0) => (1.0, 0.0),

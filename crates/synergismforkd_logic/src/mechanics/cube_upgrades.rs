@@ -190,9 +190,13 @@ pub struct GetCubeCostResult {
 /// Returns the unified `{ level_can_buy, cost }` shape. Callers feed
 /// `cost` back into `player.wowCubes.sub()`.
 ///
-/// Can return [`SummationError`] from the cubic branch — the legacy
-/// code never checks for this, but propagating maintains the
-/// `clippy::unwrap_used = "deny"` policy in `logic`.
+/// # Errors
+///
+/// Returns [`SummationError`] when the cubic branch (`cube_upgrade_index
+/// > 50`) hits an unsolvable cubic. In normal play this is unreachable
+/// because the input ranges are bounded; the legacy code never checked
+/// for it. Propagating preserves the `clippy::unwrap_used = "deny"`
+/// policy at the `logic` crate boundary.
 pub fn get_cube_cost(input: &GetCubeCostInput) -> Result<GetCubeCostResult, SummationError> {
     let i = input.cube_upgrade_index;
     let lin_growth = if i == 50 { 0.01 } else { 0.0 };

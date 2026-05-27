@@ -1,0 +1,20 @@
+# Per-tick aggregator fns funnel many cross-mechanic values; default
+# cognitive-complexity threshold (25) is too tight here.
+cognitive-complexity-threshold = 40
+
+# Tick orchestrator and aggregator entry points carry many parameters;
+# default (7) is too tight.
+too-many-arguments-threshold = 10
+
+# Long numeric literals appear in TS-port cost tables; raise threshold to
+# avoid noise on parity-preserved tables.
+literal-representation-threshold = 16384
+
+# No `disallowed-methods` for `.unwrap()` / `.expect()` here — the
+# `#![cfg_attr(not(test), deny(clippy::unwrap_used))]` attribute on
+# each real-impl crate root scopes the rule to production code. A
+# clippy.toml-level disallowed-method has no cfg(test) gate and would
+# fire inside test bodies where unwrap is normal idiom.
+
+# Must mirror workspace.package.rust-version in Cargo.toml.
+msrv = "1.95"

@@ -10,8 +10,8 @@
 //!
 //! Octeract upgrades have parallel helpers in
 //! `octeract_upgrade_levels`. The two `freeLevelMultiplier`
-//! implementations differ (GQ reads shop + cube[75]; Octeract
-//! reads cube[78]).
+//! implementations differ (GQ reads shop + `cube[75]`; Octeract
+//! reads `cube[78]`).
 
 /// Singularity counts that unlock an extra `+1` to a GQ upgrade's
 /// level cap when the upgrade is flagged `canExceedCap`. Sorted
@@ -22,7 +22,7 @@ const OVERCLOCK_PERKS: &[f64] = &[
 ];
 
 /// GQ free-level multiplier. Sums the shop `freeUpgradeMult`
-/// contribution with `0.3% × cubeUpgrades[75]`. Used by both the
+/// contribution with `0.3% × cubeUpgrades\[75\]`. Used by both the
 /// free-level softcap and the polynomial-path bonus.
 #[must_use]
 pub fn gq_free_level_multiplier(shop_free_upgrade_mult: f64, cube_upgrade_75: f64) -> f64 {

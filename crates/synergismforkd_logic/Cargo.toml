@@ -6,15 +6,16 @@ edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
+publish = false
 
 [dependencies]
 synergismforkd_bignum = { path = "../synergismforkd_bignum" }
 synergismforkd_common = { path = "../synergismforkd_common" }
-rand = { version = "0.8", default-features = false, features = ["std", "std_rng"] }
-rand_xoshiro = { version = "0.6", default-features = false, features = ["serde1"] }
+rand = { workspace = true }
+rand_xoshiro = { workspace = true }
 serde = { workspace = true }
 serde-big-array = { workspace = true }
-smallvec = { version = "1", default-features = false, features = ["serde"] }
+smallvec = { workspace = true }
 
 [lints]
 workspace = true

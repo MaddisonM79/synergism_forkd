@@ -59,8 +59,10 @@
 The TS-era boundary (`packages/logic` could not touch DOM / UI / i18n) generalizes to the whole Rust workspace.
 
 ### `synergismforkd_bignum`
-- Thin re-export of the maintained [`break-eternity-rs`](https://crates.io/crates/break-eternity-rs) crate. `Decimal` is `Copy`, supports the standard arithmetic operators, and exposes the full BE.js helper set (`log10`, `ln`, `pow`, `tetrate`, `iteratedexp`, `iteratedlog`, `slog`, `sqrt`, `cbrt`, `gamma`, `factorial`, `lambertw`, …).
+- Thin re-export of [`break-eternity-rs`](https://crates.io/crates/break-eternity-rs). `Decimal` is `Copy`, supports the standard arithmetic operators, and exposes the full BE.js helper set (`log10`, `ln`, `pow`, `tetrate`, `iteratedexp`, `iteratedlog`, `slog`, `sqrt`, `cbrt`, `gamma`, `factorial`, `lambertw`, …).
+- **Trust model**: `break-eternity-rs` is **project-controlled** (owner: `MaddisonM79`). The 0.3.0 series is stable; the two prior versions (0.1.0, 0.2.0) were yanked to fix inherited bugs and are not expected to recur.
 - Other crates depend on `synergismforkd_bignum` only, never on the upstream crate directly — that keeps the underlying impl swappable later.
+- Exposes a `serde` cargo feature (on by default); consumers that don't serialize state can opt out with `default-features = false`.
 
 ### `synergismforkd_logic`
 - **No** `wasm-bindgen`, `web-sys`, `js-sys`, network, filesystem, time-of-day, or async runtime.

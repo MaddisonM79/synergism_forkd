@@ -116,6 +116,13 @@ pub fn calculate_summation_cubic(n: f64) -> f64 {
 /// `positive` selects which root to return: `true` →
 /// `(-b + sqrt(disc)) / (2a)`, `false` → `(-b - sqrt(disc)) / (2a)`. When the
 /// discriminant is 0 both forms collapse to `-b / (2a)`.
+///
+/// # Errors
+///
+/// - [`SummationError::QuadraticImproper`] when `a < 0` (the solver only
+///   handles upward-opening parabolas).
+/// - [`SummationError::QuadraticDeterminant`] when `b² - 4ac < 0` (no
+///   real roots).
 pub fn solve_quadratic(a: f64, b: f64, c: f64, positive: bool) -> Result<f64, SummationError> {
     if a < 0.0 {
         return Err(SummationError::QuadraticImproper);
@@ -150,8 +157,13 @@ pub struct CalculateCubicSumDataResult {
 /// and `amount_to_spend` more available, capped at `max_level`. Returns the
 /// `{level_can_buy, cost}` pair where `cost` is the actual amount spent.
 ///
-/// Returns [`SummationError::CubicSumNegative`] when `total_to_spend` would
-/// be negative (programmer-error guard).
+/// # Errors
+///
+/// - [`SummationError::CubicSumNegative`] when `already_spent +
+///   amount_to_spend < 0` (programmer-error guard).
+/// - Any [`SummationError`] propagated from [`solve_quadratic`] used
+///   internally (in practice only `QuadraticDeterminant` for pathological
+///   inputs since `a = 1.0` always).
 pub fn calculate_cubic_sum_data(
     initial_level: f64,
     base_cost: f64,

@@ -56,6 +56,17 @@ pub const REBORN_ELO_THRESHOLD_TRANCHES: &[RebornELOTranche] = &[
     },
 ];
 
+// Compile-time invariant: the terminal tranche covers all remaining ELO
+// via `stages = INFINITY`. Every loop over this table relies on this to
+// guarantee the search terminates; if the terminator is ever removed,
+// the `unreachable!()` in `calculate_to_next_reborn_elo_threshold`
+// becomes reachable and this assertion fires at build time instead.
+const _: () = {
+    let last_idx = REBORN_ELO_THRESHOLD_TRANCHES.len() - 1;
+    let last_stages = REBORN_ELO_THRESHOLD_TRANCHES[last_idx].stages;
+    assert!(last_stages.to_bits() == f64::INFINITY.to_bits());
+};
+
 /// Multiplier applied per stage to the daily-quark reward.
 pub const QUARK_MULTIPLIER_PER_REBORN_ELO_THRESHOLD: f64 = 1.002;
 

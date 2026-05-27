@@ -6,6 +6,10 @@ on:
 
 jobs:
   auto-review:
+    # Only run for first-party branches. Fork PRs don't receive secrets
+    # (GitHub default), so claude-code-action fails on them; the filter
+    # avoids wasting runner minutes on those failures.
+    if: github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     permissions:
       contents: read
