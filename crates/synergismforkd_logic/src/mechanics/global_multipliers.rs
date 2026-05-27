@@ -184,13 +184,13 @@ pub fn compute_global_multipliers(
     let highest_singularity_count = state.singularity.highest_singularity_count;
     let golden_quarks = state.golden_quarks.golden_quarks.to_number();
     let overflux_powder = state.hepteracts.overflux_powder;
-    let second_owned_coin = state.coin_producers.second_owned;
-    let first_generated_mythos = state.mythos_producers.first_generated;
-    let first_owned_mythos = state.mythos_producers.first_owned;
-    let second_owned_mythos = state.mythos_producers.second_owned;
-    let third_owned_mythos = state.mythos_producers.third_owned;
-    let fourth_owned_mythos = state.mythos_producers.fourth_owned;
-    let fifth_owned_mythos = state.mythos_producers.fifth_owned;
+    let second_owned_coin = state.coin_producers.tiers[1].owned;
+    let first_generated_mythos = state.mythos_producers.tiers[0].generated;
+    let first_owned_mythos = state.mythos_producers.tiers[0].owned;
+    let second_owned_mythos = state.mythos_producers.tiers[1].owned;
+    let third_owned_mythos = state.mythos_producers.tiers[2].owned;
+    let fourth_owned_mythos = state.mythos_producers.tiers[3].owned;
+    let fifth_owned_mythos = state.mythos_producers.tiers[4].owned;
     let reincarnation_challenge = state.challenges.current_reincarnation_challenge;
     let ascension_challenge = state.challenges.current_ascension_challenge;
     let recession_corruption_level = state.corruptions.used.levels[RECESSION_INDEX];
@@ -555,11 +555,11 @@ mod tests {
     #[test]
     fn total_mythos_owned_sums_five_fields() {
         let mut state = GameState::default();
-        state.mythos_producers.first_owned = 1.0;
-        state.mythos_producers.second_owned = 2.0;
-        state.mythos_producers.third_owned = 3.0;
-        state.mythos_producers.fourth_owned = 4.0;
-        state.mythos_producers.fifth_owned = 5.0;
+        state.mythos_producers.tiers[0].owned = 1.0;
+        state.mythos_producers.tiers[1].owned = 2.0;
+        state.mythos_producers.tiers[2].owned = 3.0;
+        state.mythos_producers.tiers[3].owned = 4.0;
+        state.mythos_producers.tiers[4].owned = 5.0;
         let result = compute_global_multipliers(&state, &GlobalMultipliersPreEvaluated::default());
         assert_eq!(result.total_mythos_owned, 15.0);
     }

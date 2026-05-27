@@ -8,10 +8,13 @@
 //! see the per-tier flip matrix in
 //! [`crate::mechanics::upgrades::buy_upgrades`].
 
+use serde::{Deserialize, Serialize};
+use serde_big_array::BigArray;
+
 use synergismforkd_bignum::Decimal;
 
 /// Slice of `GameState` read/written by `buy_upgrades`.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct UpgradesState {
     /// `player.coins`.
     pub coins: Decimal,
@@ -22,8 +25,16 @@ pub struct UpgradesState {
     /// `player.reincarnationPoints` (Particles-prestige currency).
     pub reincarnation_points: Decimal,
     /// Bitmap of owned upgrades; `0` = unowned, `1` = owned. Indexed by
-    /// `pos`.
-    pub upgrades: Vec<u8>,
+    /// `pos`. Fixed cardinality at compile time — converting from a
+    /// `Vec<u8>` makes the slice `Copy`-eligible structurally, eliminates
+    /// the per-clone heap allocation, and surfaces out-of-bounds index
+    /// errors as compile-time array-length issues rather than runtime
+    /// panics. (Tier B item 12 / Anvil F4.)
+    ///
+    /// `#[serde(with = "BigArray")]` is required because serde's default
+    /// array impls top out at length 32.
+    #[serde(with = "BigArray")]
+    pub upgrades: [u8; UPGRADES_DEFAULT_LEN],
     /// Set false when any coin-tier upgrade is purchased; gates the
     /// "no coin upgrades during prestige" achievement.
     pub prestige_no_coin_upgrades: bool,
@@ -59,7 +70,7 @@ impl Default for UpgradesState {
             prestige_points: Decimal::zero(),
             transcend_points: Decimal::zero(),
             reincarnation_points: Decimal::zero(),
-            upgrades: vec![0; UPGRADES_DEFAULT_LEN],
+            upgrades: [0; UPGRADES_DEFAULT_LEN],
             prestige_no_coin_upgrades: true,
             transcend_no_coin_upgrades: true,
             transcend_no_coin_or_prestige_upgrades: true,

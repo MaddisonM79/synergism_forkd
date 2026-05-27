@@ -73,6 +73,24 @@ pub struct CalculateEffectiveSingularitiesInput {
 /// milestone multipliers (`×1.5` past 10, `×2.5` past 25, etc.).
 /// The Exalt 4 multiplier and the taxman-last-stand `^(3/2)`
 /// override are both applied here.
+///
+/// # ⚠️ Redesign pending — DO NOT extend
+///
+/// **Assayer audit BLOCKER 1**: the staircase below is an unbounded
+/// reinforcing loop with no damping term. Numerical evaluation shows
+/// growth crossing 1e36 by singularity 280; the only counterweight
+/// is the antiquities-rune binary override in
+/// [`calculate_singularity_debuff`] (audit BLOCKER 2), which makes
+/// the two pathologies entangled — fixing the staircase requires
+/// fixing the override, and vice versa.
+///
+/// Per the audit plan (Tier C item 16), further singularity-layer
+/// porting is paused pending a Loom design pass on the replacement
+/// curve. The current verbatim port is preserved so existing parity
+/// fixtures stay green, but parity on this mechanic is
+/// **informational, not blocking** (Tier C item 15) — a PR that
+/// breaks the staircase numerics is *expected* once the redesign
+/// lands.
 #[must_use]
 pub fn calculate_effective_singularities(input: &CalculateEffectiveSingularitiesInput) -> f64 {
     let singularity_count = input.singularity_count;
@@ -184,6 +202,19 @@ pub struct CalculateSingularityDebuffInput {
 /// Otherwise switches on `debuff` to pick a formula. Salvage and
 /// Ant ELO return subtractive amounts (negative of the magnitude);
 /// the rest return multiplicative penalties.
+///
+/// # ⚠️ Redesign pending — DO NOT extend
+///
+/// **Assayer audit BLOCKER 2**: the `antiquities_rune_active` check
+/// at the top of the function is a Sirlin-degenerate binary override
+/// — there is no skill gradient between "no antiquities rune" and
+/// "antiquities rune"; the choice geometry collapses to a single
+/// boolean. Entangled with the staircase in
+/// [`calculate_effective_singularities`] (audit BLOCKER 1).
+///
+/// Per the audit plan (Tier C item 16), further singularity-layer
+/// porting is paused pending a Loom design pass. Parity on this
+/// mechanic is **informational, not blocking** (Tier C item 15).
 #[must_use]
 pub fn calculate_singularity_debuff(input: &CalculateSingularityDebuffInput) -> f64 {
     if input.singularity_count == 0.0 || input.antiquities_rune_active {

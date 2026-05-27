@@ -4,10 +4,12 @@
 //! legacy schema. Backs [`crate::mechanics::event_buffs`] and
 //! [`crate::mechanics::potion_bonuses`].
 
+use serde::{Deserialize, Serialize};
+
 use std::collections::HashMap;
 
 /// Slice of `GameState` for event buffs + daily-reset tracking.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct EventBuffsState {
     /// `player.usedCoupons` — per-event coupon-redemption log.
     /// Keyed by event ID; the value is `1` if the coupon has been

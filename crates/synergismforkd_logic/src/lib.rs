@@ -1,3 +1,5 @@
+#![cfg_attr(not(test), deny(clippy::unwrap_used))]
+
 //! Synergism Forkd — headless game logic.
 //!
 //! Public surface organized by tier:
@@ -20,6 +22,9 @@
 //! functions follow the `(state, input) -> (state, events)` shape so side
 //! effects are routed through the UI tier.
 
+use synergismforkd_common as _;
+
+pub mod currency;
 pub mod events;
 pub mod math;
 pub mod mechanics;
@@ -36,6 +41,14 @@ pub use events::{
     AchievementGroup, AutoPotionType, AutoResetMode, AutoResetTier, AutoTool, CoreEvent,
     ProducerType, RevealTrigger, SweepState, UpgradeTier,
 };
+
+// ─── Currency newtypes ───────────────────────────────────────────────────
+
+pub use currency::{Coins, Multiplier, PrestigePoints, ReincarnationPoints, TranscendPoints};
+
+// ─── Tick orchestrator ───────────────────────────────────────────────────
+
+pub use tick::{tack, BuyRequest, CrossMechanicCache, PlayerAction, TackInput, TickOutput};
 
 // ─── Per-tick aggregator entry points ────────────────────────────────────
 

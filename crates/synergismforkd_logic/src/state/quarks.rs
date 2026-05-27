@@ -6,10 +6,12 @@
 //! plain Decimal balance + the cached bonus (recomputed by the
 //! tick layer).
 
+use serde::{Deserialize, Serialize};
+
 use synergismforkd_bignum::Decimal;
 
 /// Slice of `GameState` for quark balances.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct QuarksState {
     /// `player.worlds` — current quark balance.
     pub worlds: Decimal,

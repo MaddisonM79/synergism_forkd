@@ -9,14 +9,21 @@
 /// One red-ambrosia upgrade's per-player state. Mirrors
 /// `player.redAmbrosiaUpgrades.<name>` — most red-ambrosia upgrades
 /// are single-`level` entries (no free-level concept).
-#[derive(Debug, Clone, Copy, PartialEq, Default)]
+use serde::{Deserialize, Serialize};
+
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Default)]
 pub struct RedAmbrosiaUpgrade {
     /// Purchased level.
     pub level: f64,
 }
 
+/// Fixed cardinality of the red-ambrosia-upgrade array. Tier B item 12.
+/// (27 fits inside serde's default 0..=32 length window — no `BigArray`
+/// attribute needed.)
+pub const RED_AMBROSIA_UPGRADES_LEN: usize = 27;
+
 /// Slice of `GameState` for the red-ambrosia feature.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct RedAmbrosiaState {
     /// `player.redAmbrosia` — current balance.
     pub red_ambrosia: f64,
@@ -29,28 +36,19 @@ pub struct RedAmbrosiaState {
     /// `player.spentRedAmbrosia` — count allocated to upgrades.
     pub spent_red_ambrosia: f64,
     /// Per-upgrade state. UI maintains the name ↔ index mapping.
-    pub upgrades: Vec<RedAmbrosiaUpgrade>,
+    pub upgrades: [RedAmbrosiaUpgrade; RED_AMBROSIA_UPGRADES_LEN],
 }
 
-impl RedAmbrosiaState {
-    /// Build with `n_upgrades` slots. Legacy synergism has 27 named
-    /// red-ambrosia upgrades.
-    #[must_use]
-    pub fn new(n_upgrades: usize) -> Self {
+impl Default for RedAmbrosiaState {
+    fn default() -> Self {
         Self {
             red_ambrosia: 0.0,
             lifetime_red_ambrosia: 0.0,
             red_ambrosia_time: 0.0,
             red_ambrosia_rng: 0.0,
             spent_red_ambrosia: 0.0,
-            upgrades: vec![RedAmbrosiaUpgrade::default(); n_upgrades],
+            upgrades: [RedAmbrosiaUpgrade::default(); RED_AMBROSIA_UPGRADES_LEN],
         }
-    }
-}
-
-impl Default for RedAmbrosiaState {
-    fn default() -> Self {
-        Self::new(27)
     }
 }
 
@@ -61,6 +59,6 @@ mod tests {
     #[test]
     fn default_has_27_upgrade_slots() {
         let s = RedAmbrosiaState::default();
-        assert_eq!(s.upgrades.len(), 27);
+        assert_eq!(s.upgrades.len(), RED_AMBROSIA_UPGRADES_LEN);
     }
 }

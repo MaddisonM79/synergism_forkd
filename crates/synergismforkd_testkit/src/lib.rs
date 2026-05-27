@@ -5,4 +5,8 @@
 //! `synergismforkd-sim` binary drives the same sim runner from the CLI
 //! for ad-hoc balance checks and bug reproduction.
 
+use synergismforkd_bignum as _;
+use synergismforkd_logic as _;
+use synergismforkd_save as _;
+
 pub fn placeholder() {}

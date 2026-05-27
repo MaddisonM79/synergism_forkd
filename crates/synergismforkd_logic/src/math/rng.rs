@@ -10,7 +10,7 @@
 //! legacy implementation built a fresh `MersenneTwister(seed)` on every roll
 //! and advanced the seed by `+ 1`, producing a degenerate
 //! `MT(0), MT(1), MT(2), …` sequence. The Rust port uses a real PRNG
-//! (`ChaCha8Rng`) with proper state, drawn through these helpers.
+//! (`Xoshiro256PlusPlus`) with proper state, drawn through these helpers.
 
 use rand::Rng;
 use rand::RngCore;
@@ -47,12 +47,12 @@ pub fn pick<'a, T, R: RngCore>(rng: &mut R, items: &'a [T]) -> Option<&'a T> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use rand_chacha::rand_core::SeedableRng;
-    use rand_chacha::ChaCha8Rng;
+    use rand::SeedableRng;
+    use rand_xoshiro::Xoshiro256PlusPlus;
 
     #[test]
     fn next_f64_is_in_unit_interval() {
-        let mut rng = ChaCha8Rng::seed_from_u64(0);
+        let mut rng = Xoshiro256PlusPlus::seed_from_u64(0);
         for _ in 0..1_000 {
             let v = next_f64(&mut rng);
             assert!((0.0..1.0).contains(&v));
@@ -61,7 +61,7 @@ mod tests {
 
     #[test]
     fn next_inclusive_respects_bounds() {
-        let mut rng = ChaCha8Rng::seed_from_u64(42);
+        let mut rng = Xoshiro256PlusPlus::seed_from_u64(42);
         for _ in 0..1_000 {
             let v = next_inclusive(&mut rng, -10, 10);
             assert!((-10..=10).contains(&v));
@@ -70,20 +70,20 @@ mod tests {
 
     #[test]
     fn next_inclusive_single_value_range() {
-        let mut rng = ChaCha8Rng::seed_from_u64(0);
+        let mut rng = Xoshiro256PlusPlus::seed_from_u64(0);
         assert_eq!(next_inclusive(&mut rng, 7, 7), 7);
     }
 
     #[test]
     fn pick_returns_none_for_empty_slice() {
-        let mut rng = ChaCha8Rng::seed_from_u64(0);
+        let mut rng = Xoshiro256PlusPlus::seed_from_u64(0);
         let empty: &[i32] = &[];
         assert!(pick(&mut rng, empty).is_none());
     }
 
     #[test]
     fn pick_returns_a_member_for_non_empty_slice() {
-        let mut rng = ChaCha8Rng::seed_from_u64(0);
+        let mut rng = Xoshiro256PlusPlus::seed_from_u64(0);
         let items = [10, 20, 30, 40];
         for _ in 0..100 {
             let v = *pick(&mut rng, &items).unwrap();
@@ -93,8 +93,8 @@ mod tests {
 
     #[test]
     fn deterministic_for_fixed_seed() {
-        let mut a = ChaCha8Rng::seed_from_u64(12345);
-        let mut b = ChaCha8Rng::seed_from_u64(12345);
+        let mut a = Xoshiro256PlusPlus::seed_from_u64(12345);
+        let mut b = Xoshiro256PlusPlus::seed_from_u64(12345);
         for _ in 0..100 {
             assert_eq!(next_f64(&mut a), next_f64(&mut b));
         }

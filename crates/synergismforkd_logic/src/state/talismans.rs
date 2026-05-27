@@ -10,12 +10,14 @@
 /// Exemption, Chronos, Midas, Metaphysics, PolymathPharaoh,
 /// Mortuus, Plastic (and the order matches the legacy `Talismans`
 /// enum).
+use serde::{Deserialize, Serialize};
+
 pub const TALISMAN_COUNT: usize = 7;
 
 /// Per-talisman fragment-allocation state. Mirrors the legacy
 /// `player.talismanOne..Seven` arrays: a small fixed slot list
 /// describing which rune the talisman buffs at the current rarity.
-#[derive(Debug, Clone, Copy, PartialEq, Default)]
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Default)]
 pub struct TalismanRuneAssignment {
     /// `[boolean, 0|1|2|3|4|5]` in legacy. The bool is whether the
     /// slot is allocated; the u8 (`0..=5`) picks which rune.
@@ -25,7 +27,7 @@ pub struct TalismanRuneAssignment {
 }
 
 /// Slice of `GameState` for the talisman feature.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct TalismansState {
     /// `player.talismanLevels[0..=6]` — per-talisman level.
     pub talisman_levels: [f64; TALISMAN_COUNT],

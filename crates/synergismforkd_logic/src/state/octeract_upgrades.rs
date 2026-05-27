@@ -11,7 +11,10 @@
 
 /// One octeract upgrade's per-player state. Mirrors
 /// `player.octeractUpgrades.<name>`.
-#[derive(Debug, Clone, Copy, PartialEq, Default)]
+use serde::{Deserialize, Serialize};
+use serde_big_array::BigArray;
+
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Default)]
 pub struct OcteractUpgrade {
     /// Purchased level.
     pub level: f64,
@@ -22,32 +25,27 @@ pub struct OcteractUpgrade {
     pub quality_of_life: bool,
 }
 
+/// Fixed cardinality of the octeract-upgrade array. Tier B item 12.
+pub const OCTERACT_UPGRADES_LEN: usize = 42;
+
 /// Slice of `GameState` for the octeract upgrades + octeract timer.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct OcteractUpgradesState {
     /// `player.octeractTimer` — accumulator that drives octeract
     /// generation.
     pub octeract_timer: f64,
     /// Per-upgrade state. The UI/tier maintains the name ↔ index
     /// mapping.
-    pub upgrades: Vec<OcteractUpgrade>,
-}
-
-impl OcteractUpgradesState {
-    /// Build with `n_upgrades` slots. Legacy has ~42 octeract
-    /// upgrades.
-    #[must_use]
-    pub fn new(n_upgrades: usize) -> Self {
-        Self {
-            octeract_timer: 0.0,
-            upgrades: vec![OcteractUpgrade::default(); n_upgrades],
-        }
-    }
+    #[serde(with = "BigArray")]
+    pub upgrades: [OcteractUpgrade; OCTERACT_UPGRADES_LEN],
 }
 
 impl Default for OcteractUpgradesState {
     fn default() -> Self {
-        Self::new(42)
+        Self {
+            octeract_timer: 0.0,
+            upgrades: [OcteractUpgrade::default(); OCTERACT_UPGRADES_LEN],
+        }
     }
 }
 
@@ -58,6 +56,6 @@ mod tests {
     #[test]
     fn default_has_42_upgrade_slots() {
         let s = OcteractUpgradesState::default();
-        assert_eq!(s.upgrades.len(), 42);
+        assert_eq!(s.upgrades.len(), OCTERACT_UPGRADES_LEN);
     }
 }

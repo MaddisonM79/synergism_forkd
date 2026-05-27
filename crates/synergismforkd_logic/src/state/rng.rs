@@ -1,9 +1,9 @@
 //! Per-system PRNG state.
 //!
 //! Each game system that needs deterministic randomness gets its own
-//! `ChaCha8Rng` instance, keyed by [`RngPurpose`]. Drawing from one purpose's
-//! generator never disturbs another's sequence, so unrelated subsystems stay
-//! independent.
+//! `Xoshiro256PlusPlus` instance, keyed by [`RngPurpose`]. Drawing from one
+//! purpose's generator never disturbs another's sequence, so unrelated
+//! subsystems stay independent.
 //!
 //! This slice replaces the legacy `player.seed[]` integer array. The legacy
 //! scheme reinstantiated `MersenneTwister(seed)` on every roll and advanced
@@ -12,18 +12,20 @@
 //!
 //! `RngState` owns the generators outright — no shared `Rc`/`Arc` indirection.
 //! Game code accesses a specific purpose's generator with [`RngState::draw`]
-//! and feeds the returned `&mut ChaCha8Rng` into the helpers in
+//! and feeds the returned `&mut Xoshiro256PlusPlus` into the helpers in
 //! [`crate::math::rng`].
+
+use serde::{Deserialize, Serialize};
 
 use rand::rngs::OsRng;
 use rand::RngCore;
 use rand::SeedableRng;
-use rand_chacha::ChaCha8Rng;
+use rand_xoshiro::Xoshiro256PlusPlus;
 
 /// Identifies a per-system PRNG sequence. Adding a new entry is the canonical
 /// way to give a subsystem its own statistically independent random stream —
 /// extend the enum and bump [`RngPurpose::COUNT`].
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[repr(usize)]
 pub enum RngPurpose {
     /// Promo-code redemption rolls. Legacy `Seed.PromoCodes = 0`.
@@ -39,28 +41,28 @@ impl RngPurpose {
     pub const COUNT: usize = 3;
 }
 
-/// One `ChaCha8Rng` per [`RngPurpose`]. Fixed-arity array keyed by the
+/// One `Xoshiro256PlusPlus` per [`RngPurpose`]. Fixed-arity array keyed by the
 /// enum's `repr(usize)` discriminant — O(1) lookup, no allocator pressure,
 /// and the layout stays deterministic for future save serialization.
-#[derive(Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct RngState {
-    rngs: [ChaCha8Rng; RngPurpose::COUNT],
+    rngs: [Xoshiro256PlusPlus; RngPurpose::COUNT],
 }
 
 impl RngState {
     /// Build an `RngState` from a single master `u64` seed. Each per-purpose
-    /// generator is keyed off a value drawn from a master `ChaCha8Rng` so the
+    /// generator is keyed off a value drawn from a master `Xoshiro256PlusPlus` so the
     /// sequences are statistically independent but the whole state is
     /// reproducible from one seed.
     pub fn from_seed(seed: u64) -> Self {
-        let mut master = ChaCha8Rng::seed_from_u64(seed);
+        let mut master = Xoshiro256PlusPlus::seed_from_u64(seed);
         Self::seed_array_from(&mut master)
     }
 
     /// Build an `RngState` from system entropy. Each per-purpose generator
     /// gets a fresh seed drawn from `OsRng`-backed master state.
     pub fn from_entropy() -> Self {
-        let mut master = ChaCha8Rng::from_rng(OsRng).expect("OsRng should not fail");
+        let mut master = Xoshiro256PlusPlus::from_rng(OsRng).expect("OsRng should not fail");
         Self::seed_array_from(&mut master)
     }
 
@@ -68,14 +70,14 @@ impl RngState {
         let rngs = std::array::from_fn(|_| {
             let mut child_seed = [0u8; 32];
             master.fill_bytes(&mut child_seed);
-            ChaCha8Rng::from_seed(child_seed)
+            Xoshiro256PlusPlus::from_seed(child_seed)
         });
         Self { rngs }
     }
 
     /// Mutable handle to the PRNG dedicated to `purpose`. Pass the returned
     /// reference to any [`crate::math::rng`] helper.
-    pub fn draw(&mut self, purpose: RngPurpose) -> &mut ChaCha8Rng {
+    pub fn draw(&mut self, purpose: RngPurpose) -> &mut Xoshiro256PlusPlus {
         &mut self.rngs[purpose as usize]
     }
 }

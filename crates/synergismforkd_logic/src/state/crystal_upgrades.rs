@@ -6,28 +6,31 @@
 //! crystal-upgrade index (0-based). Callers pass 1-based `i` as input —
 //! the mechanic function does the `-1` internally.
 
+use serde::{Deserialize, Serialize};
+
 use synergismforkd_bignum::Decimal;
 
+/// Default crystal-upgrade slot count. Matches the legacy
+/// `crystalUpgrades: [0, 0, 0, 0, 0, 0, 0, 0]` initial state.
+pub const CRYSTAL_UPGRADES_DEFAULT_LEN: usize = 8;
+
 /// Slice of `GameState` read/written by `buy_crystal_upgrades`.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct CrystalUpgradesState {
     /// Spend resource — `player.prestigeShards` in the legacy schema.
     pub prestige_shards: Decimal,
     /// Per-upgrade level. Indexed 0-based internally; the public buy
     /// function takes a 1-based `i` to match the legacy convention.
-    pub crystal_upgrades: Vec<f64>,
+    /// Fixed cardinality at compile time. (Tier B item 12 / Anvil F4.)
+    pub crystal_upgrades: [f64; CRYSTAL_UPGRADES_DEFAULT_LEN],
 }
-
-/// Default crystal-upgrade slot count. Matches the legacy
-/// `crystalUpgrades: [0, 0, 0, 0, 0, 0, 0, 0]` initial state.
-pub const CRYSTAL_UPGRADES_DEFAULT_LEN: usize = 8;
 
 impl Default for CrystalUpgradesState {
     /// Zero shards, all-zero upgrade levels at the legacy slot count.
     fn default() -> Self {
         Self {
             prestige_shards: Decimal::zero(),
-            crystal_upgrades: vec![0.0; CRYSTAL_UPGRADES_DEFAULT_LEN],
+            crystal_upgrades: [0.0; CRYSTAL_UPGRADES_DEFAULT_LEN],
         }
     }
 }

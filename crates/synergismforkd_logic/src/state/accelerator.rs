@@ -4,6 +4,8 @@
 //! `packages/logic/src/state/schema.ts`. The `*_no_accelerator` flags are
 //! achievement gates flipped to `false` once any accelerator is owned.
 
+use serde::{Deserialize, Serialize};
+
 use synergismforkd_bignum::Decimal;
 
 /// Slice of `GameState` read/written by the accelerator-purchase machinery.
@@ -12,8 +14,15 @@ use synergismforkd_bignum::Decimal;
 /// high-end buy loop walks past `2^53` using [`smallest_inc`] and relies on
 /// the same float semantics as the legacy TS implementation.
 ///
+/// The spend resource (coins) is **not** stored here — `state.upgrades`
+/// holds the canonical copy. `buy_accelerator` reads/writes it as a
+/// separate `&mut Decimal` parameter. (Ledger Finding 1 — collapsing
+/// the duplicate prevents the silent double-spend bug that would
+/// otherwise fire the first time `buy_accelerator` and `buy_multiplier`
+/// ran in the same tick.)
+///
 /// [`smallest_inc`]: crate::math::smallest_inc
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct AcceleratorState {
     /// Total accelerators owned. Walked past `MAX_SAFE_INTEGER` in the
     /// high-end binary-search branch.
@@ -21,9 +30,6 @@ pub struct AcceleratorState {
     /// Cost of the next accelerator (cached so the UI can render without
     /// recomputing).
     pub accelerator_cost: Decimal,
-    /// The spend resource (coins) — shared with the multiplier slice in the
-    /// composed `GameState`.
-    pub coins: Decimal,
     /// Set false once any accelerator is owned; gates a
     /// no-accelerator-prestige achievement.
     pub prestige_no_accelerator: bool,
@@ -40,7 +46,6 @@ impl Default for AcceleratorState {
         Self {
             accelerator_bought: 0.0,
             accelerator_cost: Decimal::zero(),
-            coins: Decimal::zero(),
             prestige_no_accelerator: true,
             transcend_no_accelerator: true,
             reincarnate_no_accelerator: true,

@@ -7,34 +7,35 @@
 //! `cubeUpgradeN`/`platonicUpgradeN` scalar input.
 
 /// Slice of `GameState` holding cube + platonic upgrade levels.
-#[derive(Debug, Clone, PartialEq)]
+use serde::{Deserialize, Serialize};
+use serde_big_array::BigArray;
+
+/// Fixed cardinality of the cube-upgrade array — `80 + 1` for the
+/// legacy 1-indexed convention. Tier B item 12.
+pub const CUBE_UPGRADES_LEN: usize = 81;
+
+/// Fixed cardinality of the platonic-upgrade array — `25 + 1` for
+/// the legacy 1-indexed convention. Tier B item 12.
+pub const PLATONIC_UPGRADES_LEN: usize = 26;
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct CubeUpgradeLevelsState {
     /// `player.cubeUpgrades` — per-cube-upgrade level. 1-indexed
     /// (index 0 unused) to match the legacy shape.
-    pub cube_upgrades: Vec<f64>,
+    #[serde(with = "BigArray")]
+    pub cube_upgrades: [f64; CUBE_UPGRADES_LEN],
     /// `player.platonicUpgrades` — per-platonic-upgrade level.
-    /// 1-indexed.
-    pub platonic_upgrades: Vec<f64>,
-}
-
-impl CubeUpgradeLevelsState {
-    /// Build with `n_cube_upgrades + 1` cube slots and
-    /// `n_platonic_upgrades + 1` platonic slots.
-    #[must_use]
-    pub fn new(n_cube_upgrades: usize, n_platonic_upgrades: usize) -> Self {
-        Self {
-            cube_upgrades: vec![0.0; n_cube_upgrades + 1],
-            platonic_upgrades: vec![0.0; n_platonic_upgrades + 1],
-        }
-    }
+    /// 1-indexed. Stays inside serde's default 0..=32 length window,
+    /// so no `BigArray` attribute needed.
+    pub platonic_upgrades: [f64; PLATONIC_UPGRADES_LEN],
 }
 
 impl Default for CubeUpgradeLevelsState {
     fn default() -> Self {
-        // Legacy synergism has 80 cube upgrades and 25 platonic
-        // upgrades (the highest indices referenced in the existing
-        // formula ports).
-        Self::new(80, 25)
+        Self {
+            cube_upgrades: [0.0; CUBE_UPGRADES_LEN],
+            platonic_upgrades: [0.0; PLATONIC_UPGRADES_LEN],
+        }
     }
 }
 
@@ -45,7 +46,7 @@ mod tests {
     #[test]
     fn default_has_legacy_widths() {
         let s = CubeUpgradeLevelsState::default();
-        assert_eq!(s.cube_upgrades.len(), 81);
-        assert_eq!(s.platonic_upgrades.len(), 26);
+        assert_eq!(s.cube_upgrades.len(), CUBE_UPGRADES_LEN);
+        assert_eq!(s.platonic_upgrades.len(), PLATONIC_UPGRADES_LEN);
     }
 }

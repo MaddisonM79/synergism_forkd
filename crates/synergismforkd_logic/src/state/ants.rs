@@ -10,11 +10,13 @@
 //! [`crate::mechanics::ant_sacrifice_reward_calc`], and
 //! [`crate::mechanics::ant_sacrifice_rewards`].
 
+use serde::{Deserialize, Serialize};
+
 use synergismforkd_bignum::Decimal;
 
 /// One ant-producer's per-player state. Mirrors the legacy
 /// `PlayerAntProducers` record entry.
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq)]
 pub struct PlayerAntProducer {
     /// `purchased` — number of this producer bought.
     pub purchased: f64,
@@ -25,7 +27,7 @@ pub struct PlayerAntProducer {
 
 /// One ant-mastery's per-player state. Mirrors the legacy
 /// `PlayerAntMasteries` record entry.
-#[derive(Debug, Clone, Copy, PartialEq, Default)]
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Default)]
 pub struct PlayerAntMastery {
     /// Current mastery level (`0..=12`).
     pub mastery: u8,
@@ -34,7 +36,7 @@ pub struct PlayerAntMastery {
 }
 
 /// Single entry on the reborn-ELO leaderboard.
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq)]
 pub struct RebornELOEntry {
     /// Effective ant ELO at the sacrifice.
     pub elo: f64,
@@ -45,7 +47,7 @@ pub struct RebornELOEntry {
 
 /// Auto-sacrifice mode selector. Mirrors the legacy
 /// `AutoSacrificeModes` enum.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AutoSacrificeMode {
     /// Auto-sacrifice disabled.
     Off,
@@ -59,7 +61,7 @@ pub enum AutoSacrificeMode {
 
 /// Ant-feature toggles. Mirrors the legacy `toggles` field on
 /// `PlayerAnts`.
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq)]
 pub struct AntsToggles {
     /// Autobuy producers on tick.
     pub autobuy_producers: bool,
@@ -102,7 +104,7 @@ impl Default for AntsToggles {
 }
 
 /// Slice of `GameState` read/written by the ant mechanics.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct AntsState {
     /// Per-producer state, indexed `0..=8` (Workers .. HolySpirit).
     pub producers: [PlayerAntProducer; 9],
@@ -122,10 +124,13 @@ pub struct AntsState {
     /// stages / leaderboard.
     pub reborn_elo: f64,
     /// Top-N daily reborn-ELO leaderboard. Capped at
-    /// `LEADERBOARD_WEIGHTS.len()` entries by the calculator.
-    pub highest_reborn_elo_daily: Vec<RebornELOEntry>,
-    /// Top-N all-time reborn-ELO leaderboard.
-    pub highest_reborn_elo_ever: Vec<RebornELOEntry>,
+    /// `LEADERBOARD_WEIGHTS.len()` entries (5) by the calculator —
+    /// `SmallVec<[_; 5]>` keeps the storage inline so the slice clones
+    /// without a heap touch.
+    pub highest_reborn_elo_daily: smallvec::SmallVec<[RebornELOEntry; 5]>,
+    /// Top-N all-time reborn-ELO leaderboard. Same cap, same inline
+    /// storage.
+    pub highest_reborn_elo_ever: smallvec::SmallVec<[RebornELOEntry; 5]>,
     /// Total quarks earned from ant sacrifices.
     pub quarks_gained_from_ants: f64,
     /// All-time count of ant sacrifices performed.
@@ -156,8 +161,8 @@ impl Default for AntsState {
             crumbs_ever_made: Decimal::zero(),
             immortal_elo: 0.0,
             reborn_elo: 0.0,
-            highest_reborn_elo_daily: Vec::new(),
-            highest_reborn_elo_ever: Vec::new(),
+            highest_reborn_elo_daily: smallvec::SmallVec::new(),
+            highest_reborn_elo_ever: smallvec::SmallVec::new(),
             quarks_gained_from_ants: 0.0,
             ant_sacrifice_count: 0.0,
             current_sacrifice_id: 0,

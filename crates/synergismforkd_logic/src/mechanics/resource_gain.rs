@@ -28,9 +28,11 @@
 //! into `GameState` (matching the `(state, input) -> (state, events)`
 //! convention used elsewhere in the crate).
 
+use smallvec::SmallVec;
+use synergismforkd_bignum::Decimal;
+
 use crate::events::{AchievementGroup, CoreEvent};
 use crate::state::GameState;
-use synergismforkd_bignum::Decimal;
 
 /// Cross-mechanic pre-computed values the aggregator needs that don't
 /// live in any state slice. Built by the caller from earlier per-tick
@@ -276,8 +278,10 @@ pub struct ResourceGainResult {
     pub produce_per_second_particles: Decimal,
     /// `G.ascendBuildingProduction`.
     pub ascend_building_production: AscendBuildingProduction,
-    /// Events for the UI tier to dispatch.
-    pub events: Vec<CoreEvent>,
+    /// Events for the UI tier to dispatch. `[CoreEvent; 8]` covers the
+    /// typical worst case (1 achievement + up to 5 challenge auto-completions
+    /// + headroom) without heap allocation.
+    pub events: SmallVec<[CoreEvent; 8]>,
 }
 
 /// Per-tick resource generation. Pure given `state` + `pre` + `dt`; returns
@@ -292,7 +296,7 @@ pub fn resource_gain(state: &GameState, pre: &ResourceGainPre, dt: f64) -> Resou
     let dt_dec = Decimal::from_finite(dt);
     let ten = Decimal::from_finite(10.0);
     let one = Decimal::one();
-    let mut events: Vec<CoreEvent> = Vec::new();
+    let mut events: SmallVec<[CoreEvent; 8]> = SmallVec::new();
 
     // ─── Direct player-state reads ───────────────────────────────────────
     let upgrade = |i: usize| f64::from(state.upgrades.upgrades[i]);
@@ -342,35 +346,35 @@ pub fn resource_gain(state: &GameState, pre: &ResourceGainPre, dt: f64) -> Resou
     // ─── Diamond cascade ─────────────────────────────────────────────────
     let diamonds = &state.diamond_producers;
     let gcm = pre.global_crystal_multiplier;
-    let produce_first_diamonds = (diamonds.first_generated
-        + Decimal::from_finite(diamonds.first_owned))
+    let produce_first_diamonds = (diamonds.tiers[0].generated
+        + Decimal::from_finite(diamonds.tiers[0].owned))
         * Decimal::from_finite(pre.first_produce_diamonds)
         * gcm;
-    let produce_second_diamonds = (diamonds.second_generated
-        + Decimal::from_finite(diamonds.second_owned))
+    let produce_second_diamonds = (diamonds.tiers[1].generated
+        + Decimal::from_finite(diamonds.tiers[1].owned))
         * Decimal::from_finite(pre.second_produce_diamonds)
         * gcm;
-    let produce_third_diamonds = (diamonds.third_generated
-        + Decimal::from_finite(diamonds.third_owned))
+    let produce_third_diamonds = (diamonds.tiers[2].generated
+        + Decimal::from_finite(diamonds.tiers[2].owned))
         * Decimal::from_finite(pre.third_produce_diamonds)
         * gcm;
-    let produce_fourth_diamonds = (diamonds.fourth_generated
-        + Decimal::from_finite(diamonds.fourth_owned))
+    let produce_fourth_diamonds = (diamonds.tiers[3].generated
+        + Decimal::from_finite(diamonds.tiers[3].owned))
         * Decimal::from_finite(pre.fourth_produce_diamonds)
         * gcm;
-    let produce_fifth_diamonds = (diamonds.fifth_generated
-        + Decimal::from_finite(diamonds.fifth_owned))
+    let produce_fifth_diamonds = (diamonds.tiers[4].generated
+        + Decimal::from_finite(diamonds.tiers[4].owned))
         * Decimal::from_finite(pre.fifth_produce_diamonds)
         * gcm;
 
     let fourth_generated_diamonds =
-        diamonds.fourth_generated + produce_fifth_diamonds * dt_scaled_dec;
+        diamonds.tiers[3].generated + produce_fifth_diamonds * dt_scaled_dec;
     let third_generated_diamonds =
-        diamonds.third_generated + produce_fourth_diamonds * dt_scaled_dec;
+        diamonds.tiers[2].generated + produce_fourth_diamonds * dt_scaled_dec;
     let second_generated_diamonds =
-        diamonds.second_generated + produce_third_diamonds * dt_scaled_dec;
+        diamonds.tiers[1].generated + produce_third_diamonds * dt_scaled_dec;
     let first_generated_diamonds =
-        diamonds.first_generated + produce_second_diamonds * dt_scaled_dec;
+        diamonds.tiers[0].generated + produce_second_diamonds * dt_scaled_dec;
     let produce_diamonds = produce_first_diamonds;
 
     let mut prestige_shards = state.reset_counters.prestige_shards;
@@ -383,35 +387,38 @@ pub fn resource_gain(state: &GameState, pre: &ResourceGainPre, dt: f64) -> Resou
     // ─── Mythos cascade ──────────────────────────────────────────────────
     let mythos = &state.mythos_producers;
     let gmm = pre.global_mythos_multiplier;
-    let produce_fifth_mythos = (mythos.fifth_generated + Decimal::from_finite(mythos.fifth_owned))
+    let produce_fifth_mythos = (mythos.tiers[4].generated
+        + Decimal::from_finite(mythos.tiers[4].owned))
         * Decimal::from_finite(pre.fifth_produce_mythos)
         * gmm
         * pre.grandmaster_multiplier
         * pre.mythosupgrade_15;
-    let produce_fourth_mythos = (mythos.fourth_generated
-        + Decimal::from_finite(mythos.fourth_owned))
+    let produce_fourth_mythos = (mythos.tiers[3].generated
+        + Decimal::from_finite(mythos.tiers[3].owned))
         * Decimal::from_finite(pre.fourth_produce_mythos)
         * gmm;
-    let produce_third_mythos = (mythos.third_generated + Decimal::from_finite(mythos.third_owned))
+    let produce_third_mythos = (mythos.tiers[2].generated
+        + Decimal::from_finite(mythos.tiers[2].owned))
         * Decimal::from_finite(pre.third_produce_mythos)
         * gmm
         * pre.mythosupgrade_14;
-    let produce_second_mythos = (mythos.second_generated
-        + Decimal::from_finite(mythos.second_owned))
+    let produce_second_mythos = (mythos.tiers[1].generated
+        + Decimal::from_finite(mythos.tiers[1].owned))
         * Decimal::from_finite(pre.second_produce_mythos)
         * gmm;
-    let produce_first_mythos = (mythos.first_generated + Decimal::from_finite(mythos.first_owned))
+    let produce_first_mythos = (mythos.tiers[0].generated
+        + Decimal::from_finite(mythos.tiers[0].owned))
         * Decimal::from_finite(pre.first_produce_mythos)
         * gmm
         * pre.mythosupgrade_13;
 
-    let fourth_generated_mythos = mythos.fourth_generated + produce_fifth_mythos * dt_scaled_dec;
-    let third_generated_mythos = mythos.third_generated + produce_fourth_mythos * dt_scaled_dec;
-    let second_generated_mythos = mythos.second_generated + produce_third_mythos * dt_scaled_dec;
-    let first_generated_mythos = mythos.first_generated + produce_second_mythos * dt_scaled_dec;
+    let fourth_generated_mythos = mythos.tiers[3].generated + produce_fifth_mythos * dt_scaled_dec;
+    let third_generated_mythos = mythos.tiers[2].generated + produce_fourth_mythos * dt_scaled_dec;
+    let second_generated_mythos = mythos.tiers[1].generated + produce_third_mythos * dt_scaled_dec;
+    let first_generated_mythos = mythos.tiers[0].generated + produce_second_mythos * dt_scaled_dec;
 
     // produceMythos: recomputed after mutations using post-tick first_generated_mythos.
-    let produce_mythos = (first_generated_mythos + Decimal::from_finite(mythos.first_owned))
+    let produce_mythos = (first_generated_mythos + Decimal::from_finite(mythos.tiers[0].owned))
         * Decimal::from_finite(pre.first_produce_mythos)
         * gmm
         * pre.mythosupgrade_13;
@@ -421,43 +428,43 @@ pub fn resource_gain(state: &GameState, pre: &ResourceGainPre, dt: f64) -> Resou
     let particles = &state.particle_buildings;
     let mut pm = Decimal::one();
     if upgrade(67) > 0.5 {
-        let total_owned = particles.first_owned_particles
-            + particles.second_owned_particles
-            + particles.third_owned_particles
-            + particles.fourth_owned_particles
-            + particles.fifth_owned_particles;
+        let total_owned = particles.tiers[0].owned
+            + particles.tiers[1].owned
+            + particles.tiers[2].owned
+            + particles.tiers[3].owned
+            + particles.tiers[4].owned;
         pm *= Decimal::from_finite(1.03).pow(Decimal::from_finite(total_owned));
     }
 
-    let produce_fifth_particles = (particles.fifth_generated_particles
-        + Decimal::from_finite(particles.fifth_owned_particles))
+    let produce_fifth_particles = (particles.tiers[4].generated
+        + Decimal::from_finite(particles.tiers[4].owned))
         * Decimal::from_finite(pre.fifth_produce_particles);
-    let produce_fourth_particles = (particles.fourth_generated_particles
-        + Decimal::from_finite(particles.fourth_owned_particles))
+    let produce_fourth_particles = (particles.tiers[3].generated
+        + Decimal::from_finite(particles.tiers[3].owned))
         * Decimal::from_finite(pre.fourth_produce_particles);
-    let produce_third_particles = (particles.third_generated_particles
-        + Decimal::from_finite(particles.third_owned_particles))
+    let produce_third_particles = (particles.tiers[2].generated
+        + Decimal::from_finite(particles.tiers[2].owned))
         * Decimal::from_finite(pre.third_produce_particles);
-    let produce_second_particles = (particles.second_generated_particles
-        + Decimal::from_finite(particles.second_owned_particles))
+    let produce_second_particles = (particles.tiers[1].generated
+        + Decimal::from_finite(particles.tiers[1].owned))
         * Decimal::from_finite(pre.second_produce_particles);
-    let produce_first_particles = (particles.first_generated_particles
-        + Decimal::from_finite(particles.first_owned_particles))
+    let produce_first_particles = (particles.tiers[0].generated
+        + Decimal::from_finite(particles.tiers[0].owned))
         * Decimal::from_finite(pre.first_produce_particles)
         * pm;
 
     let fourth_generated_particles =
-        particles.fourth_generated_particles + produce_fifth_particles * dt_scaled_dec;
+        particles.tiers[3].generated + produce_fifth_particles * dt_scaled_dec;
     let third_generated_particles =
-        particles.third_generated_particles + produce_fourth_particles * dt_scaled_dec;
+        particles.tiers[2].generated + produce_fourth_particles * dt_scaled_dec;
     let second_generated_particles =
-        particles.second_generated_particles + produce_third_particles * dt_scaled_dec;
+        particles.tiers[1].generated + produce_third_particles * dt_scaled_dec;
     let first_generated_particles =
-        particles.first_generated_particles + produce_second_particles * dt_scaled_dec;
+        particles.tiers[0].generated + produce_second_particles * dt_scaled_dec;
 
     // produceParticles: recomputed after mutations using post-tick first_generated_particles.
     let produce_particles = (first_generated_particles
-        + Decimal::from_finite(particles.first_owned_particles))
+        + Decimal::from_finite(particles.tiers[0].owned))
         * Decimal::from_finite(pre.first_produce_particles)
         * pm;
     let produce_per_second_particles = produce_particles * Decimal::from_finite(40.0);
@@ -737,7 +744,7 @@ mod tests {
     fn transcension_challenge_3_disables_shard_gains() {
         let mut state = GameState::default();
         state.challenges.current_transcension_challenge = 3;
-        state.diamond_producers.first_generated = Decimal::from_finite(10.0);
+        state.diamond_producers.tiers[0].generated = Decimal::from_finite(10.0);
         let pre = ResourceGainPre {
             first_produce_diamonds: 1.0,
             ..ResourceGainPre::default()
@@ -751,7 +758,7 @@ mod tests {
     fn reincarnation_challenge_10_disables_shard_gains() {
         let mut state = GameState::default();
         state.challenges.current_reincarnation_challenge = 10;
-        state.diamond_producers.first_generated = Decimal::from_finite(10.0);
+        state.diamond_producers.tiers[0].generated = Decimal::from_finite(10.0);
         let pre = ResourceGainPre {
             first_produce_diamonds: 1.0,
             ..ResourceGainPre::default()
@@ -805,7 +812,7 @@ mod tests {
     #[test]
     fn diamond_cascade_propagates_one_step() {
         let mut state = GameState::default();
-        state.diamond_producers.fifth_generated = Decimal::from_finite(10.0);
+        state.diamond_producers.tiers[4].generated = Decimal::from_finite(10.0);
         let pre = ResourceGainPre {
             fifth_produce_diamonds: 1.0,
             ..ResourceGainPre::default()

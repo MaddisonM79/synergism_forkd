@@ -5,12 +5,14 @@
 //! per-prestige-window counters and the lifetime total that several
 //! formula reads consume.
 
+use serde::{Deserialize, Serialize};
+
 use synergismforkd_bignum::Decimal;
 
 /// Slice of `GameState` for "coins earned during this prestige
 /// window" counters. The current-balance `coins` field lives in
 /// `UpgradesState`.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct CoinCountersState {
     /// `player.coinsThisPrestige` — coins earned since last prestige.
     pub coins_this_prestige: Decimal,

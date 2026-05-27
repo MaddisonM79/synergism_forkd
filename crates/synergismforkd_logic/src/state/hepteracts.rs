@@ -8,7 +8,9 @@
 
 /// One hepteract-craft entry. Mirrors a `player.hepteractCrafts.X`
 /// shape in the legacy schema.
-#[derive(Debug, Clone, Copy, PartialEq, Default)]
+use serde::{Deserialize, Serialize};
+
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Default)]
 pub struct HepteractCraft {
     /// `BAL` — current balance for this craft.
     pub bal: f64,
@@ -23,7 +25,7 @@ pub struct HepteractCraft {
 }
 
 /// Slice of `GameState` for hepteract crafts + overflux currency.
-#[derive(Debug, Clone, Copy, PartialEq, Default)]
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Default)]
 pub struct HepteractsState {
     /// `chronos` craft state.
     pub chronos: HepteractCraft,

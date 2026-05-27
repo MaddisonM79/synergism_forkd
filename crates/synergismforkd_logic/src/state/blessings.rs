@@ -18,7 +18,9 @@
 /// composed `GameState` holds one instance per layer (cube, tesseract,
 /// hypercube), each independently advanced by the appropriate
 /// reset/sacrifice mechanics.
-#[derive(Debug, Clone, Copy, Default, PartialEq)]
+use serde::{Deserialize, Serialize};
+
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, Default, PartialEq)]
 pub struct BlessingValues {
     /// Accelerator-blessing count.
     pub accelerator: f64,
@@ -44,7 +46,7 @@ pub struct BlessingValues {
 
 /// Platonic-blessing values — distinct from the 10-field shape because
 /// platonic blessings cover a different set of effects.
-#[derive(Debug, Clone, Copy, Default, PartialEq)]
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, Default, PartialEq)]
 pub struct PlatonicBlessings {
     /// Cubes-blessing count.
     pub cubes: f64,

@@ -99,7 +99,7 @@ pub fn update_all_multiplier(
 
     let accelerator_bought = state.accelerator.accelerator_bought;
     let multiplier_bought = state.multiplier.multiplier_bought;
-    let fifth_owned_coin = state.coin_producers.fifth_owned;
+    let fifth_owned_coin = state.coin_producers.tiers[4].owned;
     let transcend_points = state.upgrades.transcend_points;
     let transcend_shards = state.reset_counters.transcend_shards;
     let cube_upgrade_50 = state.cube_upgrade_levels.cube_upgrades[50];

@@ -6,10 +6,12 @@
 //! blessing mechanics, as well as the per-ascension reward
 //! application in [`crate::mechanics::calculate::calc_corruption_stuff`].
 
+use serde::{Deserialize, Serialize};
+
 use synergismforkd_bignum::Decimal;
 
 /// Slice of `GameState` holding the cube-tier currency balances.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct CubeBalancesState {
     /// `player.wowCubes` — base cube currency.
     pub wow_cubes: Decimal,

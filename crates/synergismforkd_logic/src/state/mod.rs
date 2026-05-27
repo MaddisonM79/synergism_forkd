@@ -6,6 +6,8 @@
 //! functions may take either the full `&GameState` (aggregators) or a
 //! narrower `&XState` slice (single-family operations).
 
+use serde::{Deserialize, Serialize};
+
 pub mod accelerator;
 pub mod achievements;
 pub mod ambrosia;
@@ -62,13 +64,16 @@ pub use level::LevelState;
 pub use multiplier::MultiplierState;
 pub use octeract_upgrades::{OcteractUpgrade, OcteractUpgradesState};
 pub use particle_buildings::ParticleBuildingsState;
-pub use producer::{BuyAmount, ProducerFamilyState};
+pub use producer::{BuyAmount, ProducerFamilyState, ProducerTier};
 pub use quarks::QuarksState;
 pub use red_ambrosia::{RedAmbrosiaState, RedAmbrosiaUpgrade};
 pub use researches::ResearchesState;
 pub use reset_counters::ResetCountersState;
 pub use rng::{RngPurpose, RngState};
-pub use runes::{RunesState, RUNE_COUNT};
+pub use runes::{
+    RunesState, RUNE_ANTIQUITIES, RUNE_COUNT, RUNE_DUPLICATION, RUNE_FINITE_DESCENT, RUNE_PRISM,
+    RUNE_SPEED, RUNE_SUPERIOR_INTELLECT, RUNE_THRIFT,
+};
 pub use shop::{ShopBuyMaxMode, ShopState};
 pub use singularity::{SingularityChallengeState, SingularityState};
 pub use talismans::{TalismanRuneAssignment, TalismansState, TALISMAN_COUNT};
@@ -90,9 +95,9 @@ pub use upgrades::{UpgradesState, UPGRADES_DEFAULT_LEN};
 /// [`CRYSTAL_UPGRADES_DEFAULT_LEN`]).
 ///
 /// `PartialEq` is intentionally not derived because [`RngState`] holds
-/// `ChaCha8Rng` internals that don't usefully compare. Tests that need to
-/// compare states should assert on individual slices.
-#[derive(Debug, Clone, Default)]
+/// `Xoshiro256PlusPlus` internals that don't usefully compare. Tests that
+/// need to compare states should assert on individual slices.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct GameState {
     /// Accelerator purchases — `player.acceleratorBought` and friends.
     pub accelerator: AcceleratorState,
@@ -216,13 +221,13 @@ mod tests {
     #[test]
     fn each_producer_family_is_independent() {
         let mut state = GameState::default();
-        state.coin_producers.first_owned = 1.0;
-        state.diamond_producers.first_owned = 2.0;
-        state.mythos_producers.first_owned = 3.0;
-        state.particle_producers.first_owned = 4.0;
-        assert_eq!(state.coin_producers.first_owned, 1.0);
-        assert_eq!(state.diamond_producers.first_owned, 2.0);
-        assert_eq!(state.mythos_producers.first_owned, 3.0);
-        assert_eq!(state.particle_producers.first_owned, 4.0);
+        state.coin_producers.tiers[0].owned = 1.0;
+        state.diamond_producers.tiers[0].owned = 2.0;
+        state.mythos_producers.tiers[0].owned = 3.0;
+        state.particle_producers.tiers[0].owned = 4.0;
+        assert_eq!(state.coin_producers.tiers[0].owned, 1.0);
+        assert_eq!(state.diamond_producers.tiers[0].owned, 2.0);
+        assert_eq!(state.mythos_producers.tiers[0].owned, 3.0);
+        assert_eq!(state.particle_producers.tiers[0].owned, 4.0);
     }
 }

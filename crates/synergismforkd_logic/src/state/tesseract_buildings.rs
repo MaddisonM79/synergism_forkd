@@ -6,12 +6,14 @@
 //! cascade counter is `Decimal` because production can climb beyond
 //! that ceiling in long ascensions.
 
+use serde::{Deserialize, Serialize};
+
 use synergismforkd_bignum::Decimal;
 
 /// One position of the ascension-tier building family. Subset of the
 /// legacy `player.ascendBuildingN` shape — the `multiplier` cache stays
 /// in the UI tier until that mechanic migrates.
-#[derive(Debug, Clone, Copy, Default, PartialEq)]
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, Default, PartialEq)]
 pub struct AscendBuildingState {
     /// Count owned.
     pub owned: f64,
@@ -28,7 +30,7 @@ pub struct AscendBuildingState {
 /// machinery. `wow_tesseracts` is the spend resource (mirrored as an
 /// `f64` via `Number(player.wowTesseracts)` at the boundary — the
 /// `WowTesseracts` wrapper class stays in the UI tier).
-#[derive(Debug, Clone, Copy, Default, PartialEq)]
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, Default, PartialEq)]
 pub struct TesseractBuildingsState {
     /// Spend resource — the player's `wowTesseracts` balance.
     pub wow_tesseracts: f64,
