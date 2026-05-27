@@ -1,7 +1,7 @@
 //! Ants state slice.
 //!
 //! Mirrors `PlayerAnts` from
-//! `legacy_core_split/packages/web_ui/src/Features/Ants/structs/structs.ts`.
+//! `legacy/core_split/packages/web_ui/src/Features/Ants/structs/structs.ts`.
 //! Backs every formula in [`crate::mechanics::ant_producers`],
 //! [`crate::mechanics::ant_masteries`],
 //! [`crate::mechanics::ant_upgrade_levels`],

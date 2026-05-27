@@ -1,7 +1,7 @@
 //! Per-tier coin production aggregation.
 //!
 //! Verbatim port of `calculateCoinProduction` from
-//! `legacy_core_split/packages/logic/src/mechanics/coinProduction.ts`. Pure
+//! `legacy/core_split/packages/logic/src/mechanics/coinProduction.ts`. Pure
 //! `Decimal` math — each of the five coin-producer tiers contributes
 //!
 //! ```text

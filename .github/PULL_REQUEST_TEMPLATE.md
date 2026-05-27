@@ -12,15 +12,16 @@ Thanks for the PR! Please keep these sections so reviewers can move quickly.
 
 ## Test plan
 
-- [ ] `npm run check:tsc` clean
-- [ ] `npm run lint && npm run csslint` clean
-- [ ] `npm run build:esbuild` succeeds
-- [ ] Manually verified in the running game (describe what you checked):
+- [ ] `cargo fmt --all --check` clean
+- [ ] `cargo clippy --workspace --all-targets -- -D warnings` clean
+- [ ] `cargo test --workspace` passes
+- [ ] (If touching `ui_web`) `cargo build -p synergismforkd_ui_web --target wasm32-unknown-unknown` succeeds
+- [ ] Manually verified the behavior (describe what you checked):
 
 ## Save format impact
 
 <!-- Check one. See CLAUDE.md / CONTRIBUTING.md for why this matters. -->
 
 - [ ] No save format impact
-- [ ] Adds field(s) to `player` (list them; describe default value and migration)
-- [ ] Modifies existing `player` field (describe migration plan)
+- [ ] Adds field(s) to a `synergismforkd_logic::state` slice (list them; describe default value and migration)
+- [ ] Modifies an existing state slice field (describe migration plan)

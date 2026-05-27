@@ -2,7 +2,7 @@
 //! formulas.
 //!
 //! Verbatim port of
-//! `legacy_core_split/packages/logic/src/mechanics/singularityChallenges.ts`.
+//! `legacy/core_split/packages/logic/src/mechanics/singularityChallenges.ts`.
 //! The UI tier still owns the `singularityChallengeData` table.
 //! This module owns the three pure-formula fields each challenge
 //! has: `singularity_requirement(base_req, completions)`,

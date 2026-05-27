@@ -1,6 +1,6 @@
 //! Math helpers — sigmoid curves, summations, integer-step utilities.
 //!
-//! Mirrors `legacy_core_split/packages/logic/src/math/`. The big-number type
+//! Mirrors `legacy/core_split/packages/logic/src/math/`. The big-number type
 //! itself lives in [`synergismforkd_bignum`] — this module only holds pure
 //! `f64` arithmetic ported verbatim from the TS source.
 

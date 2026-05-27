@@ -1,7 +1,7 @@
 //! Hepteract effective-value and cap helpers.
 //!
 //! Verbatim port of
-//! `legacy_core_split/packages/logic/src/mechanics/hepteractValues.ts`
+//! `legacy/core_split/packages/logic/src/mechanics/hepteractValues.ts`
 //! (lifted from the legacy `packages/web_ui/src/Hepteracts.ts`).
 //!
 //! - [`hepteract_effective`]: applies the diminishing-returns formula

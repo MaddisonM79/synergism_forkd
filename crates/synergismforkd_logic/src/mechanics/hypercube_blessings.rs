@@ -1,7 +1,7 @@
 //! Hypercube blessing effect formulas.
 //!
 //! Verbatim port of
-//! `legacy_core_split/packages/logic/src/mechanics/cubes/hypercubeBlessings.ts`.
+//! `legacy/core_split/packages/logic/src/mechanics/cubes/hypercubeBlessings.ts`.
 //! 10 pure multiplier-yield functions. Eight of them follow the
 //! soft-cap+DR shape and additionally scale `effect_per_blessing` by an
 //! amplifier sourced from the platonic-blessings layer

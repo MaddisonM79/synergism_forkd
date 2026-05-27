@@ -1,7 +1,7 @@
 //! Octeract upgrade effective-level math.
 //!
 //! Verbatim port of
-//! `legacy_core_split/packages/logic/src/mechanics/octeractUpgradeLevels.ts`.
+//! `legacy/core_split/packages/logic/src/mechanics/octeractUpgradeLevels.ts`.
 //! The UI tier owns the OcteractUpgrades data tables and the buy/UI
 //! flow; this module owns the pure formulas that take a per-upgrade
 //! `level` / `freeLevel` / `qualityOfLife` snapshot plus

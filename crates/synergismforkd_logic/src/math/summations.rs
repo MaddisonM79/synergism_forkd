@@ -1,6 +1,6 @@
 //! Summation / cost helpers.
 //!
-//! Verbatim port of `legacy_core_split/packages/logic/src/math/summations.ts`.
+//! Verbatim port of `legacy/core_split/packages/logic/src/math/summations.ts`.
 //! Generic algebraic primitives used by the upgrade-cost code in the legacy
 //! `web_ui`.
 //!

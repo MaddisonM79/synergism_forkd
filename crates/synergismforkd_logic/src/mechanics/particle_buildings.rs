@@ -1,7 +1,7 @@
 //! Particle-building cost formula and purchase loop.
 //!
 //! Verbatim port of
-//! `legacy_core_split/packages/logic/src/mechanics/particleBuildings.ts`.
+//! `legacy/core_split/packages/logic/src/mechanics/particleBuildings.ts`.
 //!
 //! Particle buildings: five positions purchased with
 //! `reincarnation_points`. The cost curve is independent from the producer

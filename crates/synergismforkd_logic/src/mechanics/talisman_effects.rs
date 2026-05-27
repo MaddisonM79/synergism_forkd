@@ -1,7 +1,7 @@
 //! Per-talisman effect formulas.
 //!
 //! Verbatim port of
-//! `legacy_core_split/packages/logic/src/mechanics/talismanEffects.ts`.
+//! `legacy/core_split/packages/logic/src/mechanics/talismanEffects.ts`.
 //! Pure 1-arg functions extracted from the
 //! `talismans.<key>.effects` fields in the legacy
 //! `packages/web_ui/src/Talismans.ts`. Each talisman has a rarity tier

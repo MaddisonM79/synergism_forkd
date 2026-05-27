@@ -2,7 +2,7 @@
 //! multiplier or stat.
 //!
 //! Verbatim port of
-//! `legacy_core_split/packages/logic/src/mechanics/cubes/hepteracts.ts`.
+//! `legacy/core_split/packages/logic/src/mechanics/cubes/hepteracts.ts`.
 //! 8 hepteract types; 7 of them produce their effect directly from
 //! `hept` alone. The 8th (`quark`) raises its base to an exponent that
 //! combines a fixed DR with a `DR_INCREASE` term that sums

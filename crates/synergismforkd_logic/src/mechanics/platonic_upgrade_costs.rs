@@ -2,7 +2,7 @@
 //! affordability check.
 //!
 //! Verbatim port of
-//! `legacy_core_split/packages/logic/src/mechanics/platonicUpgradeCosts.ts`
+//! `legacy/core_split/packages/logic/src/mechanics/platonicUpgradeCosts.ts`
 //! (lifted from the legacy `packages/web_ui/src/Platonic.ts`, lines
 //! 8-319). The display function (`createPlatonicDescription`), DOM
 //! updates, and the player-mutating buy loop stay in the UI tier;

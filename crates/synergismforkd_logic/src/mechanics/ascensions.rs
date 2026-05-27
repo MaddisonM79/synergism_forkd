@@ -1,7 +1,7 @@
 //! Ascension-related formulas.
 //!
 //! Verbatim port of
-//! `legacy_core_split/packages/logic/src/mechanics/ascensions.ts`
+//! `legacy/core_split/packages/logic/src/mechanics/ascensions.ts`
 //! (lifted from the legacy `packages/web_ui/src/Calculate.ts`).
 //! Currently just the per-reset ascension count; the legacy UI
 //! collects the `ascensionCountMultStats` `StatLine` values into an

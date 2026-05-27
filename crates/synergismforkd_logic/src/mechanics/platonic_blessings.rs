@@ -1,7 +1,7 @@
 //! Platonic-cube blessing effect formulas.
 //!
 //! Verbatim port of
-//! `legacy_core_split/packages/logic/src/mechanics/cubes/platonicBlessings.ts`.
+//! `legacy/core_split/packages/logic/src/mechanics/cubes/platonicBlessings.ts`.
 //! 8 pure multiplier-yield functions, one per [`PlatonicBlessings`]
 //! field. Each follows the same shape — a soft cap (`limit`) above
 //! which the field's effect transitions to a power-law with

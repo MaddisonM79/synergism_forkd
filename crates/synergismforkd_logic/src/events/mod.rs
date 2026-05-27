@@ -113,7 +113,7 @@ pub enum AutoPotionType {
 
 /// State of the auto-challenge sweep machine. Mirrors the legacy
 /// `SweepStates` discriminated union in
-/// `legacy_core_split/packages/logic/src/tick/challengeSweep.ts`.
+/// `legacy/core_split/packages/logic/src/tick/challengeSweep.ts`.
 ///
 /// The `Active` and `EnterWait` variants carry an `explored` set so a
 /// single sweep cycle doesn't repeat challenges. `BTreeSet<u8>` matches

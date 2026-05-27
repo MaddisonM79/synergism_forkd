@@ -1,7 +1,7 @@
 //! Quark export accumulator math.
 //!
 //! Verbatim port of
-//! `legacy_core_split/packages/logic/src/mechanics/quarks.ts`. The
+//! `legacy/core_split/packages/logic/src/mechanics/quarks.ts`. The
 //! UI side wraps this and gathers the player/octeract inputs; the
 //! `QuarkHandler` class and the personal/global quark bonus state
 //! stay in the UI tier (DOM + i18next + fetch).

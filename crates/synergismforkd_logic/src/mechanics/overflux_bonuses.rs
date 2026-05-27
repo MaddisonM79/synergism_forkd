@@ -1,7 +1,7 @@
 //! Overflux-derived multipliers.
 //!
 //! Verbatim port of
-//! `legacy_core_split/packages/logic/src/mechanics/overfluxBonuses.ts`
+//! `legacy/core_split/packages/logic/src/mechanics/overfluxBonuses.ts`
 //! (lifted from the legacy `packages/web_ui/src/Calculate.ts`). Two
 //! pure-powder formulas plus the orbs-based cube-to-quark multiplier
 //! (a 12-term sigmoid stack gated by singularity-count unlocks).

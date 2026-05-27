@@ -39,4 +39,4 @@ jobs:
       # Once criterion benches exist, swap the dry run for:
       #   cargo bench --workspace -- --output-format bencher
       # and pipe the JSON through a small formatter (mirrors the TS
-      # `bench-report.mjs` in legacy_core_split) to produce BENCH_REPORT.md.
+      # `bench-report.mjs` in legacy/core_split) to produce BENCH_REPORT.md.

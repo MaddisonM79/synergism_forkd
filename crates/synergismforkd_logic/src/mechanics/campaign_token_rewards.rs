@@ -1,7 +1,7 @@
 //! Per-reward campaign-token bonus formulas.
 //!
 //! Verbatim port of
-//! `legacy_core_split/packages/logic/src/mechanics/campaignTokenRewards.ts`
+//! `legacy/core_split/packages/logic/src/mechanics/campaignTokenRewards.ts`
 //! (lifted from the legacy `packages/web_ui/src/Campaign.ts`). The UI
 //! still owns the `CampaignManager` class wrapper and the
 //! per-campaign data table; this module owns the 14 pure bonus

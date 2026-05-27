@@ -1,7 +1,7 @@
 //! GQ upgrade cost-to-next-level formula.
 //!
 //! Verbatim port of
-//! `legacy_core_split/packages/logic/src/mechanics/gqUpgradeCost.ts`.
+//! `legacy/core_split/packages/logic/src/mechanics/gqUpgradeCost.ts`.
 //! Four cost-form branches:
 //!
 //! - [`GQUpgradeSpecialCostForm::Exponential2`]:

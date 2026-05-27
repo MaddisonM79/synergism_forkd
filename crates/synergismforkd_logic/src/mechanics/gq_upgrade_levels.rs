@@ -1,7 +1,7 @@
 //! Golden-quark upgrade effective-level math.
 //!
 //! Verbatim port of
-//! `legacy_core_split/packages/logic/src/mechanics/gqUpgradeLevels.ts`.
+//! `legacy/core_split/packages/logic/src/mechanics/gqUpgradeLevels.ts`.
 //! The UI tier keeps the GQ upgrade data table and the buy/UI flow;
 //! this module owns the pure formulas that convert per-upgrade
 //! snapshot + player-state inputs into the effective level used by

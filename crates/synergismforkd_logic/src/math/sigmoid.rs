@@ -1,6 +1,6 @@
 //! Sigmoid-style curve helpers.
 //!
-//! Verbatim port of `legacy_core_split/packages/logic/src/math/sigmoid.ts`.
+//! Verbatim port of `legacy/core_split/packages/logic/src/math/sigmoid.ts`.
 //! Generic 1-line formulas that return 1 at zero progress and asymptote
 //! toward `constant` as progress grows. Used by cube/quark multiplier code
 //! in the legacy `web_ui`.

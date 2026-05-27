@@ -2,7 +2,7 @@
 //! immortal-ELO gain + taxman-last-stand clamp).
 //!
 //! Verbatim port of
-//! `legacy_core_split/packages/logic/src/mechanics/antSacrificeRewardCalc.ts`.
+//! `legacy/core_split/packages/logic/src/mechanics/antSacrificeRewardCalc.ts`.
 //! The Statistics-aggregator reductions stay in the UI tier; logic
 //! owns the per-call arithmetic once the caller has those
 //! reductions in hand.

@@ -1,7 +1,7 @@
 //! Singularity-penalty math.
 //!
 //! Verbatim port of
-//! `legacy_core_split/packages/logic/src/mechanics/singularityPenalties.ts`.
+//! `legacy/core_split/packages/logic/src/mechanics/singularityPenalties.ts`.
 //! [`calculate_effective_singularities`] is the post-multiplier
 //! singularity count used as the basis for every per-system debuff.
 //! [`calculate_singularity_debuff`] switches on the system tag and

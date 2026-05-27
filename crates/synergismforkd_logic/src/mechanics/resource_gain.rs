@@ -1,7 +1,7 @@
 //! Per-tick resource generation.
 //!
 //! Verbatim port of
-//! `legacy_core_split/packages/logic/src/mechanics/resourceGain.ts`. Lifted
+//! `legacy/core_split/packages/logic/src/mechanics/resourceGain.ts`. Lifted
 //! from `packages/web_ui/src/Synergism.ts` (`resourceGain`), minus the
 //! terminal challenge `resetCheck` dispatch which is async + modal-aware and
 //! stays in the UI tier.

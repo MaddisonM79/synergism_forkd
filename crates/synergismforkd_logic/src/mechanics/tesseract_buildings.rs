@@ -1,7 +1,7 @@
 //! Tesseract (ascension-tier) building cost + purchase loop.
 //!
 //! Verbatim port of
-//! `legacy_core_split/packages/logic/src/mechanics/tesseractBuildings.ts`.
+//! `legacy/core_split/packages/logic/src/mechanics/tesseractBuildings.ts`.
 //!
 //! Five tiers purchased with `wow_tesseracts`. The cost of the `n`-th
 //! building of tier `i` is `TESSERACT_BUILDING_COSTS[i-1] * n^3`.

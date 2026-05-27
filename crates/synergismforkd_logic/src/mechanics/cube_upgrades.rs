@@ -1,7 +1,7 @@
 //! Cube-upgrade cost + max-level math.
 //!
 //! Verbatim port of
-//! `legacy_core_split/packages/logic/src/mechanics/cubeUpgrades.ts`
+//! `legacy/core_split/packages/logic/src/mechanics/cubeUpgrades.ts`
 //! (migrated from the legacy `packages/web_ui/src/Cubes.ts`). The
 //! UI-side getters (`cubeUpgradeDesc`, `updateCubeUpgradeBG`,
 //! `buyCubeUpgrades`) stay in the UI — logic owns just the pure

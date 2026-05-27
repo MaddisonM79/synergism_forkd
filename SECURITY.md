@@ -4,7 +4,7 @@
 
 Use GitHub's Private Vulnerability Reporting to report security issues:
 
-**https://github.com/MaddisonM79/unknown_game/security/advisories/new**
+**https://github.com/MaddisonM79/synergism_forkd/security/advisories/new**
 
 Please do **not** open a public issue for security vulnerabilities.
 

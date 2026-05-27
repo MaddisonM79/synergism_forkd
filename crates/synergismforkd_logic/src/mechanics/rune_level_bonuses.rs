@@ -1,7 +1,7 @@
 //! Rune level-bonus + OOM-increase aggregators.
 //!
 //! Verbatim port of
-//! `legacy_core_split/packages/logic/src/mechanics/runeLevelBonuses.ts`.
+//! `legacy/core_split/packages/logic/src/mechanics/runeLevelBonuses.ts`.
 //! Each formula sums a small fixed set of player/upgrade contributions.
 //! The legacy UI pre-extracts each contribution from `player.*` /
 //! `getTalismanEffects(...)` / `getAmbrosiaUpgradeEffects(...)` /

@@ -2,7 +2,7 @@
 //! resolver.
 //!
 //! Verbatim port of
-//! `legacy_core_split/packages/logic/src/mechanics/antUpgradeLevels.ts`.
+//! `legacy/core_split/packages/logic/src/mechanics/antUpgradeLevels.ts`.
 //! `compute_free_ant_upgrade_levels` pre-extracts every player-state
 //! input as a numeric field; `calculate_true_ant_level` composes free
 //! levels with the corruption divisor and the c11-active branch.

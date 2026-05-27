@@ -1,7 +1,7 @@
 //! Per-tick accelerator-state aggregator.
 //!
 //! Verbatim port of
-//! `legacy_core_split/packages/logic/src/mechanics/updateAllTick.ts`.
+//! `legacy/core_split/packages/logic/src/mechanics/updateAllTick.ts`.
 //! Computes the full accelerator stack for the current tick.
 //!
 //! Takes a `&GameState` (for direct `player.*` reads) plus an

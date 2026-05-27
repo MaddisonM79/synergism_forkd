@@ -1,7 +1,7 @@
 //! Ant-mastery data + per-producer formulas.
 //!
 //! Verbatim port of
-//! `legacy_core_split/packages/logic/src/mechanics/antMasteries.ts`.
+//! `legacy/core_split/packages/logic/src/mechanics/antMasteries.ts`.
 //! The data is indexed by ant-producer (`0..=8`, Workers..HolySpirit)
 //! and by mastery level. ELO requirements and per-level particle
 //! costs use indices `0..=11` (purchasing level `k+1` requires

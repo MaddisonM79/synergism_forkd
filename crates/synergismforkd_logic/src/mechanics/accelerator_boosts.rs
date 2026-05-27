@@ -1,7 +1,7 @@
 //! Accelerator-boost cost formula.
 //!
 //! Verbatim port of `getAcceleratorBoostCost` from
-//! `legacy_core_split/packages/logic/src/mechanics/acceleratorBoosts.ts`.
+//! `legacy/core_split/packages/logic/src/mechanics/acceleratorBoosts.ts`.
 //!
 //! Accelerator boosts are a separate ladder bought with `prestigePoints`
 //! once `player.upgrades[46]` is owned (vs. the base-game accelerators bought

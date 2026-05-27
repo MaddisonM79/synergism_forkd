@@ -1,7 +1,7 @@
 //! Challenge math helpers.
 //!
 //! Verbatim port of
-//! `legacy_core_split/packages/logic/src/mechanics/challenges.ts`.
+//! `legacy/core_split/packages/logic/src/mechanics/challenges.ts`.
 //! Covers effective-completion math, per-tier max-challenge caps, the
 //! challenge requirement / target-value formulas, the C15 score
 //! multiplier, and the auto-sweep traversal helpers.

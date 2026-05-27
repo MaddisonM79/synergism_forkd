@@ -4,13 +4,11 @@ on:
   push:
     paths-ignore:
       - '*.md'
-      - 'legacy_original/**'
-      - 'legacy_core_split/**'
+      - 'legacy/**'
   pull_request:
     paths-ignore:
       - '*.md'
-      - 'legacy_original/**'
-      - 'legacy_core_split/**'
+      - 'legacy/**'
 
 env:
   CARGO_TERM_COLOR: always

@@ -1,7 +1,7 @@
 //! Ambrosia-family formulas.
 //!
 //! Verbatim port of
-//! `legacy_core_split/packages/logic/src/mechanics/ambrosia.ts`. The
+//! `legacy/core_split/packages/logic/src/mechanics/ambrosia.ts`. The
 //! external effect lookups (`getShopUpgradeEffects`,
 //! `getAmbrosiaUpgradeEffects`, `getSingularityChallengeEffect`,
 //! `getGQUpgradeEffect`, `getOcteractUpgradeEffect`) stay in the UI

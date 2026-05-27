@@ -1,7 +1,7 @@
 //! Per-upgrade effect formulas for shop upgrades.
 //!
 //! Verbatim port of
-//! `legacy_core_split/packages/logic/src/mechanics/shopUpgrades.ts`.
+//! `legacy/core_split/packages/logic/src/mechanics/shopUpgrades.ts`.
 //! The UI tier owns the `shopUpgrades` data table (i18n,
 //! DOM-driven renderer, buy flow, price/maxLevel/type fields). The
 //! cost progression already lives in `shop_costs.rs`. This module

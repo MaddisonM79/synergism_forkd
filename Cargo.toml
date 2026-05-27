@@ -16,7 +16,7 @@ version = "0.1.0"
 edition = "2021"
 rust-version = "1.95"
 license = "MIT"
-repository = "https://github.com/MaddisonM79/unknown_game"
+repository = "https://github.com/MaddisonM79/synergism_forkd"
 
 [workspace.dependencies]
 serde = { version = "1", default-features = false, features = ["derive", "alloc"] }

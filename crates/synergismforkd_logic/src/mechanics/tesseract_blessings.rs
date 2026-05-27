@@ -1,7 +1,7 @@
 //! Tesseract blessing effect formulas.
 //!
 //! Verbatim port of
-//! `legacy_core_split/packages/logic/src/mechanics/cubes/tesseractBlessings.ts`.
+//! `legacy/core_split/packages/logic/src/mechanics/cubes/tesseractBlessings.ts`.
 //! 10 pure multiplier-yield functions. Most follow the soft-cap+DR
 //! shape (with the per-blessing-tier hypercube result playing the
 //! `effect_per_blessing` numerator's role). Three outliers — `salvage`,

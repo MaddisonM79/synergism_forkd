@@ -1,7 +1,7 @@
 //! Shop upgrade cost formula.
 //!
 //! Verbatim port of
-//! `legacy_core_split/packages/logic/src/mechanics/shopCosts.ts`
+//! `legacy/core_split/packages/logic/src/mechanics/shopCosts.ts`
 //! (lifted from the legacy `packages/web_ui/src/Shop.ts`). Pure math
 //! given the per-upgrade snapshot — the UI side owns the shop data
 //! table and feeds the relevant fields in.

@@ -1,7 +1,7 @@
 //! Total free-accelerator-boost and accelerator-multiplier formulas.
 //!
 //! Verbatim port of
-//! `legacy_core_split/packages/logic/src/mechanics/acceleratorMultipliers.ts`
+//! `legacy/core_split/packages/logic/src/mechanics/acceleratorMultipliers.ts`
 //! (lifted from the legacy `packages/web_ui/src/Calculate.ts`). Both
 //! functions read a lot of player / G state; the UI shim collects
 //! every input field and passes them in scalar form.

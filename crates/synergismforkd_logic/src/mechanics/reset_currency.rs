@@ -1,7 +1,7 @@
 //! Per-tick prestige / transcend / reincarnation point-gain calculator.
 //!
 //! Verbatim port of `resetCurrency` from
-//! `legacy_core_split/packages/logic/src/mechanics/resetCurrency.ts` (in
+//! `legacy/core_split/packages/logic/src/mechanics/resetCurrency.ts` (in
 //! turn lifted from the legacy `packages/web_ui/src/Synergism.ts`).
 //!
 //! Three independent point formulas with shared challenge overrides:

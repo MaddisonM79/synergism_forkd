@@ -1,7 +1,7 @@
 //! Per-tick multiplier-state aggregator.
 //!
 //! Verbatim port of
-//! `legacy_core_split/packages/logic/src/mechanics/updateAllMultiplier.ts`.
+//! `legacy/core_split/packages/logic/src/mechanics/updateAllMultiplier.ts`.
 //! Computes the full multiplier stack for the current tick.
 //!
 //! Takes a `&GameState` (for direct `player.*` reads) plus an

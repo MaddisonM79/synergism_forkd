@@ -1,7 +1,7 @@
 //! Rune EXP / level math for top-level runes.
 //!
 //! Verbatim port of
-//! `legacy_core_split/packages/logic/src/mechanics/runeLevels.ts` (lifted
+//! `legacy/core_split/packages/logic/src/mechanics/runeLevels.ts` (lifted
 //! from the legacy `packages/web_ui/src/Runes.ts`). Each function takes
 //! a small per-rune snapshot (`cost_coefficient`, `levels_per_oom`,
 //! sometimes `current_exp` + `level`) and is pure `Decimal` math. The

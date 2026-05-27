@@ -1,7 +1,7 @@
 //! Per-milestone level scaling formulas.
 //!
 //! Verbatim port of
-//! `legacy_core_split/packages/logic/src/mechanics/levelMilestones.ts`
+//! `legacy/core_split/packages/logic/src/mechanics/levelMilestones.ts`
 //! (lifted from the legacy `packages/web_ui/src/Levels.ts`). Almost
 //! every milestone is either a pure `(level: f64) -> f64` or a
 //! constant `1.0` unlock flag — they all dispatch via

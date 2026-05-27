@@ -1,7 +1,7 @@
 //! Per-reward level scaling formulas.
 //!
 //! Verbatim port of
-//! `legacy_core_split/packages/logic/src/mechanics/levelRewards.ts`
+//! `legacy/core_split/packages/logic/src/mechanics/levelRewards.ts`
 //! (lifted from the legacy `packages/web_ui/src/Levels.ts`). Each
 //! reward is a pure `(level: f64) -> f64` paired with the
 //! `min_level` at which it activates and the `default_value`
