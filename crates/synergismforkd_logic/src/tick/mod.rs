@@ -219,11 +219,11 @@ fn phase_cross_mechanic_precompute(state: &GameState, input: &TackInput) -> Cros
 /// - `ant_multiplier_mult`              ✓ state-derived (Multipliers ant upgrade)
 /// - `hepteract_multiplier`             ✓ state-derived
 /// - `hepteract_multiplier_mult`        ✓ state-derived
+/// - `viscosity_power`                  ✓ state-derived (G.viscosityPower table)
 /// - `multipliers_achievement`          forwarded (achievement-reward table not ported)
 /// - `multiplier_cube_blessing`         forwarded (needs cube/tesseract/upgrade plumbing)
 /// - `total_accelerator_boost`          forwarded (G.*, cross-aggregator)
 /// - `taxdivisor`                       forwarded (cross-mechanic tax pipeline)
-/// - `viscosity_power`                  forwarded (G.viscosityPower table not ported)
 /// - `challenge_15_reward_multiplier`   forwarded (challenge-15 rewards not ported)
 #[must_use]
 fn compute_update_all_multiplier_pre(
@@ -231,10 +231,11 @@ fn compute_update_all_multiplier_pre(
     fallback: &UpdateAllMultiplierPre,
 ) -> UpdateAllMultiplierPre {
     use crate::mechanics::ant_upgrades::multipliers_ant_upgrade_effect;
+    use crate::mechanics::corruptions::viscosity_power_at_level;
     use crate::mechanics::hepteract_effects::multiplier_hepteract_effects;
     use crate::mechanics::rune_blessing_effects::duplication_rune_blessing_effects;
     use crate::mechanics::rune_effects::{duplication_rune_effects, DuplicationRuneKey};
-    use crate::state::RUNE_DUPLICATION;
+    use crate::state::{RUNE_DUPLICATION, VISCOSITY_INDEX};
 
     /// Ant-upgrade index for "Multipliers". Mirrors the legacy
     /// `AntUpgrades.Multipliers = 4` enum value.
@@ -244,6 +245,7 @@ fn compute_update_all_multiplier_pre(
     let duplication_level = state.runes.rune_levels[RUNE_DUPLICATION];
     let duplication_blessing_level = state.runes.rune_blessing_levels[RUNE_DUPLICATION];
     let hept_mult = multiplier_hepteract_effects(state.hepteracts.multiplier.bal);
+    let viscosity_level = state.corruptions.used.levels[VISCOSITY_INDEX];
 
     UpdateAllMultiplierPre {
         sum_of_rune_levels,
@@ -264,12 +266,12 @@ fn compute_update_all_multiplier_pre(
         ),
         hepteract_multiplier: hept_mult.multiplier,
         hepteract_multiplier_mult: hept_mult.multiplier_multiplier,
+        viscosity_power: viscosity_power_at_level(viscosity_level),
         // Forwarded — upstream mechanic not yet plumbed.
         multipliers_achievement: fallback.multipliers_achievement,
         multiplier_cube_blessing: fallback.multiplier_cube_blessing,
         total_accelerator_boost: fallback.total_accelerator_boost,
         taxdivisor: fallback.taxdivisor,
-        viscosity_power: fallback.viscosity_power,
         challenge_15_reward_multiplier: fallback.challenge_15_reward_multiplier,
     }
 }
@@ -282,21 +284,23 @@ fn compute_update_all_multiplier_pre(
 /// - `accelerator_power_rune`           ✓ state-derived (Speed rune)
 /// - `hepteract_accelerators`           ✓ state-derived
 /// - `hepteract_accelerator_mult`       ✓ state-derived
+/// - `viscosity_power`                  ✓ state-derived (G.viscosityPower table)
 /// - `accelerators_achievement`         forwarded (achievement-reward table)
 /// - `accelerator_power_achievement`    forwarded (achievement-reward table)
 /// - `accelerator_cube_blessing`        forwarded (deep blessing chain)
 /// - `total_accelerator_boost`          forwarded (G.*, cross-aggregator)
 /// - `accelerator_multiplier`           forwarded (G.*, cross-aggregator)
-/// - `viscosity_power`                  forwarded (G.viscosityPower not ported)
 /// - `challenge_15_reward_accelerator`  forwarded (challenge-15 rewards)
 #[must_use]
 fn compute_update_all_tick_pre(state: &GameState, fallback: &UpdateAllTickPre) -> UpdateAllTickPre {
+    use crate::mechanics::corruptions::viscosity_power_at_level;
     use crate::mechanics::hepteract_effects::accelerator_hepteract_effects;
     use crate::mechanics::rune_effects::{speed_rune_effects, SpeedRuneKey};
-    use crate::state::RUNE_SPEED;
+    use crate::state::{RUNE_SPEED, VISCOSITY_INDEX};
 
     let speed_level = state.runes.rune_levels[RUNE_SPEED];
     let hept_acc = accelerator_hepteract_effects(state.hepteracts.accelerator.bal);
+    let viscosity_level = state.corruptions.used.levels[VISCOSITY_INDEX];
 
     UpdateAllTickPre {
         multiplicative_accelerators_rune: speed_rune_effects(
@@ -306,13 +310,13 @@ fn compute_update_all_tick_pre(state: &GameState, fallback: &UpdateAllTickPre) -
         accelerator_power_rune: speed_rune_effects(speed_level, SpeedRuneKey::AcceleratorPower),
         hepteract_accelerators: hept_acc.accelerators,
         hepteract_accelerator_mult: hept_acc.accelerator_multiplier,
+        viscosity_power: viscosity_power_at_level(viscosity_level),
         // Forwarded — upstream mechanic not yet plumbed.
         accelerators_achievement: fallback.accelerators_achievement,
         accelerator_power_achievement: fallback.accelerator_power_achievement,
         accelerator_cube_blessing: fallback.accelerator_cube_blessing,
         total_accelerator_boost: fallback.total_accelerator_boost,
         accelerator_multiplier: fallback.accelerator_multiplier,
-        viscosity_power: fallback.viscosity_power,
         challenge_15_reward_accelerator: fallback.challenge_15_reward_accelerator,
     }
 }
