@@ -1,7 +1,7 @@
 //! Potion-consumption bonuses.
 //!
 //! Verbatim port of
-//! `legacy_core_split/packages/logic/src/mechanics/potionBonuses.ts`
+//! `legacy/core_split/packages/logic/src/mechanics/potionBonuses.ts`
 //! (lifted from the legacy `packages/web_ui/src/Calculate.ts`).
 //! Both threshold-bonus functions count how many fixed potion-
 //! consumption thresholds the player has crossed (via a binary

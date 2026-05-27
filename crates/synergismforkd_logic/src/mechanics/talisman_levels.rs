@@ -1,7 +1,7 @@
 //! Talisman rarity / level math.
 //!
 //! Verbatim port of
-//! `legacy_core_split/packages/logic/src/mechanics/talismanLevels.ts`.
+//! `legacy/core_split/packages/logic/src/mechanics/talismanLevels.ts`.
 //! The talisman data table (i18n closures, `isUnlocked` predicates,
 //! `baseMult` / `maxLevel` constants) stays in the UI tier — this
 //! module owns the pure formulas that map `(level, max_level,

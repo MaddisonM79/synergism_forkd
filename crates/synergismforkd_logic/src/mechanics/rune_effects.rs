@@ -1,7 +1,7 @@
 //! Per-rune effect formulas.
 //!
 //! Verbatim port of
-//! `legacy_core_split/packages/logic/src/mechanics/runeEffects.ts`. Each
+//! `legacy/core_split/packages/logic/src/mechanics/runeEffects.ts`. Each
 //! function maps `(effective rune level n, effect key) → effect value`.
 //! These are the pure cores of the `runes.<rune>.effects` fields in the
 //! legacy `packages/web_ui/src/Runes.ts`.

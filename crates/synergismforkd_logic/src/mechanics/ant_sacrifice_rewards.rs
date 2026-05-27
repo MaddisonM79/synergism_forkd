@@ -1,7 +1,7 @@
 //! Pure reward formulas for ant sacrifice.
 //!
 //! Verbatim port of
-//! `legacy_core_split/packages/logic/src/mechanics/antSacrificeRewards.ts`.
+//! `legacy/core_split/packages/logic/src/mechanics/antSacrificeRewards.ts`.
 //! The offering / obtainium calculators stay in the UI tier because
 //! they reduce a Statistics stat array (display-coupled). The
 //! talisman-item calculator is fully pure given its inputs and lives

@@ -1,7 +1,7 @@
 //! Event-buff selectors.
 //!
 //! Verbatim port of
-//! `legacy_core_split/packages/logic/src/mechanics/eventBuffs.ts`
+//! `legacy/core_split/packages/logic/src/mechanics/eventBuffs.ts`
 //! (lifted from the legacy `packages/web_ui/src/Event.ts`).
 //!
 //! Two contributions stack additively per buff: the active

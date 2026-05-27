@@ -1,7 +1,7 @@
 //! Universal rune-EXP-per-offering multiplier.
 //!
 //! Verbatim port of
-//! `legacy_core_split/packages/logic/src/mechanics/runeEXPMultiplier.ts`
+//! `legacy/core_split/packages/logic/src/mechanics/runeEXPMultiplier.ts`
 //! (lifted from the legacy `packages/web_ui/src/Runes.ts`).
 //!
 //! The shape: `(additive) × (product of all-rune multipliers) × (recycle)`

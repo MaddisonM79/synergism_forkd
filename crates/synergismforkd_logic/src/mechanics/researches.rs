@@ -1,7 +1,7 @@
 //! Static data + polynomial cost solvers for the research tree.
 //!
 //! Verbatim port of
-//! `legacy_core_split/packages/logic/src/mechanics/researches.ts`
+//! `legacy/core_split/packages/logic/src/mechanics/researches.ts`
 //! (lifted from the legacy `packages/web_ui/src/Research.ts`). The
 //! unlock predicates stay in the UI tier because they close over
 //! `player.*` and `runes.*`; the resulting per-index `researchData`

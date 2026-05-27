@@ -2,7 +2,7 @@
 //! (ambrosia) upgrades.
 //!
 //! Verbatim port of
-//! `legacy_core_split/packages/logic/src/mechanics/blueberryUpgrades.ts`.
+//! `legacy/core_split/packages/logic/src/mechanics/blueberryUpgrades.ts`.
 //! The UI tier still owns the `ambrosiaUpgrades` data table; this
 //! module owns the two pure-formula fields each upgrade has:
 //! `cost_formula(level, base_cost) -> f64` and

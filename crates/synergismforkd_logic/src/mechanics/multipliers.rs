@@ -1,7 +1,7 @@
 //! Multiplier cost formula and purchase loop.
 //!
 //! Verbatim port of `getCostMultiplier` + `buyMultiplier` from
-//! `legacy_core_split/packages/logic/src/mechanics/multipliers.ts`. The shape
+//! `legacy/core_split/packages/logic/src/mechanics/multipliers.ts`. The shape
 //! mirrors [`crate::mechanics::accelerators`] — same two-path buy loop and
 //! flag-flip rules, different cost-curve constants.
 

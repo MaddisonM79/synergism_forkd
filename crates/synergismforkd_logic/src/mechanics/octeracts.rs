@@ -1,7 +1,7 @@
 //! Per-upgrade cost-formula + effect formulas for octeract upgrades.
 //!
 //! Verbatim port of
-//! `legacy_core_split/packages/logic/src/mechanics/octeracts.ts`. The
+//! `legacy/core_split/packages/logic/src/mechanics/octeracts.ts`. The
 //! UI tier owns the data table; this module owns the two
 //! pure-formula fields each upgrade has: `cost_formula(level,
 //! base_cost) -> f64` and `effect(n, [key], ...) -> reward field`.

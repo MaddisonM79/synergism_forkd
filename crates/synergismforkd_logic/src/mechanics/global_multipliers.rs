@@ -1,7 +1,7 @@
 //! Per-tick global multiplier aggregator.
 //!
 //! Verbatim port of
-//! `legacy_core_split/packages/logic/src/mechanics/globalMultipliers.ts`.
+//! `legacy/core_split/packages/logic/src/mechanics/globalMultipliers.ts`.
 //! Populates the 17 `G.*` multiplier fields the rest of the tick reads.
 //!
 //! Distinct from [`super::update_all_multiplier`], which computes the

@@ -3,10 +3,10 @@
 ## Project overview
 
 - **Name**: Synergism Forkd (Rust port of the TypeScript game Synergism)
-- **Tech stack**: Rust (workspace of 12 crates), Dioxus for UI, Tauri for the desktop shell, axum for the backend
+- **Tech stack**: Rust (workspace of 8 crates), Dioxus for UI, Tauri for the desktop shell
 - **Status**: bare-bones scaffold. Most crates contain a single placeholder function; real porting is the long-term work
 - **Repository**: Cargo workspace at repo root
-- **Legacy TS** lives in `legacy_original/` (pre-split) and `legacy_core_split/` (current `packages/`) — frozen reference, **not maintained**
+- **Legacy TS** lives in `legacy/original/` (pre-split) and `legacy/core_split/` (current `packages/`) — frozen reference, **not maintained**
 
 ## Repo layout
 
@@ -23,11 +23,7 @@
 │   ├── synergismforkd_ui/              # platform-agnostic Dioxus components
 │   ├── synergismforkd_ui_web/          # WASM browser entry point
 │   ├── synergismforkd_ui_desktop/      # Tauri shell (Win/Mac/Linux)
-│   ├── synergismforkd_api/             # axum backend (future replacement for legacy backend)
-│   ├── synergismforkd_testkit/         # fixtures, mock state, sim runner, parity helpers + synergismforkd-sim CLI
-│   ├── synergismforkd_audio/           # reserved
-│   ├── synergismforkd_netcode/         # reserved
-│   └── synergismforkd_modding/         # reserved
+│   └── synergismforkd_testkit/         # fixtures, mock state, sim runner, parity helpers + synergismforkd-sim CLI
 ├── assets/
 │   ├── translations/en.json
 │   ├── pictures/
@@ -36,17 +32,17 @@
 │   ├── rust-ci.yml                     # build + test + clippy on Win/Mac/Linux
 │   ├── rust-bench.yml                  # nightly criterion
 │   └── desktop-release.yml             # tagged Tauri releases
-├── legacy_original/                    # frozen pre-split TS, reference only
-└── legacy_core_split/                  # current packages/ snapshot (TS logic + web_ui)
+└── legacy/
+    ├── original/                       # frozen pre-split TS, reference only
+    └── core_split/                     # current packages/ snapshot (TS logic + web_ui)
 ```
 
 ## Agent role & workflow
 
 ### Primary tasks
-- Port mechanics from `legacy_core_split/packages/logic/src/mechanics/` into `crates/synergismforkd_logic/src/mechanics/`
+- Port mechanics from `legacy/core_split/packages/logic/src/mechanics/` into `crates/synergismforkd_logic/src/mechanics/`
 - Flesh out the Dioxus UI tree in `synergismforkd_ui` (consumed by web + desktop)
 - Wire Tauri integration in `synergismforkd_ui_desktop` once the UI tree is non-empty
-- Build the backend API in `synergismforkd_api`
 - Maintain parity with the TS implementation through the porting period
 
 ### Required actions
@@ -79,13 +75,10 @@ The TS-era boundary (`packages/logic` could not touch DOM / UI / i18n) generaliz
 - Tauri shell. May use `tauri`, Tauri commands, OS APIs. Loads the `ui_web` bundle in its webview.
 - Game logic runs in-process in WASM alongside the UI to avoid per-tick IPC. Tauri commands are reserved for native-only operations (file pickers, Steam SDK, Discord RPC).
 
-### `synergismforkd_api`
-- Server-side. May use `axum`, `tower`, a DB layer. Imports `logic` and `save` for shared types.
-
 ### `synergismforkd_testkit`
 - Test-only utilities. Re-exports fixtures, mock builders, the sim runner, parity helpers. Other crates depend on `testkit` from `[dev-dependencies]` only.
 
-Direction is **UI / API → logic → bignum, common**. Never the reverse.
+Direction is **UI → logic → bignum, common**. Never the reverse.
 
 ## Save system
 
@@ -100,7 +93,7 @@ The Rust save format is **fresh** — no compatibility with the TS savefile.
 
 ### String internationalization
 - All user-facing text goes in `assets/translations/en.json`.
-- i18n is a UI-tier concern only — never look up translation keys from `synergismforkd_logic`, `synergismforkd_save`, `synergismforkd_api`, or `synergismforkd_bignum`.
+- i18n is a UI-tier concern only — never look up translation keys from `synergismforkd_logic`, `synergismforkd_save`, or `synergismforkd_bignum`.
 - The UI crates load translations at build time (or via the asset pipeline once it exists).
 
 ### Bignum
@@ -149,14 +142,14 @@ Steam SDK integration and Discord Rich Presence are planned for the Tauri shell 
 
 ## Legacy folders
 
-`legacy_original/` and `legacy_core_split/` are reference material. **Do not** modify their contents; **do not** add CI for them. Reading them while porting mechanics is encouraged. Each folder's own `package.json` still works locally if you want to run the TS for comparison (`cd legacy_core_split && npm test`).
+`legacy/original/` and `legacy/core_split/` are reference material. **Do not** modify their contents; **do not** add CI for them. Reading them while porting mechanics is encouraged. Each folder's own `package.json` still works locally if you want to run the TS for comparison (`cd legacy/core_split && npm test`).
 
 ## Testing
 
 - `cargo test --workspace` runs unit + integration tests.
 - `cargo run -p synergismforkd_testkit --bin synergismforkd-sim` drives the headless sim.
 - `cargo bench` runs criterion (once benches are added under `crates/<crate>/benches/`).
-- Bench shapes mirror the TS perf harness in `legacy_core_split/packages/logic/test/perf/` for cross-side comparability.
+- Bench shapes mirror the TS perf harness in `legacy/core_split/packages/logic/test/perf/` for cross-side comparability.
 
 ## Quick reference
 

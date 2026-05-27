@@ -1,7 +1,7 @@
 //! Ant-upgrade base costs + pure effect formulas + cost solvers.
 //!
 //! Verbatim port of
-//! `legacy_core_split/packages/logic/src/mechanics/antUpgrades.ts`.
+//! `legacy/core_split/packages/logic/src/mechanics/antUpgrades.ts`.
 //! Data table is indexed `0..=15` to match the legacy `AntUpgrades`
 //! enum:
 //!

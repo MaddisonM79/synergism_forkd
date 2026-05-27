@@ -1,7 +1,7 @@
 //! Achievement points math.
 //!
 //! Verbatim port of
-//! `legacy_core_split/packages/logic/src/mechanics/achievementPoints.ts`
+//! `legacy/core_split/packages/logic/src/mechanics/achievementPoints.ts`
 //! (lifted from the legacy `packages/web_ui/src/Achievements.ts`). The
 //! UI side keeps the achievements data table (i18n descriptions,
 //! unlock predicates, group classifications) and the

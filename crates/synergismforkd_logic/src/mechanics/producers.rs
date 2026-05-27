@@ -1,6 +1,6 @@
 //! Producer family cost formula and purchase loops.
 //!
-//! Verbatim port of `legacy_core_split/packages/logic/src/mechanics/producers.ts`.
+//! Verbatim port of `legacy/core_split/packages/logic/src/mechanics/producers.ts`.
 //! Logic owns the pure cost formula AND the buy-max purchase loop; the
 //! manual-click `buy_producer` loop is included too. The five-position,
 //! four-family producer ladder backs every coin / Diamonds / Mythos /

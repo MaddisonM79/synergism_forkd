@@ -11,7 +11,7 @@ this lists:
 - **Status** — `EXISTS` (slice landed), `PARTIAL` (some fields live,
   rest missing), `MISSING` (nothing landed).
 
-The legacy reference is `legacy_core_split/packages/web_ui/src/types/Synergism.ts`
+The legacy reference is `legacy/core_split/packages/web_ui/src/types/Synergism.ts`
 and the per-feature `Features/*/structs/structs.ts` files.
 
 ---

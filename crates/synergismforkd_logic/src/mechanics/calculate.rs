@@ -2,7 +2,7 @@
 //! (and `getReductionValue` from `Buy.ts`).
 //!
 //! Verbatim port of
-//! `legacy_core_split/packages/logic/src/mechanics/calculate.ts`. Each
+//! `legacy/core_split/packages/logic/src/mechanics/calculate.ts`. Each
 //! function takes its inputs as precomputed values — the surrounding
 //! StatLine reductions stay in the UI tier because they aggregate
 //! per-line `stat()` callbacks that still read from player/G state.

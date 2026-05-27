@@ -6,6 +6,6 @@ This project adopts the [Contributor Covenant v2.1](https://www.contributor-cove
 
 To report a concern, open a confidential report via GitHub's private security advisories at:
 
-**https://github.com/MaddisonM79/unknown_game/security/advisories/new**
+**https://github.com/MaddisonM79/synergism_forkd/security/advisories/new**
 
 Reports are reviewed by the repo maintainer.

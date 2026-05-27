@@ -1,7 +1,7 @@
 //! Achievement-level math.
 //!
 //! Verbatim port of
-//! `legacy_core_split/packages/logic/src/mechanics/achievementLevels.ts`
+//! `legacy/core_split/packages/logic/src/mechanics/achievementLevels.ts`
 //! (lifted from the legacy `packages/web_ui/src/Achievements.ts`).
 //! The level-from-points and exp-to-next-level formulas are pure
 //! functions of the achievement-points total. Both share a 2500-point

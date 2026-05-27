@@ -1,7 +1,7 @@
 //! Singularity-milestone bonuses.
 //!
 //! Verbatim port of
-//! `legacy_core_split/packages/logic/src/mechanics/singularityMilestones.ts`.
+//! `legacy/core_split/packages/logic/src/mechanics/singularityMilestones.ts`.
 //! Every function in this module follows the same shape: read a
 //! single (or two) counter from the player — current
 //! `singularityCount` or all-time `highestSingularityCount` —

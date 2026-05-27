@@ -1,7 +1,7 @@
 //! Talisman fragment-cost progression formulas.
 //!
 //! Verbatim port of
-//! `legacy_core_split/packages/logic/src/mechanics/talismanCosts.ts`.
+//! `legacy/core_split/packages/logic/src/mechanics/talismanCosts.ts`.
 //! Both formulas are pure functions over a `Decimal` `base_mult` and
 //! an integer `level` — no player state, no globals. They return the
 //! fragment cost map for the **next** level of the talisman.

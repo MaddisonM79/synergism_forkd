@@ -1,7 +1,7 @@
 //! Small singularity-related helpers.
 //!
 //! Verbatim port of
-//! `legacy_core_split/packages/logic/src/mechanics/singularityHelpers.ts`.
+//! `legacy/core_split/packages/logic/src/mechanics/singularityHelpers.ts`.
 //! None of these warrant their own module but they share the
 //! "tiny pure helper called by singularity UI / cost flow" theme:
 //!

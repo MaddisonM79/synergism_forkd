@@ -1,7 +1,7 @@
 //! Ant-producer data + cost solvers + base-production formula.
 //!
 //! Verbatim port of
-//! `legacy_core_split/packages/logic/src/mechanics/antProducers.ts`.
+//! `legacy/core_split/packages/logic/src/mechanics/antProducers.ts`.
 //! The data table is indexed `0..=8` to match the legacy
 //! `AntProducers` enum (Workers=0 .. HolySpirit=8). UI-only fields
 //! (additional-texts closures, palette colors) stay in the UI tier —

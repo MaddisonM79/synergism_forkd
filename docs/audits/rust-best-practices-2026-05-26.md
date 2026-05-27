@@ -408,7 +408,7 @@ When the five stub crates fill in, these are the design choices to land *first*,
 - Add to [.github/workflows/desktop-release.yml](.github/workflows/desktop-release.yml) when the Tauri build step lands:
   - `actions/attest-build-provenance@<SHA>` for SLSA L2 (free with GH OIDC).
   - `cargo sbom` per artifact (`cyclone_dx_json_1_5` format).
-  - Document the verification recipe in README: `gh attestation verify <file> --repo MaddisonM79/unknown_game`.
+  - Document the verification recipe in README: `gh attestation verify <file> --repo MaddisonM79/synergism_forkd`.
 
 ---
 

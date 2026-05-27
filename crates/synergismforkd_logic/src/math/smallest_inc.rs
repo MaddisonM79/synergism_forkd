@@ -1,7 +1,7 @@
 //! Smallest integer step that changes the value of `x` under IEEE-754
 //! doubles.
 //!
-//! Verbatim port of `legacy_core_split/packages/logic/src/math/smallestInc.ts`
+//! Verbatim port of `legacy/core_split/packages/logic/src/math/smallestInc.ts`
 //! (originally attributed to httpsnet in the legacy `web_ui/src/Utility.ts`).
 //! Below 2^53 every integer is exactly representable, so the step is 1; above
 //! it, doubles lose precision and the step grows as a power of two. The

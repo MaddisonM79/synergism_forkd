@@ -2,7 +2,7 @@
 //! upgrades.
 //!
 //! Verbatim port of
-//! `legacy_core_split/packages/logic/src/mechanics/goldenQuarkUpgrades.ts`.
+//! `legacy/core_split/packages/logic/src/mechanics/goldenQuarkUpgrades.ts`.
 //! The UI tier owns the `goldenQuarkUpgrades` data table. Cost lives
 //! in [`crate::mechanics::gq_upgrade_cost`]. This module owns the
 //! per-upgrade `effect(n, [key])` field for all ~80 upgrades.

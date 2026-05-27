@@ -1,8 +1,9 @@
 # Synergism Forkd
 
-[![rust-ci](https://github.com/MaddisonM79/unknown_game/actions/workflows/rust-ci.yml/badge.svg)](https://github.com/MaddisonM79/unknown_game/actions/workflows/rust-ci.yml)
-[![License](https://img.shields.io/github/license/MaddisonM79/unknown_game)](LICENSE)
-[![Last commit](https://img.shields.io/github/last-commit/MaddisonM79/unknown_game/main)](https://github.com/MaddisonM79/unknown_game/commits/main)
+[![rust-ci](https://github.com/MaddisonM79/synergism_forkd/actions/workflows/rust-ci.yml/badge.svg)](https://github.com/MaddisonM79/synergism_forkd/actions/workflows/rust-ci.yml)
+[![License](https://img.shields.io/github/license/MaddisonM79/synergism_forkd)](LICENSE)
+[![Last commit](https://img.shields.io/github/last-commit/MaddisonM79/synergism_forkd/main)](https://github.com/MaddisonM79/synergism_forkd/commits/main)
+[![break-eternity-rs](https://img.shields.io/crates/v/break-eternity-rs?label=break-eternity-rs)](https://crates.io/crates/break-eternity-rs)
 
 A Rust rewrite of the TypeScript idle game **Synergism**. Forked, renamed, and ported one mechanic at a time.
 
@@ -17,14 +18,11 @@ crates/
   synergismforkd_ui/          # Dioxus components (platform-agnostic)
   synergismforkd_ui_web/      # WASM browser entry point
   synergismforkd_ui_desktop/  # Tauri shell (Win/Mac/Linux)
-  synergismforkd_api/         # axum backend
   synergismforkd_testkit/     # fixtures + sim runner + synergismforkd-sim CLI
-  synergismforkd_audio/       # reserved
-  synergismforkd_netcode/     # reserved
-  synergismforkd_modding/     # reserved
 assets/                       # translations, pictures, sounds
-legacy_original/              # frozen pre-split TS, reference only
-legacy_core_split/            # current packages/ snapshot (TS), reference only
+legacy/
+  original/                   # frozen pre-split TS, reference only
+  core_split/                 # current packages/ snapshot (TS), reference only
 ```
 
 The legacy TS folders are **not maintained** — they live in the repo so the Rust port has the original source to reference while porting mechanics one by one.
@@ -47,7 +45,7 @@ cargo build -p synergismforkd_ui_web --target wasm32-unknown-unknown
 
 ## Status
 
-Bare-bones scaffold. Most crates ship a single placeholder function; the real work is porting mechanics from `legacy_core_split/packages/logic/` and standing up the Dioxus UI tree. See [CLAUDE.md](CLAUDE.md) for crate boundary rules and porting guidance.
+Bare-bones scaffold. Most crates ship a single placeholder function; the real work is porting mechanics from `legacy/core_split/packages/logic/` and standing up the Dioxus UI tree. See [CLAUDE.md](CLAUDE.md) for crate boundary rules and porting guidance.
 
 ## Contributing
 

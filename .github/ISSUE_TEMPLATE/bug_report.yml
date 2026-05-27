@@ -38,9 +38,9 @@ body:
     attributes:
       label: Platform
       options:
-        - Web (synergism.cc)
-        - Steam
-        - Electron (local build)
+        - Web (WASM build)
+        - Desktop (Tauri)
+        - Headless sim (synergismforkd-sim)
         - Not sure
     validations:
       required: true
@@ -49,7 +49,7 @@ body:
     id: browser
     attributes:
       label: Browser and version
-      description: For the Web platform only. e.g. "Firefox 130", "Chrome 128".
+      description: For the Web (WASM) platform only. e.g. "Firefox 130", "Chrome 128".
       placeholder: e.g. Firefox 130
 
   - type: input
@@ -57,7 +57,7 @@ body:
     attributes:
       label: Save file version
       description: Visible in Settings or Stats. Helps with migration-related bugs.
-      placeholder: e.g. 4.1.1
+      placeholder: e.g. 0.1.x
 
   - type: textarea
     id: console

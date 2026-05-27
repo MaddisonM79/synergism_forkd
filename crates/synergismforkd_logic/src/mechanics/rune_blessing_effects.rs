@@ -1,7 +1,7 @@
 //! Per-rune-blessing effect formulas.
 //!
 //! Verbatim port of
-//! `legacy_core_split/packages/logic/src/mechanics/runeBlessingEffects.ts`.
+//! `legacy/core_split/packages/logic/src/mechanics/runeBlessingEffects.ts`.
 //! Pure 1-parameter functions extracted from the
 //! `runeBlessings.<key>.effects` fields in the legacy
 //! `packages/web_ui/src/RuneBlessings.ts`.

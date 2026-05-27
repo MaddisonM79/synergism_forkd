@@ -1,7 +1,7 @@
 //! Red-ambrosia-derived bonuses.
 //!
 //! Verbatim port of
-//! `legacy_core_split/packages/logic/src/mechanics/redAmbrosiaBonuses.ts`.
+//! `legacy/core_split/packages/logic/src/mechanics/redAmbrosiaBonuses.ts`.
 //! Four functions, each reads `player.lifetimeRedAmbrosia` and
 //! combines it with a red-ambrosia-upgrade gate / exponent. The
 //! cookie-29 luck function also reads `player.cubeUpgrades[79]` as

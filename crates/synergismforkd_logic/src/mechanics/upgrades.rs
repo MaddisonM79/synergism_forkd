@@ -1,7 +1,7 @@
 //! Tier-keyed upgrade purchases.
 //!
 //! Verbatim port of `buyUpgrades` from
-//! `legacy_core_split/packages/logic/src/mechanics/upgrades.ts`. Each
+//! `legacy/core_split/packages/logic/src/mechanics/upgrades.ts`. Each
 //! resource tier (coin / prestige / transcend / reincarnation) dispatches
 //! to its own currency and, on a successful buy, flips a different set
 //! of `*_no_*_upgrades` achievement-gate flags. The flag-flip happens

@@ -1,7 +1,7 @@
 //! Corruption math.
 //!
 //! Verbatim port of
-//! `legacy_core_split/packages/logic/src/mechanics/corruptions.ts`
+//! `legacy/core_split/packages/logic/src/mechanics/corruptions.ts`
 //! (migrated from the legacy `packages/web_ui/src/Corruptions.ts`). The
 //! `CorruptionLoadout` / `CorruptionSaves` classes and the UI loadout
 //! table stay in the UI tier — this module owns the per-corruption
@@ -81,7 +81,7 @@ pub fn max_corruption_level(input: &MaxCorruptionLevelInput) -> f64 {
 /// indexed by `player.corruptions.used.viscosity` corruption level.
 /// 17 entries (`0..=16`); levels past `16` collapse to `0.0`.
 /// Verbatim port of the constant in
-/// `legacy_original/src/Variables.ts:149`.
+/// `legacy/original/src/Variables.ts:149`.
 pub const VISCOSITY_POWER: [f64; 17] = [
     1.0, 0.87, 0.80, 0.75, 0.70, 0.6, 0.54, 0.45, 0.39, 0.33, 0.3, 0.2, 0.1, 0.05, 0.0, 0.0, 0.0,
 ];
@@ -98,7 +98,7 @@ pub fn viscosity_power_at_level(level: u32) -> f64 {
 /// indexed by `player.corruptions.used.recession` corruption level.
 /// 17 entries (`0..=16`); levels past `16` collapse to the last
 /// value's tail. Verbatim port of the constant in
-/// `legacy_original/src/Variables.ts`.
+/// `legacy/original/src/Variables.ts`.
 pub const RECESSION_POWER: [f64; 17] = [
     1.0, 0.9, 0.7, 0.6, 0.5, 0.37, 0.30, 0.23, 0.18, 0.15, 0.12, 0.09, 0.03, 0.01, 0.007, 0.0007,
     0.000_07,
@@ -283,7 +283,7 @@ mod tests {
 
     #[test]
     fn viscosity_power_table_matches_legacy() {
-        // Legacy `G.viscosityPower` from `legacy_original/src/Variables.ts:149`.
+        // Legacy `G.viscosityPower` from `legacy/original/src/Variables.ts:149`.
         assert_eq!(viscosity_power_at_level(0), 1.0);
         assert_eq!(viscosity_power_at_level(1), 0.87);
         assert_eq!(viscosity_power_at_level(7), 0.45);
@@ -294,7 +294,7 @@ mod tests {
 
     #[test]
     fn recession_power_table_matches_legacy() {
-        // Legacy `G.recessionPower` from `legacy_original/src/Variables.ts`.
+        // Legacy `G.recessionPower` from `legacy/original/src/Variables.ts`.
         assert_eq!(recession_power_at_level(0), 1.0);
         assert_eq!(recession_power_at_level(1), 0.9);
         assert_eq!(recession_power_at_level(5), 0.37);

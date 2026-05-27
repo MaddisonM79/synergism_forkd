@@ -2,7 +2,7 @@
 //! spirits.
 //!
 //! Verbatim port of
-//! `legacy_core_split/packages/logic/src/mechanics/runeUpgradeProgression.ts`.
+//! `legacy/core_split/packages/logic/src/mechanics/runeUpgradeProgression.ts`.
 //! The EXP↔level math is bit-identical between blessings and spirits —
 //! only the `cost_coefficient` and `levels_per_oom` differ per rune — so
 //! this module owns the closed-form invert plus the budget-aware

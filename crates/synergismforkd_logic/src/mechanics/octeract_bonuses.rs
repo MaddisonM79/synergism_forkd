@@ -2,7 +2,7 @@
 //! singularity challenge.
 //!
 //! Verbatim port of
-//! `legacy_core_split/packages/logic/src/mechanics/octeractBonuses.ts`.
+//! `legacy/core_split/packages/logic/src/mechanics/octeractBonuses.ts`.
 //! Offering & Obtainium bonuses are derived from the cube bonus, so
 //! the caller precomputes that and passes it in.
 

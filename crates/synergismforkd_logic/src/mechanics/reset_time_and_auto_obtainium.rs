@@ -1,7 +1,7 @@
 //! Reset-time-threshold + automatic-research-obtainium calculator.
 //!
 //! Verbatim port of
-//! `legacy_core_split/packages/logic/src/mechanics/resetTimeAndAutoObtainium.ts`
+//! `legacy/core_split/packages/logic/src/mechanics/resetTimeAndAutoObtainium.ts`
 //! (lifted from the legacy
 //! `packages/web_ui/src/Calculate.ts`'s `resetTimeThreshold` +
 //! `calculateResearchAutomaticObtainium`).

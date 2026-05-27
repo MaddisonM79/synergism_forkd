@@ -3,7 +3,7 @@
 //!   invigorated-spirits ELO gift).
 //!
 //! Verbatim port of
-//! `legacy_core_split/packages/logic/src/mechanics/antRebornELO.ts`.
+//! `legacy/core_split/packages/logic/src/mechanics/antRebornELO.ts`.
 //! The reborn-speed-mult-stats reducer and the leaderboard/quark
 //! math that depends on player.worlds.applyBonus() stay in the UI
 //! tier because they couple to stats arrays / external bonuses.

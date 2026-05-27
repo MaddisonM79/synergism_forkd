@@ -1,7 +1,7 @@
 //! Crystal and building-power production formulas.
 //!
 //! Verbatim port of
-//! `legacy_core_split/packages/logic/src/mechanics/crystalAndBuildingPower.ts`
+//! `legacy/core_split/packages/logic/src/mechanics/crystalAndBuildingPower.ts`
 //! (in turn lifted from the legacy `packages/web_ui/src/Synergism.ts`
 //! lines 2661-2745).
 //!

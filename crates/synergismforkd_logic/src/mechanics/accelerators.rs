@@ -1,7 +1,7 @@
 //! Accelerator cost formula and purchase loop.
 //!
 //! Verbatim port of `getCostAccelerator` + `buyAccelerator` from
-//! `legacy_core_split/packages/logic/src/mechanics/accelerators.ts`.
+//! `legacy/core_split/packages/logic/src/mechanics/accelerators.ts`.
 
 use smallvec::SmallVec;
 use synergismforkd_bignum::Decimal;
@@ -124,7 +124,7 @@ impl BuyAcceleratorInput {
 
 /// Buy as many accelerators as possible given the current coin balance and
 /// per-click cap. Verbatim port of `buyAccelerator` from
-/// `legacy_core_split/packages/logic/src/mechanics/accelerators.ts` (in turn
+/// `legacy/core_split/packages/logic/src/mechanics/accelerators.ts` (in turn
 /// hoisted from `packages/web_ui/src/Buy.ts:72`).
 ///
 /// Two paths:

@@ -1,7 +1,7 @@
 //! Per-rune-spirit effect formulas.
 //!
 //! Verbatim port of
-//! `legacy_core_split/packages/logic/src/mechanics/runeSpiritEffects.ts`.
+//! `legacy/core_split/packages/logic/src/mechanics/runeSpiritEffects.ts`.
 //! Pure 1-parameter functions extracted from the
 //! `runeSpirits.<key>.effects` fields in the legacy
 //! `packages/web_ui/src/RuneSpirits.ts`.

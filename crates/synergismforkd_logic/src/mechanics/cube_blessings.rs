@@ -1,7 +1,7 @@
 //! Cube (wow-cube) blessing effect formulas.
 //!
 //! Verbatim port of
-//! `legacy_core_split/packages/logic/src/mechanics/cubes/cubeBlessings.ts`.
+//! `legacy/core_split/packages/logic/src/mechanics/cubes/cubeBlessings.ts`.
 //! 10 pure multiplier-yield functions, one per [`BlessingValues`] field.
 //! Each composes the corresponding tesseract-blessing value (as
 //! `effect_per_blessing`'s numerator or a direct multiplier) with a

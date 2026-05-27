@@ -2,7 +2,7 @@
 //! Exalt 4 (noOcteracts), and Exalt 6 (limitedTime).
 //!
 //! Verbatim port of
-//! `legacy_core_split/packages/logic/src/mechanics/exaltPenalties.ts`.
+//! `legacy/core_split/packages/logic/src/mechanics/exaltPenalties.ts`.
 //! Most of these were already parameterized by `comps` or
 //! `(comps, time)` and read no player state — the lifts are
 //! near-identity. The two that read player state (Exalt 3 penalty,

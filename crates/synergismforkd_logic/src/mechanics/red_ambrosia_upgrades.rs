@@ -2,7 +2,7 @@
 //! upgrades.
 //!
 //! Verbatim port of
-//! `legacy_core_split/packages/logic/src/mechanics/redAmbrosiaUpgrades.ts`.
+//! `legacy/core_split/packages/logic/src/mechanics/redAmbrosiaUpgrades.ts`.
 //! The UI tier still owns the `redAmbrosiaUpgrades` data table (it
 //! has UI fields the logic tier can't see — i18n-bound
 //! name/description closures, DOM-driven renderers, the buy flow).

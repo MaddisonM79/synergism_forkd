@@ -1,7 +1,7 @@
 //! Crystal-upgrade purchases.
 //!
 //! Verbatim port of `buyCrystalUpgrades` from
-//! `legacy_core_split/packages/logic/src/mechanics/crystalUpgrades.ts`.
+//! `legacy/core_split/packages/logic/src/mechanics/crystalUpgrades.ts`.
 //!
 //! Crystal upgrades are a separate upgrade ladder bought with prestige
 //! shards. Unlike the discrete `buy_upgrades` bitmap, each crystal upgrade

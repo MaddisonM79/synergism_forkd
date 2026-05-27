@@ -1,7 +1,7 @@
 //! Tax exponent and divisor formula.
 //!
 //! Verbatim port of `calculateTax` from
-//! `legacy_core_split/packages/logic/src/mechanics/tax.ts` (in turn the
+//! `legacy/core_split/packages/logic/src/mechanics/tax.ts` (in turn the
 //! second half of `packages/web_ui/src/Tax.ts`). Pure given the full bag of
 //! player + effect inputs; the legacy `web_ui` side does the input
 //! gathering and writes the result fields back to `G`.

@@ -1,54 +1,54 @@
 # Contributing
 
+Thanks for the interest. This is the Rust port of the TypeScript idle game Synergism. The legacy TS sources live in `legacy/` for reference; active development happens in the Cargo workspace at the repo root.
+
 ## Prerequisites
 
-Before running any of the commands below, make sure you have installed:
+- **Rust** stable — the channel, components (`clippy`, `rustfmt`), and the `wasm32-unknown-unknown` target are pinned in [rust-toolchain.toml](rust-toolchain.toml). `rustup` will auto-install on first `cargo` invocation, so you typically don't need to install anything by hand.
+- **git** — https://git-scm.com/downloads
 
-- NodeJS >= 22.21.0 — https://nodejs.org/en/
-- git — https://git-scm.com/downloads
+## Recommended editor
 
-## Recommended
-
-- VSCode — https://code.visualstudio.com/Download
+- [Zed](https://zed.dev) — first-class `rust-analyzer` integration out of the box, fast on large workspaces. Open the repo root and Zed indexes the workspace automatically.
+- VSCode fallback — install the official `rust-analyzer` extension.
 
 ## Workflow
 
 1. Fork this repository.
 2. Clone your fork:
    ```sh
-   git clone https://github.com/<USERNAME>/unknown_game
-   cd unknown_game
+   git clone https://github.com/<USERNAME>/synergism_forkd
+   cd synergism_forkd
    ```
-3. Install dependencies:
-   ```sh
-   npm install
-   ```
-4. (Optional) override env defaults by copying [`.env`](.env) to `.env.local` and editing. The committed `.env` points at the legacy `synergism.cc` backend; `.env.local` overrides per-developer values (gitignored).
-5. Switch to a new branch:
+3. Create a branch:
    ```sh
    git checkout -b my-branch-name
    ```
-6. Start the dev server:
+4. Build and test:
    ```sh
-   node --run dev
+   cargo build --workspace
+   cargo test --workspace
    ```
-   Runs Vite on port 3000 with HMR — module changes hot-replace, no full reload, ~200ms feedback. To smoke-test against the prod build (with real `_headers` applied at the edge), run `node --run preview:cf` instead — that builds, stages, and serves via `wrangler pages dev`.
-7. Make your changes and verify them in the browser.
-8. Type-check:
+5. Format and lint before committing — CI rejects warnings:
    ```sh
-   node --run check:tsc
+   cargo fmt --all
+   cargo clippy --workspace --all-targets -- -D warnings
    ```
-9. Lint:
-   ```sh
-   node --run lint
-   node --run csslint
-   ```
-10. Stage and commit:
-    ```sh
-    git add <files>
-    git commit -m "short description"
-    ```
-11. Push and open a pull request against this repository.
+6. Commit and push, then open a pull request against `main`.
+
+### Headless sim
+
+The sim runner exercises the tick loop end-to-end without a UI:
+
+```sh
+cargo run -p synergismforkd_testkit --bin synergismforkd-sim
+```
+
+### WASM browser build
+
+```sh
+cargo build -p synergismforkd_ui_web --target wasm32-unknown-unknown
+```
 
 ## Pull request titles
 
@@ -64,70 +64,19 @@ Examples:
 
 - `fix: prevent rune 7 race during singularity`
 - `ux: shorten notification slide-in to 200ms`
-- `ci: install deep-object-diff for translation check`
 - `feat(ants): add Reborn-ELO tranche 11`
 
 Since merges are squashed, the PR title becomes the commit message on `main`. Individual commits on your feature branch can use any message you like.
 
 ## Save format changes
 
-Changes that add or modify fields on the `player` object affect every player's savefile size and migration path. **Before making such a change, please open an issue first** to discuss the schema impact.
+Changes that add or modify fields on the game state affect every player's savefile size and migration path. **Before adding fields to `crates/synergismforkd_logic/src/state/` slices, please open an issue first** to discuss the schema impact, then mirror the change in `crates/synergismforkd_save/` with a migration if the schema version bumps. See the "Save system" section of [CLAUDE.md](CLAUDE.md) for the full rule.
 
-See also [CLAUDE.md](CLAUDE.md) for the agent-facing contribution rules (i18n, DOM caching, etc.).
+## Releases
 
-## Build-time configuration
+Desktop builds are produced by [.github/workflows/desktop-release.yml](.github/workflows/desktop-release.yml) on tagged pushes matching `v*.*.*`. Pushing to `main` does not release — version bumps are explicit.
 
-Three environment variables shape the build:
+## Further reading
 
-| Variable | Default | Purpose |
-| --- | --- | --- |
-| `VITE_API_BASE_URL` | `https://synergism.cc` | Backend HTTP origin (login, payments, messages, translations) |
-| `VITE_WS_BASE_URL` | `wss://synergism.cc` | Consumables WebSocket origin |
-| `VITE_CANONICAL_HOST` | `synergism.cc` | Canonical web hostname (gates browser-only purchase UI; tightens MSW's unhandled-request guard) |
-
-Vite injects these into the JS bundle via `import.meta.env` and substitutes them into [`index.html`](index.html) using its native `%VITE_*%` syntax. [`scripts/stage.mjs`](scripts/stage.mjs) renders [`_headers.template`](_headers.template) → `build/_headers` with the same values, since Vite doesn't model Cloudflare's `_headers` file natively.
-
-The committed [`.env`](.env) holds the defaults. Cascading override order: `.env.local` > `.env.{mode}.local` > `.env.{mode}` > `.env`. Production reads from CF Pages dashboard environment variables (which take precedence over everything in the repo).
-
-## Deploy (Cloudflare Pages)
-
-```sh
-npm run cloudflare:build
-```
-
-This runs `vite build` (writes hashed bundle + transformed `index.html` to `build/`, copies Pictures/translations via `vite-plugin-static-copy`) and then `cloudflare:stage` (renders `_headers` into `build/`). The result at `build/` is exactly what gets uploaded to CF Pages.
-
-### Cloudflare Pages dashboard settings
-
-- **Framework preset:** None
-- **Build command:** `npm run cloudflare:build`
-- **Build output directory:** `build`
-- **Node version:** see `engines.node` in [package.json](package.json) (currently `>=22.21.0`)
-- **Environment variables:** `VITE_API_BASE_URL`, `VITE_WS_BASE_URL`, `VITE_CANONICAL_HOST` (set per environment: Production gets the prod values, Preview gets staging values)
-
-### Security headers
-
-[`_headers.template`](_headers.template) is the source of truth; `cloudflare:stage` renders it into `build/_headers` with `{{API_BASE_URL}}` / `{{WS_BASE_URL}}` / `{{CANONICAL_HOST}}` substituted from the environment. The `<meta http-equiv>` CSP in `index.html` is kept in sync via Vite's `%VITE_*%` substitution and serves as a fallback for local `file://` loads.
-
-### Smoke-testing against the prod build
-
-```sh
-node --run preview:cf
-```
-
-Builds + stages + serves `build/` via `wrangler pages dev` on port 3000. Use this to verify the CSP / HSTS / cache rules behave as expected before pushing.
-
-## Releases (Kongregate build)
-
-[`.github/workflows/kong-release.yml`](.github/workflows/kong-release.yml) builds `Kong.zip`, generates a Sigstore build-provenance attestation, and creates a GitHub Release. It triggers **only on tag push** matching `v*.*.*` — pushing to `main` does not release. This keeps version bumps explicit and prevents tag overwrites.
-
-To cut a release:
-
-```sh
-# bump package.json version, commit, merge to main, then:
-git checkout main && git pull
-git tag v4.1.2
-git push origin v4.1.2
-```
-
-The tag name (`github.ref_name`) is the release tag and title; `package.json` version is not consulted at release time, so the two can drift if you forget the bump — keep them in sync as a matter of habit.
+- [CLAUDE.md](CLAUDE.md) — crate boundary rules, save-system invariants, porting guidance.
+- [docs/audits/STATE_AUDIT.md](docs/audits/STATE_AUDIT.md) — current state-slice audit and porting priorities.
