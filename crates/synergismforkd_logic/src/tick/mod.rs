@@ -220,8 +220,8 @@ fn phase_cross_mechanic_precompute(state: &GameState, input: &TackInput) -> Cros
 /// - `hepteract_multiplier`             ✓ state-derived
 /// - `hepteract_multiplier_mult`        ✓ state-derived
 /// - `viscosity_power`                  ✓ state-derived (G.viscosityPower table)
+/// - `multiplier_cube_blessing`         ✓ state-derived (full blessing chain)
 /// - `multipliers_achievement`          forwarded (achievement-reward table not ported)
-/// - `multiplier_cube_blessing`         forwarded (needs cube/tesseract/upgrade plumbing)
 /// - `total_accelerator_boost`          forwarded (G.*, cross-aggregator)
 /// - `taxdivisor`                       forwarded (cross-mechanic tax pipeline)
 /// - `challenge_15_reward_multiplier`   forwarded (challenge-15 rewards not ported)
@@ -232,20 +232,40 @@ fn compute_update_all_multiplier_pre(
 ) -> UpdateAllMultiplierPre {
     use crate::mechanics::ant_upgrades::multipliers_ant_upgrade_effect;
     use crate::mechanics::corruptions::viscosity_power_at_level;
+    use crate::mechanics::cube_blessings::calculate_multiplier_cube_blessing;
     use crate::mechanics::hepteract_effects::multiplier_hepteract_effects;
+    use crate::mechanics::hypercube_blessings::calculate_multiplier_hypercube_blessing;
+    use crate::mechanics::platonic_blessings::calculate_hypercube_blessing_multiplier_platonic_blessing;
     use crate::mechanics::rune_blessing_effects::duplication_rune_blessing_effects;
     use crate::mechanics::rune_effects::{duplication_rune_effects, DuplicationRuneKey};
+    use crate::mechanics::tesseract_blessings::calculate_multiplier_tesseract_blessing;
     use crate::state::{RUNE_DUPLICATION, VISCOSITY_INDEX};
 
     /// Ant-upgrade index for "Multipliers". Mirrors the legacy
     /// `AntUpgrades.Multipliers = 4` enum value.
     const ANT_UPGRADE_MULTIPLIERS: usize = 4;
+    /// Cube-upgrade index gating the cube-multiplier blessing's
+    /// diminishing-return increase. Legacy `player.cubeUpgrades[35]`.
+    const CUBE_UPGRADE_MULTIPLIER_BLESSING: usize = 35;
 
     let sum_of_rune_levels: f64 = state.runes.rune_levels.iter().sum();
     let duplication_level = state.runes.rune_levels[RUNE_DUPLICATION];
     let duplication_blessing_level = state.runes.rune_blessing_levels[RUNE_DUPLICATION];
     let hept_mult = multiplier_hepteract_effects(state.hepteracts.multiplier.bal);
     let viscosity_level = state.corruptions.used.levels[VISCOSITY_INDEX];
+    // Cube-blessing chain: platonic → hypercube → tesseract → cube,
+    // mirroring the legacy call chain in `Cubes.ts`.
+    let platonic_amplifier =
+        calculate_hypercube_blessing_multiplier_platonic_blessing(&state.platonic_blessings);
+    let hypercube_blessing =
+        calculate_multiplier_hypercube_blessing(&state.hypercube_blessings, platonic_amplifier);
+    let tesseract_blessing =
+        calculate_multiplier_tesseract_blessing(&state.tesseract_blessings, hypercube_blessing);
+    let cube_blessing = calculate_multiplier_cube_blessing(
+        &state.cube_blessings,
+        tesseract_blessing,
+        state.cube_upgrade_levels.cube_upgrades[CUBE_UPGRADE_MULTIPLIER_BLESSING],
+    );
 
     UpdateAllMultiplierPre {
         sum_of_rune_levels,
@@ -267,9 +287,9 @@ fn compute_update_all_multiplier_pre(
         hepteract_multiplier: hept_mult.multiplier,
         hepteract_multiplier_mult: hept_mult.multiplier_multiplier,
         viscosity_power: viscosity_power_at_level(viscosity_level),
+        multiplier_cube_blessing: cube_blessing,
         // Forwarded — upstream mechanic not yet plumbed.
         multipliers_achievement: fallback.multipliers_achievement,
-        multiplier_cube_blessing: fallback.multiplier_cube_blessing,
         total_accelerator_boost: fallback.total_accelerator_boost,
         taxdivisor: fallback.taxdivisor,
         challenge_15_reward_multiplier: fallback.challenge_15_reward_multiplier,
@@ -285,22 +305,44 @@ fn compute_update_all_multiplier_pre(
 /// - `hepteract_accelerators`           ✓ state-derived
 /// - `hepteract_accelerator_mult`       ✓ state-derived
 /// - `viscosity_power`                  ✓ state-derived (G.viscosityPower table)
+/// - `accelerator_cube_blessing`        ✓ state-derived (full blessing chain)
 /// - `accelerators_achievement`         forwarded (achievement-reward table)
 /// - `accelerator_power_achievement`    forwarded (achievement-reward table)
-/// - `accelerator_cube_blessing`        forwarded (deep blessing chain)
 /// - `total_accelerator_boost`          forwarded (G.*, cross-aggregator)
 /// - `accelerator_multiplier`           forwarded (G.*, cross-aggregator)
 /// - `challenge_15_reward_accelerator`  forwarded (challenge-15 rewards)
 #[must_use]
 fn compute_update_all_tick_pre(state: &GameState, fallback: &UpdateAllTickPre) -> UpdateAllTickPre {
     use crate::mechanics::corruptions::viscosity_power_at_level;
+    use crate::mechanics::cube_blessings::calculate_accelerator_cube_blessing;
     use crate::mechanics::hepteract_effects::accelerator_hepteract_effects;
+    use crate::mechanics::hypercube_blessings::calculate_accelerator_hypercube_blessing;
+    use crate::mechanics::platonic_blessings::calculate_hypercube_blessing_multiplier_platonic_blessing;
     use crate::mechanics::rune_effects::{speed_rune_effects, SpeedRuneKey};
+    use crate::mechanics::tesseract_blessings::calculate_accelerator_tesseract_blessing;
     use crate::state::{RUNE_SPEED, VISCOSITY_INDEX};
+
+    /// Cube-upgrade index gating the cube-accelerator blessing's
+    /// diminishing-return increase. Legacy `player.cubeUpgrades[45]`.
+    const CUBE_UPGRADE_ACCELERATOR_BLESSING: usize = 45;
 
     let speed_level = state.runes.rune_levels[RUNE_SPEED];
     let hept_acc = accelerator_hepteract_effects(state.hepteracts.accelerator.bal);
     let viscosity_level = state.corruptions.used.levels[VISCOSITY_INDEX];
+    // Cube-blessing chain (same shape as the multiplier chain in
+    // [`compute_update_all_multiplier_pre`]; the platonic amplifier
+    // is shared between the two tracks).
+    let platonic_amplifier =
+        calculate_hypercube_blessing_multiplier_platonic_blessing(&state.platonic_blessings);
+    let hypercube_blessing =
+        calculate_accelerator_hypercube_blessing(&state.hypercube_blessings, platonic_amplifier);
+    let tesseract_blessing =
+        calculate_accelerator_tesseract_blessing(&state.tesseract_blessings, hypercube_blessing);
+    let cube_blessing = calculate_accelerator_cube_blessing(
+        &state.cube_blessings,
+        tesseract_blessing,
+        state.cube_upgrade_levels.cube_upgrades[CUBE_UPGRADE_ACCELERATOR_BLESSING],
+    );
 
     UpdateAllTickPre {
         multiplicative_accelerators_rune: speed_rune_effects(
@@ -311,10 +353,10 @@ fn compute_update_all_tick_pre(state: &GameState, fallback: &UpdateAllTickPre) -
         hepteract_accelerators: hept_acc.accelerators,
         hepteract_accelerator_mult: hept_acc.accelerator_multiplier,
         viscosity_power: viscosity_power_at_level(viscosity_level),
+        accelerator_cube_blessing: cube_blessing,
         // Forwarded — upstream mechanic not yet plumbed.
         accelerators_achievement: fallback.accelerators_achievement,
         accelerator_power_achievement: fallback.accelerator_power_achievement,
-        accelerator_cube_blessing: fallback.accelerator_cube_blessing,
         total_accelerator_boost: fallback.total_accelerator_boost,
         accelerator_multiplier: fallback.accelerator_multiplier,
         challenge_15_reward_accelerator: fallback.challenge_15_reward_accelerator,
