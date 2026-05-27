@@ -7,6 +7,8 @@
 
 A Rust rewrite of the TypeScript idle game **Synergism**. Forked, renamed, and ported one mechanic at a time.
 
+> ⚠️ **Status: rough, mid-conversion.** This repo is an in-progress port from TypeScript to Rust. There is no playable build yet — most crates are scaffolding around a slowly-growing pile of ported game logic. APIs, save formats, and even the workspace layout are expected to churn until the port settles. The legacy TS sources are kept in [`legacy/`](legacy/) for reference; the Rust workspace under [`crates/`](crates/) is where active work happens.
+
 ## Layout
 
 ```
@@ -45,7 +47,7 @@ cargo build -p synergismforkd_ui_web --target wasm32-unknown-unknown
 
 ## Status
 
-Bare-bones scaffold. Most crates ship a single placeholder function; the real work is porting mechanics from `legacy/core_split/packages/logic/` and standing up the Dioxus UI tree. See [CLAUDE.md](CLAUDE.md) for crate boundary rules and porting guidance.
+**Early, rough, in active conversion.** Bare-bones scaffold — most crates ship a single placeholder function. The real work is porting mechanics from `legacy/core_split/packages/logic/` into [`crates/synergismforkd_logic/`](crates/synergismforkd_logic/) and standing up the Dioxus UI tree. Expect breakage: there is no stable save format, no playable build, and the workspace layout itself may shift as the port progresses. See [docs/audits/STATE_AUDIT.md](docs/audits/STATE_AUDIT.md) for the current state-slice porting punch list, and [CLAUDE.md](CLAUDE.md) for crate boundary rules and porting guidance.
 
 ## Contributing
 
