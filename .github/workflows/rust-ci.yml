@@ -116,7 +116,7 @@ jobs:
 
       # cargo-deny — license + bans + sources + advisories. Reads
       # deny.toml from repo root.
-      - uses: EmbarkStudios/cargo-deny-action@a531616d8ce3b9177443e48a1159bc945a099823 # v2.0.19
+      - uses: EmbarkStudios/cargo-deny-action@bb137d7af7e4fb67e5f82a49c4fce4fad40782fe # v2.0.20
         with:
           command: check all
           arguments: --all-features
