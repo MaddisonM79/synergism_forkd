@@ -14,6 +14,17 @@ use synergismforkd_bignum::Decimal;
 /// Anvil F4.
 pub const RESEARCHES_LEN: usize = 201;
 
+/// Auto-research dispatch mode. Mirrors the legacy
+/// `player.autoResearchMode` `'manual' | 'cheapest'` union.
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum AutoResearchMode {
+    /// Buy the single selected research slot (`auto_research_selected`).
+    #[default]
+    Manual,
+    /// "Roomba" — buy the cheapest affordable research, bounded per tick.
+    Cheapest,
+}
+
 /// Slice of `GameState` read/written by research mechanics.
 ///
 /// The legacy `researches` array is 1-indexed with index 0 unused;
@@ -29,6 +40,13 @@ pub struct ResearchesState {
     pub obtainium: Decimal,
     /// All-time research points earned (for stat tracking).
     pub research_points: f64,
+    /// `player.autoResearchToggle` — auto-research enabled.
+    pub auto_research_toggle: bool,
+    /// `player.autoResearch` — selected research slot for manual mode
+    /// (`0` = none; the dispatch gate is `toggle && selected > 0`).
+    pub auto_research_selected: u32,
+    /// `player.autoResearchMode` — manual single-slot vs cheapest Roomba.
+    pub auto_research_mode: AutoResearchMode,
 }
 
 impl Default for ResearchesState {
@@ -37,6 +55,9 @@ impl Default for ResearchesState {
             researches: [0.0; RESEARCHES_LEN],
             obtainium: Decimal::zero(),
             research_points: 0.0,
+            auto_research_toggle: false,
+            auto_research_selected: 0,
+            auto_research_mode: AutoResearchMode::Manual,
         }
     }
 }

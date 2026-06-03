@@ -23,6 +23,9 @@ pub struct QuarksState {
     /// Cached quark-bonus percent (0..100). Refreshed each tick by
     /// the quark-bonus aggregator.
     pub quark_bonus: f64,
+    /// `player.quarkstimer` — quark-export accumulator (seconds),
+    /// clamped to `max_quark_timer` by the Phase 5 head timers.
+    pub quarks_timer: f64,
 }
 
 impl Default for QuarksState {
@@ -32,6 +35,7 @@ impl Default for QuarksState {
             quarks_this_singularity: 0.0,
             all_time_quarks: 0.0,
             quark_bonus: 0.0,
+            quarks_timer: 0.0,
         }
     }
 }

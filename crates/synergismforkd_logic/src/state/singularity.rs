@@ -32,6 +32,9 @@ pub struct SingularityState {
     pub highest_singularity_count: f64,
     /// In-singularity timer (seconds since this singularity began).
     pub singularity_counter: f64,
+    /// `player.singChallengeTimer` — time inside the current singularity
+    /// challenge (accumulates while `enabled`, resets to 0 otherwise).
+    pub sing_challenge_timer: f64,
     /// `noSingularityUpgrades` Exalt 1.
     pub no_singularity_upgrades: SingularityChallengeState,
     /// `oneChallengeCap` Exalt 2.
@@ -58,6 +61,7 @@ impl Default for SingularityState {
             singularity_count: 0.0,
             highest_singularity_count: 0.0,
             singularity_counter: 0.0,
+            sing_challenge_timer: 0.0,
             no_singularity_upgrades: SingularityChallengeState::default(),
             one_challenge_cap: SingularityChallengeState::default(),
             no_octeracts: SingularityChallengeState::default(),

@@ -28,6 +28,13 @@ pub struct ResetCountersState {
     /// `player.ascensionCounterRealReal` — total real wall-clock
     /// time inside the current ascension (includes paused time).
     pub ascension_counter_real_real: f64,
+    /// `player.prestigecounter` — prestige reset timer (game-time
+    /// seconds; advanced by the Phase 5 head timers).
+    pub prestige_counter: f64,
+    /// `player.transcendcounter` — transcension reset timer.
+    pub transcend_counter: f64,
+    /// `player.reincarnationcounter` — reincarnation reset timer.
+    pub reincarnation_counter: f64,
     /// `player.prestigeShards`.
     pub prestige_shards: Decimal,
     /// `player.transcendShards`.
@@ -56,6 +63,9 @@ impl Default for ResetCountersState {
             ascension_counter: 0.0,
             ascension_counter_real: 0.0,
             ascension_counter_real_real: 0.0,
+            prestige_counter: 0.0,
+            transcend_counter: 0.0,
+            reincarnation_counter: 0.0,
             prestige_shards: Decimal::zero(),
             transcend_shards: Decimal::zero(),
             reincarnation_shards: Decimal::zero(),
