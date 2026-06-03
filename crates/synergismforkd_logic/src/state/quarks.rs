@@ -15,9 +15,6 @@ use synergismforkd_bignum::Decimal;
 pub struct QuarksState {
     /// `player.worlds` — current quark balance.
     pub worlds: Decimal,
-    /// `player.quarksThisSingularity` — quarks earned during the
-    /// current singularity (drives base-GQ award).
-    pub quarks_this_singularity: f64,
     /// `player.allTimeQuarks` — lifetime total.
     pub all_time_quarks: f64,
     /// Cached quark-bonus percent (0..100). Refreshed each tick by
@@ -32,7 +29,6 @@ impl Default for QuarksState {
     fn default() -> Self {
         Self {
             worlds: Decimal::zero(),
-            quarks_this_singularity: 0.0,
             all_time_quarks: 0.0,
             quark_bonus: 0.0,
             quarks_timer: 0.0,

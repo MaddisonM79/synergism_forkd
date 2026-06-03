@@ -34,8 +34,6 @@ pub struct RedAmbrosiaState {
     /// `G.redAmbrosiaTimer` — sub-bar 1/8 s granule accumulator that
     /// feeds `red_ambrosia_time`. Distinct from `red_ambrosia_time`.
     pub red_ambrosia_timer_g: f64,
-    /// `player.redAmbrosiaRNG` — RNG seed.
-    pub red_ambrosia_rng: f64,
     /// `player.spentRedAmbrosia` — count allocated to upgrades.
     pub spent_red_ambrosia: f64,
     /// Per-upgrade state. UI maintains the name ↔ index mapping.
@@ -49,7 +47,6 @@ impl Default for RedAmbrosiaState {
             lifetime_red_ambrosia: 0.0,
             red_ambrosia_time: 0.0,
             red_ambrosia_timer_g: 0.0,
-            red_ambrosia_rng: 0.0,
             spent_red_ambrosia: 0.0,
             upgrades: [RedAmbrosiaUpgrade::default(); RED_AMBROSIA_UPGRADES_LEN],
         }
