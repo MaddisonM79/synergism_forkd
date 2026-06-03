@@ -13,6 +13,13 @@ use synergismforkd_save as _;
 
 use synergismforkd_testkit::{run_sim, SimConfig};
 
+// serde / serde_json are dev-deps used only by the lib's parity tests;
+// silence `unused_crate_dependencies` for this bin's test target.
+#[cfg(test)]
+use serde as _;
+#[cfg(test)]
+use serde_json as _;
+
 fn main() {
     let args: Vec<String> = std::env::args().collect();
     let ticks: u64 = args.get(1).and_then(|s| s.parse().ok()).unwrap_or(1_000);

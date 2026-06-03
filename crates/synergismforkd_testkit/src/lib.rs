@@ -14,6 +14,11 @@ use synergismforkd_save as _;
 
 use synergismforkd_logic::{tack, CoreEvent, GameState, TackInput};
 
+// TS↔Rust golden-vector parity tests (math functions). Lives here, not in
+// `tests/`, so `serde`/`serde_json` are exercised by the lib-test target.
+#[cfg(test)]
+mod parity;
+
 /// Configuration for a headless sim run.
 #[derive(Debug, Clone)]
 pub struct SimConfig {
