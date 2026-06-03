@@ -4,9 +4,9 @@ version = 4
 
 [[package]]
 name = "break-eternity-rs"
-version = "0.3.0"
+version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "82b7066b219df829635bf7ed253d4d504956e416127b00c5923c1af239ba1673"
+checksum = "265821f1490e7a31787ae7050915bf8a978637d2cbbd3870bfb25b21ac927781"
 dependencies = [
  "serde",
  "thiserror",

@@ -320,11 +320,12 @@ fn singularity_milestones_match_typescript() {
 }
 
 // ── Decimal-returning mechanics (cost functions) ───────────────────────
-// Decimals are carried as { mantissa, exponent } and compared in log10
-// space (exponent + log10(mantissa) == log10(value)) — robust at any
-// magnitude and across the 9.9e2/1.0e3 normalization boundary, and needs
-// no string parser on the Rust side. Values stay in the range where the
-// legacy `break_infinity.js` and Rust `break-eternity-rs` agree.
+// Decimals are carried as strings and reconstructed with
+// `Decimal::from_string` (break-eternity-rs >= 0.4), then compared in
+// log10 space (exponent + log10(mantissa) == log10(value)) — robust at any
+// magnitude and across the 9.9e2/1.0e3 normalization boundary. Values stay
+// in the range where the legacy `break_infinity.js` and Rust
+// `break-eternity-rs` agree.
 
 #[derive(Deserialize)]
 struct DecimalVectors {
@@ -339,20 +340,17 @@ struct CostCase {
     transcend_ecc: f64,
     in_transcension_challenge_4: bool,
     in_reincarnation_challenge_8: bool,
-    mantissa: f64,
-    exponent: f64,
+    value: String,
 }
 
 #[track_caller]
-fn assert_decimal_parity(label: &str, rust: Decimal, ts_mantissa: f64, ts_exponent: f64) {
+fn assert_decimal_parity(label: &str, rust: Decimal, ts: Decimal) {
     let rust_log = rust.exponent() + rust.mantissa().abs().log10();
-    let ts_log = ts_exponent + ts_mantissa.abs().log10();
+    let ts_log = ts.exponent() + ts.mantissa().abs().log10();
     let tol = 1e-9 * ts_log.abs().max(1.0);
     assert!(
         (rust_log - ts_log).abs() <= tol,
-        "{label}: rust={}e{} ts={ts_mantissa}e{ts_exponent} (Δlog={})",
-        rust.mantissa(),
-        rust.exponent(),
+        "{label}: rust={rust} ts={ts} (Δlog={})",
         (rust_log - ts_log).abs()
     );
 }
@@ -375,12 +373,8 @@ fn decimal_cost_functions_match_typescript() {
                 in_reincarnation_challenge_8: c.in_reincarnation_challenge_8,
             },
         );
-        assert_decimal_parity(
-            &format!("get_cost_accelerator({})", c.buying_to),
-            rust,
-            c.mantissa,
-            c.exponent,
-        );
+        let ts = Decimal::from_string(&c.value).expect("ts decimal parses");
+        assert_decimal_parity(&format!("get_cost_accelerator({})", c.buying_to), rust, ts);
     }
     for c in &v.get_cost_multiplier {
         let rust = get_cost_multiplier(
@@ -392,11 +386,7 @@ fn decimal_cost_functions_match_typescript() {
                 in_reincarnation_challenge_8: c.in_reincarnation_challenge_8,
             },
         );
-        assert_decimal_parity(
-            &format!("get_cost_multiplier({})", c.buying_to),
-            rust,
-            c.mantissa,
-            c.exponent,
-        );
+        let ts = Decimal::from_string(&c.value).expect("ts decimal parses");
+        assert_decimal_parity(&format!("get_cost_multiplier({})", c.buying_to), rust, ts);
     }
 }

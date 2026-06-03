@@ -1,17 +1,15 @@
 // Golden-vector generator for the Decimal-returning parity batch.
 //
 // Unlike the pure-math generator, these legacy mechanics import `Decimal`
-// (`break_infinity.js`) and use extensionless internal imports, so this
-// needs the deps installed AND a bundler-style resolver. Run with tsx:
+// (`break_infinity.js`) with extensionless internal imports, so this needs
+// the deps installed AND a bundler-style resolver. Run with tsx:
 //   (cd legacy/core_split && npm install --ignore-scripts)   # once
 //   npx tsx crates/synergismforkd_testkit/parity/generate_decimal_vectors.mjs
 //
-// Decimals are serialized as { mantissa, exponent } (normalized m × 10^e)
-// rather than a string, because break-eternity-rs (the Rust side) has no
-// string parser yet — the Rust test reconstructs via
-// `Decimal::from_mantissa_exponent`. Values are kept in the range where
-// the legacy `break_infinity.js` and the Rust `break-eternity-rs` agree
-// (normal scales; they diverge only in tetration territory).
+// Decimals are serialized as strings (`Decimal.toString()`); the Rust test
+// reconstructs them with `Decimal::from_string` (break-eternity-rs >= 0.4).
+// Values stay in the range where the legacy `break_infinity.js` and the
+// Rust `break-eternity-rs` agree (they diverge only in tetration territory).
 
 import { mkdirSync, writeFileSync } from 'node:fs'
 
@@ -40,28 +38,22 @@ const casesFor = (fn) =>
       inTranscensionChallenge4: in_transcension_challenge_4,
       inReincarnationChallenge8: in_reincarnation_challenge_8
     })
+    if (!Number.isFinite(d.mantissa) || !Number.isFinite(d.exponent)) {
+      throw new Error(`non-finite result for buying_to=${buying_to}`)
+    }
     return {
       buying_to,
       cost_divisor,
       transcend_ecc,
       in_transcension_challenge_4,
       in_reincarnation_challenge_8,
-      mantissa: d.mantissa,
-      exponent: d.exponent
+      value: d.toString()
     }
   })
 
 const data = {
   get_cost_accelerator: casesFor(getCostAccelerator),
   get_cost_multiplier: casesFor(getCostMultiplier)
-}
-
-for (const [fn, cases] of Object.entries(data)) {
-  for (const c of cases) {
-    if (!Number.isFinite(c.mantissa) || !Number.isFinite(c.exponent)) {
-      throw new Error(`non-finite ${fn}: ${JSON.stringify(c)}`)
-    }
-  }
 }
 
 const outDir = new URL('../fixtures/', import.meta.url)
