@@ -1,9 +1,9 @@
 //! General-purpose seeded RNG helpers.
 //!
-//! These helpers are stateless: they take any `&mut R` where `R: RngCore` and
+//! These helpers are stateless: they take any `&mut R` where `R: Rng` and
 //! return a value. Callers control which PRNG to draw from — game systems use
 //! the per-purpose generators in [`crate::state::rng::RngState`], ad-hoc
-//! callers (UI animations, dev tools, tests) can pass [`rand::thread_rng()`]
+//! callers (UI animations, dev tools, tests) can pass [`rand::rng()`]
 //! directly.
 //!
 //! This module replaces the legacy `packages/logic/src/math/rng.ts`. The
@@ -13,14 +13,14 @@
 //! (`Xoshiro256PlusPlus`) with proper state, drawn through these helpers.
 
 use rand::Rng;
-use rand::RngCore;
+use rand::RngExt;
 
 /// Uniform sample in `[0.0, 1.0)`.
 ///
 /// Equivalent to `MersenneTwister(seed).random()` from the legacy port — but
 /// without the per-call reseed and without the `+1` counter advance.
-pub fn next_f64<R: RngCore>(rng: &mut R) -> f64 {
-    rng.gen::<f64>()
+pub fn next_f64<R: Rng>(rng: &mut R) -> f64 {
+    rng.random::<f64>()
 }
 
 /// Inclusive integer sample in `[min, max]`. Matches the shape of the legacy
@@ -28,18 +28,18 @@ pub fn next_f64<R: RngCore>(rng: &mut R) -> f64 {
 ///
 /// # Panics
 /// Panics if `min > max`. Callers responsible for the invariant.
-pub fn next_inclusive<R: RngCore>(rng: &mut R, min: i64, max: i64) -> i64 {
+pub fn next_inclusive<R: Rng>(rng: &mut R, min: i64, max: i64) -> i64 {
     assert!(min <= max, "next_inclusive: min ({min}) > max ({max})");
-    rng.gen_range(min..=max)
+    rng.random_range(min..=max)
 }
 
 /// Uniform-random reference into `items`. Returns `None` if the slice is
 /// empty.
-pub fn pick<'a, T, R: RngCore>(rng: &mut R, items: &'a [T]) -> Option<&'a T> {
+pub fn pick<'a, T, R: Rng>(rng: &mut R, items: &'a [T]) -> Option<&'a T> {
     if items.is_empty() {
         None
     } else {
-        let idx = rng.gen_range(0..items.len());
+        let idx = rng.random_range(0..items.len());
         Some(&items[idx])
     }
 }

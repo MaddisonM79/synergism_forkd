@@ -17,8 +17,7 @@
 
 use serde::{Deserialize, Serialize};
 
-use rand::rngs::OsRng;
-use rand::RngCore;
+use rand::Rng;
 use rand::SeedableRng;
 use rand_xoshiro::Xoshiro256PlusPlus;
 
@@ -60,23 +59,24 @@ impl RngState {
     }
 
     /// Build an `RngState` from system entropy. Each per-purpose generator
-    /// gets a fresh seed drawn from `OsRng`-backed master state.
+    /// gets a fresh seed drawn from a master seeded by the OS-backed
+    /// [`rand::rng`] (`ThreadRng`).
     ///
     /// # Panics
     ///
-    /// Panics if the operating-system RNG (`OsRng`) is unavailable. On
-    /// Unix this calls `getrandom(2)`; on Windows it calls
-    /// `BCryptGenRandom`. On `wasm32` it requires the `js` feature on the
-    /// `getrandom` crate, which the `synergismforkd_ui_web` crate wires
-    /// for its WASM target. In practice the syscall path is reliable; the
-    /// WASM path requires the JS shim to be linked or the program would
-    /// have failed earlier.
+    /// Panics if the operating-system entropy source is unavailable.
+    /// `ThreadRng` reseeds from the OS — on Unix via `getrandom(2)`, on
+    /// Windows via `BCryptGenRandom`. On `wasm32` it requires the
+    /// `wasm_js` feature on the `getrandom` crate, which the
+    /// `synergismforkd_ui_web` crate wires for its WASM target. In
+    /// practice the syscall path is reliable; the WASM path requires the
+    /// JS shim to be linked or the program would have failed earlier.
     pub fn from_entropy() -> Self {
-        let mut master = Xoshiro256PlusPlus::from_rng(OsRng).expect("OsRng should not fail");
+        let mut master = Xoshiro256PlusPlus::from_rng(&mut rand::rng());
         Self::seed_array_from(&mut master)
     }
 
-    fn seed_array_from<R: RngCore>(master: &mut R) -> Self {
+    fn seed_array_from<R: Rng>(master: &mut R) -> Self {
         let rngs = std::array::from_fn(|_| {
             let mut child_seed = [0u8; 32];
             master.fill_bytes(&mut child_seed);
@@ -155,7 +155,7 @@ mod tests {
 
     #[test]
     fn from_entropy_yields_distinct_states() {
-        // Vanishingly small probability of collision — exercise the OsRng
+        // Vanishingly small probability of collision — exercise the entropy
         // path end-to-end.
         let mut a = RngState::from_entropy();
         let mut b = RngState::from_entropy();
