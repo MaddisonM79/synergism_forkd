@@ -1,0 +1,168 @@
+{
+  "get_cost_accelerator": [
+    {
+      "buying_to": 1,
+      "cost_divisor": 1,
+      "transcend_ecc": 0,
+      "in_transcension_challenge_4": false,
+      "in_reincarnation_challenge_8": false,
+      "mantissa": 5,
+      "exponent": 2
+    },
+    {
+      "buying_to": 10,
+      "cost_divisor": 1,
+      "transcend_ecc": 0,
+      "in_transcension_challenge_4": false,
+      "in_reincarnation_challenge_8": false,
+      "mantissa": 1.31072,
+      "exponent": 8
+    },
+    {
+      "buying_to": 100,
+      "cost_divisor": 1,
+      "transcend_ecc": 0,
+      "in_transcension_challenge_4": false,
+      "in_reincarnation_challenge_8": false,
+      "mantissa": 2.008672555323738,
+      "exponent": 62
+    },
+    {
+      "buying_to": 1000,
+      "cost_divisor": 1,
+      "transcend_ecc": 0,
+      "in_transcension_challenge_4": false,
+      "in_reincarnation_challenge_8": false,
+      "mantissa": 3.426381841753288,
+      "exponent": 3323
+    },
+    {
+      "buying_to": 1000,
+      "cost_divisor": 10,
+      "transcend_ecc": 0,
+      "in_transcension_challenge_4": false,
+      "in_reincarnation_challenge_8": false,
+      "mantissa": 3.4263818417528396,
+      "exponent": 2324
+    },
+    {
+      "buying_to": 1000,
+      "cost_divisor": 1,
+      "transcend_ecc": 50,
+      "in_transcension_challenge_4": false,
+      "in_reincarnation_challenge_8": false,
+      "mantissa": 6.831300842337004,
+      "exponent": 2454
+    },
+    {
+      "buying_to": 500,
+      "cost_divisor": 1,
+      "transcend_ecc": 0,
+      "in_transcension_challenge_4": true,
+      "in_reincarnation_challenge_8": false,
+      "mantissa": 6.468564723599827,
+      "exponent": 126079
+    },
+    {
+      "buying_to": 500,
+      "cost_divisor": 1,
+      "transcend_ecc": 0,
+      "in_transcension_challenge_4": false,
+      "in_reincarnation_challenge_8": true,
+      "mantissa": 6.468564723599827,
+      "exponent": 6238829
+    },
+    {
+      "buying_to": 5000,
+      "cost_divisor": 5,
+      "transcend_ecc": 100,
+      "in_transcension_challenge_4": false,
+      "in_reincarnation_challenge_8": false,
+      "mantissa": 8.40280336310243,
+      "exponent": 956521
+    }
+  ],
+  "get_cost_multiplier": [
+    {
+      "buying_to": 1,
+      "cost_divisor": 1,
+      "transcend_ecc": 0,
+      "in_transcension_challenge_4": false,
+      "in_reincarnation_challenge_8": false,
+      "mantissa": 1,
+      "exponent": 4
+    },
+    {
+      "buying_to": 10,
+      "cost_divisor": 1,
+      "transcend_ecc": 0,
+      "in_transcension_challenge_4": false,
+      "in_reincarnation_challenge_8": false,
+      "mantissa": 1,
+      "exponent": 13
+    },
+    {
+      "buying_to": 100,
+      "cost_divisor": 1,
+      "transcend_ecc": 0,
+      "in_transcension_challenge_4": false,
+      "in_reincarnation_challenge_8": false,
+      "mantissa": 6.204484017332873,
+      "exponent": 150
+    },
+    {
+      "buying_to": 1000,
+      "cost_divisor": 1,
+      "transcend_ecc": 0,
+      "in_transcension_challenge_4": false,
+      "in_reincarnation_challenge_8": false,
+      "mantissa": 7.494889194037062,
+      "exponent": 4267
+    },
+    {
+      "buying_to": 1000,
+      "cost_divisor": 10,
+      "transcend_ecc": 0,
+      "in_transcension_challenge_4": false,
+      "in_reincarnation_challenge_8": false,
+      "mantissa": 5.95340210295363,
+      "exponent": 3368
+    },
+    {
+      "buying_to": 1000,
+      "cost_divisor": 1,
+      "transcend_ecc": 50,
+      "in_transcension_challenge_4": false,
+      "in_reincarnation_challenge_8": false,
+      "mantissa": 5.277968713938168,
+      "exponent": 3873
+    },
+    {
+      "buying_to": 500,
+      "cost_divisor": 1,
+      "transcend_ecc": 0,
+      "in_transcension_challenge_4": true,
+      "in_reincarnation_challenge_8": false,
+      "mantissa": 3.759422076607263,
+      "exponent": 126608
+    },
+    {
+      "buying_to": 500,
+      "cost_divisor": 1,
+      "transcend_ecc": 0,
+      "in_transcension_challenge_4": false,
+      "in_reincarnation_challenge_8": true,
+      "mantissa": 3.759422076607263,
+      "exponent": 6239358
+    },
+    {
+      "buying_to": 5000,
+      "cost_divisor": 5,
+      "transcend_ecc": 100,
+      "in_transcension_challenge_4": false,
+      "in_reincarnation_challenge_8": false,
+      "mantissa": 1.0233972958587478,
+      "exponent": 1200652
+    }
+  ]
+}

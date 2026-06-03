@@ -18,6 +18,11 @@
 
 use serde::Deserialize;
 
+use synergismforkd_bignum::Decimal;
+use synergismforkd_logic::mechanics::accelerators::{
+    get_cost_accelerator, GetCostAcceleratorInput,
+};
+use synergismforkd_logic::mechanics::multipliers::{get_cost_multiplier, GetCostMultiplierInput};
 use synergismforkd_logic::mechanics::singularity_milestones as sm;
 use synergismforkd_logic::{
     calculate_cubic_sum_data, calculate_sigmoid, calculate_sigmoid_exponential,
@@ -25,6 +30,7 @@ use synergismforkd_logic::{
 };
 
 const VECTORS: &str = include_str!("../fixtures/parity_vectors.json");
+const DECIMAL_VECTORS: &str = include_str!("../fixtures/parity_decimal.json");
 
 #[derive(Deserialize)]
 struct Vectors {
@@ -309,6 +315,88 @@ fn singularity_milestones_match_typescript() {
             &format!("bonus_token_mult({})", c.highest_singularity_count),
             sm::singularity_bonus_token_mult(c.highest_singularity_count),
             c.result,
+        );
+    }
+}
+
+// ── Decimal-returning mechanics (cost functions) ───────────────────────
+// Decimals are carried as { mantissa, exponent } and compared in log10
+// space (exponent + log10(mantissa) == log10(value)) — robust at any
+// magnitude and across the 9.9e2/1.0e3 normalization boundary, and needs
+// no string parser on the Rust side. Values stay in the range where the
+// legacy `break_infinity.js` and Rust `break-eternity-rs` agree.
+
+#[derive(Deserialize)]
+struct DecimalVectors {
+    get_cost_accelerator: Vec<CostCase>,
+    get_cost_multiplier: Vec<CostCase>,
+}
+
+#[derive(Deserialize)]
+struct CostCase {
+    buying_to: f64,
+    cost_divisor: f64,
+    transcend_ecc: f64,
+    in_transcension_challenge_4: bool,
+    in_reincarnation_challenge_8: bool,
+    mantissa: f64,
+    exponent: f64,
+}
+
+#[track_caller]
+fn assert_decimal_parity(label: &str, rust: Decimal, ts_mantissa: f64, ts_exponent: f64) {
+    let rust_log = rust.exponent() + rust.mantissa().abs().log10();
+    let ts_log = ts_exponent + ts_mantissa.abs().log10();
+    let tol = 1e-9 * ts_log.abs().max(1.0);
+    assert!(
+        (rust_log - ts_log).abs() <= tol,
+        "{label}: rust={}e{} ts={ts_mantissa}e{ts_exponent} (Δlog={})",
+        rust.mantissa(),
+        rust.exponent(),
+        (rust_log - ts_log).abs()
+    );
+}
+
+#[test]
+fn decimal_cost_functions_match_typescript() {
+    let v: DecimalVectors = serde_json::from_str(DECIMAL_VECTORS).expect("valid decimal fixture");
+    assert!(
+        !v.get_cost_accelerator.is_empty() && !v.get_cost_multiplier.is_empty(),
+        "fixture should carry decimal vectors"
+    );
+
+    for c in &v.get_cost_accelerator {
+        let rust = get_cost_accelerator(
+            c.buying_to,
+            GetCostAcceleratorInput {
+                cost_divisor: c.cost_divisor,
+                transcend_ecc: c.transcend_ecc,
+                in_transcension_challenge_4: c.in_transcension_challenge_4,
+                in_reincarnation_challenge_8: c.in_reincarnation_challenge_8,
+            },
+        );
+        assert_decimal_parity(
+            &format!("get_cost_accelerator({})", c.buying_to),
+            rust,
+            c.mantissa,
+            c.exponent,
+        );
+    }
+    for c in &v.get_cost_multiplier {
+        let rust = get_cost_multiplier(
+            c.buying_to,
+            GetCostMultiplierInput {
+                cost_divisor: c.cost_divisor,
+                transcend_ecc: c.transcend_ecc,
+                in_transcension_challenge_4: c.in_transcension_challenge_4,
+                in_reincarnation_challenge_8: c.in_reincarnation_challenge_8,
+            },
+        );
+        assert_decimal_parity(
+            &format!("get_cost_multiplier({})", c.buying_to),
+            rust,
+            c.mantissa,
+            c.exponent,
         );
     }
 }
