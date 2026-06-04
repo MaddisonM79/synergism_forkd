@@ -17,5 +17,10 @@ synergismforkd_bignum = { path = "../synergismforkd_bignum" }
 synergismforkd_logic = { path = "../synergismforkd_logic" }
 synergismforkd_save = { path = "../synergismforkd_save" }
 
+[dev-dependencies]
+# Parity harness: deserialize the TS-generated golden vectors.
+serde = { workspace = true }
+serde_json = "1"
+
 [lints]
 workspace = true

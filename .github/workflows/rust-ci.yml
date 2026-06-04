@@ -33,7 +33,7 @@ jobs:
 
       # rust-toolchain.toml pins the channel + components + wasm32 target.
       - name: Cache cargo registry & target
-        uses: actions/cache@8b402f58fbc84540c8b491a91e594a4576fec3d7 # v5.0.2
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
         with:
           path: |
             ~/.cargo/registry
@@ -61,7 +61,7 @@ jobs:
           persist-credentials: false
 
       - name: Cache cargo registry & target
-        uses: actions/cache@8b402f58fbc84540c8b491a91e594a4576fec3d7 # v5.0.2
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
         with:
           path: |
             ~/.cargo/registry
@@ -87,7 +87,7 @@ jobs:
           persist-credentials: false
 
       - name: Cache cargo registry & target
-        uses: actions/cache@8b402f58fbc84540c8b491a91e594a4576fec3d7 # v5.0.2
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
         with:
           path: |
             ~/.cargo/registry
@@ -116,7 +116,7 @@ jobs:
 
       # cargo-deny — license + bans + sources + advisories. Reads
       # deny.toml from repo root.
-      - uses: EmbarkStudios/cargo-deny-action@a531616d8ce3b9177443e48a1159bc945a099823 # v2.0.19
+      - uses: EmbarkStudios/cargo-deny-action@bb137d7af7e4fb67e5f82a49c4fce4fad40782fe # v2.0.20
         with:
           command: check all
           arguments: --all-features

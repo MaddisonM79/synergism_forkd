@@ -3,6 +3,7 @@
 
 use std::collections::BTreeSet;
 
+use serde::{Deserialize, Serialize};
 use synergismforkd_bignum::Decimal;
 
 /// Which producer family a [`CoreEvent::ProducersPurchased`] event refers to.
@@ -61,7 +62,10 @@ pub enum AutoResetTier {
 
 /// Whether the auto-reset gate that fired was point-amount based or
 /// wall-clock based. Payload of [`CoreEvent::AutoResetTriggered`].
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+///
+/// Derives serde so it can double as the persisted reset-mode setting in
+/// [`crate::state::AutomationState`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum AutoResetMode {
     /// Resource-amount threshold ("autoPrestigeAmount" etc.).
     Amount,
@@ -119,7 +123,10 @@ pub enum AutoPotionType {
 /// single sweep cycle doesn't repeat challenges. `BTreeSet<u8>` matches
 /// the TS `Set<number>` with the small fixed range of challenge indices
 /// (1..=10).
-#[derive(Debug, Clone, PartialEq, Eq)]
+///
+/// Derives serde so it can double as the persisted sweep-machine state
+/// in [`crate::state::AutomationState`].
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum SweepState {
     /// Sweep is off — autoChallenge toggle is disabled.
     Idle,

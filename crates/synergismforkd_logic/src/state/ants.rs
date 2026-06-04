@@ -45,18 +45,22 @@ pub struct RebornELOEntry {
     pub sacrifice_id: u32,
 }
 
-/// Auto-sacrifice mode selector. Mirrors the legacy
-/// `AutoSacrificeModes` enum.
-#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq)]
+/// Auto-sacrifice mode selector. Mirrors the legacy `AutoSacrificeMode`
+/// union `'InGameTime' | 'RealTime' | 'ImmortalELOGain' | 'MaxRebornELO'`.
+/// Enable/disable is the separate
+/// [`AntsToggles::auto_sacrifice_enabled`] flag, so there is no `Off`
+/// variant.
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum AutoSacrificeMode {
-    /// Auto-sacrifice disabled.
-    Off,
-    /// Trigger when reborn ELO crosses the threshold.
-    ELO,
-    /// Trigger on a fixed timer.
-    Timer,
-    /// Trigger after every N sacrifices.
-    Sacrifice,
+    /// Trigger when the in-game ant-sacrifice timer crosses the threshold.
+    #[default]
+    InGameTime,
+    /// Trigger when the real-time ant-sacrifice timer crosses the threshold.
+    RealTime,
+    /// Trigger when projected immortal-ELO gain exceeds the threshold.
+    ImmortalELOGain,
+    /// Trigger when at max reborn ELO.
+    MaxRebornELO,
 }
 
 /// Ant-feature toggles. Mirrors the legacy `toggles` field on
@@ -96,7 +100,7 @@ impl Default for AntsToggles {
             max_buy_upgrades: false,
             auto_sacrifice_enabled: false,
             auto_sacrifice_threshold: 0.0,
-            auto_sacrifice_mode: AutoSacrificeMode::Off,
+            auto_sacrifice_mode: AutoSacrificeMode::InGameTime,
             always_sacrifice_max_reborn_elo: false,
             only_sacrifice_max_reborn_elo: false,
         }
@@ -135,6 +139,11 @@ pub struct AntsState {
     pub quarks_gained_from_ants: f64,
     /// All-time count of ant sacrifices performed.
     pub ant_sacrifice_count: f64,
+    /// `player.antSacrificeTimer` — in-game ant-sacrifice timer (scaled
+    /// by global delta; advanced in the Phase 5 middle).
+    pub ant_sacrifice_timer: f64,
+    /// `player.antSacrificeTimerReal` — real-time ant-sacrifice timer.
+    pub ant_sacrifice_timer_real: f64,
     /// Sacrifice-ID generator — monotonically increasing.
     pub current_sacrifice_id: u32,
     /// Auto-buy + auto-sacrifice toggles.
@@ -165,6 +174,8 @@ impl Default for AntsState {
             highest_reborn_elo_ever: smallvec::SmallVec::new(),
             quarks_gained_from_ants: 0.0,
             ant_sacrifice_count: 0.0,
+            ant_sacrifice_timer: 0.0,
+            ant_sacrifice_timer_real: 0.0,
             current_sacrifice_id: 0,
             toggles: AntsToggles::default(),
         }
@@ -203,6 +214,6 @@ mod tests {
         let t = AntsToggles::default();
         assert!(!t.autobuy_producers);
         assert!(!t.auto_sacrifice_enabled);
-        assert_eq!(t.auto_sacrifice_mode, AutoSacrificeMode::Off);
+        assert_eq!(t.auto_sacrifice_mode, AutoSacrificeMode::InGameTime);
     }
 }

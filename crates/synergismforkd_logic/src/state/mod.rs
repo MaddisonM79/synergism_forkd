@@ -12,6 +12,7 @@ pub mod accelerator;
 pub mod achievements;
 pub mod ambrosia;
 pub mod ants;
+pub mod automation;
 pub mod blessings;
 pub mod campaigns;
 pub mod challenges;
@@ -46,6 +47,7 @@ pub use ambrosia::{AmbrosiaState, AmbrosiaUpgrade};
 pub use ants::{
     AntsState, AntsToggles, AutoSacrificeMode, PlayerAntMastery, PlayerAntProducer, RebornELOEntry,
 };
+pub use automation::AutomationState;
 pub use blessings::{BlessingValues, PlatonicBlessings};
 pub use campaigns::CampaignsState;
 pub use challenges::ChallengesState;
@@ -67,7 +69,7 @@ pub use particle_buildings::ParticleBuildingsState;
 pub use producer::{BuyAmount, ProducerFamilyState, ProducerTier};
 pub use quarks::QuarksState;
 pub use red_ambrosia::{RedAmbrosiaState, RedAmbrosiaUpgrade};
-pub use researches::ResearchesState;
+pub use researches::{AutoResearchMode, ResearchesState};
 pub use reset_counters::ResetCountersState;
 pub use rng::{RngPurpose, RngState};
 pub use runes::{
@@ -107,6 +109,9 @@ pub struct GameState {
     pub ambrosia: AmbrosiaState,
     /// Ants — producers, masteries, ELO, upgrades, sacrifice state.
     pub ants: AntsState,
+    /// Cross-cutting automation toggles, modes, and per-tick timers
+    /// (auto-reset, auto-potion, rune sacrifice, challenge sweep).
+    pub automation: AutomationState,
     /// Cube blessing values (`player.cubeBlessings`).
     pub cube_blessings: BlessingValues,
     /// Tesseract blessing values (`player.tesseractBlessings`).

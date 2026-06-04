@@ -1,0 +1,150 @@
+{
+  "get_cost_accelerator": [
+    {
+      "buying_to": 1,
+      "cost_divisor": 1,
+      "transcend_ecc": 0,
+      "in_transcension_challenge_4": false,
+      "in_reincarnation_challenge_8": false,
+      "value": "500"
+    },
+    {
+      "buying_to": 10,
+      "cost_divisor": 1,
+      "transcend_ecc": 0,
+      "in_transcension_challenge_4": false,
+      "in_reincarnation_challenge_8": false,
+      "value": "131072000.00000001"
+    },
+    {
+      "buying_to": 100,
+      "cost_divisor": 1,
+      "transcend_ecc": 0,
+      "in_transcension_challenge_4": false,
+      "in_reincarnation_challenge_8": false,
+      "value": "2.008672555323738e+62"
+    },
+    {
+      "buying_to": 1000,
+      "cost_divisor": 1,
+      "transcend_ecc": 0,
+      "in_transcension_challenge_4": false,
+      "in_reincarnation_challenge_8": false,
+      "value": "3.426381841753288e+3323"
+    },
+    {
+      "buying_to": 1000,
+      "cost_divisor": 10,
+      "transcend_ecc": 0,
+      "in_transcension_challenge_4": false,
+      "in_reincarnation_challenge_8": false,
+      "value": "3.4263818417528396e+2324"
+    },
+    {
+      "buying_to": 1000,
+      "cost_divisor": 1,
+      "transcend_ecc": 50,
+      "in_transcension_challenge_4": false,
+      "in_reincarnation_challenge_8": false,
+      "value": "6.831300842337004e+2454"
+    },
+    {
+      "buying_to": 500,
+      "cost_divisor": 1,
+      "transcend_ecc": 0,
+      "in_transcension_challenge_4": true,
+      "in_reincarnation_challenge_8": false,
+      "value": "6.468564723599827e+126079"
+    },
+    {
+      "buying_to": 500,
+      "cost_divisor": 1,
+      "transcend_ecc": 0,
+      "in_transcension_challenge_4": false,
+      "in_reincarnation_challenge_8": true,
+      "value": "6.468564723599827e+6238829"
+    },
+    {
+      "buying_to": 5000,
+      "cost_divisor": 5,
+      "transcend_ecc": 100,
+      "in_transcension_challenge_4": false,
+      "in_reincarnation_challenge_8": false,
+      "value": "8.40280336310243e+956521"
+    }
+  ],
+  "get_cost_multiplier": [
+    {
+      "buying_to": 1,
+      "cost_divisor": 1,
+      "transcend_ecc": 0,
+      "in_transcension_challenge_4": false,
+      "in_reincarnation_challenge_8": false,
+      "value": "10000"
+    },
+    {
+      "buying_to": 10,
+      "cost_divisor": 1,
+      "transcend_ecc": 0,
+      "in_transcension_challenge_4": false,
+      "in_reincarnation_challenge_8": false,
+      "value": "10000000000000"
+    },
+    {
+      "buying_to": 100,
+      "cost_divisor": 1,
+      "transcend_ecc": 0,
+      "in_transcension_challenge_4": false,
+      "in_reincarnation_challenge_8": false,
+      "value": "6.204484017332873e+150"
+    },
+    {
+      "buying_to": 1000,
+      "cost_divisor": 1,
+      "transcend_ecc": 0,
+      "in_transcension_challenge_4": false,
+      "in_reincarnation_challenge_8": false,
+      "value": "7.494889194037062e+4267"
+    },
+    {
+      "buying_to": 1000,
+      "cost_divisor": 10,
+      "transcend_ecc": 0,
+      "in_transcension_challenge_4": false,
+      "in_reincarnation_challenge_8": false,
+      "value": "5.95340210295363e+3368"
+    },
+    {
+      "buying_to": 1000,
+      "cost_divisor": 1,
+      "transcend_ecc": 50,
+      "in_transcension_challenge_4": false,
+      "in_reincarnation_challenge_8": false,
+      "value": "5.277968713938168e+3873"
+    },
+    {
+      "buying_to": 500,
+      "cost_divisor": 1,
+      "transcend_ecc": 0,
+      "in_transcension_challenge_4": true,
+      "in_reincarnation_challenge_8": false,
+      "value": "3.759422076607263e+126608"
+    },
+    {
+      "buying_to": 500,
+      "cost_divisor": 1,
+      "transcend_ecc": 0,
+      "in_transcension_challenge_4": false,
+      "in_reincarnation_challenge_8": true,
+      "value": "3.759422076607263e+6239358"
+    },
+    {
+      "buying_to": 5000,
+      "cost_divisor": 5,
+      "transcend_ecc": 100,
+      "in_transcension_challenge_4": false,
+      "in_reincarnation_challenge_8": false,
+      "value": "1.0233972958587478e+1200652"
+    }
+  ]
+}

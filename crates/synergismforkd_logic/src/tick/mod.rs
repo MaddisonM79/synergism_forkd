@@ -31,6 +31,8 @@
 
 use smallvec::SmallVec;
 
+use synergismforkd_bignum::Decimal;
+
 use crate::events::{CoreEvent, ProducerType};
 use crate::mechanics::accelerators::{buy_accelerator, BuyAcceleratorInput};
 use crate::mechanics::crystal_upgrades::{buy_crystal_upgrades, BuyCrystalUpgradesInput};
@@ -47,7 +49,173 @@ use crate::mechanics::update_all_multiplier::{
 };
 use crate::mechanics::update_all_tick::{update_all_tick, UpdateAllTickPre, UpdateAllTickResult};
 use crate::mechanics::upgrades::{buy_upgrades, BuyUpgradeInput};
-use crate::state::GameState;
+use crate::state::{GameState, RngPurpose};
+
+mod ant_generation;
+mod auto_research;
+mod auto_reset;
+mod automatic_tools;
+mod challenge_sweep;
+mod timers;
+
+/// Caller-provided pre-evaluated inputs for the Phase 5 automation
+/// layer — speed multipliers and unlock gates that have no ported
+/// aggregator yet (`calculateGlobalSpeedMult`,
+/// `calculateAscensionSpeedMult`, `calculateSingularitySpeedMult`,
+/// `quark_handler`, `exportGQPerHour`, …).
+///
+/// Mirrors the four existing `*_pre` bundles: caller-packed for the
+/// duration of the MVP port, migrating to compute-from-state as each
+/// upstream aggregator lands. **Grows per chunk** — each automation
+/// sub-phase adds the fields it consumes. Today it carries the head-
+/// timer multipliers + gates consumed by the simple counter and
+/// octeract timers (Chunks 1–2).
+#[derive(Debug, Clone, Copy)]
+pub struct AutomationPre {
+    /// `calculateGlobalSpeedMult()` — scales the prestige / transcend /
+    /// reincarnation reset counters.
+    pub global_time_multiplier: f64,
+    /// `calculateAscensionSpeedMult()` — scales `ascension_counter`.
+    pub ascension_speed_multi: f64,
+    /// `calculateSingularitySpeedMult()` — scales `singularity_counter`
+    /// and `sing_challenge_timer`.
+    pub singularity_speed_multi: f64,
+    /// `quark_handler(...).max_time` — clamp ceiling for the quark-
+    /// export timer. State-derivable; supplied here until Chunk 1 wires
+    /// `quark_handler`.
+    pub max_quark_timer: f64,
+    /// `exportGQPerHour` — golden-quark export rate; `0.0` disables the
+    /// golden-quark timer (the legacy `exportGQPerHour === 0` gate).
+    pub export_gq_per_hour: f64,
+    /// `octeractUnlock.unlocked` — gates the octeract timer.
+    pub octeract_unlocked: bool,
+    /// `calculateOcteractMultiplier()` — per-second octeract reward.
+    pub octeract_per_second: f64,
+    /// Product of the golden-quark multiplier stats except the
+    /// qts-dependent base — used by the octeract GQ-giveaway loop.
+    pub golden_quarks_multiplier_excluding_base: f64,
+    /// `octeractAutoPotionSpeed.autoPotionSpeedMult` — auto-potion
+    /// threshold speed.
+    pub auto_potion_speed_mult: f64,
+    /// `player.shopUpgrades.offeringPotion` — fast-mode gate for the
+    /// offering auto-potion (caller reads the shop slot).
+    pub offering_potion_count: f64,
+    /// `player.shopUpgrades.obtainiumPotion` — fast-mode gate for the
+    /// obtainium auto-potion.
+    pub obtainium_potion_count: f64,
+    /// `calculateAmbrosiaGenerationSpeed()` — `0` disables the ambrosia timer.
+    pub ambrosia_generation_speed: f64,
+    /// `calculateAmbrosiaLuck()`.
+    pub ambrosia_luck: f64,
+    /// `noAmbrosiaUpgrades.bonusAmbrosia`.
+    pub bonus_ambrosia: f64,
+    /// `G.TIME_PER_AMBROSIA` base constant.
+    pub time_per_ambrosia: f64,
+    /// `shopAmbrosiaAccelerator.ambrosiaPointRequirementMult`.
+    pub ambrosia_accelerator_mult: f64,
+    /// `ambrosiaBrickOfLead.barRequirementMult`.
+    pub ambrosia_brick_of_lead_mult: f64,
+    /// `calculateRedAmbrosiaGenerationSpeed()` — `0` disables the red timer.
+    pub red_ambrosia_generation_speed: f64,
+    /// `calculateRedAmbrosiaLuck()`.
+    pub red_ambrosia_luck: f64,
+    /// `redAmbrosiaAccelerator.ambrosiaTimePerRedAmbrosia` — bonus
+    /// blueberry time minted per red ambrosia (fed back into ambrosia).
+    pub ambrosia_time_per_red_ambrosia: f64,
+    /// `G.TIME_PER_RED_AMBROSIA` base constant.
+    pub time_per_red_ambrosia: f64,
+    /// `limitedTime.barRequirementMultiplier`.
+    pub red_ambrosia_bar_requirement_multiplier: f64,
+    /// `offeringAuto.autoRune` shop effect — combined with the persisted
+    /// `rune_sacrifice_auto_enabled` toggle to gate rune auto-sacrifice.
+    pub offering_auto_rune: bool,
+    /// `getAchievementReward('antSacrificeUnlock')` — gates ant sacrifice.
+    pub ant_sacrifice_unlocked: bool,
+    /// `calculateAvailableRebornELO()` — drives the "maxed reborn ELO"
+    /// derivation used by the ant-sacrifice toggles.
+    pub available_reborn_elo: f64,
+    /// `antSacrificeRewards().immortalELO` — the `ImmortalELOGain` mode's
+    /// projected gain.
+    pub immortal_elo_gain: f64,
+    /// `calculateResearchAutomaticObtainium(dt)` — per-tick auto-obtainium
+    /// gain (before the taxman clamp).
+    pub obtainium_gain: Decimal,
+    /// `roombaResearchEnabled()` — Roomba auto-research unlock.
+    pub roomba_unlocked: bool,
+    /// `getLevelMilestone('autoPrestige')` — `== 1` unlocks auto-prestige.
+    pub auto_prestige_milestone: f64,
+    /// `G.prestigePointGain` (from `reset_currency`) — amount-mode candidate.
+    pub prestige_point_gain: Decimal,
+    /// `G.transcendPointGain`.
+    pub transcend_point_gain: Decimal,
+    /// `G.reincarnationPointGain`.
+    pub reincarnation_point_gain: Decimal,
+    /// `calculateActualAntSpeedMult()` — outer ant-generation multiplier.
+    pub ant_speed_mult: Decimal,
+    /// Challenge-sweep `initial_wait → active` threshold.
+    pub sweep_timer_start: f64,
+    /// Challenge-sweep `active → next-stage` threshold.
+    pub sweep_timer_exit: f64,
+    /// Challenge-sweep `enter_wait → active` threshold.
+    pub sweep_timer_enter: f64,
+    /// `getNextRegularChallenge(initialIndex, {})` — `-1` = all maxed.
+    pub sweep_next_regular_challenge_from_initial: i32,
+    /// `getNextRegularChallenge(active.index, explored)` — `-1` = exhausted.
+    pub sweep_next_regular_challenge_from_active: i32,
+    /// Pre-evaluated `challenge15AutoExponentCheck()`.
+    pub sweep_challenge_15_auto_exponent_check: bool,
+    /// Pre-evaluated `finished` revalidation guard (c1 + c6 still maxed).
+    pub sweep_is_finished_still_valid: bool,
+}
+
+impl Default for AutomationPre {
+    /// Identity values — multipliers are `1`, the GQ-export gate is off,
+    /// and the quark timer clamps at the legacy base ceiling.
+    fn default() -> Self {
+        Self {
+            global_time_multiplier: 1.0,
+            ascension_speed_multi: 1.0,
+            singularity_speed_multi: 1.0,
+            max_quark_timer: 90_000.0,
+            export_gq_per_hour: 0.0,
+            octeract_unlocked: false,
+            octeract_per_second: 0.0,
+            golden_quarks_multiplier_excluding_base: 1.0,
+            auto_potion_speed_mult: 1.0,
+            offering_potion_count: 0.0,
+            obtainium_potion_count: 0.0,
+            ambrosia_generation_speed: 0.0,
+            ambrosia_luck: 0.0,
+            bonus_ambrosia: 0.0,
+            time_per_ambrosia: 45.0,
+            ambrosia_accelerator_mult: 1.0,
+            ambrosia_brick_of_lead_mult: 1.0,
+            red_ambrosia_generation_speed: 0.0,
+            red_ambrosia_luck: 0.0,
+            ambrosia_time_per_red_ambrosia: 0.0,
+            time_per_red_ambrosia: 100_000.0,
+            red_ambrosia_bar_requirement_multiplier: 1.0,
+            offering_auto_rune: false,
+            ant_sacrifice_unlocked: false,
+            available_reborn_elo: 0.0,
+            immortal_elo_gain: 0.0,
+            obtainium_gain: Decimal::zero(),
+            roomba_unlocked: false,
+            auto_prestige_milestone: 0.0,
+            prestige_point_gain: Decimal::zero(),
+            transcend_point_gain: Decimal::zero(),
+            reincarnation_point_gain: Decimal::zero(),
+            ant_speed_mult: Decimal::one(),
+            sweep_timer_start: 0.0,
+            sweep_timer_exit: 0.0,
+            sweep_timer_enter: 0.0,
+            sweep_next_regular_challenge_from_initial: -1,
+            sweep_next_regular_challenge_from_active: -1,
+            sweep_challenge_15_auto_exponent_check: false,
+            sweep_is_finished_still_valid: true,
+        }
+    }
+}
 
 /// Inputs to [`tack`]. Owned by the caller — `logic` has no clock, no
 /// input device, no RNG seed source of its own.
@@ -77,6 +245,8 @@ pub struct TackInput {
     pub update_all_tick_pre: UpdateAllTickPre,
     /// Hand-packed pre-evaluated bundle for [`resource_gain`].
     pub resource_gain_pre: ResourceGainPre,
+    /// Pre-evaluated inputs for the Phase 5 automation layer.
+    pub automation_pre: AutomationPre,
 }
 
 /// A single queued player input. Variants will expand as automation
@@ -158,6 +328,10 @@ pub struct CrossMechanicCache {
     pub update_all_tick_pre: UpdateAllTickPre,
     /// Pre-evaluated bundle for [`resource_gain`].
     pub resource_gain_pre: ResourceGainPre,
+    /// Pre-evaluated inputs for the Phase 5 automation layer. Forwarded
+    /// from [`TackInput`] today; state-derived field-by-field as the
+    /// upstream speed-mult aggregators port.
+    pub automation_pre: AutomationPre,
 }
 
 /// Captured outputs of the three Phase 2 aggregators, so downstream
@@ -202,9 +376,7 @@ pub fn tack(state: &mut GameState, input: &TackInput) -> TickOutput {
         compute_resource_gain_pre(state, &input.resource_gain_pre, &aggregator_outputs);
     phase_player_input(state, input, &mut output);
     phase_generation(state, &cache, input.dt, &mut output);
-    if !input.time_warp {
-        phase_automation(state, &cache, &mut output);
-    }
+    phase_automation(state, &cache, input, &mut output);
 
     output
 }
@@ -239,6 +411,7 @@ fn phase_cross_mechanic_precompute(state: &GameState, input: &TackInput) -> Cros
         ),
         update_all_tick_pre: compute_update_all_tick_pre(state, &input.update_all_tick_pre),
         resource_gain_pre: input.resource_gain_pre,
+        automation_pre: input.automation_pre,
     }
 }
 
@@ -653,18 +826,400 @@ fn phase_generation(
     output.events.extend(result.events);
 }
 
-/// **Phase 5** — Automation (head/middle/tail).
+/// **Phase 5** — Automation (head / middle / tail).
 ///
-/// **Status: stub.** Skipped when [`TackInput::time_warp`] is true.
-/// Implementation lands as the underlying mechanics port:
-/// - **Head**: quark / golden-quark / ambrosia timers
-/// - **Middle**: rune sacrifice, ant sacrifice, addObtainium, auto-research
-/// - **Tail**: addOfferings, challenge sweep state machine, auto-reset
+/// Mirrors the legacy `tackBody`: the **head** (ant generation + the 11
+/// `addTimers` cases) and **middle** (rune / ant sacrifice, addObtainium,
+/// auto-research) run only on live ticks — skipped when
+/// [`TackInput::time_warp`] is true — while the **tail** (addOfferings,
+/// challenge sweep, auto-reset) always runs so offline catch-up still
+/// resets and accrues offerings.
 ///
-/// Each sub-phase is gated on its own auto-toggle flag; the orchestrator
-/// reads those flags from `state` slices that haven't been wired yet.
-fn phase_automation(_state: &mut GameState, _cache: &CrossMechanicCache, _output: &mut TickOutput) {
-    // Intentionally empty. See module docs.
+/// Cross-mechanic multipliers + unlock gates with no ported aggregator
+/// yet arrive via [`AutomationPre`] (caller pre-evaluated); each emitted
+/// [`CoreEvent`] is an intent the UI tier turns into the matching side
+/// effect.
+fn phase_automation(
+    state: &mut GameState,
+    cache: &CrossMechanicCache,
+    input: &TackInput,
+    output: &mut TickOutput,
+) {
+    let pre = &cache.automation_pre;
+    let dt = input.dt;
+
+    // Head, middle, and ant generation only run on live ticks; the tail
+    // runs unconditionally below (mirroring the legacy `tackBody`).
+    if !input.time_warp {
+        // ── Generation: ant producers + crumbs (no event) ───────────
+        let ant =
+            ant_generation::generate_ants_and_crumbs(&ant_generation::GenerateAntsAndCrumbsInput {
+                dt,
+                ant_speed_mult: pre.ant_speed_mult,
+                producers: &state.ants.producers,
+                masteries: &state.ants.masteries,
+                crumbs: state.ants.crumbs,
+                crumbs_this_sacrifice: state.ants.crumbs_this_sacrifice,
+                crumbs_ever_made: state.ants.crumbs_ever_made,
+            });
+        for (tier, generated) in state.ants.producers.iter_mut().zip(ant.producers_generated) {
+            tier.generated = generated;
+        }
+        state.ants.crumbs = ant.crumbs;
+        state.ants.crumbs_this_sacrifice = ant.crumbs_this_sacrifice;
+        state.ants.crumbs_ever_made = ant.crumbs_ever_made;
+
+        // ── Head: simple counters (no events) ────────────────────────────
+        state.reset_counters.prestige_counter = timers::advance_reset_counter(
+            state.reset_counters.prestige_counter,
+            dt,
+            pre.global_time_multiplier,
+        );
+        state.reset_counters.transcend_counter = timers::advance_reset_counter(
+            state.reset_counters.transcend_counter,
+            dt,
+            pre.global_time_multiplier,
+        );
+        state.reset_counters.reincarnation_counter = timers::advance_reset_counter(
+            state.reset_counters.reincarnation_counter,
+            dt,
+            pre.global_time_multiplier,
+        );
+
+        let asc = timers::advance_ascension_timer(&timers::AdvanceAscensionTimerInput {
+            dt,
+            ascension_counter: state.reset_counters.ascension_counter,
+            ascension_counter_real: state.reset_counters.ascension_counter_real,
+            ascension_speed_multi: pre.ascension_speed_multi,
+        });
+        state.reset_counters.ascension_counter = asc.ascension_counter;
+        state.reset_counters.ascension_counter_real = asc.ascension_counter_real;
+
+        let sing = timers::advance_singularity_timer(&timers::AdvanceSingularityTimerInput {
+            dt,
+            ascension_counter_real_real: state.reset_counters.ascension_counter_real_real,
+            singularity_counter: state.singularity.singularity_counter,
+            sing_challenge_timer: state.singularity.sing_challenge_timer,
+            inside_singularity_challenge: inside_singularity_challenge(&state.singularity),
+            singularity_speed_multi: pre.singularity_speed_multi,
+        });
+        state.reset_counters.ascension_counter_real_real = sing.ascension_counter_real_real;
+        state.singularity.singularity_counter = sing.singularity_counter;
+        state.singularity.sing_challenge_timer = sing.sing_challenge_timer;
+
+        state.quarks.quarks_timer =
+            timers::advance_quarks_timer(&timers::AdvanceQuarksTimerInput {
+                dt,
+                quarks_timer: state.quarks.quarks_timer,
+                max_quark_timer: pre.max_quark_timer,
+            });
+
+        state.golden_quarks.golden_quarks_timer =
+            timers::advance_golden_quarks_timer(&timers::AdvanceGoldenQuarksTimerInput {
+                dt,
+                golden_quarks_timer: state.golden_quarks.golden_quarks_timer,
+                export_gq_per_hour: pre.export_gq_per_hour,
+            });
+
+        // ── Head: octeract timer (emits OcteractTickFired) ───────────────
+        // `time_multiplier` is 1.0 here (legacy octeract case is in the
+        // `timeMultiplier === 1` list). The GQ-giveaway loop above singularity
+        // 160 writes `golden_quarks` + decays `quarks_this_singularity`.
+        let oct = timers::advance_octeract_timer(&timers::AdvanceOcteractTimerInput {
+            dt,
+            time_multiplier: 1.0,
+            octeract_unlocked: pre.octeract_unlocked,
+            octeract_timer: state.octeract_upgrades.octeract_timer,
+            wow_octeracts: state.cube_balances.wow_octeracts,
+            total_wow_octeracts: state.cube_balances.total_wow_octeracts,
+            golden_quarks: state.golden_quarks.golden_quarks,
+            quarks_this_singularity: state.golden_quarks.quarks_this_singularity,
+            per_second: pre.octeract_per_second,
+            highest_singularity_count: state.singularity.highest_singularity_count,
+            singularity_count: state.singularity.singularity_count,
+            golden_quarks_multiplier_excluding_base: pre.golden_quarks_multiplier_excluding_base,
+        });
+        state.octeract_upgrades.octeract_timer = oct.octeract_timer;
+        state.cube_balances.wow_octeracts = oct.wow_octeracts;
+        state.cube_balances.total_wow_octeracts = oct.total_wow_octeracts;
+        state.golden_quarks.golden_quarks = oct.golden_quarks;
+        state.golden_quarks.quarks_this_singularity = oct.quarks_this_singularity;
+        output.events.extend(oct.events);
+
+        // ── Head: auto-potion timers (emit AutoPotionFired) ──────────────
+        // Toggles + accumulators live in `state.automation`; the potion
+        // counts + speed mult are caller pre-evals (shop-slot reads).
+        let pot = timers::advance_auto_potion_timer(&timers::AdvanceAutoPotionTimerInput {
+            dt,
+            time_multiplier: 1.0,
+            highest_singularity_count: state.singularity.highest_singularity_count,
+            auto_potion_timer: state.automation.auto_potion_timer,
+            auto_potion_timer_obtainium: state.automation.auto_potion_timer_obtainium,
+            toggle_offering: state.automation.auto_potion_toggle_offering,
+            toggle_obtainium: state.automation.auto_potion_toggle_obtainium,
+            offering_potion_count: pre.offering_potion_count,
+            obtainium_potion_count: pre.obtainium_potion_count,
+            auto_potion_speed_mult: pre.auto_potion_speed_mult,
+        });
+        state.automation.auto_potion_timer = pot.auto_potion_timer;
+        state.automation.auto_potion_timer_obtainium = pot.auto_potion_timer_obtainium;
+        output.events.extend(pot.events);
+
+        // ── Head: ambrosia timer (emits AmbrosiaGained) ──────────────────
+        let amb = timers::advance_ambrosia_timer(
+            &timers::AdvanceAmbrosiaTimerInput {
+                dt,
+                time_multiplier: 1.0,
+                no_singularity_upgrades_completions: state
+                    .singularity
+                    .no_singularity_upgrades
+                    .completions,
+                ambrosia_generation_speed: pre.ambrosia_generation_speed,
+                ambrosia_timer_g: state.ambrosia.ambrosia_timer_g,
+                blueberry_time: state.ambrosia.blueberry_time,
+                ambrosia: state.ambrosia.ambrosia,
+                lifetime_ambrosia: state.ambrosia.lifetime_ambrosia,
+                ambrosia_luck: pre.ambrosia_luck,
+                bonus_ambrosia: pre.bonus_ambrosia,
+                time_per_ambrosia: pre.time_per_ambrosia,
+                accelerator_mult: pre.ambrosia_accelerator_mult,
+                brick_of_lead_mult: pre.ambrosia_brick_of_lead_mult,
+            },
+            state.rng.draw(RngPurpose::Ambrosia),
+        );
+        state.ambrosia.ambrosia_timer_g = amb.ambrosia_timer_g;
+        state.ambrosia.blueberry_time = amb.blueberry_time;
+        state.ambrosia.ambrosia = amb.ambrosia;
+        state.ambrosia.lifetime_ambrosia = amb.lifetime_ambrosia;
+        output.events.extend(amb.events);
+
+        // ── Head: red-ambrosia timer (emits RedAmbrosiaGained) ───────────
+        let red = timers::advance_red_ambrosia_timer(
+            &timers::AdvanceRedAmbrosiaTimerInput {
+                dt,
+                time_multiplier: 1.0,
+                no_ambrosia_upgrades_completions: state
+                    .singularity
+                    .no_ambrosia_upgrades
+                    .completions,
+                red_ambrosia_generation_speed: pre.red_ambrosia_generation_speed,
+                red_ambrosia_timer_g: state.red_ambrosia.red_ambrosia_timer_g,
+                red_ambrosia_time: state.red_ambrosia.red_ambrosia_time,
+                red_ambrosia: state.red_ambrosia.red_ambrosia,
+                lifetime_red_ambrosia: state.red_ambrosia.lifetime_red_ambrosia,
+                red_ambrosia_luck: pre.red_ambrosia_luck,
+                ambrosia_time_per_red_ambrosia: pre.ambrosia_time_per_red_ambrosia,
+                time_per_red_ambrosia: pre.time_per_red_ambrosia,
+                bar_requirement_multiplier: pre.red_ambrosia_bar_requirement_multiplier,
+            },
+            state.rng.draw(RngPurpose::RedAmbrosia),
+        );
+        state.red_ambrosia.red_ambrosia_timer_g = red.red_ambrosia_timer_g;
+        state.red_ambrosia.red_ambrosia_time = red.red_ambrosia_time;
+        state.red_ambrosia.red_ambrosia = red.red_ambrosia;
+        state.red_ambrosia.lifetime_red_ambrosia = red.lifetime_red_ambrosia;
+        output.events.extend(red.events);
+
+        // ── Head 11b: red→ambrosia bonus-time feedback ───────────────────
+        // Mirrors the legacy `addTimers('ambrosia', bonusAmbrosiaTime)` shim:
+        // re-enter the ambrosia timer with the bonus time as `dt`, continuing
+        // from the post-case-10 ambrosia state + RNG stream.
+        if red.bonus_ambrosia_time > 0.0 {
+            let bonus = timers::advance_ambrosia_timer(
+                &timers::AdvanceAmbrosiaTimerInput {
+                    dt: red.bonus_ambrosia_time,
+                    time_multiplier: 1.0,
+                    no_singularity_upgrades_completions: state
+                        .singularity
+                        .no_singularity_upgrades
+                        .completions,
+                    ambrosia_generation_speed: pre.ambrosia_generation_speed,
+                    ambrosia_timer_g: state.ambrosia.ambrosia_timer_g,
+                    blueberry_time: state.ambrosia.blueberry_time,
+                    ambrosia: state.ambrosia.ambrosia,
+                    lifetime_ambrosia: state.ambrosia.lifetime_ambrosia,
+                    ambrosia_luck: pre.ambrosia_luck,
+                    bonus_ambrosia: pre.bonus_ambrosia,
+                    time_per_ambrosia: pre.time_per_ambrosia,
+                    accelerator_mult: pre.ambrosia_accelerator_mult,
+                    brick_of_lead_mult: pre.ambrosia_brick_of_lead_mult,
+                },
+                state.rng.draw(RngPurpose::Ambrosia),
+            );
+            state.ambrosia.ambrosia_timer_g = bonus.ambrosia_timer_g;
+            state.ambrosia.blueberry_time = bonus.blueberry_time;
+            state.ambrosia.ambrosia = bonus.ambrosia;
+            state.ambrosia.lifetime_ambrosia = bonus.lifetime_ambrosia;
+            output.events.extend(bonus.events);
+        }
+
+        // ─── Middle (tackMiddle) ─────────────────────────────────────────
+        // 1. Rune sacrifice — gate = persisted toggle AND the shop effect.
+        if state.automation.rune_sacrifice_auto_enabled && pre.offering_auto_rune {
+            let r = automatic_tools::advance_rune_sacrifice(
+                &automatic_tools::AdvanceRuneSacrificeInput {
+                    dt,
+                    sacrifice_timer: state.automation.sacrifice_timer,
+                    auto_sacrifice_interval: state.automation.auto_sacrifice_interval,
+                    offerings: state.automation.offerings,
+                },
+            );
+            state.automation.sacrifice_timer = r.sacrifice_timer;
+            output.events.extend(r.events);
+        }
+
+        // 2. Ant sacrifice — advance the dual timers, then check readiness.
+        if pre.ant_sacrifice_unlocked {
+            let t = automatic_tools::advance_ant_sacrifice_timers(
+                &automatic_tools::AdvanceAntSacrificeTimersInput {
+                    dt,
+                    global_delta: pre.global_time_multiplier,
+                    ant_sacrifice_timer: state.ants.ant_sacrifice_timer,
+                    ant_sacrifice_timer_real: state.ants.ant_sacrifice_timer_real,
+                },
+            );
+            state.ants.ant_sacrifice_timer = t.ant_sacrifice_timer;
+            state.ants.ant_sacrifice_timer_real = t.ant_sacrifice_timer_real;
+
+            let events = automatic_tools::check_ant_sacrifice_ready(
+                &automatic_tools::CheckAntSacrificeReadyInput {
+                    mode: state.ants.toggles.auto_sacrifice_mode,
+                    crumbs_this_sacrifice: state.ants.crumbs_this_sacrifice,
+                    ant_sacrifice_timer_real: state.ants.ant_sacrifice_timer_real,
+                    auto_sacrifice_enabled: state.ants.toggles.auto_sacrifice_enabled,
+                    available_reborn_elo: pre.available_reborn_elo,
+                    only_sacrifice_max_reborn_elo: state.ants.toggles.only_sacrifice_max_reborn_elo,
+                    always_sacrifice_max_reborn_elo: state
+                        .ants
+                        .toggles
+                        .always_sacrifice_max_reborn_elo,
+                    ant_sacrifice_timer: state.ants.ant_sacrifice_timer,
+                    auto_sacrifice_threshold: state.ants.toggles.auto_sacrifice_threshold,
+                    immortal_elo_gain: pre.immortal_elo_gain,
+                    immortal_elo: state.ants.immortal_elo,
+                    reborn_elo: state.ants.reborn_elo,
+                },
+            );
+            output.events.extend(events);
+        }
+
+        // 3. Obtainium — research[61] == 1 credits gain; else (vestigial)
+        //    request a multiplier recompute, mirroring the legacy `else` arm.
+        if state.researches.researches[61] == 1.0 {
+            let r = automatic_tools::add_obtainium(&automatic_tools::AddObtainiumInput {
+                obtainium: state.researches.obtainium,
+                obtainium_gain: pre.obtainium_gain,
+                ascension_challenge: state.challenges.current_ascension_challenge,
+                taxman_last_stand_enabled: state.singularity.taxman_last_stand.enabled,
+                taxman_last_stand_completions: state.singularity.taxman_last_stand.completions,
+            });
+            state.researches.obtainium = r.obtainium;
+            output.events.extend(r.events);
+        } else {
+            output
+                .events
+                .push(CoreEvent::ObtainiumMultiplierRecomputeRequested);
+        }
+
+        // 4. Auto-research dispatch (manual vs Roomba).
+        let auto_research_events = auto_research::process_auto_research_tick(
+            &auto_research::ProcessAutoResearchTickInput {
+                auto_research_toggle: state.researches.auto_research_toggle,
+                auto_research_selected: state.researches.auto_research_selected,
+                auto_research_mode: state.researches.auto_research_mode,
+                roomba_unlocked: pre.roomba_unlocked,
+                challengecompletions_14: state.challenges.challenge_completions[14],
+            },
+        );
+        output.events.extend(auto_research_events);
+    }
+
+    // ─── Tail (tackTail) — runs unconditionally, even under time-warp
+    // (mirrors the legacy `tackBody`). ────────────────────────────────
+    //
+    // 1. addOfferings (dt/2, no event) — gated by highest c3 completions.
+    if state.challenges.highest_challenge_completions[3] > 0.0 {
+        let r = automatic_tools::add_offerings(&automatic_tools::AddOfferingsInput {
+            dt: dt / 2.0,
+            auto_offering_counter: state.automation.auto_offering_counter,
+            offerings: state.automation.offerings,
+        });
+        state.automation.auto_offering_counter = r.auto_offering_counter;
+        state.automation.offerings = r.offerings;
+    }
+
+    // 2. tickChallengeSweep (dt) — the SweepState machine.
+    let should_run_sweep =
+        state.researches.researches[150] > 0.0 && state.automation.auto_challenge_running;
+    let sweep = challenge_sweep::tick_challenge_sweep(
+        &state.automation.sweep_state,
+        &challenge_sweep::TickChallengeSweepInput {
+            dt,
+            time_since_last_state_change: state.automation.sweep_time_since_last_change,
+            should_run_sweep,
+            timer_start: pre.sweep_timer_start,
+            timer_exit: pre.sweep_timer_exit,
+            timer_enter: pre.sweep_timer_enter,
+            next_regular_challenge_from_initial: pre.sweep_next_regular_challenge_from_initial,
+            next_regular_challenge_from_active: pre.sweep_next_regular_challenge_from_active,
+            challenge_15_auto_exponent_check: pre.sweep_challenge_15_auto_exponent_check,
+            is_finished_still_valid: pre.sweep_is_finished_still_valid,
+        },
+    );
+    state.automation.sweep_state = sweep.state;
+    state.automation.sweep_time_since_last_change = sweep.time_since_last_state_change;
+    output.events.extend(sweep.events);
+
+    // 3. applyAutoResets (dt) — emits AutoResetTriggered per fired tier.
+    let resets = auto_reset::apply_auto_resets(&auto_reset::ApplyAutoResetsInput {
+        dt,
+        prestige_mode: state.automation.prestige_reset_mode,
+        auto_prestige_enabled: state.automation.auto_prestige_enabled,
+        auto_prestige_milestone: pre.auto_prestige_milestone,
+        prestige_points: state.upgrades.prestige_points,
+        prestige_point_gain: pre.prestige_point_gain,
+        prestige_amount: state.automation.prestige_amount,
+        coins_this_prestige: state.coin_counters.coins_this_prestige,
+        auto_reset_timer_prestige: state.automation.auto_reset_timer_prestige,
+        transcend_mode: state.automation.transcend_reset_mode,
+        auto_transcend_enabled: state.automation.auto_transcend_enabled,
+        upgrade_89: state.upgrades.upgrades[89],
+        transcend_points: state.upgrades.transcend_points,
+        transcend_point_gain: pre.transcend_point_gain,
+        transcend_amount: state.automation.transcend_amount,
+        coins_this_transcension: state.coin_counters.coins_this_transcension,
+        auto_reset_timer_transcension: state.automation.auto_reset_timer_transcension,
+        reincarnation_mode: state.automation.reincarnation_reset_mode,
+        auto_reincarnate_enabled: state.automation.auto_reincarnate_enabled,
+        research_46: state.researches.researches[46],
+        reincarnation_points: state.upgrades.reincarnation_points,
+        reincarnation_point_gain: pre.reincarnation_point_gain,
+        reincarnation_amount: state.automation.reincarnation_amount,
+        transcend_shards: state.reset_counters.transcend_shards,
+        auto_reset_timer_reincarnation: state.automation.auto_reset_timer_reincarnation,
+        ascension_challenge: state.challenges.current_ascension_challenge,
+        transcension_challenge: state.challenges.current_transcension_challenge,
+        reincarnation_challenge: state.challenges.current_reincarnation_challenge,
+    });
+    state.automation.auto_reset_timer_prestige = resets.auto_reset_timer_prestige;
+    state.automation.auto_reset_timer_transcension = resets.auto_reset_timer_transcension;
+    state.automation.auto_reset_timer_reincarnation = resets.auto_reset_timer_reincarnation;
+    output.events.extend(resets.events);
+}
+
+/// `player.insideSingularityChallenge` — true when the player is inside
+/// any singularity (Exalt) challenge. Gates `sing_challenge_timer`
+/// accumulation in [`timers::advance_singularity_timer`].
+fn inside_singularity_challenge(s: &crate::state::SingularityState) -> bool {
+    s.no_singularity_upgrades.enabled
+        || s.one_challenge_cap.enabled
+        || s.no_octeracts.enabled
+        || s.limited_ascensions.enabled
+        || s.no_ambrosia_upgrades.enabled
+        || s.no_quark_upgrades.enabled
+        || s.limited_time.enabled
+        || s.sadistic_prequel.enabled
+        || s.taxman_last_stand.enabled
 }
 
 // ─── Dispatch helpers ────────────────────────────────────────────────────
@@ -747,8 +1302,226 @@ mod tests {
             ..TackInput::default()
         };
         let output = tack(&mut state, &input);
-        // Default state has zero of everything — no events should fire.
-        assert!(output.events.is_empty());
+        // Default state: head timers advance silently, but the middle's
+        // obtainium branch emits the vestigial recompute request every
+        // non-warp tick (research[61] != 1) — mirroring the legacy `else`.
+        assert_eq!(output.events.len(), 1);
+        assert!(matches!(
+            output.events[0],
+            CoreEvent::ObtainiumMultiplierRecomputeRequested
+        ));
+    }
+
+    #[test]
+    fn phase_automation_advances_head_timers() {
+        let mut state = GameState::default();
+        let input = TackInput {
+            dt: 2.0,
+            automation_pre: AutomationPre {
+                global_time_multiplier: 3.0,
+                ascension_speed_multi: 5.0,
+                singularity_speed_multi: 1.0,
+                max_quark_timer: 90_000.0,
+                export_gq_per_hour: 1.0,
+                ..AutomationPre::default()
+            },
+            ..TackInput::default()
+        };
+        let output = tack(&mut state, &input);
+
+        // Reset counters advance by dt × global_time_multiplier (2 × 3).
+        assert_eq!(state.reset_counters.prestige_counter, 6.0);
+        assert_eq!(state.reset_counters.transcend_counter, 6.0);
+        assert_eq!(state.reset_counters.reincarnation_counter, 6.0);
+        // Ascension counter scales by ascension speed (2 × 5); real by dt.
+        assert_eq!(state.reset_counters.ascension_counter, 10.0);
+        assert_eq!(state.reset_counters.ascension_counter_real, 2.0);
+        // Singularity tri-counter; no challenge active → challenge timer 0.
+        assert_eq!(state.reset_counters.ascension_counter_real_real, 2.0);
+        assert_eq!(state.singularity.singularity_counter, 2.0);
+        assert_eq!(state.singularity.sing_challenge_timer, 0.0);
+        // Quark + golden-quark export timers advance by raw dt.
+        assert_eq!(state.quarks.quarks_timer, 2.0);
+        assert_eq!(state.golden_quarks.golden_quarks_timer, 2.0);
+        // Simple counters emit no events; the only event is the middle's
+        // vestigial obtainium-recompute request (research[61] != 1).
+        assert_eq!(output.events.len(), 1);
+        assert!(matches!(
+            output.events[0],
+            CoreEvent::ObtainiumMultiplierRecomputeRequested
+        ));
+    }
+
+    #[test]
+    fn time_warp_skips_head_timers() {
+        let mut state = GameState::default();
+        let input = TackInput {
+            dt: 2.0,
+            time_warp: true,
+            automation_pre: AutomationPre {
+                global_time_multiplier: 3.0,
+                ..AutomationPre::default()
+            },
+            ..TackInput::default()
+        };
+        let _ = tack(&mut state, &input);
+
+        // Head timers are gated by `!time_warp` → untouched under warp.
+        assert_eq!(state.reset_counters.prestige_counter, 0.0);
+        assert_eq!(state.reset_counters.ascension_counter, 0.0);
+        assert_eq!(state.quarks.quarks_timer, 0.0);
+    }
+
+    #[test]
+    fn golden_quarks_timer_inert_without_export() {
+        // Default automation_pre has export_gq_per_hour = 0 → GQ timer
+        // does not advance even on a normal tick.
+        let mut state = GameState::default();
+        let input = TackInput {
+            dt: 5.0,
+            ..TackInput::default()
+        };
+        let _ = tack(&mut state, &input);
+        assert_eq!(state.golden_quarks.golden_quarks_timer, 0.0);
+        // ...but the quark timer (no export gate) still advances.
+        assert_eq!(state.quarks.quarks_timer, 5.0);
+    }
+
+    #[test]
+    fn phase_automation_fires_octeract_giveaway() {
+        let mut state = GameState::default();
+        state.octeract_upgrades.octeract_timer = 0.5;
+        let input = TackInput {
+            dt: 1.0,
+            automation_pre: AutomationPre {
+                octeract_unlocked: true,
+                octeract_per_second: 4.0,
+                ..AutomationPre::default()
+            },
+            ..TackInput::default()
+        };
+        let output = tack(&mut state, &input);
+
+        // 0.5 + 1.0 = 1.5 → 1 giveaway-second; wow_octeracts += 1 × 4.
+        assert_eq!(state.cube_balances.wow_octeracts.to_number(), 4.0);
+        assert_eq!(state.cube_balances.total_wow_octeracts.to_number(), 4.0);
+        assert!((state.octeract_upgrades.octeract_timer - 0.5).abs() < 1e-9);
+        assert!(output.events.iter().any(|e| matches!(
+            e,
+            CoreEvent::OcteractTickFired {
+                amount_of_giveaways: 1
+            }
+        )));
+    }
+
+    #[test]
+    fn phase_automation_generates_ambrosia() {
+        let mut state = GameState::default();
+        // Unlock ambrosia generation (noSingularityUpgrades completed once).
+        state.singularity.no_singularity_upgrades.completions = 1.0;
+        let input = TackInput {
+            dt: 1000.0,
+            automation_pre: AutomationPre {
+                ambrosia_generation_speed: 1.0,
+                ambrosia_luck: 200.0,
+                time_per_ambrosia: 45.0,
+                ..AutomationPre::default()
+            },
+            ..TackInput::default()
+        };
+        let output = tack(&mut state, &input);
+
+        assert!(state.ambrosia.ambrosia > 0.0);
+        assert!(state.ambrosia.lifetime_ambrosia > 0.0);
+        assert!(output
+            .events
+            .iter()
+            .any(|e| matches!(e, CoreEvent::AmbrosiaGained { .. })));
+    }
+
+    #[test]
+    fn phase_automation_middle_credits_obtainium() {
+        let mut state = GameState::default();
+        // research[61] == 1 routes the obtainium branch to addObtainium.
+        state.researches.researches[61] = 1.0;
+        state.researches.obtainium = Decimal::from_finite(100.0);
+        let input = TackInput {
+            dt: 1.0,
+            automation_pre: AutomationPre {
+                obtainium_gain: Decimal::from_finite(25.0),
+                ..AutomationPre::default()
+            },
+            ..TackInput::default()
+        };
+        let output = tack(&mut state, &input);
+
+        assert_eq!(state.researches.obtainium.to_number(), 125.0);
+        // addObtainium path → AutoToolFired, and NOT the recompute request.
+        assert!(output.events.iter().any(|e| matches!(
+            e,
+            CoreEvent::AutoToolFired {
+                tool: crate::events::AutoTool::AddObtainium
+            }
+        )));
+        assert!(!output
+            .events
+            .iter()
+            .any(|e| matches!(e, CoreEvent::ObtainiumMultiplierRecomputeRequested)));
+    }
+
+    #[test]
+    fn tail_runs_under_time_warp() {
+        // Chunk 11: the tail runs even under time-warp (head + middle don't).
+        let mut state = GameState::default();
+        let input = TackInput {
+            dt: 5.0,
+            time_warp: true,
+            ..TackInput::default()
+        };
+        let _ = tack(&mut state, &input);
+        // Head skipped under warp.
+        assert_eq!(state.reset_counters.prestige_counter, 0.0);
+        assert_eq!(state.quarks.quarks_timer, 0.0);
+        // Tail ran: the reincarnation auto-reset timer accrued (ascension
+        // challenge != 12), proving the tail executed under warp.
+        assert_eq!(state.automation.auto_reset_timer_reincarnation, 5.0);
+    }
+
+    #[test]
+    fn phase_automation_boots_challenge_sweep() {
+        let mut state = GameState::default();
+        // shouldRunSweep = researches[150] > 0 && auto_challenge_running.
+        state.researches.researches[150] = 1.0;
+        state.automation.auto_challenge_running = true;
+        let input = TackInput {
+            dt: 0.025,
+            ..TackInput::default()
+        };
+        let output = tack(&mut state, &input);
+        assert_eq!(
+            state.automation.sweep_state,
+            crate::events::SweepState::InitialWait
+        );
+        assert!(output.events.iter().any(|e| matches!(
+            e,
+            CoreEvent::ChallengeSweepTransitioned {
+                to: crate::events::SweepState::InitialWait,
+                ..
+            }
+        )));
+    }
+
+    #[test]
+    fn phase_automation_generates_ants() {
+        let mut state = GameState::default();
+        // Workers (tier 0) purchased → crumbs accrue this tick.
+        state.ants.producers[0].purchased = 1000.0;
+        let input = TackInput {
+            dt: 1.0,
+            ..TackInput::default()
+        };
+        let _ = tack(&mut state, &input);
+        assert!(state.ants.crumbs.to_number() > 0.0);
     }
 
     #[test]
@@ -891,7 +1664,11 @@ mod tests {
         };
         let out_a = tack(&mut state_a, &normal);
         let out_b = tack(&mut state_b, &warped);
-        assert_eq!(out_a.events.len(), out_b.events.len());
+        // The warped tick skips head + middle (the tail runs but emits
+        // nothing on default state); the normal tick runs the middle and
+        // emits the recompute request.
+        assert!(out_b.events.is_empty());
+        assert!(out_a.events.len() > out_b.events.len());
     }
 
     #[test]
