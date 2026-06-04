@@ -534,6 +534,41 @@ fn compute_total_accelerator_boost(state: &GameState) -> f64 {
     .total_accelerator_boost
 }
 
+/// State-derive `G.buildingPower` via the legacy `calculateBuildingPower`.
+/// Pure function of `&GameState`, shared by
+/// [`compute_global_multipliers_pre`] (the `building_power` /
+/// `building_power_mult` bundle fields) and [`phase_tax`] (the flat
+/// max-exponent increase).
+fn compute_building_power(state: &GameState) -> f64 {
+    use crate::mechanics::ant_upgrades::building_cost_scale_ant_upgrade_effect;
+    use crate::mechanics::challenges::{calc_ecc, ChallengeType};
+    use crate::mechanics::crystal_and_building_power::{
+        calculate_building_power, CalculateBuildingPowerInput,
+    };
+
+    /// Ant-upgrade index for "BuildingCostScale" (legacy `AntUpgrades` = 6).
+    const ANT_UPGRADE_BUILDING_COST_SCALE: usize = 6;
+
+    calculate_building_power(&CalculateBuildingPowerInput {
+        c8_reincarnation_ecc: calc_ecc(
+            ChallengeType::Reincarnation,
+            state.challenges.challenge_completions[8],
+        ),
+        reincarnation_shards: state.reset_counters.reincarnation_shards,
+        research_36: state.researches.researches[36],
+        research_37: state.researches.researches[37],
+        research_38: state.researches.researches[38],
+        building_cost_scale_ant_upgrade_building_power_mult:
+            building_cost_scale_ant_upgrade_effect(
+                state.ants.upgrades[ANT_UPGRADE_BUILDING_COST_SCALE],
+            )
+            .building_power_mult,
+        cube_upgrade_12: state.cube_upgrade_levels.cube_upgrades[12],
+        cube_upgrade_36: state.cube_upgrade_levels.cube_upgrades[36],
+        in_reincarnation_challenge_7: state.challenges.current_reincarnation_challenge == 7,
+    })
+}
+
 /// State-derive the [`GlobalMultipliersPreEvaluated`] fields whose
 /// upstream is a pure function of [`GameState`] and existing ported
 /// mechanic helpers.
@@ -543,15 +578,15 @@ fn compute_total_accelerator_boost(state: &GameState) -> f64 {
 /// - `ant_multiplier`                   ✓ state-derived (Coins ant upgrade)
 /// - `total_coin_owned`                 ✓ state-derived (sum of coin tiers)
 /// - `recession_power`                  ✓ state-derived (G.recessionPower table)
-/// - `crystal_mult`                     forwarded (chained crystal-coin pipeline)
-/// - `building_power`                   forwarded (multi-input formula)
-/// - `building_power_mult`              forwarded (depends on building_power)
-/// - `crystal_upgrade_3_multiplier`     forwarded (depends on crystal_upgrade_3_base)
+/// - `crystal_mult`                     ✓ state-derived (crystal-coin pipeline)
+/// - `building_power`                   ✓ state-derived (`compute_building_power`)
+/// - `building_power_mult`              ✓ state-derived (building_power ^ coin owned)
+/// - `crystal_upgrade_3_multiplier`     ✓ state-derived (crystal-upgrade-3 chain)
 /// - `crystal_multiplier_achievement`   ✓ state-derived (achievement_rewards)
 /// - `const_upgrade_1_buff_achievement` ✓ always 0 (no achievement grants it)
 /// - `const_upgrade_2_buff_achievement` ✓ always 0 (no achievement grants it)
-/// - `constant_ex_max_percent_increase` forwarded (shop-effect table not ported)
-/// - `ascend_building_dr_value`         forwarded (formula not yet ported)
+/// - `constant_ex_max_percent_increase` ✓ shop subsystem unported → 0 (no logic buy-path)
+/// - `ascend_building_dr_value`         ✓ state-derived (`ascend_building_dr`)
 /// - `multiplier_effect`                ✓ injected by phase_global_state (aggregator output)
 /// - `accelerator_effect`               ✓ injected by phase_global_state (aggregator output)
 /// - `total_multiplier`                 ✓ injected by phase_global_state (aggregator output)
@@ -567,7 +602,16 @@ fn compute_global_multipliers_pre(
 ) -> GlobalMultipliersPreEvaluated {
     use crate::mechanics::ant_upgrades::{coins_ant_upgrade_effect, CoinsAntUpgradeInput};
     use crate::mechanics::calculate::{calculate_total_coin_owned, CalculateTotalCoinOwnedInput};
+    use crate::mechanics::challenges::{calc_ecc, ChallengeType};
     use crate::mechanics::corruptions::recession_power_at_level;
+    use crate::mechanics::crystal_and_building_power::{
+        ascend_building_dr, calculate_building_power_coin_multiplier,
+        calculate_crystal_coin_multiplier, calculate_crystal_exponent, crystal_upgrade_3_base,
+        crystal_upgrade_3_crystal_multiplier, crystal_upgrade_3_max_base,
+        crystal_upgrade_4_max_exponent, CalculateCrystalExponentInput, CrystalUpgrade3BaseInput,
+        CrystalUpgrade3CrystalMultiplierInput, CrystalUpgrade3MaxBaseInput,
+        CrystalUpgrade4MaxExponentInput,
+    };
     use crate::mechanics::rune_effects::{prism_rune_effects, PrismRuneKey};
     use crate::state::{RECESSION_INDEX, RUNE_PRISM};
 
@@ -593,23 +637,86 @@ fn compute_global_multipliers_pre(
     let ach = achievement_reward_input(state);
     let c15_exponent = state.challenges.challenge15_exponent;
 
+    // ─── Building power → coin multiplier ────────────────────────────────
+    let building_power = compute_building_power(state);
+    let building_power_mult =
+        calculate_building_power_coin_multiplier(building_power, total_coin_owned);
+
+    // ─── Crystal coin multiplier (prestige-shards production) ─────────────
+    // `prism_spirit_crystal_caps` needs rune-spirit power (the unported
+    // `spiritMultiplier` chain); prism spirit level is 0 in current play,
+    // so the additive cap contribution is 0.
+    let crystal_upgrade_4_max_exp =
+        crystal_upgrade_4_max_exponent(&CrystalUpgrade4MaxExponentInput {
+            research_129: state.researches.researches[129],
+            common_fragments: Decimal::from_finite(state.talismans.common_fragments),
+            prism_spirit_crystal_caps: 0.0,
+        });
+    let crystal_exponent = calculate_crystal_exponent(&CalculateCrystalExponentInput {
+        crystal_upgrade_3_max_exponent: crystal_upgrade_4_max_exp,
+        crystal_upgrade_3: state.crystal_upgrades.crystal_upgrades[3],
+        c3_transcend_ecc: calc_ecc(
+            ChallengeType::Transcend,
+            state.challenges.challenge_completions[3],
+        ),
+        research_28: state.researches.researches[28],
+        research_29: state.researches.researches[29],
+        research_30: state.researches.researches[30],
+        cube_upgrade_17: state.cube_upgrade_levels.cube_upgrades[17],
+    });
+    let crystal_mult =
+        calculate_crystal_coin_multiplier(state.crystal_upgrades.prestige_shards, crystal_exponent);
+
+    // ─── Crystal-upgrade-3 crystal multiplier (max_base → base → mult) ───
+    let crystal_u3_base = crystal_upgrade_3_base(&CrystalUpgrade3BaseInput {
+        max_base: crystal_upgrade_3_max_base(&CrystalUpgrade3MaxBaseInput {
+            upgrade_122: f64::from(state.upgrades.upgrades[122]),
+            research_129: state.researches.researches[129],
+            common_fragments: Decimal::from_finite(state.talismans.common_fragments),
+        }),
+        crystal_upgrade_2: state.crystal_upgrades.crystal_upgrades[2],
+    });
+    let diamonds = &state.diamond_producers.tiers;
+    let crystal_producers_owned = diamonds[0].owned
+        + diamonds[1].owned
+        + diamonds[2].owned
+        + diamonds[3].owned
+        + diamonds[4].owned;
+    let crystal_upgrade_3_multiplier =
+        crystal_upgrade_3_crystal_multiplier(&CrystalUpgrade3CrystalMultiplierInput {
+            base: crystal_u3_base,
+            crystal_producers_owned,
+        });
+
+    // ─── Ascend-building diminishing returns ─────────────────────────────
+    let ab = &state.tesseract_buildings;
+    let ascend_building_dr_value = ascend_building_dr(
+        ab.ascend_building_1.owned
+            + ab.ascend_building_2.owned
+            + ab.ascend_building_3.owned
+            + ab.ascend_building_4.owned
+            + ab.ascend_building_5.owned,
+    );
+
     GlobalMultipliersPreEvaluated {
         prism_production_log10: prism_rune_effects(prism_level, PrismRuneKey::ProductionLog10),
         total_coin_owned,
         ant_multiplier: ant_effect.coin_multiplier,
         recession_power: recession_power_at_level(recession_level),
-        // Forwarded — upstream mechanic not yet plumbed.
-        crystal_mult: fallback.crystal_mult,
-        building_power: fallback.building_power,
-        building_power_mult: fallback.building_power_mult,
-        crystal_upgrade_3_multiplier: fallback.crystal_upgrade_3_multiplier,
+        crystal_mult,
+        building_power,
+        building_power_mult,
+        crystal_upgrade_3_multiplier,
         crystal_multiplier_achievement: achievement_rewards::crystal_multiplier(&ach),
         // No achievement grants `constUpgrade1Buff`/`constUpgrade2Buff` in
         // the legacy table — the additive reward is always 0.
         const_upgrade_1_buff_achievement: 0.0,
         const_upgrade_2_buff_achievement: 0.0,
-        constant_ex_max_percent_increase: fallback.constant_ex_max_percent_increase,
-        ascend_building_dr_value: fallback.ascend_building_dr_value,
+        // `constantEX` shop upgrade (`getShopUpgradeEffects` = identity):
+        // the shop name→index map / buy-path is UI-tier and unported, so
+        // the level is 0 in logic-driven play → 0.
+        constant_ex_max_percent_increase: 0.0,
+        ascend_building_dr_value,
         multiplier_effect: fallback.multiplier_effect,
         accelerator_effect: fallback.accelerator_effect,
         total_multiplier: fallback.total_multiplier,
@@ -875,18 +982,13 @@ const COIN_PRODUCE_SCALARS: [f64; 5] = [0.25, 2.5, 25.0, 250.0, 2500.0];
 /// variant yet — deferred, not wired here.
 fn phase_tax(state: &mut GameState, agg: &AggregatorOutputs) -> TaxOutputs {
     use crate::mechanics::ant_upgrades::{
-        building_cost_scale_ant_upgrade_effect, coins_ant_upgrade_effect, taxes_ant_upgrade_effect,
-        CoinsAntUpgradeInput,
+        coins_ant_upgrade_effect, taxes_ant_upgrade_effect, CoinsAntUpgradeInput,
     };
     use crate::mechanics::calculate::{calculate_total_coin_owned, CalculateTotalCoinOwnedInput};
-    use crate::mechanics::challenges::{calc_ecc, ChallengeType};
     use crate::mechanics::coin_production::{
         calculate_coin_production, CalculateCoinProductionInput, PerCoinTierInput,
     };
-    use crate::mechanics::crystal_and_building_power::{
-        calculate_building_power, calculate_building_power_coin_multiplier,
-        CalculateBuildingPowerInput,
-    };
+    use crate::mechanics::crystal_and_building_power::calculate_building_power_coin_multiplier;
     use crate::mechanics::platonic_blessings::calculate_tax_platonic_blessing;
     use crate::mechanics::rune_effects::{
         duplication_rune_effects, thrift_rune_effects, DuplicationRuneKey, ThriftRuneKey,
@@ -896,11 +998,9 @@ fn phase_tax(state: &mut GameState, agg: &AggregatorOutputs) -> TaxOutputs {
     use crate::mechanics::{campaign_token_rewards, challenge_15_rewards};
     use crate::state::{RUNE_DUPLICATION, RUNE_THRIFT};
 
-    /// Ant-upgrade indices (legacy `AntUpgrades` enum): Coins / Taxes /
-    /// BuildingCostScale.
+    /// Ant-upgrade indices (legacy `AntUpgrades` enum): Coins / Taxes.
     const ANT_UPGRADE_COINS: usize = 1;
     const ANT_UPGRADE_TAXES: usize = 2;
-    const ANT_UPGRADE_BUILDING_COST_SCALE: usize = 6;
     /// Exemption talisman — index 0 in the talisman ordering.
     const TALISMAN_EXEMPTION: usize = 0;
 
@@ -939,26 +1039,8 @@ fn phase_tax(state: &mut GameState, agg: &AggregatorOutputs) -> TaxOutputs {
         ascension_challenge: challenges.current_ascension_challenge,
         crumbs: state.ants.crumbs,
     });
-    let building_power = calculate_building_power(&CalculateBuildingPowerInput {
-        c8_reincarnation_ecc: calc_ecc(
-            ChallengeType::Reincarnation,
-            challenges.challenge_completions[8],
-        ),
-        reincarnation_shards: state.reset_counters.reincarnation_shards,
-        research_36: researches[36],
-        research_37: researches[37],
-        research_38: researches[38],
-        building_cost_scale_ant_upgrade_building_power_mult:
-            building_cost_scale_ant_upgrade_effect(
-                state.ants.upgrades[ANT_UPGRADE_BUILDING_COST_SCALE],
-            )
-            .building_power_mult,
-        cube_upgrade_12: state.cube_upgrade_levels.cube_upgrades[12],
-        cube_upgrade_36: state.cube_upgrade_levels.cube_upgrades[36],
-        in_reincarnation_challenge_7: challenges.current_reincarnation_challenge == 7,
-    });
     let building_power_coin_multiplier =
-        calculate_building_power_coin_multiplier(building_power, total_coin_owned);
+        calculate_building_power_coin_multiplier(compute_building_power(state), total_coin_owned);
 
     // ─── tax exponent / divisor ──────────────────────────────────────────
     let ach = achievement_reward_input(state);
@@ -2172,5 +2254,22 @@ mod tests {
         // It threads through into ResourceGainPre (was forwarded/0 before).
         let pre = compute_resource_gain_pre(&agg, &tax, &reset);
         assert_eq!(pre.prestige_point_gain, reset.prestige_point_gain);
+    }
+
+    #[test]
+    fn global_multipliers_pre_derives_crystal_and_building_fields() {
+        // crystal_mult = (prestige_shards + 1) ^ crystal_exponent; default
+        // exponent is 1/3, so 1e9 shards → ~1000 (was forwarded identity 1).
+        let mut state = GameState::default();
+        state.crystal_upgrades.prestige_shards = Decimal::from_finite(1e9);
+        let pre = compute_global_multipliers_pre(&state, &GlobalMultipliersPreEvaluated::default());
+        assert!((pre.crystal_mult.to_number() - 1000.0).abs() / 1000.0 < 1e-6);
+
+        // ascend_building_dr_value reflects owned ascend buildings (raw sum
+        // below the 100k threshold).
+        let mut s2 = GameState::default();
+        s2.tesseract_buildings.ascend_building_1.owned = 500.0;
+        let pre2 = compute_global_multipliers_pre(&s2, &GlobalMultipliersPreEvaluated::default());
+        assert_eq!(pre2.ascend_building_dr_value, 500.0);
     }
 }
