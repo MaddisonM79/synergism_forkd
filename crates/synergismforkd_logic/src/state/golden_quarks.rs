@@ -67,6 +67,9 @@ pub struct GoldenQuarksState {
     pub golden_quarks: Decimal,
     /// `player.quarksThisSingularity` — drives `calculate_base_golden_quarks`.
     pub quarks_this_singularity: f64,
+    /// `player.goldenQuarksTimer` — GQ-export accumulator (seconds);
+    /// disabled when `export_gq_per_hour == 0`, else clamped to 168 h.
+    pub golden_quarks_timer: f64,
     /// Per-upgrade state. The UI/tier maintains the name ↔ index
     /// mapping; this slice holds the values.
     #[serde(with = "BigArray")]
@@ -78,6 +81,7 @@ impl Default for GoldenQuarksState {
         Self {
             golden_quarks: Decimal::zero(),
             quarks_this_singularity: 0.0,
+            golden_quarks_timer: 0.0,
             upgrades: [GoldenQuarkUpgrade::default(); GOLDEN_QUARK_UPGRADES_LEN],
         }
     }

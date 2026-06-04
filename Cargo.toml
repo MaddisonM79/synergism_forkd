@@ -22,10 +22,10 @@ repository = "https://github.com/MaddisonM79/synergism_forkd"
 serde = { version = "1", default-features = false, features = ["derive", "alloc"] }
 serde-big-array = { version = "0.5", default-features = false }
 postcard = { version = "1", default-features = false, features = ["alloc"] }
-# break-eternity-rs is project-controlled (owner: MaddisonM79). The 0.3.0
-# series is stable; prior yanks were one-off fixes for inherited bugs and
-# are not expected to recur. `^0.3` lets patch releases flow through.
-break-eternity-rs = { version = "0.3", default-features = false }
+# break-eternity-rs is project-controlled (owner: MaddisonM79). 0.4 adds
+# `Decimal::from_string` / `FromStr` (used by the parity harness; available
+# to the save layer). `^0.4` lets patch releases flow through.
+break-eternity-rs = { version = "0.4", default-features = false }
 rand = { version = "0.8", default-features = false, features = ["std", "std_rng"] }
 rand_xoshiro = { version = "0.6", default-features = false, features = ["serde1"] }
 smallvec = { version = "1", default-features = false, features = ["serde"] }

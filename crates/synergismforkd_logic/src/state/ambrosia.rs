@@ -31,8 +31,9 @@ pub struct AmbrosiaState {
     pub lifetime_ambrosia: f64,
     /// `player.blueberryTime` — generation-bar accumulator (seconds).
     pub blueberry_time: f64,
-    /// `player.ambrosiaRNG` — RNG seed for ambrosia-luck rolls.
-    pub ambrosia_rng: f64,
+    /// `G.ambrosiaTimer` — sub-bar 1/8 s granule accumulator that feeds
+    /// `blueberry_time`. Distinct from `blueberry_time` itself.
+    pub ambrosia_timer_g: f64,
     /// `player.spentBlueberries` — count of blueberries allocated
     /// to upgrades.
     pub spent_blueberries: f64,
@@ -47,7 +48,7 @@ impl Default for AmbrosiaState {
             ambrosia: 0.0,
             lifetime_ambrosia: 0.0,
             blueberry_time: 0.0,
-            ambrosia_rng: 0.0,
+            ambrosia_timer_g: 0.0,
             spent_blueberries: 0.0,
             upgrades: [AmbrosiaUpgrade::default(); AMBROSIA_UPGRADES_LEN],
         }
