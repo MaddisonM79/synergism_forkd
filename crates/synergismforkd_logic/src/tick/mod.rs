@@ -335,12 +335,10 @@ pub struct CrossMechanicCache {
 /// math. (Replaces what would otherwise be `G.*`-style mutable globals
 /// in the legacy TS implementation.)
 ///
-/// `update_all_multiplier` and `update_all_tick` fields aren't read
-/// by downstream phases yet — only `global_multipliers` feeds
-/// [`compute_resource_gain_pre`] today. The other two are captured
-/// for symmetry with the design and to make the future migration of
-/// the per-tier `produce_*` fields a local change rather than a
-/// signature change.
+/// `global_multipliers` feeds [`compute_resource_gain_pre`] + [`phase_tax`];
+/// `update_all_tick.accelerator_effect` feeds [`compute_reset_currency_gains`]
+/// (the upgrade-16 prestige multiplier). `update_all_multiplier` is captured
+/// for symmetry / future downstream reads.
 #[derive(Debug, Clone, Copy)]
 struct AggregatorOutputs {
     global_multipliers: GlobalMultipliersResult,
@@ -349,10 +347,6 @@ struct AggregatorOutputs {
         reason = "captured for downstream phase migration; the lint will flip on as soon as a later phase reads it"
     )]
     update_all_multiplier: UpdateAllMultiplierResult,
-    #[expect(
-        dead_code,
-        reason = "captured for downstream phase migration; the lint will flip on as soon as a later phase reads it"
-    )]
     update_all_tick: UpdateAllTickResult,
 }
 
@@ -370,15 +364,19 @@ pub fn tack(state: &mut GameState, input: &TackInput) -> TickOutput {
     // multipliers), writes `g_cache.taxdivisor` for the *next* tick's
     // updateAllMultiplier, and supplies this tick's tax fields.
     let tax_outputs = phase_tax(state, &aggregator_outputs);
-    // Phase 2 + tax outputs feed Phase 4's `ResourceGainPre`. Re-compute
-    // the pre now that those results are available; fields whose upstream
-    // is only state still come through unchanged.
-    cache.resource_gain_pre = compute_resource_gain_pre(
-        state,
-        &input.resource_gain_pre,
-        &aggregator_outputs,
-        &tax_outputs,
-    );
+    // Reset-currency point gains (legacy `resetCurrency()`). They feed both
+    // `ResourceGainPre` (point conversion) and the auto-reset amount-mode
+    // thresholds in `AutomationPre`.
+    let reset_gains = compute_reset_currency_gains(state, &aggregator_outputs);
+    // Phase 2 + tax + reset outputs feed Phase 4's `ResourceGainPre`. It is
+    // now fully derived — no caller fallback.
+    cache.resource_gain_pre =
+        compute_resource_gain_pre(&aggregator_outputs, &tax_outputs, &reset_gains);
+    // Thread the same point gains into the automation bundle so auto-reset
+    // amount mode compares against this tick's gain (state-derived now).
+    cache.automation_pre.prestige_point_gain = reset_gains.prestige_point_gain;
+    cache.automation_pre.transcend_point_gain = reset_gains.transcend_point_gain;
+    cache.automation_pre.reincarnation_point_gain = reset_gains.reincarnation_point_gain;
     phase_player_input(state, input, &mut output);
     phase_generation(state, &cache, input.dt, &mut output);
     phase_automation(state, &cache, input, &mut output);
@@ -1037,6 +1035,47 @@ fn phase_tax(state: &mut GameState, agg: &AggregatorOutputs) -> TaxOutputs {
     }
 }
 
+/// Compute the per-tick reset-currency point gains (prestige / transcend /
+/// reincarnation) from `&GameState` plus the Phase-2 accelerator effect.
+///
+/// Mirrors the legacy `resetCurrency()` shim. Its three outputs feed both
+/// [`compute_resource_gain_pre`] (the coin/shard → point conversion that
+/// `resource_gain` credits) and `AutomationPre` (the auto-reset
+/// amount-mode thresholds in [`auto_reset`]). Pure — no state mutation.
+fn compute_reset_currency_gains(
+    state: &GameState,
+    agg: &AggregatorOutputs,
+) -> crate::mechanics::reset_currency::ResetCurrencyResult {
+    use crate::mechanics::challenges::{calc_ecc, ChallengeType};
+    use crate::mechanics::corruptions::deflation_multiplier_at_level;
+    use crate::mechanics::reset_currency::{reset_currency, ResetCurrencyInput};
+    use crate::state::DEFLATION_INDEX;
+
+    let ach = achievement_reward_input(state);
+    let challenges = &state.challenges;
+    reset_currency(&ResetCurrencyInput {
+        ecc5: calc_ecc(
+            ChallengeType::Transcend,
+            challenges.challenge_completions[5],
+        ),
+        transcension_challenge: challenges.current_transcension_challenge,
+        reincarnation_challenge: challenges.current_reincarnation_challenge,
+        ascension_challenge: challenges.current_ascension_challenge,
+        deflation_multiplier: deflation_multiplier_at_level(
+            state.corruptions.used.levels[DEFLATION_INDEX],
+        ),
+        coins_this_prestige: state.coin_counters.coins_this_prestige,
+        coins_this_transcension: state.coin_counters.coins_this_transcension,
+        transcend_shards: state.reset_counters.transcend_shards,
+        upgrade_16: f64::from(state.upgrades.upgrades[16]),
+        upgrade_44: f64::from(state.upgrades.upgrades[44]),
+        upgrade_65: f64::from(state.upgrades.upgrades[65]),
+        transcend_count: state.reset_counters.transcend_count,
+        accelerator_effect: agg.update_all_tick.accelerator_effect,
+        particle_gain_reward: achievement_rewards::particle_gain(&ach),
+    })
+}
+
 /// Legacy `player.{first..fifth}ProduceDiamonds` — immutable per-tier
 /// prestige-producer base scalars. Like the coin scalars these are never
 /// reassigned in the legacy, so hoisted as a constant. The cascade
@@ -1065,13 +1104,15 @@ const PARTICLE_PRODUCE_SCALARS: [f64; 5] = [0.25, 0.2, 0.15, 0.1, 0.5];
 /// - `taxdivisorcheck`                  ✓ from [`phase_tax`]
 /// - `maxexponent`                      ✓ from [`phase_tax`]
 /// - `{first..fifth}_produce_{diamonds,mythos,particles}` ✓ immutable base scalars
-/// - `{prestige,transcend,reincarnation}_point_gain` forwarded (reset_currency, next)
+/// - `{prestige,transcend,reincarnation}_point_gain` ✓ from [`compute_reset_currency_gains`]
+///
+/// Every field is now derived — `ResourceGainPre` no longer reads any
+/// caller fallback.
 #[must_use]
 fn compute_resource_gain_pre(
-    _state: &GameState,
-    fallback: &ResourceGainPre,
     agg: &AggregatorOutputs,
     tax: &TaxOutputs,
+    reset: &crate::mechanics::reset_currency::ResetCurrencyResult,
 ) -> ResourceGainPre {
     /// Verbatim port of the legacy `G.challengeBaseRequirements` const.
     /// Static lookup; no state read.
@@ -1111,10 +1152,10 @@ fn compute_resource_gain_pre(
         third_produce_particles: PARTICLE_PRODUCE_SCALARS[2],
         fourth_produce_particles: PARTICLE_PRODUCE_SCALARS[3],
         fifth_produce_particles: PARTICLE_PRODUCE_SCALARS[4],
-        // Forwarded — reset_currency point gains (next chunk).
-        prestige_point_gain: fallback.prestige_point_gain,
-        transcend_point_gain: fallback.transcend_point_gain,
-        reincarnation_point_gain: fallback.reincarnation_point_gain,
+        // From reset_currency (prestige / transcend / reincarnation gains).
+        prestige_point_gain: reset.prestige_point_gain,
+        transcend_point_gain: reset.transcend_point_gain,
+        reincarnation_point_gain: reset.reincarnation_point_gain,
     }
 }
 
@@ -2096,7 +2137,8 @@ mod tests {
         let cache = phase_cross_mechanic_precompute(&state, &TackInput::default());
         let agg = phase_global_state(&mut state, &cache);
         let tax = phase_tax(&mut state, &agg);
-        let pre = compute_resource_gain_pre(&state, &ResourceGainPre::default(), &agg, &tax);
+        let reset = compute_reset_currency_gains(&state, &agg);
+        let pre = compute_resource_gain_pre(&agg, &tax, &reset);
         assert_eq!(pre.first_produce_diamonds, 0.05);
         assert_eq!(pre.fifth_produce_diamonds, 0.000_005);
         assert_eq!(pre.first_produce_mythos, 1.0);
@@ -2120,5 +2162,23 @@ mod tests {
         };
         let _ = tack(&mut state, &input);
         assert!((state.crystal_upgrades.prestige_shards.to_number() - 50.0).abs() < 1e-9);
+    }
+
+    #[test]
+    fn reset_currency_gains_feed_resource_gain_pre() {
+        // reset_currency is now self-derived: with coins-this-prestige set,
+        // the prestige point gain is `floor((coins/1e12) ^ prestige_pow)`
+        // where the default `prestige_pow = 0.5` (ecc5 0, deflation mult 1).
+        // (1e24 / 1e12) ^ 0.5 = (1e12) ^ 0.5 = 1e6.
+        let mut state = GameState::default();
+        state.coin_counters.coins_this_prestige = Decimal::from_finite(1e24);
+        let cache = phase_cross_mechanic_precompute(&state, &TackInput::default());
+        let agg = phase_global_state(&mut state, &cache);
+        let tax = phase_tax(&mut state, &agg);
+        let reset = compute_reset_currency_gains(&state, &agg);
+        assert!((reset.prestige_point_gain.to_number() - 1e6).abs() / 1e6 < 1e-9);
+        // It threads through into ResourceGainPre (was forwarded/0 before).
+        let pre = compute_resource_gain_pre(&agg, &tax, &reset);
+        assert_eq!(pre.prestige_point_gain, reset.prestige_point_gain);
     }
 }

@@ -111,6 +111,40 @@ pub fn recession_power_at_level(level: u32) -> f64 {
     RECESSION_POWER.get(level as usize).copied().unwrap_or(0.0)
 }
 
+/// `G.deflationMultiplier` lookup table — prestige-power scaler indexed by
+/// `player.corruptions.used.deflation` corruption level. 17 entries
+/// (`0..=16`); the tail is `0`. Verbatim port of the constant in
+/// `legacy/core_split/packages/web_ui/src/Variables.ts`.
+pub const DEFLATION_MULTIPLIER: [f64; 17] = [
+    1.0,
+    0.3,
+    0.1,
+    0.03,
+    0.01,
+    1.0 / 1e6,
+    1.0 / 1e8,
+    1.0 / 1e10,
+    1.0 / 1e12,
+    1.0 / 1e15,
+    1.0 / 1e18,
+    1.0 / 1e25,
+    1.0 / 1e35,
+    1.0 / 1e50,
+    1.0 / 1e77,
+    0.0,
+    0.0,
+];
+
+/// `G.deflationMultiplier[level]` with a safe out-of-range fallback to
+/// `0.0` (consistent with the table's zero tail).
+#[must_use]
+pub fn deflation_multiplier_at_level(level: u32) -> f64 {
+    DEFLATION_MULTIPLIER
+        .get(level as usize)
+        .copied()
+        .unwrap_or(0.0)
+}
+
 /// Inputs to [`viscosity_effect`].
 #[derive(Debug, Clone, Copy)]
 pub struct ViscosityEffectInput {
@@ -301,6 +335,18 @@ mod tests {
         assert!((recession_power_at_level(16) - 0.000_07).abs() < 1e-9);
         // Past the last entry — saturates to 0.
         assert_eq!(recession_power_at_level(100), 0.0);
+    }
+
+    #[test]
+    fn deflation_multiplier_table_matches_legacy() {
+        // Legacy `G.deflationMultiplier` from `Variables.ts`.
+        assert_eq!(deflation_multiplier_at_level(0), 1.0);
+        assert_eq!(deflation_multiplier_at_level(4), 0.01);
+        assert!((deflation_multiplier_at_level(5) - 1.0 / 1e6).abs() < 1e-18);
+        assert!((deflation_multiplier_at_level(14) - 1.0 / 1e77).abs() < 1e-90);
+        assert_eq!(deflation_multiplier_at_level(15), 0.0);
+        // Past the last entry — saturates to 0.
+        assert_eq!(deflation_multiplier_at_level(100), 0.0);
     }
 
     fn baseline_max_input() -> MaxCorruptionLevelInput {

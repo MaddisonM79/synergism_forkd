@@ -18,9 +18,10 @@
 //!
 //! This module ports the keys consumed by the Phase 2 aggregator
 //! `*Pre` bundles (`accelerators`, `acceleratorPower`, `multipliers`,
-//! `crystalMultiplier`, `accelBoosts`) plus the tax-phase key
-//! (`taxReduction`). Further keys (`particleGain`, `antSacrificeUnlock`,
-//! …) land alongside the chunks that consume them.
+//! `crystalMultiplier`, `accelBoosts`), the tax-phase key
+//! (`taxReduction`), and the reset-currency key (`particleGain`). Further
+//! keys (`antSacrificeUnlock`, …) land alongside the chunks that consume
+//! them.
 
 use synergismforkd_bignum::Decimal;
 
@@ -112,6 +113,9 @@ const TAX_REDUCTION_FLAT: [(usize, f64); 11] = [
 /// only non-constant tax-reduction reward.
 const TAX_REDUCTION_CHALLENGE_INDEX: usize = 118;
 
+/// Legacy index of the lone `particleGain` achievement (#50): `() => 2`.
+const PARTICLE_GAIN_INDEX: usize = 50;
+
 #[inline]
 fn earned(achievements: &[u8; ACHIEVEMENTS_LEN], index: usize) -> bool {
     achievements[index] != 0
@@ -194,6 +198,17 @@ pub fn tax_reduction(input: &AchievementRewardInput) -> f64 {
     prod
 }
 
+/// `getAchievementReward('particleGain')` — multiplicative (base 1). The
+/// single contributing achievement (#50) grants a flat `×2`.
+#[must_use]
+pub fn particle_gain(input: &AchievementRewardInput) -> f64 {
+    if earned(input.achievements, PARTICLE_GAIN_INDEX) {
+        2.0
+    } else {
+        1.0
+    }
+}
+
 /// `getAchievementReward('crystalMultiplier')` — multiplicative (base 1).
 /// The single contributing achievement grants
 /// `max(1, ln(prestigePoints))`.
@@ -240,6 +255,15 @@ mod tests {
         assert_eq!(multipliers(&inp), 0.0);
         assert_eq!(crystal_multiplier(&inp), 1.0); // product identity
         assert_eq!(tax_reduction(&inp), 1.0); // product identity
+        assert_eq!(particle_gain(&inp), 1.0); // product identity
+    }
+
+    #[test]
+    fn particle_gain_doubles_when_earned() {
+        let a = earned_array(&[PARTICLE_GAIN_INDEX]);
+        assert_eq!(particle_gain(&input(&a)), 2.0);
+        let none = [0u8; ACHIEVEMENTS_LEN];
+        assert_eq!(particle_gain(&input(&none)), 1.0);
     }
 
     #[test]
