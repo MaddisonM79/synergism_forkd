@@ -369,6 +369,7 @@ pub fn tack(state: &mut GameState, input: &TackInput) -> TickOutput {
     // values.
     cache.automation_pre.global_time_multiplier = compute_global_speed_mult_pre(state);
     cache.automation_pre.ascension_speed_multi = compute_ascension_speed_mult_pre(state);
+    cache.automation_pre.singularity_speed_multi = compute_singularity_speed_mult_pre(state);
     phase_player_input(state, input, &mut output);
     phase_generation(state, &resource_gain_pre, input.dt, &mut output);
     phase_automation(state, &cache, input, &mut output);
@@ -1381,6 +1382,32 @@ fn compute_ascension_speed_mult_pre(state: &GameState) -> f64 {
     })
 }
 
+/// Singularity-speed multiplier, self-derived from `&GameState`.
+///
+/// Legacy Helper.ts `addTimers('singularity')` sets this to
+/// `getAmbrosiaUpgradeEffects('ambrosiaBrickOfLead', 'singularitySpeedMult')`
+/// — NOT a StatLine reduction — i.e. `1 - effectiveLevel / 100` (= 1 at
+/// level 0). Replaces the caller-provided
+/// `AutomationPre::singularity_speed_multi`.
+///
+/// Uses the stored effective level (`level + free_level`). The live
+/// effective-level refinements — the red-ambrosia free-level chain
+/// (`extraLevelCalc`) and the `noAmbrosiaUpgrades` / `sadisticPrequel` EXALT
+/// gate that zeroes it — are not applied; both are inert at the current
+/// play state, so this stays faithful now.
+fn compute_singularity_speed_mult_pre(state: &GameState) -> f64 {
+    use crate::mechanics::blueberry_upgrades::{
+        ambrosia_brick_of_lead_effect, AmbrosiaBrickOfLeadEffectKey,
+    };
+    use crate::state::ambrosia::AMBROSIA_BRICK_OF_LEAD;
+
+    let u = &state.ambrosia.upgrades[AMBROSIA_BRICK_OF_LEAD];
+    ambrosia_brick_of_lead_effect(
+        u.level + u.free_level,
+        AmbrosiaBrickOfLeadEffectKey::SingularitySpeedMult,
+    )
+}
+
 /// Compute the per-tick reset-currency point gains (prestige / transcend /
 /// reincarnation) from `&GameState` plus the Phase-2 accelerator effect.
 ///
@@ -2167,6 +2194,20 @@ mod tests {
         state.shop.upgrades[18] = 1_000.0;
         state.golden_quarks.upgrades[59].level = 1.0;
         assert_eq!(compute_ascension_speed_mult_pre(&state), 10.0);
+    }
+
+    #[test]
+    fn singularity_speed_mult_pre_is_one_at_default() {
+        let state = GameState::default();
+        assert_eq!(compute_singularity_speed_mult_pre(&state), 1.0);
+    }
+
+    #[test]
+    fn singularity_speed_mult_pre_decreases_with_brick_of_lead() {
+        let mut state = GameState::default();
+        // ambrosiaBrickOfLead (ambrosia[31]) singularitySpeedMult = 1 - n/100.
+        state.ambrosia.upgrades[31].level = 25.0;
+        assert!((compute_singularity_speed_mult_pre(&state) - 0.75).abs() < 1e-12);
     }
 
     #[test]
