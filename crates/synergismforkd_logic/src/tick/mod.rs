@@ -968,13 +968,11 @@ fn phase_tax(state: &mut GameState, agg: &AggregatorOutputs) -> TaxOutputs {
     use crate::mechanics::talisman_effects::exemption_talisman_effects;
     use crate::mechanics::tax::{calculate_tax, CalculateTaxInput};
     use crate::mechanics::{campaign_token_rewards, challenge_15_rewards};
-    use crate::state::{RUNE_DUPLICATION, RUNE_THRIFT};
+    use crate::state::{RUNE_DUPLICATION, RUNE_THRIFT, TALISMAN_EXEMPTION};
 
     /// Ant-upgrade indices (legacy `AntUpgrades` enum): Coins / Taxes.
     const ANT_UPGRADE_COINS: usize = 1;
     const ANT_UPGRADE_TAXES: usize = 2;
-    /// Exemption talisman — index 0 in the talisman ordering.
-    const TALISMAN_EXEMPTION: usize = 0;
 
     let g = &agg.global_multipliers;
     let coin = &state.coin_producers.tiers;
