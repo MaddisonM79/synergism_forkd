@@ -1037,10 +1037,21 @@ fn phase_tax(state: &mut GameState, agg: &AggregatorOutputs) -> TaxOutputs {
     }
 }
 
+/// Legacy `player.{first..fifth}ProduceDiamonds` — immutable per-tier
+/// prestige-producer base scalars. Like the coin scalars these are never
+/// reassigned in the legacy, so hoisted as a constant. The cascade
+/// formula that turns them into `G.produce*Diamonds` lives in
+/// [`resource_gain`]; this slice only carries the base rate.
+const DIAMOND_PRODUCE_SCALARS: [f64; 5] = [0.05, 0.0005, 0.00005, 0.000005, 0.000005];
+/// Legacy `player.{first..fifth}ProduceMythos` — transcend-producer base.
+const MYTHOS_PRODUCE_SCALARS: [f64; 5] = [1.0, 0.01, 0.001, 0.0002, 0.00004];
+/// Legacy `player.{first..fifth}ProduceParticles` — reincarnation base.
+const PARTICLE_PRODUCE_SCALARS: [f64; 5] = [0.25, 0.2, 0.15, 0.1, 0.5];
+
 /// State + aggregator-output-derive the [`ResourceGainPre`] fields.
 ///
 /// Migration coverage today (`✓` = derived from state / aggregator
-/// outputs, `forwarded` = caller-provided fallback):
+/// outputs / constants, `forwarded` = caller-provided fallback):
 /// - `global_crystal_multiplier`        ✓ from GlobalMultipliersResult
 /// - `global_mythos_multiplier`         ✓ from GlobalMultipliersResult
 /// - `grandmaster_multiplier`           ✓ from GlobalMultipliersResult
@@ -1053,8 +1064,8 @@ fn phase_tax(state: &mut GameState, agg: &AggregatorOutputs) -> TaxOutputs {
 /// - `taxdivisor`                       ✓ from [`phase_tax`] (fresh this tick)
 /// - `taxdivisorcheck`                  ✓ from [`phase_tax`]
 /// - `maxexponent`                      ✓ from [`phase_tax`]
-/// - everything else                    forwarded (depends on reset-currency
-///   gains or per-tier produce_* values not yet captured by the orchestrator)
+/// - `{first..fifth}_produce_{diamonds,mythos,particles}` ✓ immutable base scalars
+/// - `{prestige,transcend,reincarnation}_point_gain` forwarded (reset_currency, next)
 #[must_use]
 fn compute_resource_gain_pre(
     _state: &GameState,
@@ -1083,26 +1094,27 @@ fn compute_resource_gain_pre(
         taxdivisor: tax.taxdivisor,
         taxdivisorcheck: tax.taxdivisorcheck,
         maxexponent: tax.maxexponent,
-        // Forwarded — depends on reset-currency / per-tier produce_*
-        // pipelines not yet captured by the orchestrator.
+        // Immutable per-tier producer base scalars (legacy player
+        // constants); the cascade math lives in `resource_gain`.
+        first_produce_diamonds: DIAMOND_PRODUCE_SCALARS[0],
+        second_produce_diamonds: DIAMOND_PRODUCE_SCALARS[1],
+        third_produce_diamonds: DIAMOND_PRODUCE_SCALARS[2],
+        fourth_produce_diamonds: DIAMOND_PRODUCE_SCALARS[3],
+        fifth_produce_diamonds: DIAMOND_PRODUCE_SCALARS[4],
+        first_produce_mythos: MYTHOS_PRODUCE_SCALARS[0],
+        second_produce_mythos: MYTHOS_PRODUCE_SCALARS[1],
+        third_produce_mythos: MYTHOS_PRODUCE_SCALARS[2],
+        fourth_produce_mythos: MYTHOS_PRODUCE_SCALARS[3],
+        fifth_produce_mythos: MYTHOS_PRODUCE_SCALARS[4],
+        first_produce_particles: PARTICLE_PRODUCE_SCALARS[0],
+        second_produce_particles: PARTICLE_PRODUCE_SCALARS[1],
+        third_produce_particles: PARTICLE_PRODUCE_SCALARS[2],
+        fourth_produce_particles: PARTICLE_PRODUCE_SCALARS[3],
+        fifth_produce_particles: PARTICLE_PRODUCE_SCALARS[4],
+        // Forwarded — reset_currency point gains (next chunk).
         prestige_point_gain: fallback.prestige_point_gain,
         transcend_point_gain: fallback.transcend_point_gain,
         reincarnation_point_gain: fallback.reincarnation_point_gain,
-        first_produce_diamonds: fallback.first_produce_diamonds,
-        second_produce_diamonds: fallback.second_produce_diamonds,
-        third_produce_diamonds: fallback.third_produce_diamonds,
-        fourth_produce_diamonds: fallback.fourth_produce_diamonds,
-        fifth_produce_diamonds: fallback.fifth_produce_diamonds,
-        first_produce_mythos: fallback.first_produce_mythos,
-        second_produce_mythos: fallback.second_produce_mythos,
-        third_produce_mythos: fallback.third_produce_mythos,
-        fourth_produce_mythos: fallback.fourth_produce_mythos,
-        fifth_produce_mythos: fallback.fifth_produce_mythos,
-        first_produce_particles: fallback.first_produce_particles,
-        second_produce_particles: fallback.second_produce_particles,
-        third_produce_particles: fallback.third_produce_particles,
-        fourth_produce_particles: fallback.fourth_produce_particles,
-        fifth_produce_particles: fallback.fifth_produce_particles,
     }
 }
 
@@ -2073,5 +2085,40 @@ mod tests {
         state.g_cache.taxdivisor = Decimal::from_finite(1e300);
         let pre = compute_update_all_multiplier_pre(&state, 0.0);
         assert_eq!(pre.taxdivisor, Decimal::from_finite(1e300));
+    }
+
+    #[test]
+    fn resource_gain_pre_carries_producer_base_scalars() {
+        // The 15 diamond/mythos/particle base scalars are now wired from
+        // the immutable legacy constants (they were 0 when forwarded from a
+        // default `ResourceGainPre`, leaving the cascades inert).
+        let mut state = GameState::default();
+        let cache = phase_cross_mechanic_precompute(&state, &TackInput::default());
+        let agg = phase_global_state(&mut state, &cache);
+        let tax = phase_tax(&mut state, &agg);
+        let pre = compute_resource_gain_pre(&state, &ResourceGainPre::default(), &agg, &tax);
+        assert_eq!(pre.first_produce_diamonds, 0.05);
+        assert_eq!(pre.fifth_produce_diamonds, 0.000_005);
+        assert_eq!(pre.first_produce_mythos, 1.0);
+        assert_eq!(pre.fifth_produce_mythos, 0.000_04);
+        assert_eq!(pre.first_produce_particles, 0.25);
+        assert_eq!(pre.fifth_produce_particles, 0.5);
+    }
+
+    #[test]
+    fn diamond_cascade_produces_prestige_shards_through_tack() {
+        // End-to-end: with the base scalars now wired, owning tier-1
+        // diamond producers yields prestige shards. (Before this chunk the
+        // forwarded scalar was 0, so the cascade was inert.)
+        // produce = owned(1000) * first_produce_diamonds(0.05) * gcm(1) = 50
+        // per `dt/0.025` step → 50 shards at dt = 0.025.
+        let mut state = GameState::default();
+        state.diamond_producers.tiers[0].owned = 1000.0;
+        let input = TackInput {
+            dt: 0.025,
+            ..TackInput::default()
+        };
+        let _ = tack(&mut state, &input);
+        assert!((state.crystal_upgrades.prestige_shards.to_number() - 50.0).abs() < 1e-9);
     }
 }
