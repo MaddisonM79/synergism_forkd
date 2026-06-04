@@ -378,6 +378,7 @@ pub fn tack(state: &mut GameState, input: &TackInput) -> TickOutput {
     cache.automation_pre.auto_potion_speed_mult = auto_potion_speed;
     cache.automation_pre.export_gq_per_hour = export_gq;
     cache.automation_pre.ambrosia_luck = compute_ambrosia_luck_pre(state);
+    cache.automation_pre.ambrosia_generation_speed = compute_ambrosia_generation_speed_pre(state);
     phase_player_input(state, input, &mut output);
     phase_generation(state, &resource_gain_pre, input.dt, &mut output);
     phase_automation(state, &cache, input, &mut output);
@@ -1613,6 +1614,139 @@ fn compute_ambrosia_luck_pre(state: &GameState) -> f64 {
     calculate_ambrosia_luck(raw_luck, multiplier)
 }
 
+/// Ambrosia generation speed (legacy `calculateAmbrosiaGenerationSpeed`),
+/// self-derived from `&GameState`.
+///
+/// `raw_speed × blueberries`, where `raw_speed = Π allAmbrosiaGenerationSpeedStats`
+/// (a **product** — the `Default` gate `0|1` × multipliers) and `blueberries
+/// = Σ allAmbrosiaBlueberryStats` (a **sum** — additive blueberry count).
+/// Replaces the caller-provided `AutomationPre::ambrosia_generation_speed`.
+/// The `Default` gate is `0` until `noSingularityUpgrades.completions > 0`,
+/// so this is exactly `0` at the default state (ambrosia locked) — matching
+/// the old default.
+///
+/// Multiplicative lines whose context is unported are neutral `1.0`
+/// (planar-coin, campaign bonus [campaign-token total not tracked], shop
+/// `panthema`, patreon [quark-bonus arg], event); the additive blueberry
+/// lines neutral `0`. All are inert at the current play state.
+fn compute_ambrosia_generation_speed_pre(state: &GameState) -> f64 {
+    use crate::mechanics::ambrosia::{
+        calculate_number_of_thresholds, calculate_singularity_milestone_blueberries,
+    };
+    use crate::mechanics::calculate::{calculate_ambrosia_generation_speed, product_f64, sum_f64};
+    use crate::mechanics::golden_quark_upgrades::{
+        blueberries_effect as gq_blueberries_effect, sing_ambrosia_generation_2_effect,
+        sing_ambrosia_generation_3_effect, sing_ambrosia_generation_4_effect,
+        sing_ambrosia_generation_effect,
+    };
+    use crate::mechanics::octeracts::{
+        octeract_ambrosia_generation_2_effect, octeract_ambrosia_generation_3_effect,
+        octeract_ambrosia_generation_4_effect, octeract_ambrosia_generation_effect,
+        octeract_blueberries_effect,
+    };
+    use crate::mechanics::red_ambrosia_upgrades::{
+        blueberries_effect as red_blueberries_effect, blueberry_generation_speed_2_effect,
+        blueberry_generation_speed_effect,
+    };
+    use crate::mechanics::shop_upgrades::{
+        shop_ambrosia_generation_1_effect, shop_ambrosia_generation_2_effect,
+        shop_ambrosia_generation_3_effect, shop_ambrosia_generation_4_effect,
+        shop_cash_grab_ultra_effect, ShopCashGrabUltraKey,
+    };
+    use crate::mechanics::singularity_challenges::{
+        no_ambrosia_upgrades_effect, one_challenge_cap_effect, NoAmbrosiaUpgradesKey,
+        OneChallengeCapKey, SingularityEffectValue,
+    };
+    use crate::state::golden_quarks::{
+        GQ_BLUEBERRIES, GQ_SING_AMBROSIA_GENERATION, GQ_SING_AMBROSIA_GENERATION_2,
+        GQ_SING_AMBROSIA_GENERATION_3, GQ_SING_AMBROSIA_GENERATION_4,
+    };
+    use crate::state::octeract_upgrades::{
+        OCTERACT_AMBROSIA_GENERATION, OCTERACT_AMBROSIA_GENERATION_2,
+        OCTERACT_AMBROSIA_GENERATION_3, OCTERACT_AMBROSIA_GENERATION_4, OCTERACT_BLUEBERRIES,
+    };
+    use crate::state::red_ambrosia::{
+        RED_AMBROSIA_BLUEBERRIES, RED_AMBROSIA_BLUEBERRY_GENERATION_SPEED,
+        RED_AMBROSIA_BLUEBERRY_GENERATION_SPEED_2,
+    };
+    use crate::state::shop::{
+        SHOP_AMBROSIA_GENERATION_1, SHOP_AMBROSIA_GENERATION_2, SHOP_AMBROSIA_GENERATION_3,
+        SHOP_AMBROSIA_GENERATION_4, SHOP_CASH_GRAB_ULTRA,
+    };
+
+    const CUBE_UPGRADE_COOKIE_26: usize = 76; // legacy player.cubeUpgrades[76]
+
+    let shop = &state.shop.upgrades;
+    let cube = &state.cube_upgrade_levels.cube_upgrades;
+    let highest_sing = state.singularity.highest_singularity_count;
+    let lifetime_amb = state.ambrosia.lifetime_ambrosia;
+    let no_sing = state.singularity.no_singularity_upgrades.completions;
+    let no_amb = state.singularity.no_ambrosia_upgrades.completions;
+    let gq = |i: usize| {
+        state.golden_quarks.upgrades[i].level + state.golden_quarks.upgrades[i].free_level
+    };
+    let oct = |i: usize| {
+        state.octeract_upgrades.upgrades[i].level + state.octeract_upgrades.upgrades[i].free_level
+    };
+    let red = |i: usize| state.red_ambrosia.upgrades[i].level;
+    // Multiplicative context → a missing singularity-effect value is 1.
+    let mc = |v: SingularityEffectValue| match v {
+        SingularityEffectValue::Scalar(s) => s,
+        SingularityEffectValue::Unlock(_) => 1.0,
+    };
+
+    let raw_speed = product_f64(&[
+        if no_sing > 0.0 { 1.0 } else { 0.0 }, // Default gate
+        1.0,                                   // PseudoCoins (planar, unported)
+        1.0,                                   // Campaign (token total not tracked)
+        shop_ambrosia_generation_1_effect(shop[SHOP_AMBROSIA_GENERATION_1]),
+        shop_ambrosia_generation_2_effect(shop[SHOP_AMBROSIA_GENERATION_2]),
+        shop_ambrosia_generation_3_effect(shop[SHOP_AMBROSIA_GENERATION_3]),
+        shop_ambrosia_generation_4_effect(shop[SHOP_AMBROSIA_GENERATION_4]),
+        1.0, // Jack (panthema)
+        sing_ambrosia_generation_effect(gq(GQ_SING_AMBROSIA_GENERATION))
+            * sing_ambrosia_generation_2_effect(gq(GQ_SING_AMBROSIA_GENERATION_2))
+            * sing_ambrosia_generation_3_effect(gq(GQ_SING_AMBROSIA_GENERATION_3))
+            * sing_ambrosia_generation_4_effect(gq(GQ_SING_AMBROSIA_GENERATION_4)),
+        octeract_ambrosia_generation_effect(oct(OCTERACT_AMBROSIA_GENERATION))
+            * octeract_ambrosia_generation_2_effect(oct(OCTERACT_AMBROSIA_GENERATION_2))
+            * octeract_ambrosia_generation_3_effect(oct(OCTERACT_AMBROSIA_GENERATION_3))
+            * octeract_ambrosia_generation_4_effect(oct(OCTERACT_AMBROSIA_GENERATION_4)),
+        1.0, // PatreonBonus (quark-bonus arg uncertain)
+        mc(one_challenge_cap_effect(
+            state.singularity.one_challenge_cap.completions,
+            OneChallengeCapKey::BlueberrySpeedMult,
+        )),
+        mc(no_ambrosia_upgrades_effect(
+            no_amb,
+            NoAmbrosiaUpgradesKey::BlueberrySpeedMult,
+        )),
+        blueberry_generation_speed_effect(red(RED_AMBROSIA_BLUEBERRY_GENERATION_SPEED)),
+        blueberry_generation_speed_2_effect(red(RED_AMBROSIA_BLUEBERRY_GENERATION_SPEED_2)),
+        1.0 + 0.01 * cube[CUBE_UPGRADE_COOKIE_26] * calculate_number_of_thresholds(lifetime_amb),
+        shop_cash_grab_ultra_effect(
+            shop[SHOP_CASH_GRAB_ULTRA],
+            ShopCashGrabUltraKey::AmbrosiaGenerationMult,
+            lifetime_amb,
+        ),
+        1.0, // Event (UI-tier)
+    ]);
+
+    let blueberries = sum_f64(&[
+        if no_sing > 0.0 { 3.0 } else { 0.0 }, // E1x1Clear
+        gq_blueberries_effect(gq(GQ_BLUEBERRIES)),
+        octeract_blueberries_effect(oct(OCTERACT_BLUEBERRIES)),
+        red_blueberries_effect(red(RED_AMBROSIA_BLUEBERRIES)),
+        calculate_singularity_milestone_blueberries(highest_sing),
+        match no_ambrosia_upgrades_effect(no_amb, NoAmbrosiaUpgradesKey::Blueberries) {
+            SingularityEffectValue::Scalar(s) => s,
+            SingularityEffectValue::Unlock(_) => 0.0,
+        },
+    ]);
+
+    calculate_ambrosia_generation_speed(raw_speed, blueberries)
+}
+
 /// Compute the per-tick reset-currency point gains (prestige / transcend /
 /// reincarnation) from `&GameState` plus the Phase-2 accelerator effect.
 ///
@@ -2428,6 +2562,21 @@ mod tests {
         // shopAmbrosiaLuck1 (shop[65]) adds to the raw-luck sum.
         state.shop.upgrades[65] = 10.0;
         assert!(compute_ambrosia_luck_pre(&state) > 100.0);
+    }
+
+    #[test]
+    fn ambrosia_generation_speed_pre_is_zero_when_locked() {
+        let state = GameState::default();
+        // Ambrosia gated (noSingularityUpgrades completions == 0) → 0.
+        assert_eq!(compute_ambrosia_generation_speed_pre(&state), 0.0);
+    }
+
+    #[test]
+    fn ambrosia_generation_speed_pre_unlocks_with_e1x1() {
+        let mut state = GameState::default();
+        // Gate open → raw_speed 1; E1x1 grants +3 blueberries → 1 × 3 = 3.
+        state.singularity.no_singularity_upgrades.completions = 1.0;
+        assert!((compute_ambrosia_generation_speed_pre(&state) - 3.0).abs() < 1e-12);
     }
 
     #[test]
