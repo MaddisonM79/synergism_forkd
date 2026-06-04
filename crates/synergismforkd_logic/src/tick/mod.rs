@@ -35,6 +35,8 @@ use synergismforkd_bignum::Decimal;
 
 use crate::events::{CoreEvent, ProducerType};
 use crate::mechanics::accelerators::{buy_accelerator, BuyAcceleratorInput};
+use crate::mechanics::achievement_rewards;
+use crate::mechanics::challenge_15_rewards;
 use crate::mechanics::crystal_upgrades::{buy_crystal_upgrades, BuyCrystalUpgradesInput};
 use crate::mechanics::global_multipliers::{
     compute_global_multipliers, GlobalMultipliersPreEvaluated, GlobalMultipliersResult,
@@ -400,19 +402,147 @@ pub fn tack(state: &mut GameState, input: &TackInput) -> TickOutput {
 /// shrinks. The cache is the migration target; `TackInput` is the
 /// temporary input mechanism.
 fn phase_cross_mechanic_precompute(state: &GameState, input: &TackInput) -> CrossMechanicCache {
+    // `total_accelerator_boost` is a pure function of state but is read by
+    // all three Phase-2 aggregators; compute it once and inject it into
+    // each bundle (overriding the now-vestigial caller value).
+    let total_accelerator_boost = compute_total_accelerator_boost(state);
+    let mut global_multipliers_pre =
+        compute_global_multipliers_pre(state, &input.global_multipliers_pre);
+    global_multipliers_pre.total_accelerator_boost = total_accelerator_boost;
+    let mut update_all_multiplier_pre =
+        compute_update_all_multiplier_pre(state, &input.update_all_multiplier_pre);
+    update_all_multiplier_pre.total_accelerator_boost = total_accelerator_boost;
+    let mut update_all_tick_pre = compute_update_all_tick_pre(state, &input.update_all_tick_pre);
+    update_all_tick_pre.total_accelerator_boost = total_accelerator_boost;
     CrossMechanicCache {
-        global_multipliers_pre: compute_global_multipliers_pre(
-            state,
-            &input.global_multipliers_pre,
-        ),
-        update_all_multiplier_pre: compute_update_all_multiplier_pre(
-            state,
-            &input.update_all_multiplier_pre,
-        ),
-        update_all_tick_pre: compute_update_all_tick_pre(state, &input.update_all_tick_pre),
+        global_multipliers_pre,
+        update_all_multiplier_pre,
+        update_all_tick_pre,
         resource_gain_pre: input.resource_gain_pre,
         automation_pre: input.automation_pre,
     }
+}
+
+/// Build the shared achievement-reward input from `&GameState` — the
+/// earned-flag array plus the cross-state values the reward formulas
+/// read (coin-producer owned counts, prestige points).
+fn achievement_reward_input(state: &GameState) -> achievement_rewards::AchievementRewardInput<'_> {
+    let coin = &state.coin_producers.tiers;
+    achievement_rewards::AchievementRewardInput {
+        achievements: &state.achievements.achievements,
+        coin_owned: [
+            coin[0].owned,
+            coin[1].owned,
+            coin[2].owned,
+            coin[3].owned,
+            coin[4].owned,
+        ],
+        prestige_points: state.upgrades.prestige_points,
+    }
+}
+
+/// State-derive `G.acceleratorMultiplier` via the legacy
+/// `calculateAcceleratorMultiplier` formula — research/upgrade
+/// compounding, the `21..=25` upgrade pentad, and the in-challenge
+/// `upgrade[50]` bonus. Pure function of `&GameState`.
+fn compute_accelerator_multiplier(state: &GameState) -> f64 {
+    use crate::mechanics::accelerator_multipliers::{
+        calculate_accelerator_multiplier, CalculateAcceleratorMultiplierInput,
+    };
+    let upgrade = |i: usize| f64::from(state.upgrades.upgrades[i]);
+    let research = |i: usize| state.researches.researches[i];
+    calculate_accelerator_multiplier(&CalculateAcceleratorMultiplierInput {
+        research_1: research(1),
+        challenge_completions_14: state.challenges.challenge_completions[14],
+        research_6: research(6),
+        research_7: research(7),
+        research_8: research(8),
+        research_9: research(9),
+        research_10: research(10),
+        research_86: research(86),
+        research_126: research(126),
+        research_141: research(141),
+        research_156: research(156),
+        research_171: research(171),
+        research_186: research(186),
+        research_200: research(200),
+        cube_upgrade_50: state.cube_upgrade_levels.cube_upgrades[50],
+        upgrade_21: upgrade(21),
+        upgrade_22: upgrade(22),
+        upgrade_23: upgrade(23),
+        upgrade_24: upgrade(24),
+        upgrade_25: upgrade(25),
+        upgrade_50: upgrade(50),
+        in_transcension_or_reincarnation_challenge: state.challenges.current_transcension_challenge
+            != 0
+            || state.challenges.current_reincarnation_challenge != 0,
+    })
+}
+
+/// State-derive `G.totalAcceleratorBoost` via the legacy
+/// `calculateTotalAcceleratorBoost` (free boost from upgrades /
+/// researches / runes / ant + hepteract effects, then `+ bought`).
+/// Pure function of `&GameState`. Injected into all three aggregator
+/// `*Pre` bundles by [`phase_cross_mechanic_precompute`].
+fn compute_total_accelerator_boost(state: &GameState) -> f64 {
+    use crate::mechanics::accelerator_multipliers::{
+        calculate_total_accelerator_boost, CalculateTotalAcceleratorBoostInput,
+    };
+    use crate::mechanics::ant_upgrades::accelerator_boosts_ant_upgrade_effect;
+    use crate::mechanics::calculate::{calculate_total_coin_owned, CalculateTotalCoinOwnedInput};
+    use crate::mechanics::hepteract_values::{hepteract_effective, HepteractEffectiveInput};
+
+    /// Ant-upgrade index for "AcceleratorBoosts" (legacy `AntUpgrades` = 3).
+    const ANT_UPGRADE_ACCELERATOR_BOOSTS: usize = 3;
+
+    let upgrade = |i: usize| f64::from(state.upgrades.upgrades[i]);
+    let research = |i: usize| state.researches.researches[i];
+    let coin = &state.coin_producers.tiers;
+    let total_coin_owned = calculate_total_coin_owned(&CalculateTotalCoinOwnedInput {
+        first_owned_coin: coin[0].owned,
+        second_owned_coin: coin[1].owned,
+        third_owned_coin: coin[2].owned,
+        fourth_owned_coin: coin[3].owned,
+        fifth_owned_coin: coin[4].owned,
+    });
+    let sum_of_rune_levels: f64 = state.runes.rune_levels.iter().sum();
+    // acceleratorBoost hepteract: LIMIT 1000, DR 1/5, DR_INCREASE = 0.
+    let hepteract_effective_accelerator_boost = hepteract_effective(&HepteractEffectiveInput {
+        raw_amount: state.hepteracts.accelerator_boost.bal,
+        limit: 1000.0,
+        dr_exponent: 1.0 / 5.0,
+        is_quark: false,
+    });
+    let ach = achievement_reward_input(state);
+
+    calculate_total_accelerator_boost(&CalculateTotalAcceleratorBoostInput {
+        upgrade_26: upgrade(26),
+        upgrade_31: upgrade(31),
+        total_coin_owned,
+        achievement_accel_boosts: achievement_rewards::accel_boosts(&ach),
+        research_93: research(93),
+        sum_of_rune_levels,
+        research_3: research(3),
+        challenge_completions_14: state.challenges.challenge_completions[14],
+        research_16: research(16),
+        research_17: research(17),
+        research_88: research(88),
+        ant_building_accelerator_boost_mult: accelerator_boosts_ant_upgrade_effect(
+            state.ants.upgrades[ANT_UPGRADE_ACCELERATOR_BOOSTS],
+        ),
+        research_127: research(127),
+        research_142: research(142),
+        research_157: research(157),
+        research_172: research(172),
+        research_187: research(187),
+        research_200: research(200),
+        cube_upgrade_50: state.cube_upgrade_levels.cube_upgrades[50],
+        hepteract_effective_accelerator_boost,
+        upgrade_73: upgrade(73),
+        in_reincarnation_challenge: state.challenges.current_reincarnation_challenge != 0,
+        accelerator_boost_bought: state.accelerator.accelerator_boost_bought,
+    })
+    .total_accelerator_boost
 }
 
 /// State-derive the [`GlobalMultipliersPreEvaluated`] fields whose
@@ -428,19 +558,19 @@ fn phase_cross_mechanic_precompute(state: &GameState, input: &TackInput) -> Cros
 /// - `building_power`                   forwarded (multi-input formula)
 /// - `building_power_mult`              forwarded (depends on building_power)
 /// - `crystal_upgrade_3_multiplier`     forwarded (depends on crystal_upgrade_3_base)
-/// - `crystal_multiplier_achievement`   forwarded (achievement-reward table)
-/// - `const_upgrade_1_buff_achievement` forwarded (achievement-reward table)
-/// - `const_upgrade_2_buff_achievement` forwarded (achievement-reward table)
+/// - `crystal_multiplier_achievement`   ✓ state-derived (achievement_rewards)
+/// - `const_upgrade_1_buff_achievement` ✓ always 0 (no achievement grants it)
+/// - `const_upgrade_2_buff_achievement` ✓ always 0 (no achievement grants it)
 /// - `constant_ex_max_percent_increase` forwarded (shop-effect table not ported)
 /// - `ascend_building_dr_value`         forwarded (formula not yet ported)
-/// - `multiplier_effect`                forwarded (G.*, cross-aggregator)
-/// - `accelerator_effect`               forwarded (G.*, cross-aggregator)
-/// - `total_multiplier`                 forwarded (G.*, cross-aggregator)
-/// - `total_accelerator`                forwarded (G.*, cross-aggregator)
-/// - `total_accelerator_boost`          forwarded (G.*, cross-aggregator)
-/// - `challenge_15_coin_exponent`       forwarded (challenge-15 rewards)
-/// - `challenge_15_exponent_value`      forwarded (challenge-15 rewards)
-/// - `challenge_15_constant_bonus`      forwarded (challenge-15 rewards)
+/// - `multiplier_effect`                ✓ injected by phase_global_state (aggregator output)
+/// - `accelerator_effect`               ✓ injected by phase_global_state (aggregator output)
+/// - `total_multiplier`                 ✓ injected by phase_global_state (aggregator output)
+/// - `total_accelerator`                ✓ injected by phase_global_state (aggregator output)
+/// - `total_accelerator_boost`          ✓ injected by precompute (calculate_total_accelerator_boost)
+/// - `challenge_15_coin_exponent`       ✓ state-derived (challenge_15_rewards)
+/// - `challenge_15_exponent_value`      ✓ state-derived (challenge_15_rewards)
+/// - `challenge_15_constant_bonus`      ✓ state-derived (challenge_15_rewards)
 #[must_use]
 fn compute_global_multipliers_pre(
     state: &GameState,
@@ -471,6 +601,8 @@ fn compute_global_multipliers_pre(
         crumbs: state.ants.crumbs,
     });
     let recession_level = state.corruptions.used.levels[RECESSION_INDEX];
+    let ach = achievement_reward_input(state);
+    let c15_exponent = state.challenges.challenge15_exponent;
 
     GlobalMultipliersPreEvaluated {
         prism_production_log10: prism_rune_effects(prism_level, PrismRuneKey::ProductionLog10),
@@ -482,9 +614,11 @@ fn compute_global_multipliers_pre(
         building_power: fallback.building_power,
         building_power_mult: fallback.building_power_mult,
         crystal_upgrade_3_multiplier: fallback.crystal_upgrade_3_multiplier,
-        crystal_multiplier_achievement: fallback.crystal_multiplier_achievement,
-        const_upgrade_1_buff_achievement: fallback.const_upgrade_1_buff_achievement,
-        const_upgrade_2_buff_achievement: fallback.const_upgrade_2_buff_achievement,
+        crystal_multiplier_achievement: achievement_rewards::crystal_multiplier(&ach),
+        // No achievement grants `constUpgrade1Buff`/`constUpgrade2Buff` in
+        // the legacy table — the additive reward is always 0.
+        const_upgrade_1_buff_achievement: 0.0,
+        const_upgrade_2_buff_achievement: 0.0,
         constant_ex_max_percent_increase: fallback.constant_ex_max_percent_increase,
         ascend_building_dr_value: fallback.ascend_building_dr_value,
         multiplier_effect: fallback.multiplier_effect,
@@ -492,9 +626,9 @@ fn compute_global_multipliers_pre(
         total_multiplier: fallback.total_multiplier,
         total_accelerator: fallback.total_accelerator,
         total_accelerator_boost: fallback.total_accelerator_boost,
-        challenge_15_coin_exponent: fallback.challenge_15_coin_exponent,
-        challenge_15_exponent_value: fallback.challenge_15_exponent_value,
-        challenge_15_constant_bonus: fallback.challenge_15_constant_bonus,
+        challenge_15_coin_exponent: challenge_15_rewards::coin_exponent(c15_exponent),
+        challenge_15_exponent_value: challenge_15_rewards::exponent_reward(c15_exponent),
+        challenge_15_constant_bonus: challenge_15_rewards::constant_bonus(c15_exponent),
     }
 }
 
@@ -513,10 +647,10 @@ fn compute_global_multipliers_pre(
 /// - `hepteract_multiplier_mult`        ✓ state-derived
 /// - `viscosity_power`                  ✓ state-derived (G.viscosityPower table)
 /// - `multiplier_cube_blessing`         ✓ state-derived (full blessing chain)
-/// - `multipliers_achievement`          forwarded (achievement-reward table not ported)
-/// - `total_accelerator_boost`          forwarded (G.*, cross-aggregator)
+/// - `multipliers_achievement`          ✓ state-derived (achievement_rewards)
+/// - `total_accelerator_boost`          ✓ injected by precompute (calculate_total_accelerator_boost)
 /// - `taxdivisor`                       forwarded (cross-mechanic tax pipeline)
-/// - `challenge_15_reward_multiplier`   forwarded (challenge-15 rewards not ported)
+/// - `challenge_15_reward_multiplier`   ✓ state-derived (challenge_15_rewards)
 #[must_use]
 fn compute_update_all_multiplier_pre(
     state: &GameState,
@@ -558,6 +692,7 @@ fn compute_update_all_multiplier_pre(
         tesseract_blessing,
         state.cube_upgrade_levels.cube_upgrades[CUBE_UPGRADE_MULTIPLIER_BLESSING],
     );
+    let ach = achievement_reward_input(state);
 
     UpdateAllMultiplierPre {
         sum_of_rune_levels,
@@ -581,10 +716,12 @@ fn compute_update_all_multiplier_pre(
         viscosity_power: viscosity_power_at_level(viscosity_level),
         multiplier_cube_blessing: cube_blessing,
         // Forwarded — upstream mechanic not yet plumbed.
-        multipliers_achievement: fallback.multipliers_achievement,
+        multipliers_achievement: achievement_rewards::multipliers(&ach),
         total_accelerator_boost: fallback.total_accelerator_boost,
         taxdivisor: fallback.taxdivisor,
-        challenge_15_reward_multiplier: fallback.challenge_15_reward_multiplier,
+        challenge_15_reward_multiplier: challenge_15_rewards::multiplier(
+            state.challenges.challenge15_exponent,
+        ),
     }
 }
 
@@ -598,11 +735,11 @@ fn compute_update_all_multiplier_pre(
 /// - `hepteract_accelerator_mult`       ✓ state-derived
 /// - `viscosity_power`                  ✓ state-derived (G.viscosityPower table)
 /// - `accelerator_cube_blessing`        ✓ state-derived (full blessing chain)
-/// - `accelerators_achievement`         forwarded (achievement-reward table)
-/// - `accelerator_power_achievement`    forwarded (achievement-reward table)
-/// - `total_accelerator_boost`          forwarded (G.*, cross-aggregator)
-/// - `accelerator_multiplier`           forwarded (G.*, cross-aggregator)
-/// - `challenge_15_reward_accelerator`  forwarded (challenge-15 rewards)
+/// - `accelerators_achievement`         ✓ state-derived (achievement_rewards)
+/// - `accelerator_power_achievement`    ✓ state-derived (achievement_rewards)
+/// - `total_accelerator_boost`          ✓ injected by precompute (calculate_total_accelerator_boost)
+/// - `accelerator_multiplier`           ✓ state-derived (calculate_accelerator_multiplier)
+/// - `challenge_15_reward_accelerator`  ✓ state-derived (challenge_15_rewards)
 #[must_use]
 fn compute_update_all_tick_pre(state: &GameState, fallback: &UpdateAllTickPre) -> UpdateAllTickPre {
     use crate::mechanics::corruptions::viscosity_power_at_level;
@@ -635,6 +772,8 @@ fn compute_update_all_tick_pre(state: &GameState, fallback: &UpdateAllTickPre) -
         tesseract_blessing,
         state.cube_upgrade_levels.cube_upgrades[CUBE_UPGRADE_ACCELERATOR_BLESSING],
     );
+    let ach = achievement_reward_input(state);
+    let accelerator_multiplier = compute_accelerator_multiplier(state);
 
     UpdateAllTickPre {
         multiplicative_accelerators_rune: speed_rune_effects(
@@ -647,11 +786,13 @@ fn compute_update_all_tick_pre(state: &GameState, fallback: &UpdateAllTickPre) -
         viscosity_power: viscosity_power_at_level(viscosity_level),
         accelerator_cube_blessing: cube_blessing,
         // Forwarded — upstream mechanic not yet plumbed.
-        accelerators_achievement: fallback.accelerators_achievement,
-        accelerator_power_achievement: fallback.accelerator_power_achievement,
+        accelerators_achievement: achievement_rewards::accelerators(&ach),
+        accelerator_power_achievement: achievement_rewards::accelerator_power(&ach),
         total_accelerator_boost: fallback.total_accelerator_boost,
-        accelerator_multiplier: fallback.accelerator_multiplier,
-        challenge_15_reward_accelerator: fallback.challenge_15_reward_accelerator,
+        accelerator_multiplier,
+        challenge_15_reward_accelerator: challenge_15_rewards::accelerator(
+            state.challenges.challenge15_exponent,
+        ),
     }
 }
 
@@ -664,7 +805,10 @@ fn compute_update_all_tick_pre(state: &GameState, fallback: &UpdateAllTickPre) -
 /// `global_crystal_multiplier` and `mythosupgrade_13` directly,
 /// instead of forwarding them from `TackInput`.
 fn phase_global_state(state: &mut GameState, cache: &CrossMechanicCache) -> AggregatorOutputs {
-    let global_multipliers = compute_global_multipliers(state, &cache.global_multipliers_pre);
+    // Legacy dependency order: `updateAllMultiplier`, then `updateAllTick`
+    // (which consumes `total_multiplier`), then `globalMultipliers` last —
+    // reading the multiplier/tick `G.*` outputs. The aggregators are pure
+    // (no production state writes), so the reorder is behaviour-preserving.
     let update_all_multiplier_result =
         update_all_multiplier(state, &cache.update_all_multiplier_pre);
     let update_all_tick_result = update_all_tick(
@@ -672,6 +816,16 @@ fn phase_global_state(state: &mut GameState, cache: &CrossMechanicCache) -> Aggr
         &cache.update_all_tick_pre,
         update_all_multiplier_result.total_multiplier,
     );
+
+    // Inject the multiplier/tick aggregator outputs into the global-
+    // multipliers bundle (these were forwarded from `TackInput` before).
+    let mut global_multipliers_pre = cache.global_multipliers_pre;
+    global_multipliers_pre.multiplier_effect = update_all_multiplier_result.multiplier_effect;
+    global_multipliers_pre.total_multiplier = update_all_multiplier_result.total_multiplier;
+    global_multipliers_pre.accelerator_effect = update_all_tick_result.accelerator_effect;
+    global_multipliers_pre.total_accelerator = update_all_tick_result.total_accelerator;
+    let global_multipliers = compute_global_multipliers(state, &global_multipliers_pre);
+
     AggregatorOutputs {
         global_multipliers,
         update_all_multiplier: update_all_multiplier_result,

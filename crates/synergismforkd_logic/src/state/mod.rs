@@ -42,7 +42,7 @@ pub mod tesseract_buildings;
 pub mod upgrades;
 
 pub use accelerator::AcceleratorState;
-pub use achievements::{AchievementsState, ProgressiveAchievementCache};
+pub use achievements::{AchievementsState, ProgressiveAchievementCache, ACHIEVEMENTS_LEN};
 pub use ambrosia::{AmbrosiaState, AmbrosiaUpgrade};
 pub use ants::{
     AntsState, AntsToggles, AutoSacrificeMode, PlayerAntMastery, PlayerAntProducer, RebornELOEntry,

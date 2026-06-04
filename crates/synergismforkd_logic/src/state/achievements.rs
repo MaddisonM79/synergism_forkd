@@ -20,16 +20,19 @@ pub struct ProgressiveAchievementCache {
     pub cached_points: f64,
 }
 
-/// Fixed cardinality of the achievement bitmap — `280 + 1` for the
-/// legacy 1-indexed convention (index 0 unused). Tier B item 12 /
-/// Anvil F4.
-pub const ACHIEVEMENTS_LEN: usize = 281;
+/// Fixed cardinality of the achievement bitmap — one slot per entry in
+/// the legacy core_split `achievements` array (509 entries, 0-indexed;
+/// index 0 is the always-on "Free Achievement"). Verified against
+/// `legacy/core_split/packages/web_ui/src/Achievements.ts` (509 entries
+/// by pointValue / unlockCondition / group / brace-depth counts).
+pub const ACHIEVEMENTS_LEN: usize = 509;
 
 /// Slice of `GameState` read/written by achievement mechanics.
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct AchievementsState {
     /// `player.achievements[i]` — 0 = unowned, non-zero = unlocked.
-    /// 1-indexed (index 0 unused) to match legacy.
+    /// 0-indexed to match core_split's `achievements` array; index 0 is
+    /// the always-on "Free Achievement".
     #[serde(with = "BigArray")]
     pub achievements: [u8; ACHIEVEMENTS_LEN],
     /// Total achievement points earned.
@@ -58,8 +61,9 @@ mod tests {
     use super::*;
 
     #[test]
-    fn default_has_281_slots() {
+    fn default_has_509_slots() {
         let s = AchievementsState::default();
+        assert_eq!(s.achievements.len(), 509);
         assert_eq!(s.achievements.len(), ACHIEVEMENTS_LEN);
         assert_eq!(s.achievement_points, 0.0);
     }

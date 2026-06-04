@@ -24,6 +24,9 @@ pub struct ChallengesState {
     pub current_reincarnation_challenge: u32,
     /// Active ascension challenge ID (`0` = none). Range `11..=15`.
     pub current_ascension_challenge: u32,
+    /// `player.challenge15Exponent` — cumulative Challenge-15 exponent;
+    /// gates the c15 reward tiers (`mechanics::challenge_15_rewards`).
+    pub challenge15_exponent: f64,
 }
 
 impl Default for ChallengesState {
@@ -34,6 +37,7 @@ impl Default for ChallengesState {
             current_transcension_challenge: 0,
             current_reincarnation_challenge: 0,
             current_ascension_challenge: 0,
+            challenge15_exponent: 0.0,
         }
     }
 }

@@ -27,6 +27,11 @@ pub struct AcceleratorState {
     /// Total accelerators owned. Walked past `MAX_SAFE_INTEGER` in the
     /// high-end binary-search branch.
     pub accelerator_bought: f64,
+    /// `player.acceleratorBoostBought` — accelerator-boosts purchased.
+    /// Feeds `calculate_total_accelerator_boost` (the `bought + free`
+    /// total). Defaults to 0; set by the (not-yet-ported) buy-boost
+    /// action.
+    pub accelerator_boost_bought: f64,
     /// Cost of the next accelerator (cached so the UI can render without
     /// recomputing).
     pub accelerator_cost: Decimal,
@@ -45,6 +50,7 @@ impl Default for AcceleratorState {
     fn default() -> Self {
         Self {
             accelerator_bought: 0.0,
+            accelerator_boost_bought: 0.0,
             accelerator_cost: Decimal::zero(),
             prestige_no_accelerator: true,
             transcend_no_accelerator: true,
