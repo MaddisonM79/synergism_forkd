@@ -89,6 +89,24 @@ pub fn calculate_building_power_coin_multiplier(
     Decimal::from_finite(building_power).pow(Decimal::from_finite(total_owned_coin))
 }
 
+/// Above this total ascend-building count, `ascend_building_dr` switches
+/// from the raw sum to a square-root diminishing-returns curve.
+const ASCEND_BUILDING_DR_THRESHOLD: f64 = 100_000.0;
+
+/// `ascendBuildingDR()` — diminishing-returns value over the summed
+/// ascend-building (tesseract) owned count. Above the threshold it
+/// becomes `sqrt(threshold) * sqrt(sum)`; below, it's the raw sum.
+/// Feeds the `ascend_building_dr_value` slot of
+/// [`compute_global_multipliers`].
+#[must_use]
+pub fn ascend_building_dr(total_ascend_buildings_owned: f64) -> f64 {
+    if total_ascend_buildings_owned > ASCEND_BUILDING_DR_THRESHOLD {
+        ASCEND_BUILDING_DR_THRESHOLD.sqrt() * total_ascend_buildings_owned.sqrt()
+    } else {
+        total_ascend_buildings_owned
+    }
+}
+
 // ─── Crystal exponent ─────────────────────────────────────────────────────
 
 /// Inputs to [`crystal_upgrade_4_max_exponent`].
@@ -301,6 +319,23 @@ mod tests {
         let result = calculate_building_power_coin_multiplier(2.0, 10.0);
         // 2^10 = 1024
         assert!((result.to_number() - 1024.0).abs() < 1e-9);
+    }
+
+    #[test]
+    fn ascend_building_dr_is_raw_sum_below_threshold() {
+        assert_eq!(ascend_building_dr(0.0), 0.0);
+        assert_eq!(ascend_building_dr(50_000.0), 50_000.0);
+        // Exactly at the threshold stays raw (strict `>`).
+        assert_eq!(ascend_building_dr(100_000.0), 100_000.0);
+    }
+
+    #[test]
+    fn ascend_building_dr_uses_sqrt_curve_above_threshold() {
+        // sum = 400_000 → sqrt(1e5) * sqrt(4e5) = sqrt(4e10) = 2e5.
+        let result = ascend_building_dr(400_000.0);
+        assert!((result - 200_000.0).abs() < 1e-6);
+        // Always below the raw sum once past the threshold.
+        assert!(ascend_building_dr(1e6) < 1e6);
     }
 
     // ─── crystal exponent ──────────────────────────────────────────────────

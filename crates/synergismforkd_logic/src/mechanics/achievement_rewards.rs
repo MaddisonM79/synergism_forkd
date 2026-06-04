@@ -18,9 +18,10 @@
 //!
 //! This module ports the keys consumed by the Phase 2 aggregator
 //! `*Pre` bundles (`accelerators`, `acceleratorPower`, `multipliers`,
-//! `crystalMultiplier`). Further keys (`accelBoosts`, `taxReduction`,
-//! `particleGain`, `antSacrificeUnlock`, …) land alongside the chunks
-//! that consume them.
+//! `crystalMultiplier`, `accelBoosts`), the tax-phase key
+//! (`taxReduction`), and the reset-currency key (`particleGain`). Further
+//! keys (`antSacrificeUnlock`, …) land alongside the chunks that consume
+//! them.
 
 use synergismforkd_bignum::Decimal;
 
@@ -37,6 +38,10 @@ pub struct AchievementRewardInput<'a> {
     pub coin_owned: [f64; 5],
     /// `player.prestigePoints` (Diamonds prestige currency).
     pub prestige_points: Decimal,
+    /// `player.challengecompletions[6..=10]` — the five reincarnation /
+    /// transcension completion counts read by the `taxReduction`
+    /// achievement at index 118 (`0.9925 ^ Σ completions`).
+    pub challenge_completions_6_to_10: [f64; 5],
 }
 
 /// `+getAchievementReward('acceleratorPower')` — additive. All flat
@@ -85,6 +90,31 @@ const ACCEL_BOOSTS_COIN: [(usize, usize); 5] = [(7, 0), (14, 1), (21, 2), (28, 3
 /// Legacy index of the lone `crystalMultiplier` achievement (#37):
 /// `() => Math.max(1, Decimal.log(prestigePoints, e))`.
 const CRYSTAL_MULTIPLIER_INDEX: usize = 37;
+
+/// `getAchievementReward('taxReduction')` — multiplicative (base 1). The
+/// flat-constant contributors: indices 45/46 = 0.95, 47 = 0.9,
+/// 82/89/96/103/110 = 0.96, 117/124/131 = 0.95. (Index 118 scales with
+/// challenge completions and is handled separately.)
+const TAX_REDUCTION_FLAT: [(usize, f64); 11] = [
+    (45, 0.95),
+    (46, 0.95),
+    (47, 0.9),
+    (82, 0.96),
+    (89, 0.96),
+    (96, 0.96),
+    (103, 0.96),
+    (110, 0.96),
+    (117, 0.95),
+    (124, 0.95),
+    (131, 0.95),
+];
+
+/// `taxReduction` achievement #118 — `0.9925 ^ (c6+c7+c8+c9+c10)`. The
+/// only non-constant tax-reduction reward.
+const TAX_REDUCTION_CHALLENGE_INDEX: usize = 118;
+
+/// Legacy index of the lone `particleGain` achievement (#50): `() => 2`.
+const PARTICLE_GAIN_INDEX: usize = 50;
 
 #[inline]
 fn earned(achievements: &[u8; ACHIEVEMENTS_LEN], index: usize) -> bool {
@@ -149,6 +179,36 @@ pub fn accel_boosts(input: &AchievementRewardInput) -> f64 {
     sum
 }
 
+/// `getAchievementReward('taxReduction')` — multiplicative (base 1). The
+/// product of every earned tax-reduction reward: the flat constants in
+/// [`TAX_REDUCTION_FLAT`] plus achievement #118's
+/// `0.9925 ^ (c6+c7+c8+c9+c10)`.
+#[must_use]
+pub fn tax_reduction(input: &AchievementRewardInput) -> f64 {
+    let mut prod = 1.0;
+    for (index, value) in TAX_REDUCTION_FLAT {
+        if earned(input.achievements, index) {
+            prod *= value;
+        }
+    }
+    if earned(input.achievements, TAX_REDUCTION_CHALLENGE_INDEX) {
+        let completions: f64 = input.challenge_completions_6_to_10.iter().sum();
+        prod *= 0.9925_f64.powf(completions);
+    }
+    prod
+}
+
+/// `getAchievementReward('particleGain')` — multiplicative (base 1). The
+/// single contributing achievement (#50) grants a flat `×2`.
+#[must_use]
+pub fn particle_gain(input: &AchievementRewardInput) -> f64 {
+    if earned(input.achievements, PARTICLE_GAIN_INDEX) {
+        2.0
+    } else {
+        1.0
+    }
+}
+
 /// `getAchievementReward('crystalMultiplier')` — multiplicative (base 1).
 /// The single contributing achievement grants
 /// `max(1, ln(prestigePoints))`.
@@ -175,91 +235,129 @@ mod tests {
         a
     }
 
+    /// Baseline input — all cross-state values neutral. Tests override the
+    /// fields they exercise via struct-update syntax.
+    fn input(achievements: &[u8; ACHIEVEMENTS_LEN]) -> AchievementRewardInput<'_> {
+        AchievementRewardInput {
+            achievements,
+            coin_owned: [0.0; 5],
+            prestige_points: Decimal::zero(),
+            challenge_completions_6_to_10: [0.0; 5],
+        }
+    }
+
     #[test]
     fn defaults_are_identity() {
         let a = [0u8; ACHIEVEMENTS_LEN];
-        let input = AchievementRewardInput {
-            achievements: &a,
-            coin_owned: [0.0; 5],
-            prestige_points: Decimal::zero(),
-        };
-        assert_eq!(accelerator_power(&input), 0.0);
-        assert_eq!(accelerators(&input), 0.0);
-        assert_eq!(multipliers(&input), 0.0);
-        assert_eq!(crystal_multiplier(&input), 1.0); // product identity
+        let inp = input(&a);
+        assert_eq!(accelerator_power(&inp), 0.0);
+        assert_eq!(accelerators(&inp), 0.0);
+        assert_eq!(multipliers(&inp), 0.0);
+        assert_eq!(crystal_multiplier(&inp), 1.0); // product identity
+        assert_eq!(tax_reduction(&inp), 1.0); // product identity
+        assert_eq!(particle_gain(&inp), 1.0); // product identity
+    }
+
+    #[test]
+    fn particle_gain_doubles_when_earned() {
+        let a = earned_array(&[PARTICLE_GAIN_INDEX]);
+        assert_eq!(particle_gain(&input(&a)), 2.0);
+        let none = [0u8; ACHIEVEMENTS_LEN];
+        assert_eq!(particle_gain(&input(&none)), 1.0);
     }
 
     #[test]
     fn accelerator_power_sums_earned_constants() {
         let a = earned_array(&[3, 31, 149]); // 0.001 + 0.003 + 0.01
-        let input = AchievementRewardInput {
-            achievements: &a,
-            coin_owned: [0.0; 5],
-            prestige_points: Decimal::zero(),
-        };
-        assert!((accelerator_power(&input) - 0.014).abs() < 1e-9);
+        assert!((accelerator_power(&input(&a)) - 0.014).abs() < 1e-9);
     }
 
     #[test]
     fn accelerators_mixes_coin_floor_and_flat() {
         // idx 5 = floor(coin[0]/500); idx 60 = +2; idx 154 = +50.
         let a = earned_array(&[5, 60, 154]);
-        let input = AchievementRewardInput {
-            achievements: &a,
+        let inp = AchievementRewardInput {
             coin_owned: [1500.0, 0.0, 0.0, 0.0, 0.0],
-            prestige_points: Decimal::zero(),
+            ..input(&a)
         };
         // floor(1500/500)=3, +2, +50 = 55
-        assert_eq!(accelerators(&input), 55.0);
+        assert_eq!(accelerators(&inp), 55.0);
     }
 
     #[test]
     fn multipliers_mixes_coin_floor_and_flat() {
         // idx 6 = floor(coin[0]/1000); idx 59 = +4; idx 161 = +10.
         let a = earned_array(&[6, 59, 161]);
-        let input = AchievementRewardInput {
-            achievements: &a,
+        let inp = AchievementRewardInput {
             coin_owned: [2500.0, 0.0, 0.0, 0.0, 0.0],
-            prestige_points: Decimal::zero(),
+            ..input(&a)
         };
         // floor(2500/1000)=2, +4, +10 = 16
-        assert_eq!(multipliers(&input), 16.0);
+        assert_eq!(multipliers(&inp), 16.0);
     }
 
     #[test]
     fn crystal_multiplier_uses_ln_when_earned() {
         let a = earned_array(&[CRYSTAL_MULTIPLIER_INDEX]);
-        let input = AchievementRewardInput {
-            achievements: &a,
-            coin_owned: [0.0; 5],
+        let inp = AchievementRewardInput {
             prestige_points: Decimal::from_finite(1e100),
+            ..input(&a)
         };
         // ln(1e100) = 100 * ln(10) ≈ 230.2585
-        assert!((crystal_multiplier(&input) - 230.2585).abs() < 0.01);
+        assert!((crystal_multiplier(&inp) - 230.2585).abs() < 0.01);
     }
 
     #[test]
     fn crystal_multiplier_floors_at_one() {
         // earned but tiny prestige → max(1, ln(1)) = max(1, 0) = 1.
         let a = earned_array(&[CRYSTAL_MULTIPLIER_INDEX]);
-        let input = AchievementRewardInput {
-            achievements: &a,
-            coin_owned: [0.0; 5],
+        let inp = AchievementRewardInput {
             prestige_points: Decimal::one(),
+            ..input(&a)
         };
-        assert_eq!(crystal_multiplier(&input), 1.0);
+        assert_eq!(crystal_multiplier(&inp), 1.0);
     }
 
     #[test]
     fn accel_boosts_sums_coin_floors() {
         // idx 7 = floor(coin[0]/2000); idx 35 = floor(coin[4]/2000).
         let a = earned_array(&[7, 35]);
-        let input = AchievementRewardInput {
-            achievements: &a,
+        let inp = AchievementRewardInput {
             coin_owned: [5000.0, 0.0, 0.0, 0.0, 9000.0],
-            prestige_points: Decimal::zero(),
+            ..input(&a)
         };
         // floor(5000/2000)=2, floor(9000/2000)=4 → 6
-        assert_eq!(accel_boosts(&input), 6.0);
+        assert_eq!(accel_boosts(&inp), 6.0);
+    }
+
+    #[test]
+    fn tax_reduction_multiplies_earned_flat_constants() {
+        // idx 45 = 0.95, idx 47 = 0.9, idx 82 = 0.96.
+        let a = earned_array(&[45, 47, 82]);
+        let expected = 0.95 * 0.9 * 0.96;
+        assert!((tax_reduction(&input(&a)) - expected).abs() < 1e-12);
+    }
+
+    #[test]
+    fn tax_reduction_index_118_scales_with_challenge_completions() {
+        // idx 118 → 0.9925 ^ (c6+c7+c8+c9+c10).
+        let a = earned_array(&[TAX_REDUCTION_CHALLENGE_INDEX]);
+        let inp = AchievementRewardInput {
+            challenge_completions_6_to_10: [10.0, 5.0, 5.0, 0.0, 0.0],
+            ..input(&a)
+        };
+        let expected = 0.9925_f64.powf(20.0);
+        assert!((tax_reduction(&inp) - expected).abs() < 1e-12);
+    }
+
+    #[test]
+    fn tax_reduction_combines_flat_and_challenge_factors() {
+        let a = earned_array(&[46, TAX_REDUCTION_CHALLENGE_INDEX, 131]);
+        let inp = AchievementRewardInput {
+            challenge_completions_6_to_10: [4.0, 0.0, 0.0, 0.0, 0.0],
+            ..input(&a)
+        };
+        let expected = 0.95 * 0.95 * 0.9925_f64.powf(4.0);
+        assert!((tax_reduction(&inp) - expected).abs() < 1e-12);
     }
 }

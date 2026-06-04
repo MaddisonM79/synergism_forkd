@@ -22,6 +22,7 @@ pub mod crystal_upgrades;
 pub mod cube_balances;
 pub mod cube_upgrade_levels;
 pub mod event_buffs;
+pub mod g_cache;
 pub mod golden_quarks;
 pub mod hepteracts;
 pub mod level;
@@ -60,6 +61,7 @@ pub use crystal_upgrades::{CrystalUpgradesState, CRYSTAL_UPGRADES_DEFAULT_LEN};
 pub use cube_balances::CubeBalancesState;
 pub use cube_upgrade_levels::CubeUpgradeLevelsState;
 pub use event_buffs::EventBuffsState;
+pub use g_cache::GCacheState;
 pub use golden_quarks::{GoldenQuarkUpgrade, GoldenQuarksState, StoredSpecialCostForm};
 pub use hepteracts::{HepteractCraft, HepteractsState};
 pub use level::LevelState;
@@ -136,6 +138,9 @@ pub struct GameState {
     pub cube_upgrade_levels: CubeUpgradeLevelsState,
     /// Event-buff state (used coupons, day-check timer).
     pub event_buffs: EventBuffsState,
+    /// Persisted `G.*` derived-cache values (e.g. `taxdivisor`) that carry
+    /// a one-tick lag between their consumers and their recompute.
+    pub g_cache: GCacheState,
     /// Golden quarks balance + 80-entry singularity-upgrade map.
     pub golden_quarks: GoldenQuarksState,
     /// Hepteract craft state across all 8 craft types + overflux balances.

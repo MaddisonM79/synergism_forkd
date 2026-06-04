@@ -222,10 +222,11 @@ impl Default for AutomationPre {
 /// Inputs to [`tack`]. Owned by the caller — `logic` has no clock, no
 /// input device, no RNG seed source of its own.
 ///
-/// The four `*_pre` bundles are caller-provided for the duration of the
-/// MVP port; they collapse into a single in-orchestrator
-/// `CrossMechanicCache` once the upstream mechanics (rune/ant/hepteract
-/// effects, achievement rewards, challenge-15 rewards) port.
+/// `automation_pre` is the last caller-provided `*_pre` bundle; the four
+/// global-state bundles (`global_multipliers`, `update_all_multiplier`,
+/// `update_all_tick`, `resource_gain`) have all been retired — the tick
+/// now self-derives them from `&GameState`. `automation_pre` follows once
+/// the Phase-5 speed-mult aggregators port.
 #[derive(Debug, Clone, Default)]
 pub struct TackInput {
     /// Wall-clock seconds since the previous tick. The caller is the
@@ -238,15 +239,6 @@ pub struct TackInput {
     /// Player inputs queued since the previous tick. Drained FIFO in
     /// Phase 3. Empty in pure background ticks.
     pub player_actions: SmallVec<[PlayerAction; 4]>,
-    /// Hand-packed pre-evaluated bundle for
-    /// [`compute_global_multipliers`].
-    pub global_multipliers_pre: GlobalMultipliersPreEvaluated,
-    /// Hand-packed pre-evaluated bundle for [`update_all_multiplier`].
-    pub update_all_multiplier_pre: UpdateAllMultiplierPre,
-    /// Hand-packed pre-evaluated bundle for [`update_all_tick`].
-    pub update_all_tick_pre: UpdateAllTickPre,
-    /// Hand-packed pre-evaluated bundle for [`resource_gain`].
-    pub resource_gain_pre: ResourceGainPre,
     /// Pre-evaluated inputs for the Phase 5 automation layer.
     pub automation_pre: AutomationPre,
 }
@@ -307,29 +299,17 @@ pub struct TickOutput {
 ///
 /// Per Loom's tack-design memo, the goal of the cache is to make the
 /// synergy graph **legible**. The legacy TS scattered these
-/// computations across the four aggregators' `*Pre` parameters, which
-/// every caller hand-packed — silently dropping a field gave a working
-/// tick that produced slightly less, with no compile error.
+/// computations across the aggregators' `*Pre` parameters, which every
+/// caller hand-packed — silently dropping a field gave a working tick
+/// that produced slightly less, with no compile error.
 ///
-/// Today this struct holds the four `*Pre` bundles directly. Each
-/// future commit migrates one upstream effect into compute-from-state
-/// inside `phase_cross_mechanic_precompute`, at which point the
-/// corresponding `*Pre` field becomes a `From<&CrossMechanicCache>`
-/// view and the caller stops providing it. Eventually
-/// [`TackInput::global_multipliers_pre`] et al. all disappear and the
-/// cache is fully self-derived from `&GameState`.
+/// The four global-state bundles have all migrated to compute-from-state
+/// (their derivations live in the Phase-1/2 functions, not the cache).
+/// `automation_pre` is the last bundle still forwarded from
+/// [`TackInput`]; it follows once the Phase-5 speed-mult aggregators port,
+/// after which the cache is fully self-derived from `&GameState`.
 #[derive(Debug, Clone, Default)]
 pub struct CrossMechanicCache {
-    /// Pre-evaluated bundle for [`compute_global_multipliers`]. Owned
-    /// by the cache so mechanics never read this from
-    /// [`TackInput`] directly.
-    pub global_multipliers_pre: GlobalMultipliersPreEvaluated,
-    /// Pre-evaluated bundle for [`update_all_multiplier`].
-    pub update_all_multiplier_pre: UpdateAllMultiplierPre,
-    /// Pre-evaluated bundle for [`update_all_tick`].
-    pub update_all_tick_pre: UpdateAllTickPre,
-    /// Pre-evaluated bundle for [`resource_gain`].
-    pub resource_gain_pre: ResourceGainPre,
     /// Pre-evaluated inputs for the Phase 5 automation layer. Forwarded
     /// from [`TackInput`] today; state-derived field-by-field as the
     /// upstream speed-mult aggregators port.
@@ -341,12 +321,10 @@ pub struct CrossMechanicCache {
 /// math. (Replaces what would otherwise be `G.*`-style mutable globals
 /// in the legacy TS implementation.)
 ///
-/// `update_all_multiplier` and `update_all_tick` fields aren't read
-/// by downstream phases yet — only `global_multipliers` feeds
-/// [`compute_resource_gain_pre`] today. The other two are captured
-/// for symmetry with the design and to make the future migration of
-/// the per-tier `produce_*` fields a local change rather than a
-/// signature change.
+/// `global_multipliers` feeds [`compute_resource_gain_pre`] + [`phase_tax`];
+/// `update_all_tick.accelerator_effect` feeds [`compute_reset_currency_gains`]
+/// (the upgrade-16 prestige multiplier). `update_all_multiplier` is captured
+/// for symmetry / future downstream reads.
 #[derive(Debug, Clone, Copy)]
 struct AggregatorOutputs {
     global_multipliers: GlobalMultipliersResult,
@@ -355,10 +333,6 @@ struct AggregatorOutputs {
         reason = "captured for downstream phase migration; the lint will flip on as soon as a later phase reads it"
     )]
     update_all_multiplier: UpdateAllMultiplierResult,
-    #[expect(
-        dead_code,
-        reason = "captured for downstream phase migration; the lint will flip on as soon as a later phase reads it"
-    )]
     update_all_tick: UpdateAllTickResult,
 }
 
@@ -370,14 +344,28 @@ pub fn tack(state: &mut GameState, input: &TackInput) -> TickOutput {
     let mut output = TickOutput::default();
 
     let mut cache = phase_cross_mechanic_precompute(state, input);
-    let aggregator_outputs = phase_global_state(state, &cache);
-    // Phase 2 outputs feed Phase 4's `ResourceGainPre`. Re-compute the
-    // pre now that the aggregator results are available; fields whose
-    // upstream is only state still come through unchanged.
-    cache.resource_gain_pre =
-        compute_resource_gain_pre(state, &input.resource_gain_pre, &aggregator_outputs);
+    let aggregator_outputs = phase_global_state(state);
+    // Phase 2b: coin production + tax. Mirrors the legacy `calculatetax()`
+    // call slot — runs after the aggregators (it needs the fresh coin
+    // multipliers), writes `g_cache.taxdivisor` for the *next* tick's
+    // updateAllMultiplier, and supplies this tick's tax fields.
+    let tax_outputs = phase_tax(state, &aggregator_outputs);
+    // Reset-currency point gains (legacy `resetCurrency()`). They feed both
+    // `ResourceGainPre` (point conversion) and the auto-reset amount-mode
+    // thresholds in `AutomationPre`.
+    let reset_gains = compute_reset_currency_gains(state, &aggregator_outputs);
+    // Phase 2 + tax + reset outputs feed Phase 4's `ResourceGainPre`. It is
+    // fully derived now (no caller bundle), so it's a tick-local value
+    // rather than a cache field.
+    let resource_gain_pre =
+        compute_resource_gain_pre(&aggregator_outputs, &tax_outputs, &reset_gains);
+    // Thread the same point gains into the automation bundle so auto-reset
+    // amount mode compares against this tick's gain (state-derived now).
+    cache.automation_pre.prestige_point_gain = reset_gains.prestige_point_gain;
+    cache.automation_pre.transcend_point_gain = reset_gains.transcend_point_gain;
+    cache.automation_pre.reincarnation_point_gain = reset_gains.reincarnation_point_gain;
     phase_player_input(state, input, &mut output);
-    phase_generation(state, &cache, input.dt, &mut output);
+    phase_generation(state, &resource_gain_pre, input.dt, &mut output);
     phase_automation(state, &cache, input, &mut output);
 
     output
@@ -385,40 +373,13 @@ pub fn tack(state: &mut GameState, input: &TackInput) -> TickOutput {
 
 /// **Phase 1** — Cross-mechanic precompute.
 ///
-/// Builds the [`CrossMechanicCache`] — the canonical artifact for every
-/// downstream phase's cross-mechanic reads. Phases 2 / 4 / 5 take the
-/// cache, not [`TackInput`], so the cache becomes the single screen on
-/// which a designer can audit how mechanics flow into each other.
-///
-/// **Migration in progress.** Each `*Pre` field is being moved from
-/// caller-provided to compute-from-state as the upstream mechanic
-/// ports settle. State-derivable fields are overridden here even when
-/// the caller supplied them — the caller value still backs fields
-/// whose upstream isn't trivially state-readable (e.g., G-cache values
-/// like `taxdivisor` and `total_accelerator_boost`, which depend on
-/// other aggregator outputs and need a multi-pass solution).
-///
-/// As mechanics port, the override list grows and `TackInput.*_pre`
-/// shrinks. The cache is the migration target; `TackInput` is the
-/// temporary input mechanism.
-fn phase_cross_mechanic_precompute(state: &GameState, input: &TackInput) -> CrossMechanicCache {
-    // `total_accelerator_boost` is a pure function of state but is read by
-    // all three Phase-2 aggregators; compute it once and inject it into
-    // each bundle (overriding the now-vestigial caller value).
-    let total_accelerator_boost = compute_total_accelerator_boost(state);
-    let mut global_multipliers_pre =
-        compute_global_multipliers_pre(state, &input.global_multipliers_pre);
-    global_multipliers_pre.total_accelerator_boost = total_accelerator_boost;
-    let mut update_all_multiplier_pre =
-        compute_update_all_multiplier_pre(state, &input.update_all_multiplier_pre);
-    update_all_multiplier_pre.total_accelerator_boost = total_accelerator_boost;
-    let mut update_all_tick_pre = compute_update_all_tick_pre(state, &input.update_all_tick_pre);
-    update_all_tick_pre.total_accelerator_boost = total_accelerator_boost;
+/// Builds the [`CrossMechanicCache`]. All four global-state bundles now
+/// self-derive inside their consuming phases ([`phase_global_state`],
+/// [`phase_tax`], [`compute_reset_currency_gains`]), so the cache is down
+/// to forwarding the last caller bundle, `automation_pre`, until the
+/// Phase-5 speed-mult aggregators port.
+fn phase_cross_mechanic_precompute(_state: &GameState, input: &TackInput) -> CrossMechanicCache {
     CrossMechanicCache {
-        global_multipliers_pre,
-        update_all_multiplier_pre,
-        update_all_tick_pre,
-        resource_gain_pre: input.resource_gain_pre,
         automation_pre: input.automation_pre,
     }
 }
@@ -428,6 +389,7 @@ fn phase_cross_mechanic_precompute(state: &GameState, input: &TackInput) -> Cros
 /// read (coin-producer owned counts, prestige points).
 fn achievement_reward_input(state: &GameState) -> achievement_rewards::AchievementRewardInput<'_> {
     let coin = &state.coin_producers.tiers;
+    let cc = &state.challenges.challenge_completions;
     achievement_rewards::AchievementRewardInput {
         achievements: &state.achievements.achievements,
         coin_owned: [
@@ -438,6 +400,7 @@ fn achievement_reward_input(state: &GameState) -> achievement_rewards::Achieveme
             coin[4].owned,
         ],
         prestige_points: state.upgrades.prestige_points,
+        challenge_completions_6_to_10: [cc[6], cc[7], cc[8], cc[9], cc[10]],
     }
 }
 
@@ -545,6 +508,41 @@ fn compute_total_accelerator_boost(state: &GameState) -> f64 {
     .total_accelerator_boost
 }
 
+/// State-derive `G.buildingPower` via the legacy `calculateBuildingPower`.
+/// Pure function of `&GameState`, shared by
+/// [`compute_global_multipliers_pre`] (the `building_power` /
+/// `building_power_mult` bundle fields) and [`phase_tax`] (the flat
+/// max-exponent increase).
+fn compute_building_power(state: &GameState) -> f64 {
+    use crate::mechanics::ant_upgrades::building_cost_scale_ant_upgrade_effect;
+    use crate::mechanics::challenges::{calc_ecc, ChallengeType};
+    use crate::mechanics::crystal_and_building_power::{
+        calculate_building_power, CalculateBuildingPowerInput,
+    };
+
+    /// Ant-upgrade index for "BuildingCostScale" (legacy `AntUpgrades` = 6).
+    const ANT_UPGRADE_BUILDING_COST_SCALE: usize = 6;
+
+    calculate_building_power(&CalculateBuildingPowerInput {
+        c8_reincarnation_ecc: calc_ecc(
+            ChallengeType::Reincarnation,
+            state.challenges.challenge_completions[8],
+        ),
+        reincarnation_shards: state.reset_counters.reincarnation_shards,
+        research_36: state.researches.researches[36],
+        research_37: state.researches.researches[37],
+        research_38: state.researches.researches[38],
+        building_cost_scale_ant_upgrade_building_power_mult:
+            building_cost_scale_ant_upgrade_effect(
+                state.ants.upgrades[ANT_UPGRADE_BUILDING_COST_SCALE],
+            )
+            .building_power_mult,
+        cube_upgrade_12: state.cube_upgrade_levels.cube_upgrades[12],
+        cube_upgrade_36: state.cube_upgrade_levels.cube_upgrades[36],
+        in_reincarnation_challenge_7: state.challenges.current_reincarnation_challenge == 7,
+    })
+}
+
 /// State-derive the [`GlobalMultipliersPreEvaluated`] fields whose
 /// upstream is a pure function of [`GameState`] and existing ported
 /// mechanic helpers.
@@ -554,31 +552,37 @@ fn compute_total_accelerator_boost(state: &GameState) -> f64 {
 /// - `ant_multiplier`                   ✓ state-derived (Coins ant upgrade)
 /// - `total_coin_owned`                 ✓ state-derived (sum of coin tiers)
 /// - `recession_power`                  ✓ state-derived (G.recessionPower table)
-/// - `crystal_mult`                     forwarded (chained crystal-coin pipeline)
-/// - `building_power`                   forwarded (multi-input formula)
-/// - `building_power_mult`              forwarded (depends on building_power)
-/// - `crystal_upgrade_3_multiplier`     forwarded (depends on crystal_upgrade_3_base)
+/// - `crystal_mult`                     ✓ state-derived (crystal-coin pipeline)
+/// - `building_power`                   ✓ state-derived (`compute_building_power`)
+/// - `building_power_mult`              ✓ state-derived (building_power ^ coin owned)
+/// - `crystal_upgrade_3_multiplier`     ✓ state-derived (crystal-upgrade-3 chain)
 /// - `crystal_multiplier_achievement`   ✓ state-derived (achievement_rewards)
 /// - `const_upgrade_1_buff_achievement` ✓ always 0 (no achievement grants it)
 /// - `const_upgrade_2_buff_achievement` ✓ always 0 (no achievement grants it)
-/// - `constant_ex_max_percent_increase` forwarded (shop-effect table not ported)
-/// - `ascend_building_dr_value`         forwarded (formula not yet ported)
+/// - `constant_ex_max_percent_increase` ✓ shop subsystem unported → 0 (no logic buy-path)
+/// - `ascend_building_dr_value`         ✓ state-derived (`ascend_building_dr`)
 /// - `multiplier_effect`                ✓ injected by phase_global_state (aggregator output)
 /// - `accelerator_effect`               ✓ injected by phase_global_state (aggregator output)
 /// - `total_multiplier`                 ✓ injected by phase_global_state (aggregator output)
 /// - `total_accelerator`                ✓ injected by phase_global_state (aggregator output)
-/// - `total_accelerator_boost`          ✓ injected by precompute (calculate_total_accelerator_boost)
+/// - `total_accelerator_boost`          ✓ injected by phase_global_state (compute_total_accelerator_boost)
 /// - `challenge_15_coin_exponent`       ✓ state-derived (challenge_15_rewards)
 /// - `challenge_15_exponent_value`      ✓ state-derived (challenge_15_rewards)
 /// - `challenge_15_constant_bonus`      ✓ state-derived (challenge_15_rewards)
 #[must_use]
-fn compute_global_multipliers_pre(
-    state: &GameState,
-    fallback: &GlobalMultipliersPreEvaluated,
-) -> GlobalMultipliersPreEvaluated {
+fn compute_global_multipliers_pre(state: &GameState) -> GlobalMultipliersPreEvaluated {
     use crate::mechanics::ant_upgrades::{coins_ant_upgrade_effect, CoinsAntUpgradeInput};
     use crate::mechanics::calculate::{calculate_total_coin_owned, CalculateTotalCoinOwnedInput};
+    use crate::mechanics::challenges::{calc_ecc, ChallengeType};
     use crate::mechanics::corruptions::recession_power_at_level;
+    use crate::mechanics::crystal_and_building_power::{
+        ascend_building_dr, calculate_building_power_coin_multiplier,
+        calculate_crystal_coin_multiplier, calculate_crystal_exponent, crystal_upgrade_3_base,
+        crystal_upgrade_3_crystal_multiplier, crystal_upgrade_3_max_base,
+        crystal_upgrade_4_max_exponent, CalculateCrystalExponentInput, CrystalUpgrade3BaseInput,
+        CrystalUpgrade3CrystalMultiplierInput, CrystalUpgrade3MaxBaseInput,
+        CrystalUpgrade4MaxExponentInput,
+    };
     use crate::mechanics::rune_effects::{prism_rune_effects, PrismRuneKey};
     use crate::state::{RECESSION_INDEX, RUNE_PRISM};
 
@@ -604,28 +608,93 @@ fn compute_global_multipliers_pre(
     let ach = achievement_reward_input(state);
     let c15_exponent = state.challenges.challenge15_exponent;
 
+    // ─── Building power → coin multiplier ────────────────────────────────
+    let building_power = compute_building_power(state);
+    let building_power_mult =
+        calculate_building_power_coin_multiplier(building_power, total_coin_owned);
+
+    // ─── Crystal coin multiplier (prestige-shards production) ─────────────
+    // `prism_spirit_crystal_caps` needs rune-spirit power (the unported
+    // `spiritMultiplier` chain); prism spirit level is 0 in current play,
+    // so the additive cap contribution is 0.
+    let crystal_upgrade_4_max_exp =
+        crystal_upgrade_4_max_exponent(&CrystalUpgrade4MaxExponentInput {
+            research_129: state.researches.researches[129],
+            common_fragments: Decimal::from_finite(state.talismans.common_fragments),
+            prism_spirit_crystal_caps: 0.0,
+        });
+    let crystal_exponent = calculate_crystal_exponent(&CalculateCrystalExponentInput {
+        crystal_upgrade_3_max_exponent: crystal_upgrade_4_max_exp,
+        crystal_upgrade_3: state.crystal_upgrades.crystal_upgrades[3],
+        c3_transcend_ecc: calc_ecc(
+            ChallengeType::Transcend,
+            state.challenges.challenge_completions[3],
+        ),
+        research_28: state.researches.researches[28],
+        research_29: state.researches.researches[29],
+        research_30: state.researches.researches[30],
+        cube_upgrade_17: state.cube_upgrade_levels.cube_upgrades[17],
+    });
+    let crystal_mult =
+        calculate_crystal_coin_multiplier(state.crystal_upgrades.prestige_shards, crystal_exponent);
+
+    // ─── Crystal-upgrade-3 crystal multiplier (max_base → base → mult) ───
+    let crystal_u3_base = crystal_upgrade_3_base(&CrystalUpgrade3BaseInput {
+        max_base: crystal_upgrade_3_max_base(&CrystalUpgrade3MaxBaseInput {
+            upgrade_122: f64::from(state.upgrades.upgrades[122]),
+            research_129: state.researches.researches[129],
+            common_fragments: Decimal::from_finite(state.talismans.common_fragments),
+        }),
+        crystal_upgrade_2: state.crystal_upgrades.crystal_upgrades[2],
+    });
+    let diamonds = &state.diamond_producers.tiers;
+    let crystal_producers_owned = diamonds[0].owned
+        + diamonds[1].owned
+        + diamonds[2].owned
+        + diamonds[3].owned
+        + diamonds[4].owned;
+    let crystal_upgrade_3_multiplier =
+        crystal_upgrade_3_crystal_multiplier(&CrystalUpgrade3CrystalMultiplierInput {
+            base: crystal_u3_base,
+            crystal_producers_owned,
+        });
+
+    // ─── Ascend-building diminishing returns ─────────────────────────────
+    let ab = &state.tesseract_buildings;
+    let ascend_building_dr_value = ascend_building_dr(
+        ab.ascend_building_1.owned
+            + ab.ascend_building_2.owned
+            + ab.ascend_building_3.owned
+            + ab.ascend_building_4.owned
+            + ab.ascend_building_5.owned,
+    );
+
     GlobalMultipliersPreEvaluated {
         prism_production_log10: prism_rune_effects(prism_level, PrismRuneKey::ProductionLog10),
         total_coin_owned,
         ant_multiplier: ant_effect.coin_multiplier,
         recession_power: recession_power_at_level(recession_level),
-        // Forwarded — upstream mechanic not yet plumbed.
-        crystal_mult: fallback.crystal_mult,
-        building_power: fallback.building_power,
-        building_power_mult: fallback.building_power_mult,
-        crystal_upgrade_3_multiplier: fallback.crystal_upgrade_3_multiplier,
+        crystal_mult,
+        building_power,
+        building_power_mult,
+        crystal_upgrade_3_multiplier,
         crystal_multiplier_achievement: achievement_rewards::crystal_multiplier(&ach),
         // No achievement grants `constUpgrade1Buff`/`constUpgrade2Buff` in
         // the legacy table — the additive reward is always 0.
         const_upgrade_1_buff_achievement: 0.0,
         const_upgrade_2_buff_achievement: 0.0,
-        constant_ex_max_percent_increase: fallback.constant_ex_max_percent_increase,
-        ascend_building_dr_value: fallback.ascend_building_dr_value,
-        multiplier_effect: fallback.multiplier_effect,
-        accelerator_effect: fallback.accelerator_effect,
-        total_multiplier: fallback.total_multiplier,
-        total_accelerator: fallback.total_accelerator,
-        total_accelerator_boost: fallback.total_accelerator_boost,
+        // `constantEX` shop upgrade (`getShopUpgradeEffects` = identity):
+        // the shop name→index map / buy-path is UI-tier and unported, so
+        // the level is 0 in logic-driven play → 0.
+        constant_ex_max_percent_increase: 0.0,
+        ascend_building_dr_value,
+        // Placeholders — phase_global_state overwrites these five with the
+        // aggregator outputs + the shared total_accelerator_boost.
+        multiplier_effect: Decimal::zero(),
+        accelerator_effect: Decimal::zero(),
+        total_multiplier: 0.0,
+        total_accelerator: 0.0,
+        total_accelerator_boost: 0.0,
         challenge_15_coin_exponent: challenge_15_rewards::coin_exponent(c15_exponent),
         challenge_15_exponent_value: challenge_15_rewards::exponent_reward(c15_exponent),
         challenge_15_constant_bonus: challenge_15_rewards::constant_bonus(c15_exponent),
@@ -648,13 +717,13 @@ fn compute_global_multipliers_pre(
 /// - `viscosity_power`                  ✓ state-derived (G.viscosityPower table)
 /// - `multiplier_cube_blessing`         ✓ state-derived (full blessing chain)
 /// - `multipliers_achievement`          ✓ state-derived (achievement_rewards)
-/// - `total_accelerator_boost`          ✓ injected by precompute (calculate_total_accelerator_boost)
-/// - `taxdivisor`                       forwarded (cross-mechanic tax pipeline)
+/// - `total_accelerator_boost`          ✓ caller-passed (computed once in `phase_global_state`)
+/// - `taxdivisor`                        ✓ state-derived (prior tick's `g_cache.taxdivisor` — one-tick lag)
 /// - `challenge_15_reward_multiplier`   ✓ state-derived (challenge_15_rewards)
 #[must_use]
 fn compute_update_all_multiplier_pre(
     state: &GameState,
-    fallback: &UpdateAllMultiplierPre,
+    total_accelerator_boost: f64,
 ) -> UpdateAllMultiplierPre {
     use crate::mechanics::ant_upgrades::multipliers_ant_upgrade_effect;
     use crate::mechanics::corruptions::viscosity_power_at_level;
@@ -715,10 +784,12 @@ fn compute_update_all_multiplier_pre(
         hepteract_multiplier_mult: hept_mult.multiplier_multiplier,
         viscosity_power: viscosity_power_at_level(viscosity_level),
         multiplier_cube_blessing: cube_blessing,
-        // Forwarded — upstream mechanic not yet plumbed.
         multipliers_achievement: achievement_rewards::multipliers(&ach),
-        total_accelerator_boost: fallback.total_accelerator_boost,
-        taxdivisor: fallback.taxdivisor,
+        total_accelerator_boost,
+        // Prior tick's `G.taxdivisor`; the tax phase recomputes it later
+        // this tick, so the Phase-2 consumer (upgrade-68) reads the lagged
+        // value — faithful to the legacy mutable-global ordering.
+        taxdivisor: state.g_cache.taxdivisor,
         challenge_15_reward_multiplier: challenge_15_rewards::multiplier(
             state.challenges.challenge15_exponent,
         ),
@@ -737,11 +808,14 @@ fn compute_update_all_multiplier_pre(
 /// - `accelerator_cube_blessing`        ✓ state-derived (full blessing chain)
 /// - `accelerators_achievement`         ✓ state-derived (achievement_rewards)
 /// - `accelerator_power_achievement`    ✓ state-derived (achievement_rewards)
-/// - `total_accelerator_boost`          ✓ injected by precompute (calculate_total_accelerator_boost)
+/// - `total_accelerator_boost`          ✓ caller-passed (computed once in `phase_global_state`)
 /// - `accelerator_multiplier`           ✓ state-derived (calculate_accelerator_multiplier)
 /// - `challenge_15_reward_accelerator`  ✓ state-derived (challenge_15_rewards)
 #[must_use]
-fn compute_update_all_tick_pre(state: &GameState, fallback: &UpdateAllTickPre) -> UpdateAllTickPre {
+fn compute_update_all_tick_pre(
+    state: &GameState,
+    total_accelerator_boost: f64,
+) -> UpdateAllTickPre {
     use crate::mechanics::corruptions::viscosity_power_at_level;
     use crate::mechanics::cube_blessings::calculate_accelerator_cube_blessing;
     use crate::mechanics::hepteract_effects::accelerator_hepteract_effects;
@@ -785,10 +859,9 @@ fn compute_update_all_tick_pre(state: &GameState, fallback: &UpdateAllTickPre) -
         hepteract_accelerator_mult: hept_acc.accelerator_multiplier,
         viscosity_power: viscosity_power_at_level(viscosity_level),
         accelerator_cube_blessing: cube_blessing,
-        // Forwarded — upstream mechanic not yet plumbed.
         accelerators_achievement: achievement_rewards::accelerators(&ach),
         accelerator_power_achievement: achievement_rewards::accelerator_power(&ach),
-        total_accelerator_boost: fallback.total_accelerator_boost,
+        total_accelerator_boost,
         accelerator_multiplier,
         challenge_15_reward_accelerator: challenge_15_rewards::accelerator(
             state.challenges.challenge15_exponent,
@@ -798,28 +871,39 @@ fn compute_update_all_tick_pre(state: &GameState, fallback: &UpdateAllTickPre) -
 
 /// **Phase 2** — Global state aggregators.
 ///
-/// Reads the precomputed bundles out of [`CrossMechanicCache`] and runs
-/// the three pure aggregators in dependency order. Their outputs flow
-/// into the [`AggregatorOutputs`] return value so Phase 4
-/// (`resource_gain`) can read cross-aggregator values like
-/// `global_crystal_multiplier` and `mythosupgrade_13` directly,
-/// instead of forwarding them from `TackInput`.
-fn phase_global_state(state: &mut GameState, cache: &CrossMechanicCache) -> AggregatorOutputs {
+/// Derives the (now fully state-driven) `update_all_multiplier` /
+/// `update_all_tick` pre-bundles, runs the three pure aggregators in
+/// dependency order, and injects their cross-cutting outputs into the
+/// global-multipliers bundle. The results flow into the
+/// [`AggregatorOutputs`] return value so Phase 4 (`resource_gain`) and
+/// the tax phase can read cross-aggregator values directly instead of
+/// forwarding them from `TackInput`.
+///
+/// `total_accelerator_boost` is a pure function of state read by all three
+/// aggregators; it is computed once here (this phase is its only consumer)
+/// and threaded into each bundle.
+fn phase_global_state(state: &mut GameState) -> AggregatorOutputs {
+    let total_accelerator_boost = compute_total_accelerator_boost(state);
+    let update_all_multiplier_pre =
+        compute_update_all_multiplier_pre(state, total_accelerator_boost);
+    let update_all_tick_pre = compute_update_all_tick_pre(state, total_accelerator_boost);
+
     // Legacy dependency order: `updateAllMultiplier`, then `updateAllTick`
     // (which consumes `total_multiplier`), then `globalMultipliers` last —
     // reading the multiplier/tick `G.*` outputs. The aggregators are pure
     // (no production state writes), so the reorder is behaviour-preserving.
-    let update_all_multiplier_result =
-        update_all_multiplier(state, &cache.update_all_multiplier_pre);
+    let update_all_multiplier_result = update_all_multiplier(state, &update_all_multiplier_pre);
     let update_all_tick_result = update_all_tick(
         state,
-        &cache.update_all_tick_pre,
+        &update_all_tick_pre,
         update_all_multiplier_result.total_multiplier,
     );
 
-    // Inject the multiplier/tick aggregator outputs into the global-
-    // multipliers bundle (these were forwarded from `TackInput` before).
-    let mut global_multipliers_pre = cache.global_multipliers_pre;
+    // Derive the global-multipliers bundle from state, then inject the
+    // cross-cutting outputs (`total_accelerator_boost` plus the two
+    // aggregators' effects — all forwarded from `TackInput` before).
+    let mut global_multipliers_pre = compute_global_multipliers_pre(state);
+    global_multipliers_pre.total_accelerator_boost = total_accelerator_boost;
     global_multipliers_pre.multiplier_effect = update_all_multiplier_result.multiplier_effect;
     global_multipliers_pre.total_multiplier = update_all_multiplier_result.total_multiplier;
     global_multipliers_pre.accelerator_effect = update_all_tick_result.accelerator_effect;
@@ -833,10 +917,230 @@ fn phase_global_state(state: &mut GameState, cache: &CrossMechanicCache) -> Aggr
     }
 }
 
+/// Coin-side `produce_total` plus the three tax outputs, computed after
+/// Phase 2 and fed into Phase 4's [`ResourceGainPre`]. Mirrors the four
+/// `G.*` values the legacy `calculatetax()` shim wrote
+/// (`produceTotal`, `taxdivisor`, `taxdivisorcheck`, `maxexponent`).
+#[derive(Debug, Clone, Copy)]
+struct TaxOutputs {
+    /// `G.produceTotal` — sum of pre-clamp coin-tier outputs.
+    produce_total: Decimal,
+    /// `G.taxdivisor` — freshly recomputed this tick.
+    taxdivisor: Decimal,
+    /// `G.taxdivisorcheck`.
+    taxdivisorcheck: Decimal,
+    /// `G.maxexponent`.
+    maxexponent: f64,
+}
+
+/// Legacy `player.{first..fifth}ProduceCoin` — the immutable per-tier coin
+/// production scalars (×10 per tier). Never reassigned anywhere in the
+/// legacy source, so hoisted as a constant rather than stored per-game.
+const COIN_PRODUCE_SCALARS: [f64; 5] = [0.25, 2.5, 25.0, 250.0, 2500.0];
+
+/// **Phase 2b** — coin production + tax.
+///
+/// Runs after [`phase_global_state`] (it needs that phase's freshly-
+/// aggregated coin multipliers) and before Phase 4, mirroring the legacy
+/// `calculatetax()`: aggregate the five coin tiers into `G.produceTotal`,
+/// then run the tax exponent / divisor formula. The fresh `taxdivisor` is
+/// written back into [`crate::state::GCacheState`] so the **next** tick's
+/// [`update_all_multiplier`] reads it (the deliberate one-tick lag); the
+/// four outputs also feed [`compute_resource_gain_pre`] for this tick's
+/// coin gain.
+///
+/// The legacy `shouldAwardOvertaxed` flag is a UI-tier achievement side
+/// effect (`awardUngroupedAchievement('overtaxed')`) with no `CoreEvent`
+/// variant yet — deferred, not wired here.
+fn phase_tax(state: &mut GameState, agg: &AggregatorOutputs) -> TaxOutputs {
+    use crate::mechanics::ant_upgrades::{
+        coins_ant_upgrade_effect, taxes_ant_upgrade_effect, CoinsAntUpgradeInput,
+    };
+    use crate::mechanics::calculate::{calculate_total_coin_owned, CalculateTotalCoinOwnedInput};
+    use crate::mechanics::coin_production::{
+        calculate_coin_production, CalculateCoinProductionInput, PerCoinTierInput,
+    };
+    use crate::mechanics::crystal_and_building_power::calculate_building_power_coin_multiplier;
+    use crate::mechanics::platonic_blessings::calculate_tax_platonic_blessing;
+    use crate::mechanics::rune_effects::{
+        duplication_rune_effects, thrift_rune_effects, DuplicationRuneKey, ThriftRuneKey,
+    };
+    use crate::mechanics::talisman_effects::exemption_talisman_effects;
+    use crate::mechanics::tax::{calculate_tax, CalculateTaxInput};
+    use crate::mechanics::{campaign_token_rewards, challenge_15_rewards};
+    use crate::state::{RUNE_DUPLICATION, RUNE_THRIFT};
+
+    /// Ant-upgrade indices (legacy `AntUpgrades` enum): Coins / Taxes.
+    const ANT_UPGRADE_COINS: usize = 1;
+    const ANT_UPGRADE_TAXES: usize = 2;
+    /// Exemption talisman — index 0 in the talisman ordering.
+    const TALISMAN_EXEMPTION: usize = 0;
+
+    let g = &agg.global_multipliers;
+    let coin = &state.coin_producers.tiers;
+    let challenges = &state.challenges;
+    let researches = &state.researches.researches;
+
+    // ─── G.produceTotal via the five coin tiers ──────────────────────────
+    let tier = |i: usize, coin_multi: Decimal| PerCoinTierInput {
+        generated: coin[i].generated,
+        owned: coin[i].owned,
+        coin_multi,
+        produce_coin: COIN_PRODUCE_SCALARS[i],
+    };
+    let produce_total = calculate_coin_production(CalculateCoinProductionInput {
+        first: tier(0, g.coin_one_multi),
+        second: tier(1, g.coin_two_multi),
+        third: tier(2, g.coin_three_multi),
+        fourth: tier(3, g.coin_four_multi),
+        fifth: tier(4, g.coin_five_multi),
+        global_coin_multiplier: g.global_coin_multiplier,
+    })
+    .total;
+
+    // ─── flat_max_exponent_increase inputs (ant Coins + building power) ───
+    let total_coin_owned = calculate_total_coin_owned(&CalculateTotalCoinOwnedInput {
+        first_owned_coin: coin[0].owned,
+        second_owned_coin: coin[1].owned,
+        third_owned_coin: coin[2].owned,
+        fourth_owned_coin: coin[3].owned,
+        fifth_owned_coin: coin[4].owned,
+    });
+    let coins_ant = coins_ant_upgrade_effect(&CoinsAntUpgradeInput {
+        level: state.ants.upgrades[ANT_UPGRADE_COINS],
+        ascension_challenge: challenges.current_ascension_challenge,
+        crumbs: state.ants.crumbs,
+    });
+    let building_power_coin_multiplier =
+        calculate_building_power_coin_multiplier(compute_building_power(state), total_coin_owned);
+
+    // ─── tax exponent / divisor ──────────────────────────────────────────
+    let ach = achievement_reward_input(state);
+    let total_challenge_completions: f64 = challenges.challenge_completions.iter().sum();
+
+    let tax = calculate_tax(&CalculateTaxInput {
+        in_reinc_6: challenges.current_reincarnation_challenge == 6,
+        in_reinc_9: challenges.current_reincarnation_challenge == 9,
+        in_ascension_15: challenges.current_ascension_challenge == 15,
+        in_ascension_13: challenges.current_ascension_challenge == 13,
+        c6_completions: challenges.challenge_completions[6],
+        c13_completions: challenges.challenge_completions[13],
+        total_challenge_completions,
+        c11_completions: challenges.challenge_completions[11],
+        c12_completions: challenges.challenge_completions[12],
+        c14_completions: challenges.challenge_completions[14],
+        c15_completions: challenges.challenge_completions[15],
+        singularity_count: state.singularity.singularity_count,
+        research_51: researches[51],
+        research_52: researches[52],
+        research_53: researches[53],
+        research_54: researches[54],
+        research_55: researches[55],
+        research_159: researches[159],
+        research_200: researches[200],
+        cube_upgrade_50: state.cube_upgrade_levels.cube_upgrades[50],
+        platonic_upgrade_5: state.cube_upgrade_levels.platonic_upgrades[5],
+        platonic_upgrade_10: state.cube_upgrade_levels.platonic_upgrades[10],
+        tax_platonic_blessing: calculate_tax_platonic_blessing(&state.platonic_blessings),
+        upgrade_121: f64::from(state.upgrades.upgrades[121]),
+        upgrade_125: f64::from(state.upgrades.upgrades[125]),
+        c10_completions: challenges.challenge_completions[10],
+        highest_singularity_count: state.singularity.highest_singularity_count,
+        taxman_last_stand_enabled: state.singularity.taxman_last_stand.enabled,
+        ascensions_unlocked: state.reset_counters.ascension_unlocked,
+        highest_c14_completions: challenges.highest_challenge_completions[14],
+        tax_reduction_achievement: achievement_rewards::tax_reduction(&ach),
+        duplication_rune_tax_reduction: duplication_rune_effects(
+            state.runes.rune_levels[RUNE_DUPLICATION],
+            DuplicationRuneKey::TaxReduction,
+        ),
+        thrift_rune_tax_reduction: thrift_rune_effects(
+            state.runes.rune_levels[RUNE_THRIFT],
+            ThriftRuneKey::TaxReduction,
+        ),
+        ant_tax_reduction: taxes_ant_upgrade_effect(state.ants.upgrades[ANT_UPGRADE_TAXES]),
+        exemption_talisman_tax_reduction: exemption_talisman_effects(
+            state.talismans.talisman_rarity[TALISMAN_EXEMPTION] as i32,
+        )
+        .tax_reduction,
+        challenge_15_taxes_reward: challenge_15_rewards::taxes(challenges.challenge15_exponent),
+        // Campaign-token subsystem unported → 0 tokens → multiplier 1
+        // (`campaignTaxMultiplier` returns 1 below 250 tokens).
+        campaign_tax_multiplier: campaign_token_rewards::campaign_tax_multiplier(0.0),
+        ascend_shards: state.campaigns.ascend_shards,
+        rare_fragments: Decimal::from_finite(state.talismans.rare_fragments),
+        fortunae_formicidae_coin_multiplier: coins_ant.coin_multiplier,
+        building_power_coin_multiplier,
+        produce_total,
+    });
+
+    // Recompute G.taxdivisor for the *next* tick's updateAllMultiplier read.
+    state.g_cache.taxdivisor = tax.taxdivisor;
+
+    TaxOutputs {
+        produce_total,
+        taxdivisor: tax.taxdivisor,
+        taxdivisorcheck: tax.taxdivisorcheck,
+        maxexponent: tax.maxexponent,
+    }
+}
+
+/// Compute the per-tick reset-currency point gains (prestige / transcend /
+/// reincarnation) from `&GameState` plus the Phase-2 accelerator effect.
+///
+/// Mirrors the legacy `resetCurrency()` shim. Its three outputs feed both
+/// [`compute_resource_gain_pre`] (the coin/shard → point conversion that
+/// `resource_gain` credits) and `AutomationPre` (the auto-reset
+/// amount-mode thresholds in [`auto_reset`]). Pure — no state mutation.
+fn compute_reset_currency_gains(
+    state: &GameState,
+    agg: &AggregatorOutputs,
+) -> crate::mechanics::reset_currency::ResetCurrencyResult {
+    use crate::mechanics::challenges::{calc_ecc, ChallengeType};
+    use crate::mechanics::corruptions::deflation_multiplier_at_level;
+    use crate::mechanics::reset_currency::{reset_currency, ResetCurrencyInput};
+    use crate::state::DEFLATION_INDEX;
+
+    let ach = achievement_reward_input(state);
+    let challenges = &state.challenges;
+    reset_currency(&ResetCurrencyInput {
+        ecc5: calc_ecc(
+            ChallengeType::Transcend,
+            challenges.challenge_completions[5],
+        ),
+        transcension_challenge: challenges.current_transcension_challenge,
+        reincarnation_challenge: challenges.current_reincarnation_challenge,
+        ascension_challenge: challenges.current_ascension_challenge,
+        deflation_multiplier: deflation_multiplier_at_level(
+            state.corruptions.used.levels[DEFLATION_INDEX],
+        ),
+        coins_this_prestige: state.coin_counters.coins_this_prestige,
+        coins_this_transcension: state.coin_counters.coins_this_transcension,
+        transcend_shards: state.reset_counters.transcend_shards,
+        upgrade_16: f64::from(state.upgrades.upgrades[16]),
+        upgrade_44: f64::from(state.upgrades.upgrades[44]),
+        upgrade_65: f64::from(state.upgrades.upgrades[65]),
+        transcend_count: state.reset_counters.transcend_count,
+        accelerator_effect: agg.update_all_tick.accelerator_effect,
+        particle_gain_reward: achievement_rewards::particle_gain(&ach),
+    })
+}
+
+/// Legacy `player.{first..fifth}ProduceDiamonds` — immutable per-tier
+/// prestige-producer base scalars. Like the coin scalars these are never
+/// reassigned in the legacy, so hoisted as a constant. The cascade
+/// formula that turns them into `G.produce*Diamonds` lives in
+/// [`resource_gain`]; this slice only carries the base rate.
+const DIAMOND_PRODUCE_SCALARS: [f64; 5] = [0.05, 0.0005, 0.00005, 0.000005, 0.000005];
+/// Legacy `player.{first..fifth}ProduceMythos` — transcend-producer base.
+const MYTHOS_PRODUCE_SCALARS: [f64; 5] = [1.0, 0.01, 0.001, 0.0002, 0.00004];
+/// Legacy `player.{first..fifth}ProduceParticles` — reincarnation base.
+const PARTICLE_PRODUCE_SCALARS: [f64; 5] = [0.25, 0.2, 0.15, 0.1, 0.5];
+
 /// State + aggregator-output-derive the [`ResourceGainPre`] fields.
 ///
 /// Migration coverage today (`✓` = derived from state / aggregator
-/// outputs, `forwarded` = caller-provided fallback):
+/// outputs / constants, `forwarded` = caller-provided fallback):
 /// - `global_crystal_multiplier`        ✓ from GlobalMultipliersResult
 /// - `global_mythos_multiplier`         ✓ from GlobalMultipliersResult
 /// - `grandmaster_multiplier`           ✓ from GlobalMultipliersResult
@@ -845,14 +1149,20 @@ fn phase_global_state(state: &mut GameState, cache: &CrossMechanicCache) -> Aggr
 /// - `mythosupgrade_15`                 ✓ from GlobalMultipliersResult
 /// - `global_constant_mult`             ✓ from GlobalMultipliersResult
 /// - `challenge_base_requirements`      ✓ static legacy constant
-/// - everything else                    forwarded (depends on tax
-///   computation, reset-currency gains, or per-tier produce_* values
-///   set elsewhere in the legacy tick)
+/// - `produce_total`                    ✓ from [`phase_tax`] (coin production)
+/// - `taxdivisor`                       ✓ from [`phase_tax`] (fresh this tick)
+/// - `taxdivisorcheck`                  ✓ from [`phase_tax`]
+/// - `maxexponent`                      ✓ from [`phase_tax`]
+/// - `{first..fifth}_produce_{diamonds,mythos,particles}` ✓ immutable base scalars
+/// - `{prestige,transcend,reincarnation}_point_gain` ✓ from [`compute_reset_currency_gains`]
+///
+/// Every field is now derived — `ResourceGainPre` no longer reads any
+/// caller fallback.
 #[must_use]
 fn compute_resource_gain_pre(
-    _state: &GameState,
-    fallback: &ResourceGainPre,
     agg: &AggregatorOutputs,
+    tax: &TaxOutputs,
+    reset: &crate::mechanics::reset_currency::ResetCurrencyResult,
 ) -> ResourceGainPre {
     /// Verbatim port of the legacy `G.challengeBaseRequirements` const.
     /// Static lookup; no state read.
@@ -870,30 +1180,32 @@ fn compute_resource_gain_pre(
         global_constant_mult: g.global_constant_mult,
         // Static legacy constant.
         challenge_base_requirements: CHALLENGE_BASE_REQUIREMENTS,
-        // Forwarded — depends on tax / reset-currency / per-tier
-        // produce_* pipelines not yet captured by the orchestrator.
-        produce_total: fallback.produce_total,
-        taxdivisor: fallback.taxdivisor,
-        taxdivisorcheck: fallback.taxdivisorcheck,
-        maxexponent: fallback.maxexponent,
-        prestige_point_gain: fallback.prestige_point_gain,
-        transcend_point_gain: fallback.transcend_point_gain,
-        reincarnation_point_gain: fallback.reincarnation_point_gain,
-        first_produce_diamonds: fallback.first_produce_diamonds,
-        second_produce_diamonds: fallback.second_produce_diamonds,
-        third_produce_diamonds: fallback.third_produce_diamonds,
-        fourth_produce_diamonds: fallback.fourth_produce_diamonds,
-        fifth_produce_diamonds: fallback.fifth_produce_diamonds,
-        first_produce_mythos: fallback.first_produce_mythos,
-        second_produce_mythos: fallback.second_produce_mythos,
-        third_produce_mythos: fallback.third_produce_mythos,
-        fourth_produce_mythos: fallback.fourth_produce_mythos,
-        fifth_produce_mythos: fallback.fifth_produce_mythos,
-        first_produce_particles: fallback.first_produce_particles,
-        second_produce_particles: fallback.second_produce_particles,
-        third_produce_particles: fallback.third_produce_particles,
-        fourth_produce_particles: fallback.fourth_produce_particles,
-        fifth_produce_particles: fallback.fifth_produce_particles,
+        // From the tax phase (coin production + tax exponent/divisor).
+        produce_total: tax.produce_total,
+        taxdivisor: tax.taxdivisor,
+        taxdivisorcheck: tax.taxdivisorcheck,
+        maxexponent: tax.maxexponent,
+        // Immutable per-tier producer base scalars (legacy player
+        // constants); the cascade math lives in `resource_gain`.
+        first_produce_diamonds: DIAMOND_PRODUCE_SCALARS[0],
+        second_produce_diamonds: DIAMOND_PRODUCE_SCALARS[1],
+        third_produce_diamonds: DIAMOND_PRODUCE_SCALARS[2],
+        fourth_produce_diamonds: DIAMOND_PRODUCE_SCALARS[3],
+        fifth_produce_diamonds: DIAMOND_PRODUCE_SCALARS[4],
+        first_produce_mythos: MYTHOS_PRODUCE_SCALARS[0],
+        second_produce_mythos: MYTHOS_PRODUCE_SCALARS[1],
+        third_produce_mythos: MYTHOS_PRODUCE_SCALARS[2],
+        fourth_produce_mythos: MYTHOS_PRODUCE_SCALARS[3],
+        fifth_produce_mythos: MYTHOS_PRODUCE_SCALARS[4],
+        first_produce_particles: PARTICLE_PRODUCE_SCALARS[0],
+        second_produce_particles: PARTICLE_PRODUCE_SCALARS[1],
+        third_produce_particles: PARTICLE_PRODUCE_SCALARS[2],
+        fourth_produce_particles: PARTICLE_PRODUCE_SCALARS[3],
+        fifth_produce_particles: PARTICLE_PRODUCE_SCALARS[4],
+        // From reset_currency (prestige / transcend / reincarnation gains).
+        prestige_point_gain: reset.prestige_point_gain,
+        transcend_point_gain: reset.transcend_point_gain,
+        reincarnation_point_gain: reset.reincarnation_point_gain,
     }
 }
 
@@ -914,10 +1226,11 @@ fn phase_player_input(state: &mut GameState, input: &TackInput, output: &mut Tic
 
 /// **Phase 4** — Resource generation + challenge auto-completion.
 ///
-/// Calls [`resource_gain`] with the cache's `resource_gain_pre` bundle
-/// and writes the result back into the corresponding [`GameState`]
-/// slices. Events emitted by `resource_gain` (achievement awards,
-/// challenge auto-completions) flow into [`TickOutput::events`].
+/// Calls [`resource_gain`] with the tick-local `resource_gain_pre` bundle
+/// (now fully derived by [`compute_resource_gain_pre`]) and writes the
+/// result back into the corresponding [`GameState`] slices. Events emitted
+/// by `resource_gain` (achievement awards, challenge auto-completions)
+/// flow into [`TickOutput::events`].
 ///
 /// Per Ledger Finding 1, the currency fields now have a single
 /// source-of-truth in `state.upgrades`; `buy_*` mutators read/write them
@@ -925,11 +1238,11 @@ fn phase_player_input(state: &mut GameState, input: &TackInput, output: &mut Tic
 /// duplicates. No mid-tick sync workaround is needed.
 fn phase_generation(
     state: &mut GameState,
-    cache: &CrossMechanicCache,
+    pre: &ResourceGainPre,
     dt: f64,
     output: &mut TickOutput,
 ) {
-    let result = resource_gain(state, &cache.resource_gain_pre, dt);
+    let result = resource_gain(state, pre, dt);
 
     // ─── Canonical writeback (state.upgrades, state.coin_counters) ───────
     state.upgrades.coins = result.coins;
@@ -1679,86 +1992,59 @@ mod tests {
     }
 
     #[test]
-    fn cross_mechanic_cache_overrides_state_derived_fields() {
-        // State-derived fields ignore the caller's *Pre values. A
-        // duplication rune at level 800 raises
-        // `multiplicative_multipliers_rune` from the identity 1.0 to
-        // `1 + 800/400 = 3.0`, regardless of what the caller supplied.
+    fn aggregator_pre_bundles_are_state_derived() {
+        // The update_all_multiplier / update_all_tick pre-bundles are now
+        // computed purely from `&GameState` (+ `total_accelerator_boost`) —
+        // no caller input remains. A duplication rune at 800 raises
+        // `multiplicative_multipliers_rune` to `1 + 800/400 = 3.0`; a speed
+        // rune at 400 raises `multiplicative_accelerators_rune` to
+        // `1 + 400/400 = 2.0`.
         let mut state = GameState::default();
         state.runes.rune_levels[crate::state::RUNE_DUPLICATION] = 800.0;
         state.hepteracts.multiplier.bal = 5.0; // hept-multiplier
         state.runes.rune_levels[crate::state::RUNE_SPEED] = 400.0;
         state.hepteracts.accelerator.bal = 10.0;
 
-        // Caller passes garbage values; the state-derived fields must
-        // ignore them.
-        let input = TackInput {
-            dt: 0.025,
-            update_all_multiplier_pre: UpdateAllMultiplierPre {
-                multiplicative_multipliers_rune: 99.0, // ignored
-                hepteract_multiplier: 99.0,            // ignored
-                ..UpdateAllMultiplierPre::default()
-            },
-            update_all_tick_pre: UpdateAllTickPre {
-                multiplicative_accelerators_rune: 99.0, // ignored
-                hepteract_accelerators: 99.0,           // ignored
-                ..UpdateAllTickPre::default()
-            },
-            ..TackInput::default()
-        };
-
-        let cache = phase_cross_mechanic_precompute(&state, &input);
-
+        let mult = compute_update_all_multiplier_pre(&state, 0.0);
         // Duplication rune at 800: 1 + 800/400 = 3.0.
-        assert!(
-            (cache
-                .update_all_multiplier_pre
-                .multiplicative_multipliers_rune
-                - 3.0)
-                .abs()
-                < 1e-9
-        );
+        assert!((mult.multiplicative_multipliers_rune - 3.0).abs() < 1e-9);
         // Hept-multiplier at 5: 1000 * 5 = 5000.
-        assert!((cache.update_all_multiplier_pre.hepteract_multiplier - 5_000.0).abs() < 1e-9);
+        assert!((mult.hepteract_multiplier - 5_000.0).abs() < 1e-9);
 
+        let tick = compute_update_all_tick_pre(&state, 0.0);
         // Speed rune at 400: 1 + 400/400 = 2.0.
-        assert!((cache.update_all_tick_pre.multiplicative_accelerators_rune - 2.0).abs() < 1e-9);
+        assert!((tick.multiplicative_accelerators_rune - 2.0).abs() < 1e-9);
         // Hept-accelerator at 10: 2000 * 10 = 20_000.
-        assert!((cache.update_all_tick_pre.hepteract_accelerators - 20_000.0).abs() < 1e-9);
+        assert!((tick.hepteract_accelerators - 20_000.0).abs() < 1e-9);
     }
 
     #[test]
-    fn cross_mechanic_cache_forwards_pre_bundles_from_input() {
-        // Today the cache is built by copying the four *Pre bundles
-        // from TackInput. Future commits will replace these with
-        // compute-from-state calls; this test pins the forwarding
-        // behavior so a future "did I wire the new compute function
-        // correctly?" can compare against expected forwarded values.
+    fn total_accelerator_boost_threads_into_aggregator_pre_bundles() {
+        // The shared `total_accelerator_boost` is passed straight through
+        // into both bundles (it is computed once in `phase_global_state`).
+        let state = GameState::default();
+        let mult = compute_update_all_multiplier_pre(&state, 42.0);
+        let tick = compute_update_all_tick_pre(&state, 42.0);
+        assert_eq!(mult.total_accelerator_boost, 42.0);
+        assert_eq!(tick.total_accelerator_boost, 42.0);
+    }
+
+    #[test]
+    fn cross_mechanic_cache_forwards_automation_pre_from_input() {
+        // `automation_pre` is the last bundle precompute forwards verbatim
+        // (the four global-state bundles all self-derive now). Pins that
+        // forwarding until the Phase-5 aggregators port.
         let state = GameState::default();
         let input = TackInput {
             dt: 0.025,
+            automation_pre: AutomationPre {
+                max_quark_timer: 12_345.0,
+                ..AutomationPre::default()
+            },
             ..TackInput::default()
         };
         let cache = phase_cross_mechanic_precompute(&state, &input);
-
-        // Default-equality check on each *Pre field — forwarding
-        // preserves bit-equal values from input to cache.
-        assert_eq!(
-            cache.global_multipliers_pre.crystal_mult,
-            input.global_multipliers_pre.crystal_mult
-        );
-        assert_eq!(
-            cache.update_all_multiplier_pre.multipliers_achievement,
-            input.update_all_multiplier_pre.multipliers_achievement
-        );
-        assert_eq!(
-            cache.update_all_tick_pre.accelerators_achievement,
-            input.update_all_tick_pre.accelerators_achievement
-        );
-        assert_eq!(
-            cache.resource_gain_pre.produce_total,
-            input.resource_gain_pre.produce_total
-        );
+        assert_eq!(cache.automation_pre.max_quark_timer, 12_345.0);
     }
 
     #[test]
@@ -1854,5 +2140,105 @@ mod tests {
         let _ = tack(&mut state, &input);
         // Bought at least one of tier-1 Coin producer.
         assert!(state.coin_producers.tiers[0].owned > 0.0);
+    }
+
+    #[test]
+    fn phase_tax_feeds_coin_gain_and_writes_taxdivisor() {
+        // tier-1 coin producer owned → produce_total = 1000 * 0.25 = 250
+        // (default coin multipliers are 1), above the 0.001 coin-gain gate,
+        // so coins accrue and `G.taxdivisor` recomputes above 1.
+        let mut state = GameState::default();
+        state.coin_producers.tiers[0].owned = 1000.0;
+        assert_eq!(state.g_cache.taxdivisor, Decimal::one()); // fresh default
+        let input = TackInput {
+            dt: 0.025,
+            ..TackInput::default()
+        };
+        let _ = tack(&mut state, &input);
+        // `produce_total` flowed from the tax phase into resource_gain.
+        assert!(state.upgrades.coins > Decimal::zero());
+        // The tax phase recomputed and persisted `G.taxdivisor`.
+        assert!(state.g_cache.taxdivisor > Decimal::one());
+    }
+
+    #[test]
+    fn update_all_multiplier_pre_reads_lagged_taxdivisor_from_g_cache() {
+        // The Phase-2 consumer (upgrade-68 free-multiplier term) reads the
+        // prior tick's `g_cache.taxdivisor`, NOT a value freshly recomputed
+        // this tick — the substrate of the legacy one-tick lag. (The
+        // `fallback` bundle no longer backs `taxdivisor`.)
+        let mut state = GameState::default();
+        state.g_cache.taxdivisor = Decimal::from_finite(1e300);
+        let pre = compute_update_all_multiplier_pre(&state, 0.0);
+        assert_eq!(pre.taxdivisor, Decimal::from_finite(1e300));
+    }
+
+    #[test]
+    fn resource_gain_pre_carries_producer_base_scalars() {
+        // The 15 diamond/mythos/particle base scalars are now wired from
+        // the immutable legacy constants (they were 0 when forwarded from a
+        // default `ResourceGainPre`, leaving the cascades inert).
+        let mut state = GameState::default();
+        let agg = phase_global_state(&mut state);
+        let tax = phase_tax(&mut state, &agg);
+        let reset = compute_reset_currency_gains(&state, &agg);
+        let pre = compute_resource_gain_pre(&agg, &tax, &reset);
+        assert_eq!(pre.first_produce_diamonds, 0.05);
+        assert_eq!(pre.fifth_produce_diamonds, 0.000_005);
+        assert_eq!(pre.first_produce_mythos, 1.0);
+        assert_eq!(pre.fifth_produce_mythos, 0.000_04);
+        assert_eq!(pre.first_produce_particles, 0.25);
+        assert_eq!(pre.fifth_produce_particles, 0.5);
+    }
+
+    #[test]
+    fn diamond_cascade_produces_prestige_shards_through_tack() {
+        // End-to-end: with the base scalars now wired, owning tier-1
+        // diamond producers yields prestige shards. (Before this chunk the
+        // forwarded scalar was 0, so the cascade was inert.)
+        // produce = owned(1000) * first_produce_diamonds(0.05) * gcm(1) = 50
+        // per `dt/0.025` step → 50 shards at dt = 0.025.
+        let mut state = GameState::default();
+        state.diamond_producers.tiers[0].owned = 1000.0;
+        let input = TackInput {
+            dt: 0.025,
+            ..TackInput::default()
+        };
+        let _ = tack(&mut state, &input);
+        assert!((state.crystal_upgrades.prestige_shards.to_number() - 50.0).abs() < 1e-9);
+    }
+
+    #[test]
+    fn reset_currency_gains_feed_resource_gain_pre() {
+        // reset_currency is now self-derived: with coins-this-prestige set,
+        // the prestige point gain is `floor((coins/1e12) ^ prestige_pow)`
+        // where the default `prestige_pow = 0.5` (ecc5 0, deflation mult 1).
+        // (1e24 / 1e12) ^ 0.5 = (1e12) ^ 0.5 = 1e6.
+        let mut state = GameState::default();
+        state.coin_counters.coins_this_prestige = Decimal::from_finite(1e24);
+        let agg = phase_global_state(&mut state);
+        let tax = phase_tax(&mut state, &agg);
+        let reset = compute_reset_currency_gains(&state, &agg);
+        assert!((reset.prestige_point_gain.to_number() - 1e6).abs() / 1e6 < 1e-9);
+        // It threads through into ResourceGainPre (was forwarded/0 before).
+        let pre = compute_resource_gain_pre(&agg, &tax, &reset);
+        assert_eq!(pre.prestige_point_gain, reset.prestige_point_gain);
+    }
+
+    #[test]
+    fn global_multipliers_pre_derives_crystal_and_building_fields() {
+        // crystal_mult = (prestige_shards + 1) ^ crystal_exponent; default
+        // exponent is 1/3, so 1e9 shards → ~1000 (was forwarded identity 1).
+        let mut state = GameState::default();
+        state.crystal_upgrades.prestige_shards = Decimal::from_finite(1e9);
+        let pre = compute_global_multipliers_pre(&state);
+        assert!((pre.crystal_mult.to_number() - 1000.0).abs() / 1000.0 < 1e-6);
+
+        // ascend_building_dr_value reflects owned ascend buildings (raw sum
+        // below the 100k threshold).
+        let mut s2 = GameState::default();
+        s2.tesseract_buildings.ascend_building_1.owned = 500.0;
+        let pre2 = compute_global_multipliers_pre(&s2);
+        assert_eq!(pre2.ascend_building_dr_value, 500.0);
     }
 }
