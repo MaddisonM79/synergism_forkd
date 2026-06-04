@@ -370,6 +370,13 @@ pub fn tack(state: &mut GameState, input: &TackInput) -> TickOutput {
     cache.automation_pre.global_time_multiplier = compute_global_speed_mult_pre(state);
     cache.automation_pre.ascension_speed_multi = compute_ascension_speed_mult_pre(state);
     cache.automation_pre.singularity_speed_multi = compute_singularity_speed_mult_pre(state);
+    // Non-speed timer fields (auto-potion + GQ export), self-derived.
+    let (offering_potions, obtainium_potions, auto_potion_speed, export_gq) =
+        compute_auto_timer_fields(state);
+    cache.automation_pre.offering_potion_count = offering_potions;
+    cache.automation_pre.obtainium_potion_count = obtainium_potions;
+    cache.automation_pre.auto_potion_speed_mult = auto_potion_speed;
+    cache.automation_pre.export_gq_per_hour = export_gq;
     phase_player_input(state, input, &mut output);
     phase_generation(state, &resource_gain_pre, input.dt, &mut output);
     phase_automation(state, &cache, input, &mut output);
@@ -1408,6 +1415,30 @@ fn compute_singularity_speed_mult_pre(state: &GameState) -> f64 {
     )
 }
 
+/// Pure-state non-speed `AutomationPre` timer fields, from the legacy
+/// Helper.ts `addTimers('autoPotion' | 'goldenQuarks')` cases: the
+/// offering/obtainium potion counts (`player.shopUpgrades.{offering,obtainium}Potion`),
+/// the auto-potion speed (`octeractAutoPotionSpeed`), and the GQ export
+/// rate (`goldenQuarks3`'s `exportGQPerHour`). Returned as
+/// `(offering_potion_count, obtainium_potion_count, auto_potion_speed_mult,
+/// export_gq_per_hour)`.
+fn compute_auto_timer_fields(state: &GameState) -> (f64, f64, f64, f64) {
+    use crate::mechanics::golden_quark_upgrades::golden_quarks_3_effect;
+    use crate::mechanics::octeracts::octeract_auto_potion_speed_effect;
+    use crate::state::golden_quarks::GQ_GOLDEN_QUARKS_3;
+    use crate::state::octeract_upgrades::OCTERACT_AUTO_POTION_SPEED;
+    use crate::state::shop::{SHOP_OBTAINIUM_POTION, SHOP_OFFERING_POTION};
+
+    (
+        state.shop.upgrades[SHOP_OFFERING_POTION],
+        state.shop.upgrades[SHOP_OBTAINIUM_POTION],
+        octeract_auto_potion_speed_effect(
+            state.octeract_upgrades.upgrades[OCTERACT_AUTO_POTION_SPEED].level,
+        ),
+        golden_quarks_3_effect(state.golden_quarks.upgrades[GQ_GOLDEN_QUARKS_3].level),
+    )
+}
+
 /// Compute the per-tick reset-currency point gains (prestige / transcend /
 /// reincarnation) from `&GameState` plus the Phase-2 accelerator effect.
 ///
@@ -2208,6 +2239,24 @@ mod tests {
         // ambrosiaBrickOfLead (ambrosia[31]) singularitySpeedMult = 1 - n/100.
         state.ambrosia.upgrades[31].level = 25.0;
         assert!((compute_singularity_speed_mult_pre(&state) - 0.75).abs() < 1e-12);
+    }
+
+    #[test]
+    fn auto_timer_fields_at_default() {
+        let state = GameState::default();
+        assert_eq!(compute_auto_timer_fields(&state), (0.0, 0.0, 1.0, 0.0));
+    }
+
+    #[test]
+    fn auto_timer_fields_track_upgrades() {
+        let mut state = GameState::default();
+        state.shop.upgrades[0] = 3.0; // offeringPotion
+        state.shop.upgrades[1] = 5.0; // obtainiumPotion
+        state.octeract_upgrades.upgrades[26].level = 10.0; // 1 + 4*10/100 = 1.4
+        state.golden_quarks.upgrades[2].level = 4.0; // 4*5/2 = 10
+        let (off, obt, speed, export) = compute_auto_timer_fields(&state);
+        assert_eq!((off, obt, export), (3.0, 5.0, 10.0));
+        assert!((speed - 1.4).abs() < 1e-12);
     }
 
     #[test]
