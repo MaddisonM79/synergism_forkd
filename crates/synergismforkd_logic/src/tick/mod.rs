@@ -364,9 +364,11 @@ pub fn tack(state: &mut GameState, input: &TackInput) -> TickOutput {
     cache.automation_pre.prestige_point_gain = reset_gains.prestige_point_gain;
     cache.automation_pre.transcend_point_gain = reset_gains.transcend_point_gain;
     cache.automation_pre.reincarnation_point_gain = reset_gains.reincarnation_point_gain;
-    // Global-speed multiplier (legacy `G.timeMultiplier`) — self-derived
-    // from state, replacing the caller-provided AutomationPre value.
+    // Speed multipliers (legacy `G.timeMultiplier` / `ascensionSpeedMult`) —
+    // self-derived from state, replacing the caller-provided AutomationPre
+    // values.
     cache.automation_pre.global_time_multiplier = compute_global_speed_mult_pre(state);
+    cache.automation_pre.ascension_speed_multi = compute_ascension_speed_mult_pre(state);
     phase_player_input(state, input, &mut output);
     phase_generation(state, &resource_gain_pre, input.dt, &mut output);
     phase_automation(state, &cache, input, &mut output);
@@ -1217,6 +1219,168 @@ fn compute_global_speed_mult_pre(state: &GameState) -> f64 {
     })
 }
 
+/// Ascension-speed multiplier (legacy `calculateAscensionSpeedMult`),
+/// self-derived from `&GameState`.
+///
+/// Reduces the legacy `allAscensionSpeedStats` array with [`product_f64`]
+/// into a `base`, then applies the exponent spread (the sum of GQ
+/// `singAscensionSpeed`, `singAscensionSpeed2`, and shop
+/// `chronometerInfinity`) via [`calculate_ascension_speed_mult`]. Replaces
+/// the caller-provided `AutomationPre::ascension_speed_multi`. When the
+/// `oneMind` GQ upgrade is unlocked the speed is a flat ×10 (legacy
+/// `addTimers('ascension')`), bypassing the StatLine reduction.
+///
+/// Three lines are neutral `1.0` pending unported inputs — each is exactly
+/// `1.0` at the current play state, so this stays faithful now: the shop
+/// `panthema` line (needs the unported infinite-shop-upgrade bonus levels),
+/// the singularity-debuff line (the singularity layer is paused), and the
+/// event-buff line (UI-tier).
+fn compute_ascension_speed_mult_pre(state: &GameState) -> f64 {
+    use crate::mechanics::ant_upgrades::mortuus_2_ant_upgrade_effect;
+    use crate::mechanics::calculate::{
+        calculate_ascension_speed_exponent_spread, calculate_ascension_speed_mult, product_f64,
+        AscensionSpeedMultInput,
+    };
+    use crate::mechanics::challenge_15_rewards;
+    use crate::mechanics::exalt_penalties::{
+        calculate_exalt_3_penalty, CalculateExalt3PenaltyInput,
+    };
+    use crate::mechanics::golden_quark_upgrades::{
+        intermediate_pack_effect, one_mind_effect, sing_ascension_speed_2_effect,
+        sing_ascension_speed_effect, IntermediatePackKey,
+    };
+    use crate::mechanics::hepteract_effects::chronos_hepteract_effects;
+    use crate::mechanics::octeracts::{
+        octeract_improved_ascension_speed_2_effect, octeract_improved_ascension_speed_effect,
+    };
+    use crate::mechanics::shop_upgrades::{
+        chronometer_2_effect, chronometer_3_effect, chronometer_effect,
+        chronometer_infinity_effect, chronometer_z_effect, shop_chronometer_s_effect,
+        ChronometerInfinityKey,
+    };
+    use crate::mechanics::singularity_challenges::{
+        limited_ascensions_effect, limited_time_effect, LimitedAscensionsKey, LimitedTimeKey,
+        SingularityEffectValue,
+    };
+    use crate::mechanics::talisman_effects::polymath_talisman_effects;
+    use crate::state::golden_quarks::{
+        GQ_INTERMEDIATE_PACK, GQ_ONE_MIND, GQ_SING_ASCENSION_SPEED, GQ_SING_ASCENSION_SPEED_2,
+    };
+    use crate::state::octeract_upgrades::{
+        OCTERACT_IMPROVED_ASCENSION_SPEED, OCTERACT_IMPROVED_ASCENSION_SPEED_2,
+    };
+    use crate::state::shop::{
+        SHOP_CHRONOMETER, SHOP_CHRONOMETER_2, SHOP_CHRONOMETER_3, SHOP_CHRONOMETER_INFINITY,
+        SHOP_CHRONOMETER_S, SHOP_CHRONOMETER_Z,
+    };
+    use crate::state::TALISMAN_POLYMATH;
+
+    const ANT_UPGRADE_MORTUUS_2: usize = 15;
+    const CUBE_UPGRADE_COOKIE_9: usize = 59;
+    const PLATONIC_UPGRADE_OMEGA: usize = 15;
+
+    let sing = state.singularity.singularity_count;
+    let shop = &state.shop.upgrades;
+    let gq = &state.golden_quarks.upgrades;
+    let oct = &state.octeract_upgrades.upgrades;
+
+    // `oneMind` locks ascension speed to a flat ×10, bypassing the StatLine
+    // reduction entirely (legacy Helper.ts `addTimers('ascension')`).
+    if one_mind_effect(gq[GQ_ONE_MIND].level) {
+        return 10.0;
+    }
+
+    let scalar = |v: SingularityEffectValue| match v {
+        SingularityEffectValue::Scalar(s) => s,
+        SingularityEffectValue::Unlock(_) => 1.0,
+    };
+
+    // Platonic OMEGA: 0.002 × (Σ used corruption levels) × platonicUpgrades[15].
+    let corruption_total_levels: f64 = state
+        .corruptions
+        .used
+        .levels
+        .iter()
+        .map(|&l| f64::from(l))
+        .sum();
+    let platonic_omega = 1.0
+        + 0.002
+            * corruption_total_levels
+            * state.cube_upgrade_levels.platonic_upgrades[PLATONIC_UPGRADE_OMEGA];
+
+    // EXALT limitedAscensions buff: effect ^ (1 + max(0, ⌊log10(ascensions)⌋)).
+    let ascension_count = state.reset_counters.ascension_count;
+    let limited_ascensions_mult = scalar(limited_ascensions_effect(
+        state.singularity.limited_ascensions.completions,
+        LimitedAscensionsKey::AscensionSpeedMult,
+    ));
+    let exalt_buff =
+        limited_ascensions_mult.powf(1.0 + 0.0_f64.max(ascension_count.log10().floor()));
+
+    // EXALT limitedAscensions debuff: 1 / Exalt-3 penalty (1 outside Exalt 3).
+    let exalt_3_debuff = 1.0
+        / calculate_exalt_3_penalty(&CalculateExalt3PenaltyInput {
+            limited_ascensions_enabled: state.singularity.limited_ascensions.enabled,
+            limited_ascensions_completions: state.singularity.limited_ascensions.completions,
+            ascension_count,
+        });
+
+    // Base StatLine product — legacy `allAscensionSpeedStats`.
+    let base = product_f64(&[
+        mortuus_2_ant_upgrade_effect(state.ants.upgrades[ANT_UPGRADE_MORTUUS_2]).ascension_speed,
+        polymath_talisman_effects(state.talismans.talisman_rarity[TALISMAN_POLYMATH] as i32)
+            .ascension_speed_bonus,
+        chronometer_effect(shop[SHOP_CHRONOMETER]),
+        chronometer_2_effect(shop[SHOP_CHRONOMETER_2]),
+        chronometer_3_effect(shop[SHOP_CHRONOMETER_3]),
+        chronos_hepteract_effects(state.hepteracts.chronos.bal).ascension_speed,
+        platonic_omega,
+        challenge_15_rewards::ascension_speed(state.challenges.challenge15_exponent),
+        1.0 + (1.0 / 400.0) * state.cube_upgrade_levels.cube_upgrades[CUBE_UPGRADE_COOKIE_9],
+        intermediate_pack_effect(
+            gq[GQ_INTERMEDIATE_PACK].level,
+            IntermediatePackKey::AscensionSpeedMult,
+        ),
+        chronometer_z_effect(shop[SHOP_CHRONOMETER_Z], sing),
+        octeract_improved_ascension_speed_effect(
+            oct[OCTERACT_IMPROVED_ASCENSION_SPEED].level,
+            sing,
+        ),
+        octeract_improved_ascension_speed_2_effect(
+            oct[OCTERACT_IMPROVED_ASCENSION_SPEED_2].level,
+            sing,
+        ),
+        chronometer_infinity_effect(
+            shop[SHOP_CHRONOMETER_INFINITY],
+            ChronometerInfinityKey::AscensionSpeedMult,
+        ),
+        exalt_buff,
+        1.0, // shop panthema (Jack): infinite-shop-upgrade bonus levels unported → 1.0
+        scalar(limited_time_effect(
+            state.singularity.limited_time.completions,
+            LimitedTimeKey::AscensionSpeed,
+        )),
+        shop_chronometer_s_effect(shop[SHOP_CHRONOMETER_S], sing),
+        exalt_3_debuff,
+        1.0, // singularity debuff: singularity layer paused → 1.0 (sing == 0)
+        1.0, // event buff: UI-tier (wall-clock event calendar) → 1.0
+    ]);
+
+    let exponent_spread = calculate_ascension_speed_exponent_spread(
+        sing_ascension_speed_effect(gq[GQ_SING_ASCENSION_SPEED].level),
+        sing_ascension_speed_2_effect(gq[GQ_SING_ASCENSION_SPEED_2].level),
+        chronometer_infinity_effect(
+            shop[SHOP_CHRONOMETER_INFINITY],
+            ChronometerInfinityKey::ExponentSpread,
+        ),
+    );
+
+    calculate_ascension_speed_mult(&AscensionSpeedMultInput {
+        base,
+        exponent_spread,
+    })
+}
+
 /// Compute the per-tick reset-currency point gains (prestige / transcend /
 /// reincarnation) from `&GameState` plus the Phase-2 accelerator effect.
 ///
@@ -1973,6 +2137,36 @@ mod tests {
         // the (1, 100] no-DR band, so the mult is exactly 3.0.
         state.researches.researches[121] = 100.0;
         assert!((compute_global_speed_mult_pre(&state) - 3.0).abs() < 1e-12);
+    }
+
+    #[test]
+    fn ascension_speed_mult_pre_is_one_at_default() {
+        let state = GameState::default();
+        // Every base line is the multiplicative identity and the exponent
+        // spread is 0 at the default state → mult is exactly 1.
+        assert_eq!(compute_ascension_speed_mult_pre(&state), 1.0);
+    }
+
+    #[test]
+    fn ascension_speed_mult_pre_applies_exponent_spread() {
+        let mut state = GameState::default();
+        // Chronometer (shop[18]) adds `1 + 0.012n` to the base; n = 100 → 2.2.
+        state.shop.upgrades[18] = 100.0;
+        // GQ singAscensionSpeed (gq[55]) contributes 0.03 to the exponent
+        // spread once its level > 0, so the result is base^(1 + 0.03).
+        state.golden_quarks.upgrades[55].level = 1.0;
+        let expected = (1.0 + 0.012 * 100.0_f64).powf(1.0 + 0.03);
+        assert!((compute_ascension_speed_mult_pre(&state) - expected).abs() < 1e-9);
+    }
+
+    #[test]
+    fn ascension_speed_mult_pre_one_mind_locks_to_ten() {
+        let mut state = GameState::default();
+        // A large chronometer base would otherwise dominate, but oneMind
+        // (gq[59]) locks ascension speed to a flat ×10.
+        state.shop.upgrades[18] = 1_000.0;
+        state.golden_quarks.upgrades[59].level = 1.0;
+        assert_eq!(compute_ascension_speed_mult_pre(&state), 10.0);
     }
 
     #[test]
