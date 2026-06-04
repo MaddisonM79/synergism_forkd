@@ -222,12 +222,11 @@ impl Default for AutomationPre {
 /// Inputs to [`tack`]. Owned by the caller — `logic` has no clock, no
 /// input device, no RNG seed source of its own.
 ///
-/// The remaining `*_pre` bundles are caller-provided for the duration of
-/// the MVP port; they collapse into a single in-orchestrator
-/// `CrossMechanicCache` once the upstream mechanics (rune/ant/hepteract
-/// effects, achievement rewards, challenge-15 rewards) port. The
-/// `update_all_multiplier` / `update_all_tick` bundles have already been
-/// retired — both aggregators now self-derive from `&GameState`.
+/// `automation_pre` is the last caller-provided `*_pre` bundle; the four
+/// global-state bundles (`global_multipliers`, `update_all_multiplier`,
+/// `update_all_tick`, `resource_gain`) have all been retired — the tick
+/// now self-derives them from `&GameState`. `automation_pre` follows once
+/// the Phase-5 speed-mult aggregators port.
 #[derive(Debug, Clone, Default)]
 pub struct TackInput {
     /// Wall-clock seconds since the previous tick. The caller is the
@@ -240,9 +239,6 @@ pub struct TackInput {
     /// Player inputs queued since the previous tick. Drained FIFO in
     /// Phase 3. Empty in pure background ticks.
     pub player_actions: SmallVec<[PlayerAction; 4]>,
-    /// Hand-packed pre-evaluated bundle for
-    /// [`compute_global_multipliers`].
-    pub global_multipliers_pre: GlobalMultipliersPreEvaluated,
     /// Pre-evaluated inputs for the Phase 5 automation layer.
     pub automation_pre: AutomationPre,
 }
@@ -303,23 +299,17 @@ pub struct TickOutput {
 ///
 /// Per Loom's tack-design memo, the goal of the cache is to make the
 /// synergy graph **legible**. The legacy TS scattered these
-/// computations across the four aggregators' `*Pre` parameters, which
-/// every caller hand-packed — silently dropping a field gave a working
-/// tick that produced slightly less, with no compile error.
+/// computations across the aggregators' `*Pre` parameters, which every
+/// caller hand-packed — silently dropping a field gave a working tick
+/// that produced slightly less, with no compile error.
 ///
-/// Today this struct holds the four `*Pre` bundles directly. Each
-/// future commit migrates one upstream effect into compute-from-state
-/// inside `phase_cross_mechanic_precompute`, at which point the
-/// corresponding `*Pre` field becomes a `From<&CrossMechanicCache>`
-/// view and the caller stops providing it. Eventually
-/// [`TackInput::global_multipliers_pre`] et al. all disappear and the
-/// cache is fully self-derived from `&GameState`.
+/// The four global-state bundles have all migrated to compute-from-state
+/// (their derivations live in the Phase-1/2 functions, not the cache).
+/// `automation_pre` is the last bundle still forwarded from
+/// [`TackInput`]; it follows once the Phase-5 speed-mult aggregators port,
+/// after which the cache is fully self-derived from `&GameState`.
 #[derive(Debug, Clone, Default)]
 pub struct CrossMechanicCache {
-    /// Pre-evaluated bundle for [`compute_global_multipliers`]. Owned
-    /// by the cache so mechanics never read this from
-    /// [`TackInput`] directly.
-    pub global_multipliers_pre: GlobalMultipliersPreEvaluated,
     /// Pre-evaluated inputs for the Phase 5 automation layer. Forwarded
     /// from [`TackInput`] today; state-derived field-by-field as the
     /// upstream speed-mult aggregators port.
@@ -354,7 +344,7 @@ pub fn tack(state: &mut GameState, input: &TackInput) -> TickOutput {
     let mut output = TickOutput::default();
 
     let mut cache = phase_cross_mechanic_precompute(state, input);
-    let aggregator_outputs = phase_global_state(state, &cache);
+    let aggregator_outputs = phase_global_state(state);
     // Phase 2b: coin production + tax. Mirrors the legacy `calculatetax()`
     // call slot — runs after the aggregators (it needs the fresh coin
     // multipliers), writes `g_cache.taxdivisor` for the *next* tick's
@@ -383,29 +373,13 @@ pub fn tack(state: &mut GameState, input: &TackInput) -> TickOutput {
 
 /// **Phase 1** — Cross-mechanic precompute.
 ///
-/// Builds the [`CrossMechanicCache`] — the canonical artifact for every
-/// downstream phase's cross-mechanic reads. Phases 2 / 4 / 5 take the
-/// cache, not [`TackInput`], so the cache becomes the single screen on
-/// which a designer can audit how mechanics flow into each other.
-///
-/// **Migration in progress.** Each `*Pre` field is being moved from
-/// caller-provided to compute-from-state as the upstream mechanic
-/// ports settle. The `update_all_multiplier` / `update_all_tick` bundles
-/// have already been fully retired — they are now derived inside
-/// [`phase_global_state`] (their only consumer), alongside the
-/// `total_accelerator_boost` they share. The `global_multipliers_pre`
-/// bundle still carries a handful of caller-forwarded fields (crystal /
-/// building pipeline) plus aggregator-output fields injected later.
-///
-/// As mechanics port, the override list grows and `TackInput.*_pre`
-/// shrinks. The cache is the migration target; `TackInput` is the
-/// temporary input mechanism.
-fn phase_cross_mechanic_precompute(state: &GameState, input: &TackInput) -> CrossMechanicCache {
+/// Builds the [`CrossMechanicCache`]. All four global-state bundles now
+/// self-derive inside their consuming phases ([`phase_global_state`],
+/// [`phase_tax`], [`compute_reset_currency_gains`]), so the cache is down
+/// to forwarding the last caller bundle, `automation_pre`, until the
+/// Phase-5 speed-mult aggregators port.
+fn phase_cross_mechanic_precompute(_state: &GameState, input: &TackInput) -> CrossMechanicCache {
     CrossMechanicCache {
-        global_multipliers_pre: compute_global_multipliers_pre(
-            state,
-            &input.global_multipliers_pre,
-        ),
         automation_pre: input.automation_pre,
     }
 }
@@ -591,15 +565,12 @@ fn compute_building_power(state: &GameState) -> f64 {
 /// - `accelerator_effect`               ✓ injected by phase_global_state (aggregator output)
 /// - `total_multiplier`                 ✓ injected by phase_global_state (aggregator output)
 /// - `total_accelerator`                ✓ injected by phase_global_state (aggregator output)
-/// - `total_accelerator_boost`          ✓ injected by precompute (calculate_total_accelerator_boost)
+/// - `total_accelerator_boost`          ✓ injected by phase_global_state (compute_total_accelerator_boost)
 /// - `challenge_15_coin_exponent`       ✓ state-derived (challenge_15_rewards)
 /// - `challenge_15_exponent_value`      ✓ state-derived (challenge_15_rewards)
 /// - `challenge_15_constant_bonus`      ✓ state-derived (challenge_15_rewards)
 #[must_use]
-fn compute_global_multipliers_pre(
-    state: &GameState,
-    fallback: &GlobalMultipliersPreEvaluated,
-) -> GlobalMultipliersPreEvaluated {
+fn compute_global_multipliers_pre(state: &GameState) -> GlobalMultipliersPreEvaluated {
     use crate::mechanics::ant_upgrades::{coins_ant_upgrade_effect, CoinsAntUpgradeInput};
     use crate::mechanics::calculate::{calculate_total_coin_owned, CalculateTotalCoinOwnedInput};
     use crate::mechanics::challenges::{calc_ecc, ChallengeType};
@@ -717,11 +688,13 @@ fn compute_global_multipliers_pre(
         // the level is 0 in logic-driven play → 0.
         constant_ex_max_percent_increase: 0.0,
         ascend_building_dr_value,
-        multiplier_effect: fallback.multiplier_effect,
-        accelerator_effect: fallback.accelerator_effect,
-        total_multiplier: fallback.total_multiplier,
-        total_accelerator: fallback.total_accelerator,
-        total_accelerator_boost: fallback.total_accelerator_boost,
+        // Placeholders — phase_global_state overwrites these five with the
+        // aggregator outputs + the shared total_accelerator_boost.
+        multiplier_effect: Decimal::zero(),
+        accelerator_effect: Decimal::zero(),
+        total_multiplier: 0.0,
+        total_accelerator: 0.0,
+        total_accelerator_boost: 0.0,
         challenge_15_coin_exponent: challenge_15_rewards::coin_exponent(c15_exponent),
         challenge_15_exponent_value: challenge_15_rewards::exponent_reward(c15_exponent),
         challenge_15_constant_bonus: challenge_15_rewards::constant_bonus(c15_exponent),
@@ -909,7 +882,7 @@ fn compute_update_all_tick_pre(
 /// `total_accelerator_boost` is a pure function of state read by all three
 /// aggregators; it is computed once here (this phase is its only consumer)
 /// and threaded into each bundle.
-fn phase_global_state(state: &mut GameState, cache: &CrossMechanicCache) -> AggregatorOutputs {
+fn phase_global_state(state: &mut GameState) -> AggregatorOutputs {
     let total_accelerator_boost = compute_total_accelerator_boost(state);
     let update_all_multiplier_pre =
         compute_update_all_multiplier_pre(state, total_accelerator_boost);
@@ -926,11 +899,10 @@ fn phase_global_state(state: &mut GameState, cache: &CrossMechanicCache) -> Aggr
         update_all_multiplier_result.total_multiplier,
     );
 
-    // Inject the cross-cutting outputs into the global-multipliers bundle
-    // (`total_accelerator_boost` from precompute-equivalent state; the rest
-    // from the two aggregators above — all forwarded from `TackInput`
-    // before).
-    let mut global_multipliers_pre = cache.global_multipliers_pre;
+    // Derive the global-multipliers bundle from state, then inject the
+    // cross-cutting outputs (`total_accelerator_boost` plus the two
+    // aggregators' effects — all forwarded from `TackInput` before).
+    let mut global_multipliers_pre = compute_global_multipliers_pre(state);
     global_multipliers_pre.total_accelerator_boost = total_accelerator_boost;
     global_multipliers_pre.multiplier_effect = update_all_multiplier_result.multiplier_effect;
     global_multipliers_pre.total_multiplier = update_all_multiplier_result.total_multiplier;
@@ -2058,22 +2030,21 @@ mod tests {
     }
 
     #[test]
-    fn cross_mechanic_cache_forwards_remaining_pre_bundles_from_input() {
-        // `global_multipliers_pre` is the last forwarded bundle (besides
-        // `automation_pre`); precompute carries it through verbatim. Pins
-        // the forwarding so a future compute-from-state migration has an
-        // expected baseline.
+    fn cross_mechanic_cache_forwards_automation_pre_from_input() {
+        // `automation_pre` is the last bundle precompute forwards verbatim
+        // (the four global-state bundles all self-derive now). Pins that
+        // forwarding until the Phase-5 aggregators port.
         let state = GameState::default();
         let input = TackInput {
             dt: 0.025,
+            automation_pre: AutomationPre {
+                max_quark_timer: 12_345.0,
+                ..AutomationPre::default()
+            },
             ..TackInput::default()
         };
         let cache = phase_cross_mechanic_precompute(&state, &input);
-
-        assert_eq!(
-            cache.global_multipliers_pre.crystal_mult,
-            input.global_multipliers_pre.crystal_mult
-        );
+        assert_eq!(cache.automation_pre.max_quark_timer, 12_345.0);
     }
 
     #[test]
@@ -2208,8 +2179,7 @@ mod tests {
         // the immutable legacy constants (they were 0 when forwarded from a
         // default `ResourceGainPre`, leaving the cascades inert).
         let mut state = GameState::default();
-        let cache = phase_cross_mechanic_precompute(&state, &TackInput::default());
-        let agg = phase_global_state(&mut state, &cache);
+        let agg = phase_global_state(&mut state);
         let tax = phase_tax(&mut state, &agg);
         let reset = compute_reset_currency_gains(&state, &agg);
         let pre = compute_resource_gain_pre(&agg, &tax, &reset);
@@ -2246,8 +2216,7 @@ mod tests {
         // (1e24 / 1e12) ^ 0.5 = (1e12) ^ 0.5 = 1e6.
         let mut state = GameState::default();
         state.coin_counters.coins_this_prestige = Decimal::from_finite(1e24);
-        let cache = phase_cross_mechanic_precompute(&state, &TackInput::default());
-        let agg = phase_global_state(&mut state, &cache);
+        let agg = phase_global_state(&mut state);
         let tax = phase_tax(&mut state, &agg);
         let reset = compute_reset_currency_gains(&state, &agg);
         assert!((reset.prestige_point_gain.to_number() - 1e6).abs() / 1e6 < 1e-9);
@@ -2262,14 +2231,14 @@ mod tests {
         // exponent is 1/3, so 1e9 shards → ~1000 (was forwarded identity 1).
         let mut state = GameState::default();
         state.crystal_upgrades.prestige_shards = Decimal::from_finite(1e9);
-        let pre = compute_global_multipliers_pre(&state, &GlobalMultipliersPreEvaluated::default());
+        let pre = compute_global_multipliers_pre(&state);
         assert!((pre.crystal_mult.to_number() - 1000.0).abs() / 1000.0 < 1e-6);
 
         // ascend_building_dr_value reflects owned ascend buildings (raw sum
         // below the 100k threshold).
         let mut s2 = GameState::default();
         s2.tesseract_buildings.ascend_building_1.owned = 500.0;
-        let pre2 = compute_global_multipliers_pre(&s2, &GlobalMultipliersPreEvaluated::default());
+        let pre2 = compute_global_multipliers_pre(&s2);
         assert_eq!(pre2.ascend_building_dr_value, 500.0);
     }
 }
