@@ -364,6 +364,9 @@ pub fn tack(state: &mut GameState, input: &TackInput) -> TickOutput {
     cache.automation_pre.prestige_point_gain = reset_gains.prestige_point_gain;
     cache.automation_pre.transcend_point_gain = reset_gains.transcend_point_gain;
     cache.automation_pre.reincarnation_point_gain = reset_gains.reincarnation_point_gain;
+    // Global-speed multiplier (legacy `G.timeMultiplier`) — self-derived
+    // from state, replacing the caller-provided AutomationPre value.
+    cache.automation_pre.global_time_multiplier = compute_global_speed_mult_pre(state);
     phase_player_input(state, input, &mut output);
     phase_generation(state, &resource_gain_pre, input.dt, &mut output);
     phase_automation(state, &cache, input, &mut output);
@@ -1083,6 +1086,137 @@ fn phase_tax(state: &mut GameState, agg: &AggregatorOutputs) -> TaxOutputs {
     }
 }
 
+/// Global-speed multiplier (legacy `G.timeMultiplier` /
+/// `calculateGlobalSpeedMult`), self-derived from `&GameState`.
+///
+/// Reduces the two legacy StatLine arrays — `allGlobalSpeedStats`
+/// (DR-enabled "normal" leg) and `allGlobalSpeedIgnoreDRStats` (DR-ignored
+/// "immaculate" leg) — with [`product_f64`] and combines them through
+/// [`calculate_global_speed_mult`] using the platonic-7 DR power. Replaces
+/// the caller-provided `AutomationPre::global_time_multiplier`.
+///
+/// Three lines are neutral `1.0` pending unported inputs — each is exactly
+/// `1.0` at the current play state, so this stays faithful now:
+/// - obtainium-log line: `maxObtainium` is not tracked in state (and
+///   `upgrades[70] == 0`);
+/// - speed-spirit line: effective rune-spirit power needs the unported
+///   `spiritMultiplier` chain (cf. the prism-spirit caveat);
+/// - singularity-debuff line: the singularity layer is paused
+///   (`calculate_singularity_debuff` has no production caller yet).
+///
+/// The event-buff line is `1.0` (no wall-clock event calendar in logic).
+fn compute_global_speed_mult_pre(state: &GameState) -> f64 {
+    use crate::mechanics::ant_upgrades::mortuus_ant_upgrade_effect;
+    use crate::mechanics::calculate::{
+        calculate_global_speed_mult, calculate_platonic_7_upgrade_power, product_f64,
+        GlobalSpeedMultInput,
+    };
+    use crate::mechanics::cube_blessings::calculate_global_speed_cube_blessing;
+    use crate::mechanics::golden_quark_upgrades::{intermediate_pack_effect, IntermediatePackKey};
+    use crate::mechanics::hypercube_blessings::calculate_global_speed_hypercube_blessing;
+    use crate::mechanics::octeracts::octeract_improved_global_speed_effect;
+    use crate::mechanics::platonic_blessings::{
+        calculate_global_speed_platonic_blessing,
+        calculate_hypercube_blessing_multiplier_platonic_blessing,
+    };
+    use crate::mechanics::rune_blessing_effects::speed_rune_blessing_effects;
+    use crate::mechanics::rune_effects::{speed_rune_effects, SpeedRuneKey};
+    use crate::mechanics::shop_upgrades::shop_chronometer_s_effect;
+    use crate::mechanics::singularity_challenges::{
+        limited_time_effect, LimitedTimeKey, SingularityEffectValue,
+    };
+    use crate::mechanics::talisman_effects::chronos_talisman_effects;
+    use crate::mechanics::tesseract_blessings::calculate_global_speed_tesseract_blessing;
+    use crate::mechanics::{challenge_15_rewards, corruptions::dilation_multiplier_at_level};
+    use crate::state::golden_quarks::GQ_INTERMEDIATE_PACK;
+    use crate::state::octeract_upgrades::OCTERACT_IMPROVED_GLOBAL_SPEED;
+    use crate::state::shop::SHOP_CHRONOMETER_S;
+    use crate::state::{DILATION_INDEX, RUNE_SPEED, TALISMAN_CHRONOS};
+
+    // Ant-upgrade index (legacy `AntUpgrades.Mortuus`) + the cube upgrades
+    // touching global speed (legacy `player.cubeUpgrades[18|34|52]`).
+    const ANT_UPGRADE_MORTUUS: usize = 11;
+    const CUBE_UPGRADE_2X8: usize = 18;
+    const CUBE_UPGRADE_GLOBAL_SPEED_BLESSING: usize = 34;
+    const CUBE_UPGRADE_CX2: usize = 52;
+
+    let sing = state.singularity.singularity_count;
+    let researches = &state.researches.researches;
+    let cube_upgrades = &state.cube_upgrade_levels.cube_upgrades;
+
+    // Cube-blessing chain platonic → hypercube → tesseract → cube, mirroring
+    // the legacy `calculateGlobalSpeedCubeBlessing` call chain in `Cubes.ts`.
+    let platonic_amplifier =
+        calculate_hypercube_blessing_multiplier_platonic_blessing(&state.platonic_blessings);
+    let hypercube_blessing =
+        calculate_global_speed_hypercube_blessing(&state.hypercube_blessings, platonic_amplifier);
+    let tesseract_blessing =
+        calculate_global_speed_tesseract_blessing(&state.tesseract_blessings, hypercube_blessing);
+    let chronos_cube = calculate_global_speed_cube_blessing(
+        &state.cube_blessings,
+        tesseract_blessing,
+        cube_upgrades[CUBE_UPGRADE_GLOBAL_SPEED_BLESSING],
+    );
+
+    let limited_time = match limited_time_effect(
+        state.singularity.limited_time.completions,
+        LimitedTimeKey::AscensionSpeed,
+    ) {
+        SingularityEffectValue::Scalar(v) => v,
+        SingularityEffectValue::Unlock(_) => 1.0,
+    };
+
+    // DR-enabled ("normal") leg — legacy `allGlobalSpeedStats`.
+    let normal_mult = product_f64(&[
+        speed_rune_effects(
+            state.runes.rune_levels[RUNE_SPEED],
+            SpeedRuneKey::GlobalSpeed,
+        ),
+        1.0, // obtainium-log: maxObtainium untracked → 1.0 (upgrades[70] == 0)
+        1.0 + researches[121] / 50.0,
+        1.0 + 0.015 * researches[136],
+        1.0 + 0.012 * researches[151],
+        1.0 + 0.009 * researches[166],
+        1.0 + 0.006 * researches[181],
+        1.0 + 0.003 * researches[196],
+        speed_rune_blessing_effects(state.runes.rune_blessing_levels[RUNE_SPEED]).global_speed,
+        1.0, // speed spirit: effective spirit power unported → 1.0
+        chronos_cube,
+        1.0 + cube_upgrades[CUBE_UPGRADE_2X8] / 5.0,
+        mortuus_ant_upgrade_effect(state.ants.upgrades[ANT_UPGRADE_MORTUUS]).global_speed,
+        chronos_talisman_effects(state.talismans.talisman_rarity[TALISMAN_CHRONOS] as i32)
+            .global_speed,
+        challenge_15_rewards::global_speed(state.challenges.challenge15_exponent),
+        1.0 + 0.01 * cube_upgrades[CUBE_UPGRADE_CX2],
+        dilation_multiplier_at_level(state.corruptions.used.levels[DILATION_INDEX]),
+    ]);
+
+    // DR-ignored ("immaculate") leg — legacy `allGlobalSpeedIgnoreDRStats`.
+    let immaculate_mult = product_f64(&[
+        calculate_global_speed_platonic_blessing(&state.platonic_blessings),
+        1.0, // singularity debuff: singularity layer paused → 1.0 (sing == 0)
+        intermediate_pack_effect(
+            state.golden_quarks.upgrades[GQ_INTERMEDIATE_PACK].level,
+            IntermediatePackKey::GlobalSpeedMult,
+        ),
+        octeract_improved_global_speed_effect(
+            state.octeract_upgrades.upgrades[OCTERACT_IMPROVED_GLOBAL_SPEED].level,
+            sing,
+        ),
+        limited_time,
+        shop_chronometer_s_effect(state.shop.upgrades[SHOP_CHRONOMETER_S], sing),
+        1.0, // event buff: UI-tier (wall-clock event calendar) → 1.0
+    ]);
+
+    calculate_global_speed_mult(&GlobalSpeedMultInput {
+        normal_mult,
+        immaculate_mult,
+        dr_power: calculate_platonic_7_upgrade_power(
+            state.cube_upgrade_levels.platonic_upgrades[7],
+        ),
+    })
+}
+
 /// Compute the per-tick reset-currency point gains (prestige / transcend /
 /// reincarnation) from `&GameState` plus the Phase-2 accelerator effect.
 ///
@@ -1782,6 +1916,12 @@ mod tests {
         let mut state = GameState::default();
         let input = TackInput {
             dt: 2.0,
+            ..TackInput::default()
+        };
+        // `tack` now self-derives `global_time_multiplier`; drive
+        // `phase_automation` directly with a controlled cache so this stays a
+        // focused test of timer advancement under known multipliers.
+        let cache = CrossMechanicCache {
             automation_pre: AutomationPre {
                 global_time_multiplier: 3.0,
                 ascension_speed_multi: 5.0,
@@ -1790,9 +1930,9 @@ mod tests {
                 export_gq_per_hour: 1.0,
                 ..AutomationPre::default()
             },
-            ..TackInput::default()
         };
-        let output = tack(&mut state, &input);
+        let mut output = TickOutput::default();
+        phase_automation(&mut state, &cache, &input, &mut output);
 
         // Reset counters advance by dt × global_time_multiplier (2 × 3).
         assert_eq!(state.reset_counters.prestige_counter, 6.0);
@@ -1815,6 +1955,24 @@ mod tests {
             output.events[0],
             CoreEvent::ObtainiumMultiplierRecomputeRequested
         ));
+    }
+
+    #[test]
+    fn global_speed_mult_pre_is_one_at_default() {
+        let state = GameState::default();
+        // Every contributing line is the multiplicative identity at the
+        // default state, so the self-derived global-speed mult is exactly 1.
+        assert_eq!(compute_global_speed_mult_pre(&state), 1.0);
+    }
+
+    #[test]
+    fn global_speed_mult_pre_scales_with_research() {
+        let mut state = GameState::default();
+        // Research 5x21 (`researches[121]`) adds `1 + n/50` to the DR-enabled
+        // leg. n = 100 → factor 3.0; nothing else is active and 3.0 sits in
+        // the (1, 100] no-DR band, so the mult is exactly 3.0.
+        state.researches.researches[121] = 100.0;
+        assert!((compute_global_speed_mult_pre(&state) - 3.0).abs() < 1e-12);
     }
 
     #[test]
