@@ -36,6 +36,7 @@ use synergismforkd_bignum::Decimal;
 use crate::events::{CoreEvent, ProducerType};
 use crate::mechanics::accelerators::{buy_accelerator, BuyAcceleratorInput};
 use crate::mechanics::achievement_rewards;
+use crate::mechanics::challenge_15_rewards;
 use crate::mechanics::crystal_upgrades::{buy_crystal_upgrades, BuyCrystalUpgradesInput};
 use crate::mechanics::global_multipliers::{
     compute_global_multipliers, GlobalMultipliersPreEvaluated, GlobalMultipliersResult,
@@ -567,9 +568,9 @@ fn compute_total_accelerator_boost(state: &GameState) -> f64 {
 /// - `total_multiplier`                 ✓ injected by phase_global_state (aggregator output)
 /// - `total_accelerator`                ✓ injected by phase_global_state (aggregator output)
 /// - `total_accelerator_boost`          ✓ injected by precompute (calculate_total_accelerator_boost)
-/// - `challenge_15_coin_exponent`       forwarded (challenge-15 rewards)
-/// - `challenge_15_exponent_value`      forwarded (challenge-15 rewards)
-/// - `challenge_15_constant_bonus`      forwarded (challenge-15 rewards)
+/// - `challenge_15_coin_exponent`       ✓ state-derived (challenge_15_rewards)
+/// - `challenge_15_exponent_value`      ✓ state-derived (challenge_15_rewards)
+/// - `challenge_15_constant_bonus`      ✓ state-derived (challenge_15_rewards)
 #[must_use]
 fn compute_global_multipliers_pre(
     state: &GameState,
@@ -601,6 +602,7 @@ fn compute_global_multipliers_pre(
     });
     let recession_level = state.corruptions.used.levels[RECESSION_INDEX];
     let ach = achievement_reward_input(state);
+    let c15_exponent = state.challenges.challenge15_exponent;
 
     GlobalMultipliersPreEvaluated {
         prism_production_log10: prism_rune_effects(prism_level, PrismRuneKey::ProductionLog10),
@@ -624,9 +626,9 @@ fn compute_global_multipliers_pre(
         total_multiplier: fallback.total_multiplier,
         total_accelerator: fallback.total_accelerator,
         total_accelerator_boost: fallback.total_accelerator_boost,
-        challenge_15_coin_exponent: fallback.challenge_15_coin_exponent,
-        challenge_15_exponent_value: fallback.challenge_15_exponent_value,
-        challenge_15_constant_bonus: fallback.challenge_15_constant_bonus,
+        challenge_15_coin_exponent: challenge_15_rewards::coin_exponent(c15_exponent),
+        challenge_15_exponent_value: challenge_15_rewards::exponent_reward(c15_exponent),
+        challenge_15_constant_bonus: challenge_15_rewards::constant_bonus(c15_exponent),
     }
 }
 
@@ -648,7 +650,7 @@ fn compute_global_multipliers_pre(
 /// - `multipliers_achievement`          ✓ state-derived (achievement_rewards)
 /// - `total_accelerator_boost`          ✓ injected by precompute (calculate_total_accelerator_boost)
 /// - `taxdivisor`                       forwarded (cross-mechanic tax pipeline)
-/// - `challenge_15_reward_multiplier`   forwarded (challenge-15 rewards not ported)
+/// - `challenge_15_reward_multiplier`   ✓ state-derived (challenge_15_rewards)
 #[must_use]
 fn compute_update_all_multiplier_pre(
     state: &GameState,
@@ -717,7 +719,9 @@ fn compute_update_all_multiplier_pre(
         multipliers_achievement: achievement_rewards::multipliers(&ach),
         total_accelerator_boost: fallback.total_accelerator_boost,
         taxdivisor: fallback.taxdivisor,
-        challenge_15_reward_multiplier: fallback.challenge_15_reward_multiplier,
+        challenge_15_reward_multiplier: challenge_15_rewards::multiplier(
+            state.challenges.challenge15_exponent,
+        ),
     }
 }
 
@@ -735,7 +739,7 @@ fn compute_update_all_multiplier_pre(
 /// - `accelerator_power_achievement`    ✓ state-derived (achievement_rewards)
 /// - `total_accelerator_boost`          ✓ injected by precompute (calculate_total_accelerator_boost)
 /// - `accelerator_multiplier`           ✓ state-derived (calculate_accelerator_multiplier)
-/// - `challenge_15_reward_accelerator`  forwarded (challenge-15 rewards)
+/// - `challenge_15_reward_accelerator`  ✓ state-derived (challenge_15_rewards)
 #[must_use]
 fn compute_update_all_tick_pre(state: &GameState, fallback: &UpdateAllTickPre) -> UpdateAllTickPre {
     use crate::mechanics::corruptions::viscosity_power_at_level;
@@ -786,7 +790,9 @@ fn compute_update_all_tick_pre(state: &GameState, fallback: &UpdateAllTickPre) -
         accelerator_power_achievement: achievement_rewards::accelerator_power(&ach),
         total_accelerator_boost: fallback.total_accelerator_boost,
         accelerator_multiplier,
-        challenge_15_reward_accelerator: fallback.challenge_15_reward_accelerator,
+        challenge_15_reward_accelerator: challenge_15_rewards::accelerator(
+            state.challenges.challenge15_exponent,
+        ),
     }
 }
 
