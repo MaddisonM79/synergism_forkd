@@ -26,8 +26,8 @@ postcard = { version = "1", default-features = false, features = ["alloc"] }
 # `Decimal::from_string` / `FromStr` (used by the parity harness; available
 # to the save layer). `^0.4` lets patch releases flow through.
 break-eternity-rs = { version = "0.4", default-features = false }
-rand = { version = "0.8", default-features = false, features = ["std", "std_rng"] }
-rand_xoshiro = { version = "0.6", default-features = false, features = ["serde1"] }
+rand = { version = "0.10", default-features = false, features = ["thread_rng"] }
+rand_xoshiro = { version = "0.8", default-features = false, features = ["serde"] }
 smallvec = { version = "1", default-features = false, features = ["serde"] }
 
 [workspace.lints.rust]

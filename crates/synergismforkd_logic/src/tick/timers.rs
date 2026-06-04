@@ -11,7 +11,7 @@
 //! timers (octeract, auto-potion, ambrosia, red-ambrosia) land in
 //! follow-on chunks.
 
-use rand::RngCore;
+use rand::Rng;
 use smallvec::SmallVec;
 
 use synergismforkd_bignum::Decimal;
@@ -468,7 +468,7 @@ pub(crate) struct AdvanceAmbrosiaTimerResult {
 /// threshold. Each iteration rolls one RNG value for luck.
 pub(crate) fn advance_ambrosia_timer(
     input: &AdvanceAmbrosiaTimerInput,
-    rng: &mut impl RngCore,
+    rng: &mut impl Rng,
 ) -> AdvanceAmbrosiaTimerResult {
     if input.no_singularity_upgrades_completions <= 0.0 || input.ambrosia_generation_speed == 0.0 {
         return AdvanceAmbrosiaTimerResult {
@@ -598,7 +598,7 @@ pub(crate) struct AdvanceRedAmbrosiaTimerResult {
 /// into the ambrosia timer afterward.
 pub(crate) fn advance_red_ambrosia_timer(
     input: &AdvanceRedAmbrosiaTimerInput,
-    rng: &mut impl RngCore,
+    rng: &mut impl Rng,
 ) -> AdvanceRedAmbrosiaTimerResult {
     if input.no_ambrosia_upgrades_completions <= 0.0 {
         return AdvanceRedAmbrosiaTimerResult {
