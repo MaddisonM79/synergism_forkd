@@ -78,6 +78,10 @@ const MULTIPLIERS_FLAT: [(usize, f64); 8] = [
     (161, 10.0),
 ];
 
+/// `+getAchievementReward('accelBoosts')` — additive. Coin-tier
+/// achievements grant `floor(owned / 2000)`.
+const ACCEL_BOOSTS_COIN: [(usize, usize); 5] = [(7, 0), (14, 1), (21, 2), (28, 3), (35, 4)];
+
 /// Legacy index of the lone `crystalMultiplier` achievement (#37):
 /// `() => Math.max(1, Decimal.log(prestigePoints, e))`.
 const CRYSTAL_MULTIPLIER_INDEX: usize = 37;
@@ -128,6 +132,18 @@ pub fn multipliers(input: &AchievementRewardInput) -> f64 {
     for (index, value) in MULTIPLIERS_FLAT {
         if earned(input.achievements, index) {
             sum += value;
+        }
+    }
+    sum
+}
+
+/// `getAchievementReward('accelBoosts')`.
+#[must_use]
+pub fn accel_boosts(input: &AchievementRewardInput) -> f64 {
+    let mut sum = 0.0;
+    for (index, tier) in ACCEL_BOOSTS_COIN {
+        if earned(input.achievements, index) {
+            sum += (input.coin_owned[tier] / 2000.0).floor();
         }
     }
     sum
@@ -232,5 +248,18 @@ mod tests {
             prestige_points: Decimal::one(),
         };
         assert_eq!(crystal_multiplier(&input), 1.0);
+    }
+
+    #[test]
+    fn accel_boosts_sums_coin_floors() {
+        // idx 7 = floor(coin[0]/2000); idx 35 = floor(coin[4]/2000).
+        let a = earned_array(&[7, 35]);
+        let input = AchievementRewardInput {
+            achievements: &a,
+            coin_owned: [5000.0, 0.0, 0.0, 0.0, 9000.0],
+            prestige_points: Decimal::zero(),
+        };
+        // floor(5000/2000)=2, floor(9000/2000)=4 → 6
+        assert_eq!(accel_boosts(&input), 6.0);
     }
 }
