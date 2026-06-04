@@ -145,6 +145,42 @@ pub fn deflation_multiplier_at_level(level: u32) -> f64 {
         .unwrap_or(0.0)
 }
 
+/// `G.dilationMultiplier` lookup table — global-speed scaler indexed by
+/// `player.corruptions.used.dilation` corruption level. 17 entries
+/// (`0..=16`). Verbatim port of the constant in
+/// `legacy/core_split/packages/web_ui/src/Variables.ts`. The dilation
+/// corruption feeds only the global-speed StatLine product (not
+/// ascension speed).
+pub const DILATION_MULTIPLIER: [f64; 17] = [
+    1.0,
+    1.0 / 3.0,
+    1.0 / 10.0,
+    1.0 / 40.0,
+    1.0 / 200.0,
+    1.0 / 3e4,
+    1.0 / 3e6,
+    1.0 / 3e9,
+    1.0 / 3e12,
+    1.0 / 1e15,
+    1.0 / 1e19,
+    1.0 / 1e24,
+    1.0 / 1e34,
+    1.0 / 1e48,
+    1.0 / 1e65,
+    1.0 / 1e80,
+    1.0 / 1e100,
+];
+
+/// `G.dilationMultiplier[level]` with a safe out-of-range fallback to
+/// `0.0` (corruption levels are capped within the table in practice).
+#[must_use]
+pub fn dilation_multiplier_at_level(level: u32) -> f64 {
+    DILATION_MULTIPLIER
+        .get(level as usize)
+        .copied()
+        .unwrap_or(0.0)
+}
+
 /// Inputs to [`viscosity_effect`].
 #[derive(Debug, Clone, Copy)]
 pub struct ViscosityEffectInput {
@@ -347,6 +383,20 @@ mod tests {
         assert_eq!(deflation_multiplier_at_level(15), 0.0);
         // Past the last entry — saturates to 0.
         assert_eq!(deflation_multiplier_at_level(100), 0.0);
+    }
+
+    #[test]
+    fn dilation_multiplier_table_matches_legacy() {
+        // Legacy `G.dilationMultiplier` from `Variables.ts` (17 entries).
+        assert_eq!(dilation_multiplier_at_level(0), 1.0);
+        assert!((dilation_multiplier_at_level(1) - 1.0 / 3.0).abs() < 1e-15);
+        assert!((dilation_multiplier_at_level(2) - 0.1).abs() < 1e-15);
+        assert!((dilation_multiplier_at_level(4) - 1.0 / 200.0).abs() < 1e-15);
+        assert!((dilation_multiplier_at_level(5) - 1.0 / 3e4).abs() < 1e-12);
+        assert!((dilation_multiplier_at_level(16) - 1.0 / 1e100).abs() < 1e-115);
+        // Past the last entry — saturates to 0.
+        assert_eq!(dilation_multiplier_at_level(17), 0.0);
+        assert_eq!(dilation_multiplier_at_level(100), 0.0);
     }
 
     fn baseline_max_input() -> MaxCorruptionLevelInput {
