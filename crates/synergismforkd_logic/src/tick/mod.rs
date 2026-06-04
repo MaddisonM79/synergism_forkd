@@ -35,6 +35,7 @@ use synergismforkd_bignum::Decimal;
 
 use crate::events::{CoreEvent, ProducerType};
 use crate::mechanics::accelerators::{buy_accelerator, BuyAcceleratorInput};
+use crate::mechanics::achievement_rewards;
 use crate::mechanics::crystal_upgrades::{buy_crystal_upgrades, BuyCrystalUpgradesInput};
 use crate::mechanics::global_multipliers::{
     compute_global_multipliers, GlobalMultipliersPreEvaluated, GlobalMultipliersResult,
@@ -415,6 +416,24 @@ fn phase_cross_mechanic_precompute(state: &GameState, input: &TackInput) -> Cros
     }
 }
 
+/// Build the shared achievement-reward input from `&GameState` — the
+/// earned-flag array plus the cross-state values the reward formulas
+/// read (coin-producer owned counts, prestige points).
+fn achievement_reward_input(state: &GameState) -> achievement_rewards::AchievementRewardInput<'_> {
+    let coin = &state.coin_producers.tiers;
+    achievement_rewards::AchievementRewardInput {
+        achievements: &state.achievements.achievements,
+        coin_owned: [
+            coin[0].owned,
+            coin[1].owned,
+            coin[2].owned,
+            coin[3].owned,
+            coin[4].owned,
+        ],
+        prestige_points: state.upgrades.prestige_points,
+    }
+}
+
 /// State-derive the [`GlobalMultipliersPreEvaluated`] fields whose
 /// upstream is a pure function of [`GameState`] and existing ported
 /// mechanic helpers.
@@ -428,9 +447,9 @@ fn phase_cross_mechanic_precompute(state: &GameState, input: &TackInput) -> Cros
 /// - `building_power`                   forwarded (multi-input formula)
 /// - `building_power_mult`              forwarded (depends on building_power)
 /// - `crystal_upgrade_3_multiplier`     forwarded (depends on crystal_upgrade_3_base)
-/// - `crystal_multiplier_achievement`   forwarded (achievement-reward table)
-/// - `const_upgrade_1_buff_achievement` forwarded (achievement-reward table)
-/// - `const_upgrade_2_buff_achievement` forwarded (achievement-reward table)
+/// - `crystal_multiplier_achievement`   ✓ state-derived (achievement_rewards)
+/// - `const_upgrade_1_buff_achievement` ✓ always 0 (no achievement grants it)
+/// - `const_upgrade_2_buff_achievement` ✓ always 0 (no achievement grants it)
 /// - `constant_ex_max_percent_increase` forwarded (shop-effect table not ported)
 /// - `ascend_building_dr_value`         forwarded (formula not yet ported)
 /// - `multiplier_effect`                forwarded (G.*, cross-aggregator)
@@ -471,6 +490,7 @@ fn compute_global_multipliers_pre(
         crumbs: state.ants.crumbs,
     });
     let recession_level = state.corruptions.used.levels[RECESSION_INDEX];
+    let ach = achievement_reward_input(state);
 
     GlobalMultipliersPreEvaluated {
         prism_production_log10: prism_rune_effects(prism_level, PrismRuneKey::ProductionLog10),
@@ -482,9 +502,11 @@ fn compute_global_multipliers_pre(
         building_power: fallback.building_power,
         building_power_mult: fallback.building_power_mult,
         crystal_upgrade_3_multiplier: fallback.crystal_upgrade_3_multiplier,
-        crystal_multiplier_achievement: fallback.crystal_multiplier_achievement,
-        const_upgrade_1_buff_achievement: fallback.const_upgrade_1_buff_achievement,
-        const_upgrade_2_buff_achievement: fallback.const_upgrade_2_buff_achievement,
+        crystal_multiplier_achievement: achievement_rewards::crystal_multiplier(&ach),
+        // No achievement grants `constUpgrade1Buff`/`constUpgrade2Buff` in
+        // the legacy table — the additive reward is always 0.
+        const_upgrade_1_buff_achievement: 0.0,
+        const_upgrade_2_buff_achievement: 0.0,
         constant_ex_max_percent_increase: fallback.constant_ex_max_percent_increase,
         ascend_building_dr_value: fallback.ascend_building_dr_value,
         multiplier_effect: fallback.multiplier_effect,
@@ -513,7 +535,7 @@ fn compute_global_multipliers_pre(
 /// - `hepteract_multiplier_mult`        ✓ state-derived
 /// - `viscosity_power`                  ✓ state-derived (G.viscosityPower table)
 /// - `multiplier_cube_blessing`         ✓ state-derived (full blessing chain)
-/// - `multipliers_achievement`          forwarded (achievement-reward table not ported)
+/// - `multipliers_achievement`          ✓ state-derived (achievement_rewards)
 /// - `total_accelerator_boost`          forwarded (G.*, cross-aggregator)
 /// - `taxdivisor`                       forwarded (cross-mechanic tax pipeline)
 /// - `challenge_15_reward_multiplier`   forwarded (challenge-15 rewards not ported)
@@ -558,6 +580,7 @@ fn compute_update_all_multiplier_pre(
         tesseract_blessing,
         state.cube_upgrade_levels.cube_upgrades[CUBE_UPGRADE_MULTIPLIER_BLESSING],
     );
+    let ach = achievement_reward_input(state);
 
     UpdateAllMultiplierPre {
         sum_of_rune_levels,
@@ -581,7 +604,7 @@ fn compute_update_all_multiplier_pre(
         viscosity_power: viscosity_power_at_level(viscosity_level),
         multiplier_cube_blessing: cube_blessing,
         // Forwarded — upstream mechanic not yet plumbed.
-        multipliers_achievement: fallback.multipliers_achievement,
+        multipliers_achievement: achievement_rewards::multipliers(&ach),
         total_accelerator_boost: fallback.total_accelerator_boost,
         taxdivisor: fallback.taxdivisor,
         challenge_15_reward_multiplier: fallback.challenge_15_reward_multiplier,
@@ -598,8 +621,8 @@ fn compute_update_all_multiplier_pre(
 /// - `hepteract_accelerator_mult`       ✓ state-derived
 /// - `viscosity_power`                  ✓ state-derived (G.viscosityPower table)
 /// - `accelerator_cube_blessing`        ✓ state-derived (full blessing chain)
-/// - `accelerators_achievement`         forwarded (achievement-reward table)
-/// - `accelerator_power_achievement`    forwarded (achievement-reward table)
+/// - `accelerators_achievement`         ✓ state-derived (achievement_rewards)
+/// - `accelerator_power_achievement`    ✓ state-derived (achievement_rewards)
 /// - `total_accelerator_boost`          forwarded (G.*, cross-aggregator)
 /// - `accelerator_multiplier`           forwarded (G.*, cross-aggregator)
 /// - `challenge_15_reward_accelerator`  forwarded (challenge-15 rewards)
@@ -635,6 +658,7 @@ fn compute_update_all_tick_pre(state: &GameState, fallback: &UpdateAllTickPre) -
         tesseract_blessing,
         state.cube_upgrade_levels.cube_upgrades[CUBE_UPGRADE_ACCELERATOR_BLESSING],
     );
+    let ach = achievement_reward_input(state);
 
     UpdateAllTickPre {
         multiplicative_accelerators_rune: speed_rune_effects(
@@ -647,8 +671,8 @@ fn compute_update_all_tick_pre(state: &GameState, fallback: &UpdateAllTickPre) -
         viscosity_power: viscosity_power_at_level(viscosity_level),
         accelerator_cube_blessing: cube_blessing,
         // Forwarded — upstream mechanic not yet plumbed.
-        accelerators_achievement: fallback.accelerators_achievement,
-        accelerator_power_achievement: fallback.accelerator_power_achievement,
+        accelerators_achievement: achievement_rewards::accelerators(&ach),
+        accelerator_power_achievement: achievement_rewards::accelerator_power(&ach),
         total_accelerator_boost: fallback.total_accelerator_boost,
         accelerator_multiplier: fallback.accelerator_multiplier,
         challenge_15_reward_accelerator: fallback.challenge_15_reward_accelerator,
