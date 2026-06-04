@@ -377,6 +377,7 @@ pub fn tack(state: &mut GameState, input: &TackInput) -> TickOutput {
     cache.automation_pre.obtainium_potion_count = obtainium_potions;
     cache.automation_pre.auto_potion_speed_mult = auto_potion_speed;
     cache.automation_pre.export_gq_per_hour = export_gq;
+    cache.automation_pre.ambrosia_luck = compute_ambrosia_luck_pre(state);
     phase_player_input(state, input, &mut output);
     phase_generation(state, &resource_gain_pre, input.dt, &mut output);
     phase_automation(state, &cache, input, &mut output);
@@ -1439,6 +1440,179 @@ fn compute_auto_timer_fields(state: &GameState) -> (f64, f64, f64, f64) {
     )
 }
 
+/// Ambrosia-luck multiplier (legacy `calculateAmbrosiaLuck`), self-derived
+/// from `&GameState`.
+///
+/// `raw_luck × multiplier`, where BOTH legs are **sums** (additive luck):
+/// `raw_luck = Σ allAmbrosiaLuckStats` (base 100) and `multiplier =
+/// Σ allAdditiveLuckMultStats` (base 1). Replaces the caller-provided
+/// `AutomationPre::ambrosia_luck` (which the ambrosia timer consumes, gated
+/// by `noSingularityUpgrades.completions > 0` — so it is inert at default).
+///
+/// Ambrosia/GQ/octeract effect inputs use the stored effective level
+/// (`level + free_level`). Lines whose extra context is unported or
+/// uncertain are neutral `0` (faithful at the current play state, where the
+/// owning upgrade is `0` anyway): the planar-coin / campaign-luck / shop
+/// `panthema` lines, the cube-/quark-luck synergy modules (need
+/// `wow_cube_log_sum` / `worlds`), `ambrosiaLuck3` (needs the blueberry
+/// inventory), `ambrosiaUltra` (needs the EXALT-completion sum), the
+/// horseshoe rune/talisman lines, and the event buff (UI-tier).
+fn compute_ambrosia_luck_pre(state: &GameState) -> f64 {
+    use crate::mechanics::achievement_levels::achievement_level_from_points;
+    use crate::mechanics::blueberry_upgrades::{
+        ambrosia_brick_of_lead_effect, ambrosia_luck_1_effect, ambrosia_luck_2_effect,
+        ambrosia_luck_4_effect, AmbrosiaBrickOfLeadEffectKey,
+    };
+    use crate::mechanics::calculate::{calculate_ambrosia_luck, sum_f64};
+    use crate::mechanics::golden_quark_upgrades::{
+        sing_ambrosia_luck_2_effect, sing_ambrosia_luck_3_effect, sing_ambrosia_luck_4_effect,
+        sing_ambrosia_luck_effect,
+    };
+    use crate::mechanics::level_rewards::{get_level_reward, LevelRewardKey};
+    use crate::mechanics::octeracts::{
+        octeract_ambrosia_luck_2_effect, octeract_ambrosia_luck_3_effect,
+        octeract_ambrosia_luck_4_effect, octeract_ambrosia_luck_effect,
+    };
+    use crate::mechanics::red_ambrosia_bonuses::{
+        calculate_cookie_upgrade_29_luck, CalculateCookieUpgrade29LuckInput,
+    };
+    use crate::mechanics::red_ambrosia_upgrades::{
+        regular_luck_2_effect, regular_luck_effect, viscount_effect, ViscountEffectKey,
+        ViscountEffectValue,
+    };
+    use crate::mechanics::shop_upgrades::{
+        shop_ambrosia_luck_1_effect, shop_ambrosia_luck_2_effect, shop_ambrosia_luck_3_effect,
+        shop_ambrosia_luck_4_effect, shop_ambrosia_luck_multiplier_4_effect,
+        shop_octeract_ambrosia_luck_effect,
+    };
+    use crate::mechanics::singularity_challenges::{
+        no_ambrosia_upgrades_effect, no_singularity_upgrades_effect, NoAmbrosiaUpgradesKey,
+        NoSingularityUpgradesKey, SingularityEffectValue,
+    };
+    use crate::mechanics::singularity_milestones::{
+        calculate_dilated_five_leaf_bonus, calculate_singularity_ambrosia_luck_milestone_bonus,
+    };
+    use crate::state::ambrosia::{
+        AMBROSIA_BRICK_OF_LEAD, AMBROSIA_LUCK_1, AMBROSIA_LUCK_2, AMBROSIA_LUCK_4,
+    };
+    use crate::state::golden_quarks::{
+        GQ_SING_AMBROSIA_LUCK, GQ_SING_AMBROSIA_LUCK_2, GQ_SING_AMBROSIA_LUCK_3,
+        GQ_SING_AMBROSIA_LUCK_4,
+    };
+    use crate::state::octeract_upgrades::{
+        OCTERACT_AMBROSIA_LUCK, OCTERACT_AMBROSIA_LUCK_2, OCTERACT_AMBROSIA_LUCK_3,
+        OCTERACT_AMBROSIA_LUCK_4,
+    };
+    use crate::state::red_ambrosia::{
+        RED_AMBROSIA_REGULAR_LUCK, RED_AMBROSIA_REGULAR_LUCK_2, RED_AMBROSIA_VISCOUNT,
+    };
+    use crate::state::shop::{
+        SHOP_AMBROSIA_LUCK_1, SHOP_AMBROSIA_LUCK_2, SHOP_AMBROSIA_LUCK_3, SHOP_AMBROSIA_LUCK_4,
+        SHOP_AMBROSIA_LUCK_MULTIPLIER_4, SHOP_OCTERACT_AMBROSIA_LUCK,
+    };
+
+    // Legacy `player.cubeUpgrades[77|79]` (Cookie 5 / Cookie 29 gate).
+    const CUBE_UPGRADE_COOKIE_5: usize = 77;
+    const CUBE_UPGRADE_COOKIE_29: usize = 79;
+
+    let shop = &state.shop.upgrades;
+    let cube = &state.cube_upgrade_levels.cube_upgrades;
+    let highest_sing = state.singularity.highest_singularity_count;
+    let amb = |i: usize| state.ambrosia.upgrades[i].level + state.ambrosia.upgrades[i].free_level;
+    let gq = |i: usize| {
+        state.golden_quarks.upgrades[i].level + state.golden_quarks.upgrades[i].free_level
+    };
+    let oct = |i: usize| {
+        state.octeract_upgrades.upgrades[i].level + state.octeract_upgrades.upgrades[i].free_level
+    };
+    let red = |i: usize| state.red_ambrosia.upgrades[i].level;
+    // Additive (luck) context → a missing singularity-effect value is 0.
+    let sc = |v: SingularityEffectValue| match v {
+        SingularityEffectValue::Scalar(s) => s,
+        SingularityEffectValue::Unlock(_) => 0.0,
+    };
+
+    let raw_luck = sum_f64(&[
+        100.0, // Base
+        0.0,   // PseudoCoins — planar-coin AMBROSIA_LUCK_BUFF (unported)
+        get_level_reward(
+            LevelRewardKey::AmbrosiaLuck,
+            achievement_level_from_points(state.achievements.achievement_points),
+        ),
+        0.0, // Campaign — player.campaigns.ambrosiaLuckBonus (unported)
+        calculate_singularity_ambrosia_luck_milestone_bonus(highest_sing),
+        shop_ambrosia_luck_1_effect(shop[SHOP_AMBROSIA_LUCK_1]),
+        shop_ambrosia_luck_2_effect(shop[SHOP_AMBROSIA_LUCK_2]),
+        shop_ambrosia_luck_3_effect(shop[SHOP_AMBROSIA_LUCK_3]),
+        shop_ambrosia_luck_4_effect(shop[SHOP_AMBROSIA_LUCK_4]),
+        0.0, // Jack — shopPanthema (needs ShopPanthemaBonusLevels)
+        sing_ambrosia_luck_effect(gq(GQ_SING_AMBROSIA_LUCK))
+            + sing_ambrosia_luck_2_effect(gq(GQ_SING_AMBROSIA_LUCK_2))
+            + sing_ambrosia_luck_3_effect(gq(GQ_SING_AMBROSIA_LUCK_3))
+            + sing_ambrosia_luck_4_effect(gq(GQ_SING_AMBROSIA_LUCK_4)),
+        octeract_ambrosia_luck_effect(oct(OCTERACT_AMBROSIA_LUCK))
+            + octeract_ambrosia_luck_2_effect(oct(OCTERACT_AMBROSIA_LUCK_2))
+            + octeract_ambrosia_luck_3_effect(oct(OCTERACT_AMBROSIA_LUCK_3))
+            + octeract_ambrosia_luck_4_effect(oct(OCTERACT_AMBROSIA_LUCK_4)),
+        ambrosia_luck_1_effect(amb(AMBROSIA_LUCK_1)),
+        ambrosia_luck_2_effect(amb(AMBROSIA_LUCK_2), amb(AMBROSIA_LUCK_1)),
+        0.0, // AmbrosiaLuck3 — needs the blueberry inventory
+        0.0, // AmbrosiaCubeLuck1 — needs wow_cube_log_sum
+        0.0, // AmbrosiaQuarkLuck1 — needs `worlds`
+        if highest_sing >= 131.0 { 131.0 } else { 0.0 },
+        if highest_sing >= 269.0 { 269.0 } else { 0.0 },
+        shop_octeract_ambrosia_luck_effect(
+            shop[SHOP_OCTERACT_AMBROSIA_LUCK],
+            state.cube_balances.wow_octeracts.to_number(),
+        ),
+        sc(no_ambrosia_upgrades_effect(
+            state.singularity.no_ambrosia_upgrades.completions,
+            NoAmbrosiaUpgradesKey::AmbrosiaLuck,
+        )),
+        regular_luck_effect(red(RED_AMBROSIA_REGULAR_LUCK)),
+        regular_luck_2_effect(red(RED_AMBROSIA_REGULAR_LUCK_2)),
+        match viscount_effect(red(RED_AMBROSIA_VISCOUNT), ViscountEffectKey::LuckBonus) {
+            ViscountEffectValue::Scalar(s) => s,
+            ViscountEffectValue::RoleUnlock(_) => 0.0,
+        },
+        2.0 * cube[CUBE_UPGRADE_COOKIE_5],
+        calculate_cookie_upgrade_29_luck(&CalculateCookieUpgrade29LuckInput {
+            cube_upgrade_79: cube[CUBE_UPGRADE_COOKIE_29],
+            lifetime_red_ambrosia: state.red_ambrosia.lifetime_red_ambrosia,
+        }),
+        0.0, // AmbrosiaUltra — shopAmbrosiaUltra (needs the EXALT-completion sum)
+        0.0, // HorseShoeRune — horseshoe-rune level source unported
+    ]);
+
+    let multiplier = sum_f64(&[
+        1.0, // Base
+        sc(no_singularity_upgrades_effect(
+            state.singularity.no_singularity_upgrades.completions,
+            NoSingularityUpgradesKey::AdditiveLuckMult,
+        )),
+        calculate_dilated_five_leaf_bonus(highest_sing),
+        shop_ambrosia_luck_multiplier_4_effect(shop[SHOP_AMBROSIA_LUCK_MULTIPLIER_4]),
+        sc(no_ambrosia_upgrades_effect(
+            state.singularity.no_ambrosia_upgrades.completions,
+            NoAmbrosiaUpgradesKey::AdditiveLuckMult,
+        )),
+        0.001 * cube[CUBE_UPGRADE_COOKIE_5],
+        ambrosia_luck_4_effect(
+            amb(AMBROSIA_LUCK_4),
+            state.red_ambrosia.lifetime_red_ambrosia,
+            state.ambrosia.lifetime_ambrosia,
+        ),
+        ambrosia_brick_of_lead_effect(
+            amb(AMBROSIA_BRICK_OF_LEAD),
+            AmbrosiaBrickOfLeadEffectKey::AdditiveLuckMult,
+        ),
+        0.0, // HorseShoeTalisman — level source unported
+        0.0, // Event buff — UI-tier
+    ]);
+
+    calculate_ambrosia_luck(raw_luck, multiplier)
+}
+
 /// Compute the per-tick reset-currency point gains (prestige / transcend /
 /// reincarnation) from `&GameState` plus the Phase-2 accelerator effect.
 ///
@@ -2242,6 +2416,21 @@ mod tests {
     }
 
     #[test]
+    fn ambrosia_luck_pre_is_one_hundred_at_default() {
+        let state = GameState::default();
+        // Base raw luck 100 × base multiplier 1 = 100.
+        assert_eq!(compute_ambrosia_luck_pre(&state), 100.0);
+    }
+
+    #[test]
+    fn ambrosia_luck_pre_grows_with_shop_luck() {
+        let mut state = GameState::default();
+        // shopAmbrosiaLuck1 (shop[65]) adds to the raw-luck sum.
+        state.shop.upgrades[65] = 10.0;
+        assert!(compute_ambrosia_luck_pre(&state) > 100.0);
+    }
+
+    #[test]
     fn auto_timer_fields_at_default() {
         let state = GameState::default();
         assert_eq!(compute_auto_timer_fields(&state), (0.0, 0.0, 1.0, 0.0));
@@ -2328,15 +2517,21 @@ mod tests {
         state.singularity.no_singularity_upgrades.completions = 1.0;
         let input = TackInput {
             dt: 1000.0,
+            ..TackInput::default()
+        };
+        // `tack` now self-derives ambrosia_luck (+ the speed mults); drive
+        // phase_automation directly with a controlled cache so this stays a
+        // focused test of ambrosia generation.
+        let cache = CrossMechanicCache {
             automation_pre: AutomationPre {
                 ambrosia_generation_speed: 1.0,
                 ambrosia_luck: 200.0,
                 time_per_ambrosia: 45.0,
                 ..AutomationPre::default()
             },
-            ..TackInput::default()
         };
-        let output = tack(&mut state, &input);
+        let mut output = TickOutput::default();
+        phase_automation(&mut state, &cache, &input, &mut output);
 
         assert!(state.ambrosia.ambrosia > 0.0);
         assert!(state.ambrosia.lifetime_ambrosia > 0.0);
