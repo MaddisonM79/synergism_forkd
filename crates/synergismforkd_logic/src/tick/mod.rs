@@ -243,8 +243,6 @@ pub struct TackInput {
     /// Hand-packed pre-evaluated bundle for
     /// [`compute_global_multipliers`].
     pub global_multipliers_pre: GlobalMultipliersPreEvaluated,
-    /// Hand-packed pre-evaluated bundle for [`resource_gain`].
-    pub resource_gain_pre: ResourceGainPre,
     /// Pre-evaluated inputs for the Phase 5 automation layer.
     pub automation_pre: AutomationPre,
 }
@@ -322,8 +320,6 @@ pub struct CrossMechanicCache {
     /// by the cache so mechanics never read this from
     /// [`TackInput`] directly.
     pub global_multipliers_pre: GlobalMultipliersPreEvaluated,
-    /// Pre-evaluated bundle for [`resource_gain`].
-    pub resource_gain_pre: ResourceGainPre,
     /// Pre-evaluated inputs for the Phase 5 automation layer. Forwarded
     /// from [`TackInput`] today; state-derived field-by-field as the
     /// upstream speed-mult aggregators port.
@@ -369,8 +365,9 @@ pub fn tack(state: &mut GameState, input: &TackInput) -> TickOutput {
     // thresholds in `AutomationPre`.
     let reset_gains = compute_reset_currency_gains(state, &aggregator_outputs);
     // Phase 2 + tax + reset outputs feed Phase 4's `ResourceGainPre`. It is
-    // now fully derived — no caller fallback.
-    cache.resource_gain_pre =
+    // fully derived now (no caller bundle), so it's a tick-local value
+    // rather than a cache field.
+    let resource_gain_pre =
         compute_resource_gain_pre(&aggregator_outputs, &tax_outputs, &reset_gains);
     // Thread the same point gains into the automation bundle so auto-reset
     // amount mode compares against this tick's gain (state-derived now).
@@ -378,7 +375,7 @@ pub fn tack(state: &mut GameState, input: &TackInput) -> TickOutput {
     cache.automation_pre.transcend_point_gain = reset_gains.transcend_point_gain;
     cache.automation_pre.reincarnation_point_gain = reset_gains.reincarnation_point_gain;
     phase_player_input(state, input, &mut output);
-    phase_generation(state, &cache, input.dt, &mut output);
+    phase_generation(state, &resource_gain_pre, input.dt, &mut output);
     phase_automation(state, &cache, input, &mut output);
 
     output
@@ -409,7 +406,6 @@ fn phase_cross_mechanic_precompute(state: &GameState, input: &TackInput) -> Cros
             state,
             &input.global_multipliers_pre,
         ),
-        resource_gain_pre: input.resource_gain_pre,
         automation_pre: input.automation_pre,
     }
 }
@@ -1176,10 +1172,11 @@ fn phase_player_input(state: &mut GameState, input: &TackInput, output: &mut Tic
 
 /// **Phase 4** — Resource generation + challenge auto-completion.
 ///
-/// Calls [`resource_gain`] with the cache's `resource_gain_pre` bundle
-/// and writes the result back into the corresponding [`GameState`]
-/// slices. Events emitted by `resource_gain` (achievement awards,
-/// challenge auto-completions) flow into [`TickOutput::events`].
+/// Calls [`resource_gain`] with the tick-local `resource_gain_pre` bundle
+/// (now fully derived by [`compute_resource_gain_pre`]) and writes the
+/// result back into the corresponding [`GameState`] slices. Events emitted
+/// by `resource_gain` (achievement awards, challenge auto-completions)
+/// flow into [`TickOutput::events`].
 ///
 /// Per Ledger Finding 1, the currency fields now have a single
 /// source-of-truth in `state.upgrades`; `buy_*` mutators read/write them
@@ -1187,11 +1184,11 @@ fn phase_player_input(state: &mut GameState, input: &TackInput, output: &mut Tic
 /// duplicates. No mid-tick sync workaround is needed.
 fn phase_generation(
     state: &mut GameState,
-    cache: &CrossMechanicCache,
+    pre: &ResourceGainPre,
     dt: f64,
     output: &mut TickOutput,
 ) {
-    let result = resource_gain(state, &cache.resource_gain_pre, dt);
+    let result = resource_gain(state, pre, dt);
 
     // ─── Canonical writeback (state.upgrades, state.coin_counters) ───────
     state.upgrades.coins = result.coins;
@@ -1980,11 +1977,10 @@ mod tests {
 
     #[test]
     fn cross_mechanic_cache_forwards_remaining_pre_bundles_from_input() {
-        // The bundles still threaded through `TackInput`
-        // (`global_multipliers_pre`, and `resource_gain_pre` before the tax
-        // phase overrides its fields) are forwarded verbatim by precompute.
-        // Pins the forwarding so a future compute-from-state migration has
-        // an expected baseline.
+        // `global_multipliers_pre` is the last forwarded bundle (besides
+        // `automation_pre`); precompute carries it through verbatim. Pins
+        // the forwarding so a future compute-from-state migration has an
+        // expected baseline.
         let state = GameState::default();
         let input = TackInput {
             dt: 0.025,
@@ -1995,10 +1991,6 @@ mod tests {
         assert_eq!(
             cache.global_multipliers_pre.crystal_mult,
             input.global_multipliers_pre.crystal_mult
-        );
-        assert_eq!(
-            cache.resource_gain_pre.produce_total,
-            input.resource_gain_pre.produce_total
         );
     }
 
