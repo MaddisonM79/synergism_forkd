@@ -281,10 +281,10 @@ pub enum BuyRequest {
     Producer(BuyProducerInput),
 }
 
-/// Per-tier dispatcher for a manual reset, mirroring [`BuyRequest`]. Only
-/// [`Self::Prestige`] / [`Self::Transcension`] / [`Self::Reincarnation`]
-/// are wired today; the ascension / singularity tiers cascade on top and
-/// port later.
+/// Per-tier dispatcher for a manual reset, mirroring [`BuyRequest`].
+/// [`Self::Prestige`] / [`Self::Transcension`] / [`Self::Reincarnation`] /
+/// [`Self::Ascension`] are wired today; the singularity tier cascades on
+/// top and ports later.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum ResetRequest {
@@ -297,6 +297,11 @@ pub enum ResetRequest {
     /// Manual reincarnation reset — base + transcension + reincarnation
     /// layers (`reset('reincarnation')`).
     Reincarnation,
+    /// Manual ascension reset — base + transcension + reincarnation +
+    /// ascension layers (`reset('ascension')`). The c10-gated cube /
+    /// hepteract awards and the auto-ascend *decision* remain deferred (see
+    /// [`reset::perform_ascension_reset`]).
+    Ascension,
 }
 
 /// Result of [`tack`]. The accumulated event stream is the only output
@@ -4061,13 +4066,13 @@ fn phase_automation(
     state.automation.auto_reset_timer_transcension = resets.auto_reset_timer_transcension;
     state.automation.auto_reset_timer_reincarnation = resets.auto_reset_timer_reincarnation;
 
-    // Execute the fired resets. Only the prestige tier is ported, so a
-    // transcension / reincarnation intent still resolves to emit-only —
-    // mirroring the manual dispatch in Phase 3. At default state
-    // `auto_prestige_enabled` is false, so this never fires and the sim
-    // stays unshifted. `pre.prestige_point_gain` is the same gain the
-    // amount-mode gate compared against (and equals the manual path's
-    // `reset_gains.prestige_point_gain`).
+    // Execute the fired resets. Prestige / transcension / reincarnation /
+    // ascension execution are all ported, so a fired intent dispatches to
+    // `perform_reset` — mirroring the manual dispatch in Phase 3. At default
+    // state the auto toggles are off, so this never fires and the sim stays
+    // unshifted. The `pre.*_point_gain` values are the same gains the
+    // amount-mode gates compared against (and equal the manual path's
+    // `reset_gains`).
     use crate::events::AutoResetTier;
     use crate::mechanics::reset_currency::ResetCurrencyResult;
     let auto_gains = ResetCurrencyResult {
@@ -4082,9 +4087,11 @@ fn phase_automation(
                 AutoResetTier::Prestige => Some(ResetRequest::Prestige),
                 AutoResetTier::Transcension => Some(ResetRequest::Transcension),
                 AutoResetTier::Reincarnation => Some(ResetRequest::Reincarnation),
-                // Ascension execution is not ported (cubes / hepteracts /
-                // corruptions); the intent still flows to the UI below.
-                AutoResetTier::Ascension => None,
+                // Ascension *execution* is ported; the auto-ascend *decision*
+                // that would emit this intent lives in the web_ui tier in
+                // legacy and is not yet ported, so no Ascension intent reaches
+                // here in practice. The arm readies the bridge for when it is.
+                AutoResetTier::Ascension => Some(ResetRequest::Ascension),
             };
             if let Some(request) = request {
                 performed.extend(reset::perform_reset(state, request, &auto_gains));
