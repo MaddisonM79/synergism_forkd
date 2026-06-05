@@ -106,6 +106,24 @@ pub fn ascension_speed(exponent: f64) -> f64 {
     }
 }
 
+/// `challenge15Rewards.score.value` — multiplied into the ascension-score
+/// bonus multiplier (`compute_ascension_score_bonus_multiplier`, ultimately
+/// the octeract cube StatLine via `calculateAscensionScore`). Requirement
+/// `1e10`. Legacy two-branch formula: at/above `1e20`,
+/// `1 + (1/4)·(e/1e10)^(1/8)·(1e10)^(1/8)`; between `1e10` and `1e20`,
+/// `1 + (1/4)·(e/1e10)^(1/4)`.
+#[must_use]
+pub fn score(exponent: f64) -> f64 {
+    if exponent < 1e10 {
+        return 1.0;
+    }
+    if exponent >= 1e20 {
+        1.0 + (1.0 / 4.0) * (exponent / 1e10).powf(1.0 / 8.0) * 1e10_f64.powf(1.0 / 8.0)
+    } else {
+        1.0 + (1.0 / 4.0) * (exponent / 1e10).powf(1.0 / 4.0)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -120,11 +138,26 @@ mod tests {
         assert_eq!(exponent_reward(0.0), 1.0);
         assert_eq!(global_speed(0.0), 1.0);
         assert_eq!(ascension_speed(0.0), 1.0);
+        assert_eq!(score(0.0), 1.0);
         // Just under the taxes requirement → still identity.
         assert_eq!(taxes(4_999.0), 1.0);
         // Just under the speed requirements → still identity.
         assert_eq!(global_speed(9.9e6), 1.0);
         assert_eq!(ascension_speed(1.4e18), 1.0);
+        // Just under the score requirement → still identity.
+        assert_eq!(score(9.9e9), 1.0);
+    }
+
+    #[test]
+    fn score_scales_above_requirement_with_branch_at_1e20() {
+        // At exactly 1e10: 1 + (1/4)·1^(1/4) = 1.25.
+        assert!((score(1e10) - 1.25).abs() < 1e-12);
+        // Monotonic increasing in the 1/4 branch.
+        assert!(score(1e15) > score(1e10));
+        // The 1/8 branch (≥ 1e20) is continuous with the 1/4 branch at 1e20:
+        // (e/1e10)^(1/4) = (e/1e10)^(1/8)·(1e10)^(1/8) when e = 1e20.
+        let lo = 1.0 + (1.0 / 4.0) * (1e20_f64 / 1e10).powf(1.0 / 4.0);
+        assert!((score(1e20) - lo).abs() < 1e-6);
     }
 
     #[test]

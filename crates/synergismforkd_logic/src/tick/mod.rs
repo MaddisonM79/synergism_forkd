@@ -377,8 +377,68 @@ pub fn tack(state: &mut GameState, input: &TackInput) -> TickOutput {
     cache.automation_pre.obtainium_potion_count = obtainium_potions;
     cache.automation_pre.auto_potion_speed_mult = auto_potion_speed;
     cache.automation_pre.export_gq_per_hour = export_gq;
-    cache.automation_pre.ambrosia_luck = compute_ambrosia_luck_pre(state);
-    cache.automation_pre.ambrosia_generation_speed = compute_ambrosia_generation_speed_pre(state);
+    let ambrosia_luck = compute_ambrosia_luck_pre(state);
+    cache.automation_pre.ambrosia_luck = ambrosia_luck;
+    let ambrosia_generation_speed = compute_ambrosia_generation_speed_pre(state);
+    cache.automation_pre.ambrosia_generation_speed = ambrosia_generation_speed;
+    // Red-ambrosia luck / generation speed compose on this tick's ambrosia
+    // luck (the `LuckConversion` line) and ambrosia generation speed (the
+    // `BlueberrySpeed` line) respectively.
+    cache.automation_pre.red_ambrosia_luck = compute_red_ambrosia_luck_pre(state, ambrosia_luck);
+    cache.automation_pre.red_ambrosia_generation_speed =
+        compute_red_ambrosia_generation_speed_pre(state, ambrosia_generation_speed);
+    // Ambrosia-timer threshold fields (legacy Helper.ts `addTimers('ambrosia')`).
+    let (bonus_ambrosia, time_per_ambrosia, ambrosia_accelerator_mult, ambrosia_brick_of_lead_mult) =
+        compute_ambrosia_timer_fields(state);
+    cache.automation_pre.bonus_ambrosia = bonus_ambrosia;
+    cache.automation_pre.time_per_ambrosia = time_per_ambrosia;
+    cache.automation_pre.ambrosia_accelerator_mult = ambrosia_accelerator_mult;
+    cache.automation_pre.ambrosia_brick_of_lead_mult = ambrosia_brick_of_lead_mult;
+    // Red-ambrosia-timer threshold fields (legacy Helper.ts `addTimers('redAmbrosia')`).
+    let (
+        ambrosia_time_per_red_ambrosia,
+        time_per_red_ambrosia,
+        red_ambrosia_bar_requirement_multiplier,
+    ) = compute_red_ambrosia_timer_fields(state);
+    cache.automation_pre.ambrosia_time_per_red_ambrosia = ambrosia_time_per_red_ambrosia;
+    cache.automation_pre.time_per_red_ambrosia = time_per_red_ambrosia;
+    cache.automation_pre.red_ambrosia_bar_requirement_multiplier =
+        red_ambrosia_bar_requirement_multiplier;
+    // Octeract-timer unlock gate (legacy `getGQUpgradeEffect('octeractUnlock',
+    // 'unlocked')`).
+    cache.automation_pre.octeract_unlocked = compute_octeract_unlocked(state);
+    // Quark-export timer cap (legacy `quarkHandler().maxTime`).
+    cache.automation_pre.max_quark_timer = compute_max_quark_timer(state);
+    // Automation unlock gates: auto-research Roomba, the rune auto-sacrifice
+    // shop gate, and the auto-prestige level milestone.
+    cache.automation_pre.roomba_unlocked = compute_roomba_unlocked(state);
+    cache.automation_pre.offering_auto_rune = compute_offering_auto_rune(state);
+    cache.automation_pre.auto_prestige_milestone = compute_auto_prestige_milestone(state);
+    // Ant-sacrifice unlock gate (legacy `getAchievementReward('antSacrificeUnlock')`
+    // = achievement #173 earned).
+    cache.automation_pre.ant_sacrifice_unlocked =
+        crate::mechanics::achievement_rewards::ant_sacrifice_unlocked(
+            &state.achievements.achievements,
+        );
+    // Available reborn ELO (legacy `calculateAvailableRebornELO()`) — feeds the
+    // "maxed reborn ELO" ant-sacrifice toggles.
+    cache.automation_pre.available_reborn_elo = compute_available_reborn_elo(state);
+    // Ant-sacrifice immortalELO gain (legacy `antSacrificeRewards().immortalELO`).
+    cache.automation_pre.immortal_elo_gain = compute_immortal_elo_gain(state);
+    // Challenge-sweep pre-evals (legacy `prepareSweepInputForTackTail`).
+    let sweep = compute_sweep_pre_evals(state);
+    cache.automation_pre.sweep_timer_start = sweep.timer_start;
+    cache.automation_pre.sweep_timer_exit = sweep.timer_exit;
+    cache.automation_pre.sweep_timer_enter = sweep.timer_enter;
+    cache
+        .automation_pre
+        .sweep_next_regular_challenge_from_initial = sweep.next_regular_challenge_from_initial;
+    cache
+        .automation_pre
+        .sweep_next_regular_challenge_from_active = sweep.next_regular_challenge_from_active;
+    cache.automation_pre.sweep_challenge_15_auto_exponent_check =
+        sweep.challenge_15_auto_exponent_check;
+    cache.automation_pre.sweep_is_finished_still_valid = sweep.is_finished_still_valid;
     phase_player_input(state, input, &mut output);
     phase_generation(state, &resource_gain_pre, input.dt, &mut output);
     phase_automation(state, &cache, input, &mut output);
@@ -1441,6 +1501,507 @@ fn compute_auto_timer_fields(state: &GameState) -> (f64, f64, f64, f64) {
     )
 }
 
+/// `G.TIME_PER_AMBROSIA` — base seconds per ambrosia bar (Variables.ts; a
+/// fixed `G` constant, never reassigned in the legacy).
+const TIME_PER_AMBROSIA: f64 = 45.0;
+
+/// Pure-state ambrosia-timer threshold fields, from the legacy Helper.ts
+/// `addTimers('ambrosia')` case: the EXALT-5 bonus-ambrosia grant
+/// (`noAmbrosiaUpgrades.bonusAmbrosia`), the base `TIME_PER_AMBROSIA`
+/// constant, the shop accelerator's point-requirement multiplier (scaled by
+/// `noAmbrosiaUpgrades` completions), and the brick-of-lead bar-requirement
+/// multiplier. Returned as `(bonus_ambrosia, time_per_ambrosia,
+/// ambrosia_accelerator_mult, ambrosia_brick_of_lead_mult)`. The brick uses
+/// the effective level (`level + free_level`). All four equal the old
+/// `AutomationPre::default()` at the default state, so the sim/tests don't
+/// shift.
+fn compute_ambrosia_timer_fields(state: &GameState) -> (f64, f64, f64, f64) {
+    use crate::mechanics::blueberry_upgrades::{
+        ambrosia_brick_of_lead_effect, AmbrosiaBrickOfLeadEffectKey,
+    };
+    use crate::mechanics::shop_upgrades::shop_ambrosia_accelerator_effect;
+    use crate::mechanics::singularity_challenges::{
+        no_ambrosia_upgrades_effect, NoAmbrosiaUpgradesKey, SingularityEffectValue,
+    };
+    use crate::state::ambrosia::AMBROSIA_BRICK_OF_LEAD;
+    use crate::state::shop::SHOP_AMBROSIA_ACCELERATOR;
+
+    let no_amb = state.singularity.no_ambrosia_upgrades.completions;
+    let bonus_ambrosia =
+        match no_ambrosia_upgrades_effect(no_amb, NoAmbrosiaUpgradesKey::BonusAmbrosia) {
+            SingularityEffectValue::Scalar(s) => s,
+            SingularityEffectValue::Unlock(_) => 0.0,
+        };
+    let brick = &state.ambrosia.upgrades[AMBROSIA_BRICK_OF_LEAD];
+    (
+        bonus_ambrosia,
+        TIME_PER_AMBROSIA,
+        shop_ambrosia_accelerator_effect(state.shop.upgrades[SHOP_AMBROSIA_ACCELERATOR], no_amb),
+        ambrosia_brick_of_lead_effect(
+            brick.level + brick.free_level,
+            AmbrosiaBrickOfLeadEffectKey::BarRequirementMult,
+        ),
+    )
+}
+
+/// `G.TIME_PER_RED_AMBROSIA` — base seconds per red-ambrosia bar
+/// (Variables.ts; a fixed `G` constant, never reassigned in the legacy).
+const TIME_PER_RED_AMBROSIA: f64 = 100_000.0;
+
+/// Pure-state red-ambrosia-timer threshold fields, from the legacy Helper.ts
+/// `addTimers('redAmbrosia')` case: the red-accelerator's bonus blueberry
+/// time minted per red ambrosia
+/// (`redAmbrosiaAccelerator.ambrosiaTimePerRedAmbrosia`), the base
+/// `TIME_PER_RED_AMBROSIA` constant, and the EXALT-2 `limitedTime`
+/// bar-requirement multiplier. Returned as `(ambrosia_time_per_red_ambrosia,
+/// time_per_red_ambrosia, red_ambrosia_bar_requirement_multiplier)`. The
+/// red-accelerator upgrade uses `.level` only (red upgrades have no
+/// free-level). All three equal the old `AutomationPre::default()` at the
+/// default state, so the sim/tests don't shift.
+fn compute_red_ambrosia_timer_fields(state: &GameState) -> (f64, f64, f64) {
+    use crate::mechanics::red_ambrosia_upgrades::red_ambrosia_accelerator_effect;
+    use crate::mechanics::singularity_challenges::{
+        limited_time_effect, LimitedTimeKey, SingularityEffectValue,
+    };
+    use crate::state::red_ambrosia::RED_AMBROSIA_RED_AMBROSIA_ACCELERATOR;
+
+    let bar_req = match limited_time_effect(
+        state.singularity.limited_time.completions,
+        LimitedTimeKey::BarRequirementMultiplier,
+    ) {
+        SingularityEffectValue::Scalar(s) => s,
+        SingularityEffectValue::Unlock(_) => 1.0,
+    };
+    (
+        red_ambrosia_accelerator_effect(
+            state.red_ambrosia.upgrades[RED_AMBROSIA_RED_AMBROSIA_ACCELERATOR].level,
+        ),
+        TIME_PER_RED_AMBROSIA,
+        bar_req,
+    )
+}
+
+/// Octeract-timer unlock gate, from the legacy Helper.ts
+/// `addTimers('octeracts')` guard: `getGQUpgradeEffect('octeractUnlock',
+/// 'unlocked')` = the GQ `octeractUnlock` slot's `bool_unlock` (`level > 0`).
+/// `false` at the default state, matching the old `AutomationPre::default()`.
+fn compute_octeract_unlocked(state: &GameState) -> bool {
+    use crate::mechanics::golden_quark_upgrades::octeract_unlock_effect;
+    use crate::state::golden_quarks::GQ_OCTERACT_UNLOCK;
+
+    octeract_unlock_effect(state.golden_quarks.upgrades[GQ_OCTERACT_UNLOCK].level)
+}
+
+/// Quark-export timer cap, from the legacy Helper.ts `addTimers('quarks')`
+/// case: `quarkHandler().maxTime`. The quark timer reads only `max_time` (its
+/// upper-bound clamp), which depends solely on `research[195]` (`90000 +
+/// 18000·n` when `n > 0`, else `90000`); the per-hour / gain / capacity
+/// outputs are unused here, so [`quark_handler`]'s other inputs are passed at
+/// their neutral values. `90000` at the default state, matching the old
+/// `AutomationPre::default()`.
+fn compute_max_quark_timer(state: &GameState) -> f64 {
+    use crate::mechanics::quarks::{quark_handler, QuarkHandlerInput};
+
+    quark_handler(&QuarkHandlerInput {
+        research_195: state.researches.researches[195],
+        researches_sum: 0.0,
+        export_quark_mult: 1.0,
+        quarks_timer: 0.0,
+        cube_mult: 1.0,
+    })
+    .max_time
+}
+
+/// Roomba auto-research unlock gate (legacy `roombaResearchEnabled()`):
+/// `cubeUpgrades[9] === 1 || highestSingularityCount > 10`. `false` at the
+/// default state, matching the old `AutomationPre::default()`.
+fn compute_roomba_unlocked(state: &GameState) -> bool {
+    // legacy `player.cubeUpgrades[9]`
+    const CUBE_UPGRADE_ROOMBA: usize = 9;
+    state.cube_upgrade_levels.cube_upgrades[CUBE_UPGRADE_ROOMBA] == 1.0
+        || state.singularity.highest_singularity_count > 10.0
+}
+
+/// Rune auto-sacrifice shop gate (legacy `getShopUpgradeEffects('offeringAuto',
+/// 'autoRune')`): the `offeringAuto` slot's `AutoRune` unlock (`level > 0`),
+/// AND-combined downstream with the persisted `rune_sacrifice_auto_enabled`
+/// toggle. `false` at the default state.
+fn compute_offering_auto_rune(state: &GameState) -> bool {
+    use crate::mechanics::shop_upgrades::{
+        offering_auto_effect, OfferingAutoKey, OfferingAutoValue,
+    };
+    use crate::state::shop::SHOP_OFFERING_AUTO;
+
+    matches!(
+        offering_auto_effect(
+            state.shop.upgrades[SHOP_OFFERING_AUTO],
+            OfferingAutoKey::AutoRune
+        ),
+        OfferingAutoValue::Unlock(true)
+    )
+}
+
+/// Auto-prestige level milestone (legacy `getLevelMilestone('autoPrestige')`):
+/// `1` once the achievement level reaches the milestone's `level_req` (7),
+/// else `0`. The auto-reset machine unlocks auto-prestige when this `== 1`.
+/// `0` at the default state.
+fn compute_auto_prestige_milestone(state: &GameState) -> f64 {
+    use crate::mechanics::achievement_levels::achievement_level_from_points;
+    use crate::mechanics::level_milestones::{get_level_milestone, LevelMilestoneKey};
+
+    get_level_milestone(
+        LevelMilestoneKey::AutoPrestige,
+        achievement_level_from_points(state.achievements.achievement_points),
+    )
+}
+
+/// Available (un-activated) reborn ELO, from the legacy middle's
+/// `calculateAvailableRebornELO()`: `max(0, immortalELO − rebornELO)`, both
+/// plain ant state. Drives the "maxed reborn ELO" ant-sacrifice toggles.
+/// `0` at the default state.
+fn compute_available_reborn_elo(state: &GameState) -> f64 {
+    use crate::mechanics::ant_reborn_elo::{
+        calculate_available_reborn_elo, AvailableRebornELOInput,
+    };
+
+    calculate_available_reborn_elo(&AvailableRebornELOInput {
+        immortal_elo: state.ants.immortal_elo,
+        reborn_elo: state.ants.reborn_elo,
+    })
+}
+
+/// Ant-sacrifice `immortalELO` gain (legacy `antSacrificeRewards().immortalELO`),
+/// self-derived from `&GameState`. `max(0, calculateEffectiveAntELO −
+/// immortalELO)`, where `calculateEffectiveAntELO = ⌊Σ antELOStats ×
+/// Σ additiveAntELOMultStats⌋` — the base-ELO sum (15 lines) times the
+/// additive-multiplier sum (10 lines, base 1), both StatLine reductions.
+/// Drives the `ImmortalELOGain` auto-sacrifice mode.
+///
+/// Self-derives to `1` at the default state — the `ants` level reward's
+/// `defaultValue` (1) is the sole non-zero base line, × mult 1, floored — vs
+/// the old `AutomationPre` default `0`. Harmless: the ant-sacrifice middle that
+/// reads it is gated by `ant_sacrifice_unlocked` (false at default), so it is
+/// never consumed there, and `1` is in fact the faithful legacy value. The
+/// `SingularityDebuff` line neutral-defaults to its Ant-ELO no-penalty value
+/// `0` (additive context; `calculate_singularity_debuff` is banner-flagged
+/// DO NOT extend / paused).
+fn compute_immortal_elo_gain(state: &GameState) -> f64 {
+    use crate::mechanics::achievement_levels::achievement_level_from_points;
+    use crate::mechanics::achievement_rewards::{
+        ant_elo_additive, ant_elo_additive_multiplier, ant_speed_2_upgrade_improver,
+    };
+    use crate::mechanics::ant_reborn_elo::{
+        calculate_singularity_perk_elo, singularity_elo_bonus_mult, SingularityPerkELOInput,
+    };
+    use crate::mechanics::ant_sacrifice_reward_calc::{
+        calculate_immortal_elo_gain, CalculateImmortalELOGainInput,
+    };
+    use crate::mechanics::ant_upgrades::{
+        ant_elo_ant_upgrade_effect, ant_sacrifice_ant_upgrade_effect, AntELOAntUpgradeInput,
+    };
+    use crate::mechanics::calculate::sum_f64;
+    use crate::mechanics::challenges::{calc_ecc, ChallengeType};
+    use crate::mechanics::level_rewards::{get_level_reward, LevelRewardKey};
+    use crate::mechanics::shop_upgrades::ant_speed_effect;
+    use crate::state::shop::SHOP_ANT_SPEED;
+    use crate::state::EXTINCTION_INDEX;
+
+    // Ant producer slots (no enum in logic): Workers .. HolySpirit = 0..=8.
+    const WORKERS: usize = 0;
+    const QUEENS: usize = 4;
+    const LORD_ROYALS: usize = 5;
+    const ALMIGHTIES: usize = 6;
+    const DISCIPLES: usize = 7;
+    const HOLY_SPIRIT: usize = 8;
+    // Ant upgrade slots.
+    const ANT_UPGRADE_ANT_SACRIFICE: usize = 10;
+    const ANT_UPGRADE_ANT_ELO: usize = 12;
+    // legacy `player.upgrades[80]` — Reincarnation upgrade 2x20.
+    const REINCARNATION_UPGRADE_20: usize = 80;
+    // legacy `player.platonicUpgrades[12]`.
+    const PLATONIC_UPGRADE_12: usize = 12;
+
+    let ach = &state.achievements.achievements;
+    let ach_level = achievement_level_from_points(state.achievements.achievement_points);
+    let researches = &state.researches.researches;
+    let producers = &state.ants.producers;
+    let sac_count = state.ants.ant_sacrifice_count;
+    let immortal_elo = state.ants.immortal_elo;
+    let sing_count = state.singularity.singularity_count;
+    let purchased = |i: usize| producers[i].purchased;
+
+    // ReincarnationUpgrade20 — `player.upgrades[80]` gates a sac-count ramp.
+    let reincarnation_upgrade_20 = if state.upgrades.upgrades[REINCARNATION_UPGRADE_20] == 0 {
+        0.0
+    } else {
+        10.0 * 50.0_f64.min(sac_count)
+            + 5.0 * 50.0_f64.min(0.0_f64.max(sac_count - 50.0))
+            + 250.0_f64.min(0.0_f64.max(sac_count - 100.0))
+    };
+
+    let base_ant_elo = sum_f64(&[
+        purchased(WORKERS),
+        ant_elo_additive(ach),
+        get_level_reward(LevelRewardKey::Ants, ach_level),
+        reincarnation_upgrade_20,
+        100.0
+            * calc_ecc(
+                ChallengeType::Reincarnation,
+                state.challenges.challenge_completions[10],
+            ),
+        ant_speed_effect(state.shop.upgrades[SHOP_ANT_SPEED]),
+        25.0 * researches[108],
+        25.0 * researches[109],
+        2.0 * researches[120],
+        50.0 * researches[123],
+        0.02 * researches[169],
+        666.0 * researches[178],
+        ant_sacrifice_ant_upgrade_effect(state.ants.upgrades[ANT_UPGRADE_ANT_SACRIFICE]).elo,
+        ant_elo_ant_upgrade_effect(&AntELOAntUpgradeInput {
+            level: state.ants.upgrades[ANT_UPGRADE_ANT_ELO],
+            ant_sacrifice_count: sac_count,
+            ant_speed_2_upgrade_improver: ant_speed_2_upgrade_improver(ach, ach_level),
+        })
+        .ant_elo,
+        calculate_singularity_perk_elo(&SingularityPerkELOInput {
+            sing_count,
+            immortal_elo,
+        }),
+    ]);
+
+    let elo_mult = sum_f64(&[
+        1.0, // Base
+        ant_elo_additive_multiplier(ach),
+        if purchased(QUEENS) > 0.0 { 0.01 } else { 0.0 },
+        if purchased(LORD_ROYALS) > 0.0 {
+            0.01
+        } else {
+            0.0
+        },
+        if purchased(ALMIGHTIES) > 0.0 {
+            0.01
+        } else {
+            0.0
+        },
+        if purchased(DISCIPLES) > 0.0 {
+            0.02
+        } else {
+            0.0
+        },
+        if purchased(HOLY_SPIRIT) > 0.0 {
+            0.02
+        } else {
+            0.0
+        },
+        (1.0 / 200.0)
+            * state.cube_upgrade_levels.platonic_upgrades[PLATONIC_UPGRADE_12]
+            * f64::from(state.corruptions.used.levels[EXTINCTION_INDEX]),
+        0.0, // SingularityDebuff — Ant-ELO no-penalty value (paused layer)
+        singularity_elo_bonus_mult(sing_count),
+    ]);
+
+    let effective_elo = (base_ant_elo * elo_mult).floor();
+    calculate_immortal_elo_gain(&CalculateImmortalELOGainInput {
+        effective_elo,
+        immortal_elo,
+    })
+}
+
+/// Per-challenge completion caps for the ten regular challenges (`1..=10`),
+/// from the legacy `getMaxChallenges`. Index `0` is unused. The shared
+/// reincarnation/ascension-tier cap inputs are evaluated once; only the
+/// transcension tier (`1..=5`) varies per challenge (via `researches[65 + i]`).
+/// Feeds the challenge-sweep `getNextRegularChallenge` lookups and the
+/// `finished` revalidation guard. GQ cap-increase upgrades use the effective
+/// level (`level + free_level`, the `actualGQUpgradeTotalLevels` convention).
+fn compute_max_challenges_1_to_10(state: &GameState) -> [f64; 11] {
+    use crate::mechanics::challenges::{get_max_challenges, GetMaxChallengesInput};
+    use crate::mechanics::golden_quark_upgrades::{
+        sing_challenge_extension_2_effect, sing_challenge_extension_3_effect,
+        sing_challenge_extension_effect, SingChallengeExtensionKey,
+    };
+    use crate::mechanics::shop_upgrades::challenge_extension_effect;
+    use crate::mechanics::singularity_challenges::{
+        one_challenge_cap_effect, OneChallengeCapKey, SingularityEffectValue,
+    };
+    use crate::state::golden_quarks::{
+        GQ_SING_CHALLENGE_EXTENSION, GQ_SING_CHALLENGE_EXTENSION_2, GQ_SING_CHALLENGE_EXTENSION_3,
+    };
+    use crate::state::shop::SHOP_CHALLENGE_EXTENSION;
+
+    let researches = &state.researches.researches;
+    let cube = &state.cube_upgrade_levels;
+    let occ = &state.singularity.one_challenge_cap;
+    let gq = |i: usize| {
+        state.golden_quarks.upgrades[i].level + state.golden_quarks.upgrades[i].free_level
+    };
+    let scalar = |v: SingularityEffectValue| match v {
+        SingularityEffectValue::Scalar(s) => s,
+        SingularityEffectValue::Unlock(_) => 0.0,
+    };
+
+    let cap_increase = |key: SingChallengeExtensionKey| {
+        sing_challenge_extension_effect(gq(GQ_SING_CHALLENGE_EXTENSION), key)
+            + sing_challenge_extension_2_effect(gq(GQ_SING_CHALLENGE_EXTENSION_2), key)
+            + sing_challenge_extension_3_effect(gq(GQ_SING_CHALLENGE_EXTENSION_3), key)
+    };
+    let gq_reincarnation_cap_increase =
+        cap_increase(SingChallengeExtensionKey::ReincarnationCapIncrease);
+    let gq_ascension_cap_increase = cap_increase(SingChallengeExtensionKey::AscensionCapIncrease);
+    let sing_reincarnation_cap_increase = scalar(one_challenge_cap_effect(
+        occ.completions,
+        OneChallengeCapKey::CapIncrease,
+    )) + scalar(one_challenge_cap_effect(
+        occ.completions,
+        OneChallengeCapKey::ReinCapIncrease2,
+    ));
+    let sing_ascension_cap_increase = scalar(one_challenge_cap_effect(
+        occ.completions,
+        OneChallengeCapKey::AscCapIncrease2,
+    ));
+    let challenge_extension_cap =
+        challenge_extension_effect(state.shop.upgrades[SHOP_CHALLENGE_EXTENSION]);
+
+    let mut caps = [0.0_f64; 11];
+    for (i, slot) in caps.iter_mut().enumerate().skip(1) {
+        *slot = get_max_challenges(&GetMaxChallengesInput {
+            challenge: i as u8,
+            one_challenge_cap_enabled: occ.enabled,
+            infinite_transcend_research: researches[105],
+            transcend_research_for_challenge: researches[65 + i],
+            cube_upgrade_29: cube.cube_upgrades[29],
+            challenge_extension_cap,
+            gq_reincarnation_cap_increase,
+            sing_reincarnation_cap_increase,
+            gq_ascension_cap_increase,
+            sing_ascension_cap_increase,
+            platonic_upgrade_5: cube.platonic_upgrades[5],
+            platonic_upgrade_10: cube.platonic_upgrades[10],
+            platonic_upgrade_15: cube.platonic_upgrades[15],
+        });
+    }
+    caps
+}
+
+/// The seven challenge-sweep pre-evaluations the tail's `tick_challenge_sweep`
+/// consumes ([`AutomationPre`] `sweep_*` fields), self-derived from
+/// `&GameState`. Verbatim port of the legacy `prepareSweepInputForTackTail`
+/// (web_ui/Challenges.ts): scoped to the current `sweep_state`, so the
+/// `getNextRegularChallenge` / `challenge15AutoExponentCheck` / finished-guard
+/// lookups only run for the state that could consult them this tick.
+struct SweepPreEvals {
+    timer_start: f64,
+    timer_exit: f64,
+    timer_enter: f64,
+    next_regular_challenge_from_initial: i32,
+    next_regular_challenge_from_active: i32,
+    challenge_15_auto_exponent_check: bool,
+    is_finished_still_valid: bool,
+}
+
+fn compute_sweep_pre_evals(state: &GameState) -> SweepPreEvals {
+    use crate::events::SweepState;
+    use crate::mechanics::challenges::{
+        auto_ascension_challenge_sweep_unlock, challenge_15_auto_exponent_check,
+        get_next_regular_challenge, Challenge15AutoExponentCheckInput,
+        GetNextRegularChallengeInput,
+    };
+    use crate::mechanics::shop_upgrades::{
+        challenge_15_auto_effect, instant_challenge_2_effect, InstantChallengeKey,
+        InstantChallengeValue,
+    };
+    use crate::state::automation::AutoAscendMode;
+    use crate::state::shop::{SHOP_CHALLENGE_15_AUTO, SHOP_INSTANT_CHALLENGE_2};
+
+    let timer = state.automation.auto_challenge_timer;
+    let toggles = &state.automation.auto_challenge_toggles;
+    let highest_sing = state.singularity.highest_singularity_count;
+    let highest_completions = &state.challenges.highest_challenge_completions;
+
+    // Only the initial-wait / active / finished states consult lookups (the
+    // legacy scoping); all others leave the four non-timer fields inert.
+    let (
+        next_regular_challenge_from_initial,
+        next_regular_challenge_from_active,
+        challenge_15_auto_exponent_check,
+        is_finished_still_valid,
+    ) = match &state.automation.sweep_state {
+        SweepState::InitialWait => {
+            let max_challenges = compute_max_challenges_1_to_10(state);
+            // initialIndex 10 once an ascension challenge is active past sing 2.
+            let initial_index: u8 =
+                if highest_sing >= 2.0 && state.challenges.current_ascension_challenge != 0 {
+                    10
+                } else {
+                    1
+                };
+            let next = get_next_regular_challenge(&GetNextRegularChallengeInput {
+                start_index: initial_index,
+                explored: &[],
+                max_challenges: &max_challenges,
+                highest_completions,
+                auto_challenge_toggles: toggles,
+            });
+            (next, -1, false, false)
+        }
+        SweepState::Active { index, explored } => {
+            let max_challenges = compute_max_challenges_1_to_10(state);
+            let explored: Vec<u8> = explored.iter().copied().collect();
+            let next = get_next_regular_challenge(&GetNextRegularChallengeInput {
+                start_index: *index,
+                explored: &explored,
+                max_challenges: &max_challenges,
+                highest_completions,
+                auto_challenge_toggles: toggles,
+            });
+            let instant_c2_unlocked = matches!(
+                instant_challenge_2_effect(
+                    state.shop.upgrades[SHOP_INSTANT_CHALLENGE_2],
+                    InstantChallengeKey::Unlocked,
+                    highest_sing,
+                ),
+                InstantChallengeValue::Unlock(true)
+            );
+            let c15 = challenge_15_auto_exponent_check(&Challenge15AutoExponentCheckInput {
+                sweep_unlocked: auto_ascension_challenge_sweep_unlock(
+                    highest_sing,
+                    instant_c2_unlocked,
+                ),
+                current_ascension_challenge: state.challenges.current_ascension_challenge,
+                challenge_15_auto_shop_unlocked: challenge_15_auto_effect(
+                    state.shop.upgrades[SHOP_CHALLENGE_15_AUTO],
+                ),
+                auto_ascend: state.automation.auto_ascend,
+                cube_upgrade_10: state.cube_upgrade_levels.cube_upgrades[10],
+                auto_ascend_mode_is_real_time: matches!(
+                    state.automation.auto_ascend_mode,
+                    AutoAscendMode::RealAscensionTime
+                ),
+                ascension_counter_real_real: state.reset_counters.ascension_counter_real_real,
+                auto_ascend_threshold: state.automation.auto_ascend_threshold,
+            });
+            (-1, next, c15, false)
+        }
+        SweepState::Finished => {
+            let max_challenges = compute_max_challenges_1_to_10(state);
+            let valid = highest_completions[1] == max_challenges[1]
+                && highest_completions[6] == max_challenges[6];
+            (-1, -1, false, valid)
+        }
+        _ => (-1, -1, false, false),
+    };
+
+    SweepPreEvals {
+        timer_start: timer.start,
+        timer_exit: timer.exit,
+        timer_enter: timer.enter,
+        next_regular_challenge_from_initial,
+        next_regular_challenge_from_active,
+        challenge_15_auto_exponent_check,
+        is_finished_still_valid,
+    }
+}
+
 /// Ambrosia-luck multiplier (legacy `calculateAmbrosiaLuck`), self-derived
 /// from `&GameState`.
 ///
@@ -1745,6 +2306,143 @@ fn compute_ambrosia_generation_speed_pre(state: &GameState) -> f64 {
     ]);
 
     calculate_ambrosia_generation_speed(raw_speed, blueberries)
+}
+
+/// Red-ambrosia luck (legacy `calculateRedAmbrosiaLuck`), self-derived from
+/// `&GameState`.
+///
+/// `Σ allRedAmbrosiaLuckStats` (13 lines, additive, base 100). The
+/// `LuckConversion` line composes on this tick's ambrosia luck:
+/// `⌊(ambrosiaLuck − 100) / luckConversion⌋`, where `luckConversion =
+/// Σ allLuckConversionStats` (base 20, with subtractive conversion-improvement
+/// / shop-red-luck-ratio lines). Replaces the caller-provided
+/// `AutomationPre::red_ambrosia_luck`, which the red-ambrosia timer consumes —
+/// but that timer is gated by `noAmbrosiaUpgrades.completions > 0`, so the
+/// value is inert at default, where this self-derives to the base `100` (vs
+/// the old default `0` — the same harmless gap as `ambrosia_luck`).
+///
+/// Neutral `0` lines (faithful at default; the owning upgrade is `0` anyway):
+/// the planar-coin `RED_LUCK_BUFF` (unported), shop `panthema` (Jack — needs
+/// `ShopPanthemaBonusLevels`), and the horseshoe rune/talisman lines (level
+/// source unported — same precedent as [`compute_ambrosia_luck_pre`]).
+fn compute_red_ambrosia_luck_pre(state: &GameState, ambrosia_luck: f64) -> f64 {
+    use crate::mechanics::achievement_levels::achievement_level_from_points;
+    use crate::mechanics::calculate::sum_f64;
+    use crate::mechanics::level_rewards::{get_level_reward, LevelRewardKey};
+    use crate::mechanics::red_ambrosia_upgrades::{
+        conversion_improvement_1_effect, conversion_improvement_2_effect,
+        conversion_improvement_3_effect, red_luck_effect, viscount_effect, ViscountEffectKey,
+        ViscountEffectValue,
+    };
+    use crate::mechanics::shop_upgrades::{
+        shop_red_luck_1_effect, shop_red_luck_2_effect, shop_red_luck_3_effect, ShopRedLuckKey,
+    };
+    use crate::mechanics::singularity_challenges::{
+        no_ambrosia_upgrades_effect, NoAmbrosiaUpgradesKey, SingularityEffectValue,
+    };
+    use crate::state::red_ambrosia::{
+        RED_AMBROSIA_CONVERSION_IMPROVEMENT_1, RED_AMBROSIA_CONVERSION_IMPROVEMENT_2,
+        RED_AMBROSIA_CONVERSION_IMPROVEMENT_3, RED_AMBROSIA_RED_LUCK, RED_AMBROSIA_VISCOUNT,
+    };
+    use crate::state::shop::{SHOP_RED_LUCK_1, SHOP_RED_LUCK_2, SHOP_RED_LUCK_3};
+
+    let shop = &state.shop.upgrades;
+    let red = |i: usize| state.red_ambrosia.upgrades[i].level;
+    let no_amb = state.singularity.no_ambrosia_upgrades.completions;
+    // Additive (luck) context → a missing singularity-effect value is 0.
+    let sc = |v: SingularityEffectValue| match v {
+        SingularityEffectValue::Scalar(s) => s,
+        SingularityEffectValue::Unlock(_) => 0.0,
+    };
+
+    // calculateLuckConversion() — Σ allLuckConversionStats (base 20). The
+    // conversion-improvement (`-n`) and shop-red-luck ratio lines are
+    // subtractive; the horseshoe-rune line's level source is unported.
+    let luck_conversion = sum_f64(&[
+        20.0, // Base
+        conversion_improvement_1_effect(red(RED_AMBROSIA_CONVERSION_IMPROVEMENT_1)),
+        conversion_improvement_2_effect(red(RED_AMBROSIA_CONVERSION_IMPROVEMENT_2)),
+        conversion_improvement_3_effect(red(RED_AMBROSIA_CONVERSION_IMPROVEMENT_3)),
+        shop_red_luck_1_effect(shop[SHOP_RED_LUCK_1], ShopRedLuckKey::LuckConversionRatio),
+        shop_red_luck_2_effect(shop[SHOP_RED_LUCK_2], ShopRedLuckKey::LuckConversionRatio),
+        shop_red_luck_3_effect(shop[SHOP_RED_LUCK_3], ShopRedLuckKey::LuckConversionRatio),
+        0.0, // HorseShoeRune — redLuckConversion, level source unported
+    ]);
+
+    sum_f64(&[
+        100.0, // Base
+        0.0,   // PseudoCoins — planar-coin RED_LUCK_BUFF (unported)
+        get_level_reward(
+            LevelRewardKey::RedAmbrosiaLuck,
+            achievement_level_from_points(state.achievements.achievement_points),
+        ),
+        ((ambrosia_luck - 100.0) / luck_conversion).floor(), // LuckConversion
+        red_luck_effect(red(RED_AMBROSIA_RED_LUCK)),
+        sc(no_ambrosia_upgrades_effect(
+            no_amb,
+            NoAmbrosiaUpgradesKey::RedLuck,
+        )),
+        shop_red_luck_1_effect(shop[SHOP_RED_LUCK_1], ShopRedLuckKey::RedLuck),
+        shop_red_luck_2_effect(shop[SHOP_RED_LUCK_2], ShopRedLuckKey::RedLuck),
+        shop_red_luck_3_effect(shop[SHOP_RED_LUCK_3], ShopRedLuckKey::RedLuck),
+        0.0, // Jack — shopPanthema (needs ShopPanthemaBonusLevels)
+        match viscount_effect(red(RED_AMBROSIA_VISCOUNT), ViscountEffectKey::RedLuckBonus) {
+            ViscountEffectValue::Scalar(s) => s,
+            ViscountEffectValue::RoleUnlock(_) => 0.0,
+        },
+        0.0, // HorseShoeRune — redLuck, level source unported
+        0.0, // HorseShoeTalisman — redLuck, level source unported
+    ])
+}
+
+/// Red-ambrosia generation speed (legacy `calculateRedAmbrosiaGenerationSpeed`),
+/// self-derived from `&GameState`.
+///
+/// `Π allRedAmbrosiaGenerationSpeedStats` (5 lines, multiplicative). The
+/// `Base` line gates on `noAmbrosiaUpgrades.completions > 0` (`0` otherwise),
+/// and the `BlueberrySpeed` line wraps this tick's ambrosia generation speed
+/// `b` (`b > 1000 ? √(b·1000) : b`). Both are `0` at default (ambrosia
+/// locked → `ambrosia_generation_speed` is `0`), so this self-derives to
+/// exactly `0`, matching the old `AutomationPre::default()`. Replaces the
+/// caller-provided `AutomationPre::red_ambrosia_generation_speed`.
+///
+/// Neutral `1` line: the planar-coin `RED_GENERATION_BUFF` (unported).
+fn compute_red_ambrosia_generation_speed_pre(
+    state: &GameState,
+    ambrosia_generation_speed: f64,
+) -> f64 {
+    use crate::mechanics::calculate::product_f64;
+    use crate::mechanics::red_ambrosia_upgrades::red_generation_speed_effect;
+    use crate::mechanics::singularity_challenges::{
+        no_ambrosia_upgrades_effect, NoAmbrosiaUpgradesKey, SingularityEffectValue,
+    };
+    use crate::state::red_ambrosia::RED_AMBROSIA_RED_GENERATION_SPEED;
+
+    let no_amb = state.singularity.no_ambrosia_upgrades.completions;
+    // Multiplicative context → a missing singularity-effect value is 1.
+    let mc = |v: SingularityEffectValue| match v {
+        SingularityEffectValue::Scalar(s) => s,
+        SingularityEffectValue::Unlock(_) => 1.0,
+    };
+
+    let blueberry_speed = if ambrosia_generation_speed > 1000.0 {
+        (ambrosia_generation_speed * 1000.0).sqrt()
+    } else {
+        ambrosia_generation_speed
+    };
+
+    product_f64(&[
+        if no_amb > 0.0 { 1.0 } else { 0.0 }, // Base gate
+        1.0,                                  // PseudoCoins — planar RED_GENERATION_BUFF (unported)
+        blueberry_speed,                      // BlueberrySpeed
+        red_generation_speed_effect(
+            state.red_ambrosia.upgrades[RED_AMBROSIA_RED_GENERATION_SPEED].level,
+        ),
+        mc(no_ambrosia_upgrades_effect(
+            no_amb,
+            NoAmbrosiaUpgradesKey::RedSpeedMult,
+        )),
+    ])
 }
 
 /// Compute the per-tick reset-currency point gains (prestige / transcend /
@@ -2580,6 +3278,54 @@ mod tests {
     }
 
     #[test]
+    fn red_ambrosia_luck_pre_is_one_hundred_at_default() {
+        let state = GameState::default();
+        // Base 100; the LuckConversion line is ⌊(100 − 100) / 20⌋ = 0.
+        assert_eq!(compute_red_ambrosia_luck_pre(&state, 100.0), 100.0);
+    }
+
+    #[test]
+    fn red_ambrosia_luck_pre_adds_luck_conversion() {
+        let state = GameState::default();
+        // Default luckConversion is 20, so ambrosiaLuck 200 contributes
+        // ⌊(200 − 100) / 20⌋ = 5 → 100 + 5 = 105.
+        assert_eq!(compute_red_ambrosia_luck_pre(&state, 200.0), 105.0);
+    }
+
+    #[test]
+    fn red_ambrosia_luck_pre_grows_with_shop_red_luck() {
+        let mut state = GameState::default();
+        // shopRedLuck1 (shop[77]) redLuck = 0.05 × n adds to the sum.
+        state.shop.upgrades[77] = 10.0;
+        assert!(compute_red_ambrosia_luck_pre(&state, 100.0) > 100.0);
+    }
+
+    #[test]
+    fn red_ambrosia_generation_speed_pre_is_zero_when_locked() {
+        let state = GameState::default();
+        // Base gate (noAmbrosiaUpgrades == 0) and BlueberrySpeed (0) both 0.
+        assert_eq!(compute_red_ambrosia_generation_speed_pre(&state, 0.0), 0.0);
+    }
+
+    #[test]
+    fn red_ambrosia_generation_speed_pre_unlocks_with_exalt5() {
+        let mut state = GameState::default();
+        // Gate open → 1 × BlueberrySpeed 10 × redGen 1 × redSpeedMult
+        // (1 + 2·1/100 = 1.02) = 10.2.
+        state.singularity.no_ambrosia_upgrades.completions = 1.0;
+        assert!((compute_red_ambrosia_generation_speed_pre(&state, 10.0) - 10.2).abs() < 1e-12);
+    }
+
+    #[test]
+    fn red_ambrosia_generation_speed_pre_sqrt_softcaps_above_1000() {
+        let mut state = GameState::default();
+        // BlueberrySpeed softcap: b > 1000 → √(b·1000); √(4000·1000) = 2000,
+        // × redSpeedMult 1.02 = 2040.
+        state.singularity.no_ambrosia_upgrades.completions = 1.0;
+        assert!((compute_red_ambrosia_generation_speed_pre(&state, 4000.0) - 2040.0).abs() < 1e-9);
+    }
+
+    #[test]
     fn auto_timer_fields_at_default() {
         let state = GameState::default();
         assert_eq!(compute_auto_timer_fields(&state), (0.0, 0.0, 1.0, 0.0));
@@ -2595,6 +3341,184 @@ mod tests {
         let (off, obt, speed, export) = compute_auto_timer_fields(&state);
         assert_eq!((off, obt, export), (3.0, 5.0, 10.0));
         assert!((speed - 1.4).abs() < 1e-12);
+    }
+
+    #[test]
+    fn ambrosia_timer_fields_at_default() {
+        let state = GameState::default();
+        // bonus 0, TIME_PER_AMBROSIA 45, accelerator/brick multipliers 1.
+        assert_eq!(compute_ambrosia_timer_fields(&state), (0.0, 45.0, 1.0, 1.0));
+    }
+
+    #[test]
+    fn ambrosia_timer_fields_track_state() {
+        let mut state = GameState::default();
+        // noAmbrosiaUpgrades completed → bonusAmbrosia 1; scales the accelerator.
+        state.singularity.no_ambrosia_upgrades.completions = 5.0;
+        state.shop.upgrades[70] = 10.0; // shopAmbrosiaAccelerator: 1 − 0.006·10·5 = 0.7
+        state.ambrosia.upgrades[31].level = 25.0; // brickOfLead barReq: 1/(1 − 25/50) = 2
+        let (bonus, tpa, accel, brick) = compute_ambrosia_timer_fields(&state);
+        assert_eq!(bonus, 1.0);
+        assert_eq!(tpa, 45.0);
+        assert!((accel - 0.7).abs() < 1e-12);
+        assert!((brick - 2.0).abs() < 1e-12);
+    }
+
+    #[test]
+    fn red_ambrosia_timer_fields_at_default() {
+        let state = GameState::default();
+        // accelerator 0, TIME_PER_RED_AMBROSIA 100000, bar-req multiplier 1.
+        assert_eq!(
+            compute_red_ambrosia_timer_fields(&state),
+            (0.0, 100_000.0, 1.0)
+        );
+    }
+
+    #[test]
+    fn red_ambrosia_timer_fields_track_state() {
+        let mut state = GameState::default();
+        state.red_ambrosia.upgrades[19].level = 10.0; // redAmbrosiaAccelerator: 0.02·10 + 1 = 1.2
+        state.singularity.limited_time.completions = 5.0; // limitedTime barReq: 1 − 0.02·5 = 0.9
+        let (atpra, tpra, bar) = compute_red_ambrosia_timer_fields(&state);
+        assert!((atpra - 1.2).abs() < 1e-12);
+        assert_eq!(tpra, 100_000.0);
+        assert!((bar - 0.9).abs() < 1e-12);
+    }
+
+    #[test]
+    fn octeract_unlocked_false_at_default() {
+        let state = GameState::default();
+        assert!(!compute_octeract_unlocked(&state));
+    }
+
+    #[test]
+    fn octeract_unlocked_true_when_gq_bought() {
+        let mut state = GameState::default();
+        state.golden_quarks.upgrades[24].level = 1.0; // octeractUnlock
+        assert!(compute_octeract_unlocked(&state));
+    }
+
+    #[test]
+    fn max_quark_timer_is_baseline_at_default() {
+        let state = GameState::default();
+        assert_eq!(compute_max_quark_timer(&state), 90_000.0);
+    }
+
+    #[test]
+    fn max_quark_timer_extends_with_research_195() {
+        let mut state = GameState::default();
+        state.researches.researches[195] = 2.0; // 90000 + 18000·2 = 126000
+        assert_eq!(compute_max_quark_timer(&state), 126_000.0);
+    }
+
+    #[test]
+    fn roomba_unlocked_tracks_cube_upgrade_and_singularity() {
+        let mut state = GameState::default();
+        assert!(!compute_roomba_unlocked(&state));
+        state.cube_upgrade_levels.cube_upgrades[9] = 1.0; // cubeUpgrades[9] === 1
+        assert!(compute_roomba_unlocked(&state));
+        state.cube_upgrade_levels.cube_upgrades[9] = 0.0;
+        state.singularity.highest_singularity_count = 11.0; // > 10
+        assert!(compute_roomba_unlocked(&state));
+    }
+
+    #[test]
+    fn offering_auto_rune_tracks_shop_slot() {
+        let mut state = GameState::default();
+        assert!(!compute_offering_auto_rune(&state));
+        state.shop.upgrades[3] = 1.0; // offeringAuto
+        assert!(compute_offering_auto_rune(&state));
+    }
+
+    #[test]
+    fn auto_prestige_milestone_unlocks_at_level_7() {
+        let mut state = GameState::default();
+        assert_eq!(compute_auto_prestige_milestone(&state), 0.0);
+        state.achievements.achievement_points = 350.0; // ⌊350/50⌋ = level 7 → 1
+        assert_eq!(compute_auto_prestige_milestone(&state), 1.0);
+    }
+
+    #[test]
+    fn available_reborn_elo_is_immortal_minus_reborn() {
+        let mut state = GameState::default();
+        assert_eq!(compute_available_reborn_elo(&state), 0.0);
+        state.ants.immortal_elo = 300.0;
+        state.ants.reborn_elo = 120.0;
+        assert_eq!(compute_available_reborn_elo(&state), 180.0);
+        // Floors at 0 when reborn exceeds immortal.
+        state.ants.reborn_elo = 500.0;
+        assert_eq!(compute_available_reborn_elo(&state), 0.0);
+    }
+
+    #[test]
+    fn immortal_elo_gain_at_default_is_one() {
+        let state = GameState::default();
+        // Base ELO 1 (the `ants` level-reward defaultValue) × mult 1, floored;
+        // max(0, 1 − immortalELO 0) = 1.
+        assert_eq!(compute_immortal_elo_gain(&state), 1.0);
+    }
+
+    #[test]
+    fn immortal_elo_gain_grows_with_ant_elo_research() {
+        let mut state = GameState::default();
+        state.researches.researches[108] = 4.0; // Research5x8: 25·4 = +100 base ELO
+                                                // ⌊(1 + 100) × 1⌋ = 101; max(0, 101 − 0) = 101.
+        assert_eq!(compute_immortal_elo_gain(&state), 101.0);
+    }
+
+    #[test]
+    fn immortal_elo_gain_floors_against_immortal_elo() {
+        let mut state = GameState::default();
+        state.researches.researches[108] = 4.0; // effective ELO 101
+        state.ants.immortal_elo = 50.0;
+        assert_eq!(compute_immortal_elo_gain(&state), 51.0);
+    }
+
+    #[test]
+    fn max_challenges_1_to_10_at_default() {
+        let state = GameState::default();
+        let caps = compute_max_challenges_1_to_10(&state);
+        // Transcension tier base 25, reincarnation tier base 40 (no upgrades).
+        assert_eq!(caps[1], 25.0);
+        assert_eq!(caps[5], 25.0);
+        assert_eq!(caps[6], 40.0);
+        assert_eq!(caps[10], 40.0);
+    }
+
+    #[test]
+    fn sweep_pre_evals_idle_at_default() {
+        let state = GameState::default();
+        let s = compute_sweep_pre_evals(&state);
+        // Timers from autoChallengeTimer defaults; lookups inert in Idle.
+        assert_eq!(
+            (s.timer_start, s.timer_exit, s.timer_enter),
+            (10.0, 2.0, 2.0)
+        );
+        assert_eq!(s.next_regular_challenge_from_initial, -1);
+        assert_eq!(s.next_regular_challenge_from_active, -1);
+        assert!(!s.challenge_15_auto_exponent_check);
+        assert!(!s.is_finished_still_valid);
+    }
+
+    #[test]
+    fn sweep_pre_evals_initial_wait_finds_first_challenge() {
+        let mut state = GameState::default();
+        state.automation.sweep_state = crate::events::SweepState::InitialWait;
+        let s = compute_sweep_pre_evals(&state);
+        // Challenge 1 uncompleted (0 < cap 25) + toggled on → next = 1.
+        assert_eq!(s.next_regular_challenge_from_initial, 1);
+        assert_eq!(s.next_regular_challenge_from_active, -1);
+    }
+
+    #[test]
+    fn sweep_pre_evals_finished_guard_tracks_c1_c6_caps() {
+        let mut state = GameState::default();
+        state.automation.sweep_state = crate::events::SweepState::Finished;
+        // Invalid until c1 + c6 sit exactly at their caps (25 / 40).
+        assert!(!compute_sweep_pre_evals(&state).is_finished_still_valid);
+        state.challenges.highest_challenge_completions[1] = 25.0;
+        state.challenges.highest_challenge_completions[6] = 40.0;
+        assert!(compute_sweep_pre_evals(&state).is_finished_still_valid);
     }
 
     #[test]
@@ -2638,14 +3562,21 @@ mod tests {
         state.octeract_upgrades.octeract_timer = 0.5;
         let input = TackInput {
             dt: 1.0,
+            ..TackInput::default()
+        };
+        // `tack` now self-derives `octeract_unlocked` (false at default); drive
+        // `phase_automation` directly with a controlled cache so this stays a
+        // focused test of the octeract giveaway (octeract_per_second is still
+        // caller-provided).
+        let cache = CrossMechanicCache {
             automation_pre: AutomationPre {
                 octeract_unlocked: true,
                 octeract_per_second: 4.0,
                 ..AutomationPre::default()
             },
-            ..TackInput::default()
         };
-        let output = tack(&mut state, &input);
+        let mut output = TickOutput::default();
+        phase_automation(&mut state, &cache, &input, &mut output);
 
         // 0.5 + 1.0 = 1.5 → 1 giveaway-second; wow_octeracts += 1 × 4.
         assert_eq!(state.cube_balances.wow_octeracts.to_number(), 4.0);

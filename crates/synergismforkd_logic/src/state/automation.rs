@@ -20,6 +20,42 @@ use synergismforkd_bignum::Decimal;
 
 use crate::events::{AutoResetMode, SweepState};
 
+/// `player.autoChallengeTimer` — the three challenge-sweep phase durations
+/// (seconds). The sweep state machine advances when the time-since-last-change
+/// crosses the matching threshold.
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq)]
+pub struct AutoChallengeTimer {
+    /// `initial_wait → active` threshold.
+    pub start: f64,
+    /// `active → next-stage` threshold.
+    pub exit: f64,
+    /// `enter_wait → active` threshold.
+    pub enter: f64,
+}
+
+impl Default for AutoChallengeTimer {
+    /// Legacy blank-save values `{ start: 10, exit: 2, enter: 2 }`.
+    fn default() -> Self {
+        Self {
+            start: 10.0,
+            exit: 2.0,
+            enter: 2.0,
+        }
+    }
+}
+
+/// `player.autoAscendMode` — when the auto-ascend reset fires (legacy
+/// `AutoAscensionResetModes`).
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum AutoAscendMode {
+    /// `c10Completions = 0` — reset on challenge-10 completions (legacy
+    /// blank-save default).
+    #[default]
+    C10Completions,
+    /// `realAscensionTime = 1` — reset on real ascension time.
+    RealAscensionTime,
+}
+
 /// Slice of `GameState` for cross-cutting automation toggles + timers.
 ///
 /// Not `Copy` (holds a [`SweepState`], which carries a `BTreeSet`) and
@@ -85,6 +121,21 @@ pub struct AutomationState {
     pub sweep_state: SweepState,
     /// Seconds elapsed since the last sweep-state transition.
     pub sweep_time_since_last_change: f64,
+    /// `player.autoChallengeTimer` — the sweep phase-duration thresholds.
+    pub auto_challenge_timer: AutoChallengeTimer,
+    /// `player.autoChallengeToggles` — per-challenge sweep enables, indexed by
+    /// challenge number (slot 0 unused; `1..=10` are the regular challenges the
+    /// sweep cycles, `11..=15` the ascension challenges). Drives
+    /// `getNextRegularChallenge`.
+    pub auto_challenge_toggles: [bool; 16],
+
+    // ── Auto ascension (challenge-15 sweep guard) ────────────────────
+    /// `player.autoAscend` — auto-ascend reset enabled.
+    pub auto_ascend: bool,
+    /// `player.autoAscendMode`.
+    pub auto_ascend_mode: AutoAscendMode,
+    /// `player.autoAscendThreshold` — real-ascension-time mode threshold.
+    pub auto_ascend_threshold: f64,
 }
 
 impl Default for AutomationState {
@@ -117,6 +168,16 @@ impl Default for AutomationState {
             auto_challenge_running: false,
             sweep_state: SweepState::Idle,
             sweep_time_since_last_change: 0.0,
+            auto_challenge_timer: AutoChallengeTimer::default(),
+            // Legacy blank save: slot 0 + the ascension slots off, the ten
+            // regular challenges on.
+            auto_challenge_toggles: [
+                false, true, true, true, true, true, true, true, true, true, true, false, false,
+                false, false, false,
+            ],
+            auto_ascend: false,
+            auto_ascend_mode: AutoAscendMode::C10Completions,
+            auto_ascend_threshold: 1.0,
         }
     }
 }
@@ -135,5 +196,27 @@ mod tests {
         assert_eq!(s.sweep_state, SweepState::Idle);
         assert_eq!(s.sacrifice_timer, 0.0);
         assert_eq!(s.auto_offering_counter, 0.0);
+    }
+
+    #[test]
+    fn challenge_sweep_state_defaults_match_legacy_blank_save() {
+        let s = AutomationState::default();
+        // autoChallengeTimer = { start: 10, exit: 2, enter: 2 }.
+        assert_eq!(
+            s.auto_challenge_timer,
+            AutoChallengeTimer {
+                start: 10.0,
+                exit: 2.0,
+                enter: 2.0
+            }
+        );
+        // autoChallengeToggles: slot 0 + ascension slots off, regular 1..=10 on.
+        assert!(!s.auto_challenge_toggles[0]);
+        assert!(s.auto_challenge_toggles[1..=10].iter().all(|&t| t));
+        assert!(s.auto_challenge_toggles[11..].iter().all(|&t| !t));
+        // autoAscend / mode / threshold.
+        assert!(!s.auto_ascend);
+        assert_eq!(s.auto_ascend_mode, AutoAscendMode::C10Completions);
+        assert_eq!(s.auto_ascend_threshold, 1.0);
     }
 }

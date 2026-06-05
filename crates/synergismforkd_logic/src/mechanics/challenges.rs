@@ -563,6 +563,43 @@ pub fn auto_ascension_challenge_sweep_unlock(
     highest_singularity_count >= 101.0 && instant_challenge_2_unlocked
 }
 
+/// Pre-evaluated inputs to [`challenge_15_auto_exponent_check`].
+#[derive(Debug, Clone, Copy)]
+pub struct Challenge15AutoExponentCheckInput {
+    /// [`auto_ascension_challenge_sweep_unlock`] result.
+    pub sweep_unlocked: bool,
+    /// `player.currentChallenge.ascension` — must be `15`.
+    pub current_ascension_challenge: u32,
+    /// `getShopUpgradeEffects('challenge15Auto', 'unlocked')` — when the
+    /// shop auto already drives c15, the sweep does NOT take over.
+    pub challenge_15_auto_shop_unlocked: bool,
+    /// `player.autoAscend`.
+    pub auto_ascend: bool,
+    /// `player.cubeUpgrades[10]` — must be `> 0`.
+    pub cube_upgrade_10: f64,
+    /// `player.autoAscendMode === realAscensionTime`.
+    pub auto_ascend_mode_is_real_time: bool,
+    /// `player.ascensionCounterRealReal`.
+    pub ascension_counter_real_real: f64,
+    /// `player.autoAscendThreshold`.
+    pub auto_ascend_threshold: f64,
+}
+
+/// The legacy `challenge15AutoExponentCheck()` guard (web_ui/Challenges.ts):
+/// whether the challenge-sweep machine should pause in `c15_wait` to let the
+/// real-time auto-ascend drive challenge 15, rather than restarting the sweep.
+/// All seven conjuncts must hold.
+#[must_use]
+pub fn challenge_15_auto_exponent_check(input: &Challenge15AutoExponentCheckInput) -> bool {
+    input.sweep_unlocked
+        && input.current_ascension_challenge == 15
+        && !input.challenge_15_auto_shop_unlocked
+        && input.auto_ascend
+        && input.cube_upgrade_10 > 0.0
+        && input.auto_ascend_mode_is_real_time
+        && input.ascension_counter_real_real >= 0.1_f64.max(input.auto_ascend_threshold - 5.0)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1076,5 +1113,40 @@ mod tests {
         assert!(!auto_ascension_challenge_sweep_unlock(101.0, false));
         assert!(auto_ascension_challenge_sweep_unlock(101.0, true));
         assert!(auto_ascension_challenge_sweep_unlock(500.0, true));
+    }
+
+    // ─── challenge_15_auto_exponent_check ──────────────────────────────────
+
+    fn c15_check_all_true() -> Challenge15AutoExponentCheckInput {
+        Challenge15AutoExponentCheckInput {
+            sweep_unlocked: true,
+            current_ascension_challenge: 15,
+            challenge_15_auto_shop_unlocked: false,
+            auto_ascend: true,
+            cube_upgrade_10: 1.0,
+            auto_ascend_mode_is_real_time: true,
+            ascension_counter_real_real: 100.0,
+            auto_ascend_threshold: 10.0, // max(0.1, 10−5) = 5 ≤ 100
+        }
+    }
+
+    #[test]
+    fn c15_auto_exponent_check_all_conjuncts_required() {
+        assert!(challenge_15_auto_exponent_check(&c15_check_all_true()));
+        // Each falsifier flips the result.
+        let mut not_c15 = c15_check_all_true();
+        not_c15.current_ascension_challenge = 14;
+        assert!(!challenge_15_auto_exponent_check(&not_c15));
+        let mut shop_drives = c15_check_all_true();
+        shop_drives.challenge_15_auto_shop_unlocked = true;
+        assert!(!challenge_15_auto_exponent_check(&shop_drives));
+        let mut not_real_time = c15_check_all_true();
+        not_real_time.auto_ascend_mode_is_real_time = false;
+        assert!(!challenge_15_auto_exponent_check(&not_real_time));
+        // Threshold floors at 0.1: counter just below max(0.1, thr−5) fails.
+        let mut below = c15_check_all_true();
+        below.auto_ascend_threshold = 5.0; // max(0.1, 0) = 0.1
+        below.ascension_counter_real_real = 0.05;
+        assert!(!challenge_15_auto_exponent_check(&below));
     }
 }
