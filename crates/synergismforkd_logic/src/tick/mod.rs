@@ -414,6 +414,12 @@ pub fn tack(state: &mut GameState, input: &TackInput) -> TickOutput {
     cache.automation_pre.roomba_unlocked = compute_roomba_unlocked(state);
     cache.automation_pre.offering_auto_rune = compute_offering_auto_rune(state);
     cache.automation_pre.auto_prestige_milestone = compute_auto_prestige_milestone(state);
+    // Ant-sacrifice unlock gate (legacy `getAchievementReward('antSacrificeUnlock')`
+    // = achievement #173 earned).
+    cache.automation_pre.ant_sacrifice_unlocked =
+        crate::mechanics::achievement_rewards::ant_sacrifice_unlocked(
+            &state.achievements.achievements,
+        );
     phase_player_input(state, input, &mut output);
     phase_generation(state, &resource_gain_pre, input.dt, &mut output);
     phase_automation(state, &cache, input, &mut output);

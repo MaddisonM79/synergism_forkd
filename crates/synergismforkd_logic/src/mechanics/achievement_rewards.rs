@@ -116,6 +116,11 @@ const TAX_REDUCTION_CHALLENGE_INDEX: usize = 118;
 /// Legacy index of the lone `particleGain` achievement (#50): `() => 2`.
 const PARTICLE_GAIN_INDEX: usize = 50;
 
+/// Legacy index of the lone `antSacrificeUnlock` achievement (#173):
+/// `crumbsThisSacrifice >= 1e40`, group `antCrumbs`. A single earned-flag
+/// bool reward (`Boolean(player.achievements[173])`), not an aggregator.
+const ANT_SACRIFICE_UNLOCK_INDEX: usize = 173;
+
 #[inline]
 fn earned(achievements: &[u8; ACHIEVEMENTS_LEN], index: usize) -> bool {
     achievements[index] != 0
@@ -223,6 +228,15 @@ pub fn crystal_multiplier(input: &AchievementRewardInput) -> f64 {
     }
 }
 
+/// `getAchievementReward('antSacrificeUnlock')` — `true` once achievement
+/// #173 is earned. Gates the Phase-5 ant-sacrifice automation. Unlike the
+/// aggregator rewards this reads a single earned flag, so it takes the
+/// achievements array directly rather than the full [`AchievementRewardInput`].
+#[must_use]
+pub fn ant_sacrifice_unlocked(achievements: &[u8; ACHIEVEMENTS_LEN]) -> bool {
+    earned(achievements, ANT_SACRIFICE_UNLOCK_INDEX)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -244,6 +258,12 @@ mod tests {
             prestige_points: Decimal::zero(),
             challenge_completions_6_to_10: [0.0; 5],
         }
+    }
+
+    #[test]
+    fn ant_sacrifice_unlock_tracks_achievement_173() {
+        assert!(!ant_sacrifice_unlocked(&earned_array(&[])));
+        assert!(ant_sacrifice_unlocked(&earned_array(&[173])));
     }
 
     #[test]
