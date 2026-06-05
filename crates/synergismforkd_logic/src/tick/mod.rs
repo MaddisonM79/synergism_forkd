@@ -387,6 +387,13 @@ pub fn tack(state: &mut GameState, input: &TackInput) -> TickOutput {
     cache.automation_pre.red_ambrosia_luck = compute_red_ambrosia_luck_pre(state, ambrosia_luck);
     cache.automation_pre.red_ambrosia_generation_speed =
         compute_red_ambrosia_generation_speed_pre(state, ambrosia_generation_speed);
+    // Ambrosia-timer threshold fields (legacy Helper.ts `addTimers('ambrosia')`).
+    let (bonus_ambrosia, time_per_ambrosia, ambrosia_accelerator_mult, ambrosia_brick_of_lead_mult) =
+        compute_ambrosia_timer_fields(state);
+    cache.automation_pre.bonus_ambrosia = bonus_ambrosia;
+    cache.automation_pre.time_per_ambrosia = time_per_ambrosia;
+    cache.automation_pre.ambrosia_accelerator_mult = ambrosia_accelerator_mult;
+    cache.automation_pre.ambrosia_brick_of_lead_mult = ambrosia_brick_of_lead_mult;
     phase_player_input(state, input, &mut output);
     phase_generation(state, &resource_gain_pre, input.dt, &mut output);
     phase_automation(state, &cache, input, &mut output);
@@ -1446,6 +1453,49 @@ fn compute_auto_timer_fields(state: &GameState) -> (f64, f64, f64, f64) {
             state.octeract_upgrades.upgrades[OCTERACT_AUTO_POTION_SPEED].level,
         ),
         golden_quarks_3_effect(state.golden_quarks.upgrades[GQ_GOLDEN_QUARKS_3].level),
+    )
+}
+
+/// `G.TIME_PER_AMBROSIA` — base seconds per ambrosia bar (Variables.ts; a
+/// fixed `G` constant, never reassigned in the legacy).
+const TIME_PER_AMBROSIA: f64 = 45.0;
+
+/// Pure-state ambrosia-timer threshold fields, from the legacy Helper.ts
+/// `addTimers('ambrosia')` case: the EXALT-5 bonus-ambrosia grant
+/// (`noAmbrosiaUpgrades.bonusAmbrosia`), the base `TIME_PER_AMBROSIA`
+/// constant, the shop accelerator's point-requirement multiplier (scaled by
+/// `noAmbrosiaUpgrades` completions), and the brick-of-lead bar-requirement
+/// multiplier. Returned as `(bonus_ambrosia, time_per_ambrosia,
+/// ambrosia_accelerator_mult, ambrosia_brick_of_lead_mult)`. The brick uses
+/// the effective level (`level + free_level`). All four equal the old
+/// `AutomationPre::default()` at the default state, so the sim/tests don't
+/// shift.
+fn compute_ambrosia_timer_fields(state: &GameState) -> (f64, f64, f64, f64) {
+    use crate::mechanics::blueberry_upgrades::{
+        ambrosia_brick_of_lead_effect, AmbrosiaBrickOfLeadEffectKey,
+    };
+    use crate::mechanics::shop_upgrades::shop_ambrosia_accelerator_effect;
+    use crate::mechanics::singularity_challenges::{
+        no_ambrosia_upgrades_effect, NoAmbrosiaUpgradesKey, SingularityEffectValue,
+    };
+    use crate::state::ambrosia::AMBROSIA_BRICK_OF_LEAD;
+    use crate::state::shop::SHOP_AMBROSIA_ACCELERATOR;
+
+    let no_amb = state.singularity.no_ambrosia_upgrades.completions;
+    let bonus_ambrosia =
+        match no_ambrosia_upgrades_effect(no_amb, NoAmbrosiaUpgradesKey::BonusAmbrosia) {
+            SingularityEffectValue::Scalar(s) => s,
+            SingularityEffectValue::Unlock(_) => 0.0,
+        };
+    let brick = &state.ambrosia.upgrades[AMBROSIA_BRICK_OF_LEAD];
+    (
+        bonus_ambrosia,
+        TIME_PER_AMBROSIA,
+        shop_ambrosia_accelerator_effect(state.shop.upgrades[SHOP_AMBROSIA_ACCELERATOR], no_amb),
+        ambrosia_brick_of_lead_effect(
+            brick.level + brick.free_level,
+            AmbrosiaBrickOfLeadEffectKey::BarRequirementMult,
+        ),
     )
 }
 
@@ -2788,6 +2838,27 @@ mod tests {
         let (off, obt, speed, export) = compute_auto_timer_fields(&state);
         assert_eq!((off, obt, export), (3.0, 5.0, 10.0));
         assert!((speed - 1.4).abs() < 1e-12);
+    }
+
+    #[test]
+    fn ambrosia_timer_fields_at_default() {
+        let state = GameState::default();
+        // bonus 0, TIME_PER_AMBROSIA 45, accelerator/brick multipliers 1.
+        assert_eq!(compute_ambrosia_timer_fields(&state), (0.0, 45.0, 1.0, 1.0));
+    }
+
+    #[test]
+    fn ambrosia_timer_fields_track_state() {
+        let mut state = GameState::default();
+        // noAmbrosiaUpgrades completed → bonusAmbrosia 1; scales the accelerator.
+        state.singularity.no_ambrosia_upgrades.completions = 5.0;
+        state.shop.upgrades[70] = 10.0; // shopAmbrosiaAccelerator: 1 − 0.006·10·5 = 0.7
+        state.ambrosia.upgrades[31].level = 25.0; // brickOfLead barReq: 1/(1 − 25/50) = 2
+        let (bonus, tpa, accel, brick) = compute_ambrosia_timer_fields(&state);
+        assert_eq!(bonus, 1.0);
+        assert_eq!(tpa, 45.0);
+        assert!((accel - 0.7).abs() < 1e-12);
+        assert!((brick - 2.0).abs() < 1e-12);
     }
 
     #[test]
