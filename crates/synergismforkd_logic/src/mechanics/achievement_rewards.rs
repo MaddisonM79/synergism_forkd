@@ -132,6 +132,18 @@ const ANT_ELO_ADDITIVE_INDEX: usize = 485;
 /// `() => achievementLevel`.
 const ANT_SPEED_2_UPGRADE_IMPROVER_INDEX: usize = 486;
 
+/// Legacy indices of the two `ascensionScore` reward achievements:
+/// #259 grants `1.01 ^ hepteracts.abyss.TIMES_CAP_EXTENDED` and #267 grants
+/// `1 + min(log10(ascendShards + 1) / 1e5, 1)`.
+const ASCENSION_SCORE_ABYSS_INDEX: usize = 259;
+const ASCENSION_SCORE_SHARDS_INDEX: usize = 267;
+
+/// `hepteracts.abyss.TIMES_CAP_EXTENDED` — the abyss hepteract craft is
+/// unported (no times-cap-extended state field), so its exponent is
+/// neutral-defaulted to 0 (→ `1.01^0 = 1`), faithful at current state. Swap
+/// for the real craft value once the abyss hepteract lands.
+const ABYSS_TIMES_CAP_EXTENDED: f64 = 0.0;
+
 #[inline]
 fn earned(achievements: &[u8; ACHIEVEMENTS_LEN], index: usize) -> bool {
     achievements[index] != 0
@@ -286,6 +298,28 @@ pub fn ant_speed_2_upgrade_improver(
     }
 }
 
+/// `getAchievementReward('ascensionScore')` — multiplicative (base 1). The
+/// product of the two contributing achievements: #259 grants
+/// `1.01 ^ TIMES_CAP_EXTENDED` (abyss hepteract unported → exponent 0 → 1.0,
+/// see [`ABYSS_TIMES_CAP_EXTENDED`]) and #267 grants
+/// `1 + min(log10(ascendShards + 1) / 1e5, 1)`. Feeds the ascension-score
+/// bonus multiplier (`compute_ascension_score_bonus_multiplier`). At default
+/// state (no achievements earned, `ascendShards = 0`) this is the product
+/// identity `1.0`.
+#[must_use]
+pub fn ascension_score(achievements: &[u8; ACHIEVEMENTS_LEN], ascend_shards: Decimal) -> f64 {
+    let mut prod = 1.0;
+    if earned(achievements, ASCENSION_SCORE_ABYSS_INDEX) {
+        prod *= 1.01_f64.powf(ABYSS_TIMES_CAP_EXTENDED);
+    }
+    if earned(achievements, ASCENSION_SCORE_SHARDS_INDEX) {
+        // `Decimal.log(ascendShards + 1, 10)` — log base 10.
+        let log10 = (ascend_shards + Decimal::one()).log10().to_number();
+        prod *= 1.0 + (log10 / 1e5).min(1.0);
+    }
+    prod
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -327,6 +361,27 @@ mod tests {
             ant_speed_2_upgrade_improver(&earned_array(&[486]), 40.0),
             40.0
         );
+    }
+
+    #[test]
+    fn ascension_score_is_product_identity_at_default() {
+        // Nothing earned → product identity.
+        assert_eq!(ascension_score(&earned_array(&[]), Decimal::zero()), 1.0);
+        // #259 earned → 1.01 ^ 0 = 1.0 (abyss term neutral-defaulted).
+        assert_eq!(ascension_score(&earned_array(&[259]), Decimal::zero()), 1.0);
+        // #267 earned at ascendShards = 0 → 1 + min(log10(1) / 1e5, 1) = 1.0.
+        assert_eq!(ascension_score(&earned_array(&[267]), Decimal::zero()), 1.0);
+    }
+
+    #[test]
+    fn ascension_score_shards_term_scales_with_log10() {
+        let a = earned_array(&[ASCENSION_SCORE_SHARDS_INDEX]);
+        // ascendShards = 1e1000 → log10 ≈ 1000 → 1000/1e5 = 0.01 → factor 1.01.
+        let mid = Decimal::from_mantissa_exponent(1.0, 1000.0);
+        assert!((ascension_score(&a, mid) - 1.01).abs() < 1e-6);
+        // ascendShards = 1e100000 → log10 ≈ 1e5 → min(1e5/1e5, 1) = 1 → factor 2.0.
+        let huge = Decimal::from_mantissa_exponent(1.0, 100_000.0);
+        assert!((ascension_score(&a, huge) - 2.0).abs() < 1e-9);
     }
 
     #[test]
