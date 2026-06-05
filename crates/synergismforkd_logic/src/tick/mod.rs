@@ -282,15 +282,21 @@ pub enum BuyRequest {
 }
 
 /// Per-tier dispatcher for a manual reset, mirroring [`BuyRequest`]. Only
-/// [`Self::Prestige`] is wired today; the higher tiers (transcension /
-/// reincarnation / ascension / singularity) cascade on top of the
-/// prestige base and port behind the regroup.
+/// [`Self::Prestige`] / [`Self::Transcension`] / [`Self::Reincarnation`]
+/// are wired today; the ascension / singularity tiers cascade on top and
+/// port later.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum ResetRequest {
     /// Manual prestige reset — the always-runs base reset
     /// (`reset('prestige')`).
     Prestige,
+    /// Manual transcension reset — base + transcension layer
+    /// (`reset('transcension')`).
+    Transcension,
+    /// Manual reincarnation reset — base + transcension + reincarnation
+    /// layers (`reset('reincarnation')`).
+    Reincarnation,
 }
 
 /// Result of [`tack`]. The accumulated event stream is the only output
@@ -4021,19 +4027,26 @@ fn phase_automation(
     // amount-mode gate compared against (and equals the manual path's
     // `reset_gains.prestige_point_gain`).
     use crate::events::AutoResetTier;
+    use crate::mechanics::reset_currency::ResetCurrencyResult;
+    let auto_gains = ResetCurrencyResult {
+        prestige_point_gain: pre.prestige_point_gain,
+        transcend_point_gain: pre.transcend_point_gain,
+        reincarnation_point_gain: pre.reincarnation_point_gain,
+    };
     let mut performed: SmallVec<[CoreEvent; 2]> = SmallVec::new();
     for event in &resets.events {
-        if matches!(
-            event,
-            CoreEvent::AutoResetTriggered {
-                tier: AutoResetTier::Prestige,
-                ..
+        if let CoreEvent::AutoResetTriggered { tier, .. } = event {
+            let request = match tier {
+                AutoResetTier::Prestige => Some(ResetRequest::Prestige),
+                AutoResetTier::Transcension => Some(ResetRequest::Transcension),
+                AutoResetTier::Reincarnation => Some(ResetRequest::Reincarnation),
+                // Ascension execution is not ported (cubes / hepteracts /
+                // corruptions); the intent still flows to the UI below.
+                AutoResetTier::Ascension => None,
+            };
+            if let Some(request) = request {
+                performed.extend(reset::perform_reset(state, request, &auto_gains));
             }
-        ) {
-            performed.extend(reset::perform_prestige_reset(
-                state,
-                pre.prestige_point_gain,
-            ));
         }
     }
     // Intent (`AutoResetTriggered`) before effect (`ResetPerformed`).
@@ -4954,6 +4967,54 @@ mod tests {
         assert_eq!(state.upgrades.upgrades[5], 0);
         assert_eq!(state.reset_counters.prestige_count, 1.0);
         assert!(state.reset_counters.prestige_unlocked);
+    }
+
+    #[test]
+    fn tack_dispatches_manual_transcension_reset() {
+        use synergismforkd_bignum::Decimal;
+
+        use crate::events::AutoResetTier;
+
+        let mut state = GameState::default();
+        // 1e200 coins-this-transcension ⇒ floor((1e200 / 1e100) ^ 0.03)
+        // = floor(10^3) = 1000 transcend points.
+        state.coin_counters.coins_this_transcension = Decimal::from_finite(1e200);
+        // Dirty a diamond-producer cost + a transcension-tier upgrade slot
+        // to prove the transcension layer clears them through `tack`. (Leave
+        // `owned` at 0 to avoid the Phase-4 generation residual.)
+        state.diamond_producers.tiers[0].cost = Decimal::from_finite(7.0);
+        state.upgrades.upgrades[30] = 1;
+
+        let mut input = TackInput {
+            dt: 0.025,
+            ..TackInput::default()
+        };
+        input
+            .player_actions
+            .push(PlayerAction::Reset(ResetRequest::Transcension));
+
+        let output = tack(&mut state, &input);
+
+        assert!(
+            output.events.iter().any(|e| matches!(
+                e,
+                CoreEvent::ResetPerformed {
+                    tier: AutoResetTier::Transcension,
+                    ..
+                }
+            )),
+            "expected a transcension ResetPerformed, got {:?}",
+            output.events
+        );
+        assert_eq!(state.upgrades.transcend_points.to_number(), 1000.0);
+        assert_eq!(state.upgrades.prestige_points.to_number(), 0.0); // zeroed by transcension
+        assert_eq!(
+            state.coin_counters.coins_this_transcension.to_number(),
+            100.0
+        );
+        assert_eq!(state.diamond_producers.tiers[0].cost.to_number(), 100.0);
+        assert_eq!(state.upgrades.upgrades[30], 0);
+        assert_eq!(state.reset_counters.transcend_count, 1.0);
     }
 
     #[test]
