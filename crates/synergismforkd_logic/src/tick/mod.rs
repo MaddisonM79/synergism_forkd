@@ -377,8 +377,12 @@ pub fn tack(state: &mut GameState, input: &TackInput) -> TickOutput {
     cache.automation_pre.obtainium_potion_count = obtainium_potions;
     cache.automation_pre.auto_potion_speed_mult = auto_potion_speed;
     cache.automation_pre.export_gq_per_hour = export_gq;
-    cache.automation_pre.ambrosia_luck = compute_ambrosia_luck_pre(state);
+    let ambrosia_luck = compute_ambrosia_luck_pre(state);
+    cache.automation_pre.ambrosia_luck = ambrosia_luck;
     cache.automation_pre.ambrosia_generation_speed = compute_ambrosia_generation_speed_pre(state);
+    // Red-ambrosia luck composes on this tick's ambrosia luck (the
+    // `LuckConversion` stat line).
+    cache.automation_pre.red_ambrosia_luck = compute_red_ambrosia_luck_pre(state, ambrosia_luck);
     phase_player_input(state, input, &mut output);
     phase_generation(state, &resource_gain_pre, input.dt, &mut output);
     phase_automation(state, &cache, input, &mut output);
@@ -1747,6 +1751,93 @@ fn compute_ambrosia_generation_speed_pre(state: &GameState) -> f64 {
     calculate_ambrosia_generation_speed(raw_speed, blueberries)
 }
 
+/// Red-ambrosia luck (legacy `calculateRedAmbrosiaLuck`), self-derived from
+/// `&GameState`.
+///
+/// `Σ allRedAmbrosiaLuckStats` (13 lines, additive, base 100). The
+/// `LuckConversion` line composes on this tick's ambrosia luck:
+/// `⌊(ambrosiaLuck − 100) / luckConversion⌋`, where `luckConversion =
+/// Σ allLuckConversionStats` (base 20, with subtractive conversion-improvement
+/// / shop-red-luck-ratio lines). Replaces the caller-provided
+/// `AutomationPre::red_ambrosia_luck`, which the red-ambrosia timer consumes —
+/// but that timer is gated by `noAmbrosiaUpgrades.completions > 0`, so the
+/// value is inert at default, where this self-derives to the base `100` (vs
+/// the old default `0` — the same harmless gap as `ambrosia_luck`).
+///
+/// Neutral `0` lines (faithful at default; the owning upgrade is `0` anyway):
+/// the planar-coin `RED_LUCK_BUFF` (unported), shop `panthema` (Jack — needs
+/// `ShopPanthemaBonusLevels`), and the horseshoe rune/talisman lines (level
+/// source unported — same precedent as [`compute_ambrosia_luck_pre`]).
+fn compute_red_ambrosia_luck_pre(state: &GameState, ambrosia_luck: f64) -> f64 {
+    use crate::mechanics::achievement_levels::achievement_level_from_points;
+    use crate::mechanics::calculate::sum_f64;
+    use crate::mechanics::level_rewards::{get_level_reward, LevelRewardKey};
+    use crate::mechanics::red_ambrosia_upgrades::{
+        conversion_improvement_1_effect, conversion_improvement_2_effect,
+        conversion_improvement_3_effect, red_luck_effect, viscount_effect, ViscountEffectKey,
+        ViscountEffectValue,
+    };
+    use crate::mechanics::shop_upgrades::{
+        shop_red_luck_1_effect, shop_red_luck_2_effect, shop_red_luck_3_effect, ShopRedLuckKey,
+    };
+    use crate::mechanics::singularity_challenges::{
+        no_ambrosia_upgrades_effect, NoAmbrosiaUpgradesKey, SingularityEffectValue,
+    };
+    use crate::state::red_ambrosia::{
+        RED_AMBROSIA_CONVERSION_IMPROVEMENT_1, RED_AMBROSIA_CONVERSION_IMPROVEMENT_2,
+        RED_AMBROSIA_CONVERSION_IMPROVEMENT_3, RED_AMBROSIA_RED_LUCK, RED_AMBROSIA_VISCOUNT,
+    };
+    use crate::state::shop::{SHOP_RED_LUCK_1, SHOP_RED_LUCK_2, SHOP_RED_LUCK_3};
+
+    let shop = &state.shop.upgrades;
+    let red = |i: usize| state.red_ambrosia.upgrades[i].level;
+    let no_amb = state.singularity.no_ambrosia_upgrades.completions;
+    // Additive (luck) context → a missing singularity-effect value is 0.
+    let sc = |v: SingularityEffectValue| match v {
+        SingularityEffectValue::Scalar(s) => s,
+        SingularityEffectValue::Unlock(_) => 0.0,
+    };
+
+    // calculateLuckConversion() — Σ allLuckConversionStats (base 20). The
+    // conversion-improvement (`-n`) and shop-red-luck ratio lines are
+    // subtractive; the horseshoe-rune line's level source is unported.
+    let luck_conversion = sum_f64(&[
+        20.0, // Base
+        conversion_improvement_1_effect(red(RED_AMBROSIA_CONVERSION_IMPROVEMENT_1)),
+        conversion_improvement_2_effect(red(RED_AMBROSIA_CONVERSION_IMPROVEMENT_2)),
+        conversion_improvement_3_effect(red(RED_AMBROSIA_CONVERSION_IMPROVEMENT_3)),
+        shop_red_luck_1_effect(shop[SHOP_RED_LUCK_1], ShopRedLuckKey::LuckConversionRatio),
+        shop_red_luck_2_effect(shop[SHOP_RED_LUCK_2], ShopRedLuckKey::LuckConversionRatio),
+        shop_red_luck_3_effect(shop[SHOP_RED_LUCK_3], ShopRedLuckKey::LuckConversionRatio),
+        0.0, // HorseShoeRune — redLuckConversion, level source unported
+    ]);
+
+    sum_f64(&[
+        100.0, // Base
+        0.0,   // PseudoCoins — planar-coin RED_LUCK_BUFF (unported)
+        get_level_reward(
+            LevelRewardKey::RedAmbrosiaLuck,
+            achievement_level_from_points(state.achievements.achievement_points),
+        ),
+        ((ambrosia_luck - 100.0) / luck_conversion).floor(), // LuckConversion
+        red_luck_effect(red(RED_AMBROSIA_RED_LUCK)),
+        sc(no_ambrosia_upgrades_effect(
+            no_amb,
+            NoAmbrosiaUpgradesKey::RedLuck,
+        )),
+        shop_red_luck_1_effect(shop[SHOP_RED_LUCK_1], ShopRedLuckKey::RedLuck),
+        shop_red_luck_2_effect(shop[SHOP_RED_LUCK_2], ShopRedLuckKey::RedLuck),
+        shop_red_luck_3_effect(shop[SHOP_RED_LUCK_3], ShopRedLuckKey::RedLuck),
+        0.0, // Jack — shopPanthema (needs ShopPanthemaBonusLevels)
+        match viscount_effect(red(RED_AMBROSIA_VISCOUNT), ViscountEffectKey::RedLuckBonus) {
+            ViscountEffectValue::Scalar(s) => s,
+            ViscountEffectValue::RoleUnlock(_) => 0.0,
+        },
+        0.0, // HorseShoeRune — redLuck, level source unported
+        0.0, // HorseShoeTalisman — redLuck, level source unported
+    ])
+}
+
 /// Compute the per-tick reset-currency point gains (prestige / transcend /
 /// reincarnation) from `&GameState` plus the Phase-2 accelerator effect.
 ///
@@ -2577,6 +2668,29 @@ mod tests {
         // Gate open → raw_speed 1; E1x1 grants +3 blueberries → 1 × 3 = 3.
         state.singularity.no_singularity_upgrades.completions = 1.0;
         assert!((compute_ambrosia_generation_speed_pre(&state) - 3.0).abs() < 1e-12);
+    }
+
+    #[test]
+    fn red_ambrosia_luck_pre_is_one_hundred_at_default() {
+        let state = GameState::default();
+        // Base 100; the LuckConversion line is ⌊(100 − 100) / 20⌋ = 0.
+        assert_eq!(compute_red_ambrosia_luck_pre(&state, 100.0), 100.0);
+    }
+
+    #[test]
+    fn red_ambrosia_luck_pre_adds_luck_conversion() {
+        let state = GameState::default();
+        // Default luckConversion is 20, so ambrosiaLuck 200 contributes
+        // ⌊(200 − 100) / 20⌋ = 5 → 100 + 5 = 105.
+        assert_eq!(compute_red_ambrosia_luck_pre(&state, 200.0), 105.0);
+    }
+
+    #[test]
+    fn red_ambrosia_luck_pre_grows_with_shop_red_luck() {
+        let mut state = GameState::default();
+        // shopRedLuck1 (shop[77]) redLuck = 0.05 × n adds to the sum.
+        state.shop.upgrades[77] = 10.0;
+        assert!(compute_red_ambrosia_luck_pre(&state, 100.0) > 100.0);
     }
 
     #[test]
