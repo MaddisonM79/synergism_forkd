@@ -7,10 +7,11 @@
 //! rates.
 //!
 //! ## Phases
-//! 1. **Cross-mechanic precompute** — stubbed; `*Pre` bundles still
-//!    caller-provided. Becomes a single `CrossMechanicCache` once the
-//!    upstream mechanics (rune effects, ant effects, hepteract effects,
-//!    achievement rewards, challenge-15 rewards) finish porting.
+//! 1. **Automation-input derivation** — all five `*Pre` bundles have been
+//!    retired; [`tack`] self-derives the Phase-5 [`AutomationPre`] inputs
+//!    field-by-field from `&GameState` (the four global-state bundles
+//!    derive inside their consuming phases). No caller bundle, no
+//!    cross-mechanic cache remains.
 //! 2. **Global state aggregators** — the four pure aggregators
 //!    ([`compute_global_multipliers`], [`update_all_multiplier`],
 //!    [`update_all_tick`], plus the helpers reading their outputs). Their
@@ -60,18 +61,17 @@ mod automatic_tools;
 mod challenge_sweep;
 mod timers;
 
-/// Caller-provided pre-evaluated inputs for the Phase 5 automation
-/// layer — speed multipliers and unlock gates that have no ported
-/// aggregator yet (`calculateGlobalSpeedMult`,
-/// `calculateAscensionSpeedMult`, `calculateSingularitySpeedMult`,
-/// `quark_handler`, `exportGQPerHour`, …).
+/// Pre-evaluated inputs for the Phase 5 automation layer — the speed
+/// multipliers, timer fields, and unlock gates [`phase_automation`]
+/// reads (`calculateGlobalSpeedMult`, `calculateAscensionSpeedMult`,
+/// `calculateSingularitySpeedMult`, `quark_handler`, `exportGQPerHour`,
+/// the ambrosia / octeract / obtainium / ant-speed mults, …).
 ///
-/// Mirrors the four existing `*_pre` bundles: caller-packed for the
-/// duration of the MVP port, migrating to compute-from-state as each
-/// upstream aggregator lands. **Grows per chunk** — each automation
-/// sub-phase adds the fields it consumes. Today it carries the head-
-/// timer multipliers + gates consumed by the simple counter and
-/// octeract timers (Chunks 1–2).
+/// **Fully self-derived from `&GameState`.** [`tack`] builds this
+/// field-by-field from the ported aggregators (the `compute_*` helpers)
+/// before Phase 5; it is no longer threaded through [`TackInput`] or a
+/// cross-mechanic cache. It remains a distinct struct purely as the
+/// argument bundle handed to [`phase_automation`].
 #[derive(Debug, Clone, Copy)]
 pub struct AutomationPre {
     /// `calculateGlobalSpeedMult()` — scales the prestige / transcend /
@@ -222,11 +222,12 @@ impl Default for AutomationPre {
 /// Inputs to [`tack`]. Owned by the caller — `logic` has no clock, no
 /// input device, no RNG seed source of its own.
 ///
-/// `automation_pre` is the last caller-provided `*_pre` bundle; the four
-/// global-state bundles (`global_multipliers`, `update_all_multiplier`,
-/// `update_all_tick`, `resource_gain`) have all been retired — the tick
-/// now self-derives them from `&GameState`. `automation_pre` follows once
-/// the Phase-5 speed-mult aggregators port.
+/// All five `*_pre` bundles have now been retired: the four global-state
+/// bundles (`global_multipliers`, `update_all_multiplier`,
+/// `update_all_tick`, `resource_gain`) and the Phase-5 `automation_pre`
+/// bundle all self-derive from `&GameState` inside [`tack`]. `TackInput`
+/// therefore carries only the genuine inputs the caller controls: the tick
+/// delta, the time-warp flag, and the queued player actions.
 #[derive(Debug, Clone, Default)]
 pub struct TackInput {
     /// Wall-clock seconds since the previous tick. The caller is the
@@ -239,8 +240,6 @@ pub struct TackInput {
     /// Player inputs queued since the previous tick. Drained FIFO in
     /// Phase 3. Empty in pure background ticks.
     pub player_actions: SmallVec<[PlayerAction; 4]>,
-    /// Pre-evaluated inputs for the Phase 5 automation layer.
-    pub automation_pre: AutomationPre,
 }
 
 /// A single queued player input. Variants will expand as automation
@@ -290,32 +289,6 @@ pub struct TickOutput {
     pub events: SmallVec<[CoreEvent; 16]>,
 }
 
-/// Cross-mechanic precomputed values, computed once per tick at the top
-/// of [`tack`] and threaded through every downstream phase. **The
-/// canonical artifact for cross-mechanic flow** — when a designer wants
-/// to read "where does Corruption affect Cubes affect Ants?", the
-/// answer is this struct and the function that populates it
-/// (`phase_cross_mechanic_precompute`).
-///
-/// Per Loom's tack-design memo, the goal of the cache is to make the
-/// synergy graph **legible**. The legacy TS scattered these
-/// computations across the aggregators' `*Pre` parameters, which every
-/// caller hand-packed — silently dropping a field gave a working tick
-/// that produced slightly less, with no compile error.
-///
-/// The four global-state bundles have all migrated to compute-from-state
-/// (their derivations live in the Phase-1/2 functions, not the cache).
-/// `automation_pre` is the last bundle still forwarded from
-/// [`TackInput`]; it follows once the Phase-5 speed-mult aggregators port,
-/// after which the cache is fully self-derived from `&GameState`.
-#[derive(Debug, Clone, Default)]
-pub struct CrossMechanicCache {
-    /// Pre-evaluated inputs for the Phase 5 automation layer. Forwarded
-    /// from [`TackInput`] today; state-derived field-by-field as the
-    /// upstream speed-mult aggregators port.
-    pub automation_pre: AutomationPre,
-}
-
 /// Captured outputs of the three Phase 2 aggregators, so downstream
 /// phases can read aggregator-derived values without rerunning the
 /// math. (Replaces what would otherwise be `G.*`-style mutable globals
@@ -343,7 +316,10 @@ struct AggregatorOutputs {
 pub fn tack(state: &mut GameState, input: &TackInput) -> TickOutput {
     let mut output = TickOutput::default();
 
-    let mut cache = phase_cross_mechanic_precompute(state, input);
+    // The automation-layer inputs are now fully self-derived from `&GameState`
+    // (no caller bundle, no cross-mechanic cache). Built field-by-field below,
+    // then handed to Phase 5.
+    let mut automation_pre = AutomationPre::default();
     let aggregator_outputs = phase_global_state(state);
     // Phase 2b: coin production + tax. Mirrors the legacy `calculatetax()`
     // call slot — runs after the aggregators (it needs the fresh coin
@@ -361,123 +337,107 @@ pub fn tack(state: &mut GameState, input: &TackInput) -> TickOutput {
         compute_resource_gain_pre(&aggregator_outputs, &tax_outputs, &reset_gains);
     // Thread the same point gains into the automation bundle so auto-reset
     // amount mode compares against this tick's gain (state-derived now).
-    cache.automation_pre.prestige_point_gain = reset_gains.prestige_point_gain;
-    cache.automation_pre.transcend_point_gain = reset_gains.transcend_point_gain;
-    cache.automation_pre.reincarnation_point_gain = reset_gains.reincarnation_point_gain;
+    automation_pre.prestige_point_gain = reset_gains.prestige_point_gain;
+    automation_pre.transcend_point_gain = reset_gains.transcend_point_gain;
+    automation_pre.reincarnation_point_gain = reset_gains.reincarnation_point_gain;
     // Speed multipliers (legacy `G.timeMultiplier` / `ascensionSpeedMult`) —
     // self-derived from state, replacing the caller-provided AutomationPre
     // values.
-    cache.automation_pre.global_time_multiplier = compute_global_speed_mult_pre(state);
-    cache.automation_pre.ascension_speed_multi = compute_ascension_speed_mult_pre(state);
-    cache.automation_pre.singularity_speed_multi = compute_singularity_speed_mult_pre(state);
+    automation_pre.global_time_multiplier = compute_global_speed_mult_pre(state);
+    automation_pre.ascension_speed_multi = compute_ascension_speed_mult_pre(state);
+    automation_pre.singularity_speed_multi = compute_singularity_speed_mult_pre(state);
     // Non-speed timer fields (auto-potion + GQ export), self-derived.
     let (offering_potions, obtainium_potions, auto_potion_speed, export_gq) =
         compute_auto_timer_fields(state);
-    cache.automation_pre.offering_potion_count = offering_potions;
-    cache.automation_pre.obtainium_potion_count = obtainium_potions;
-    cache.automation_pre.auto_potion_speed_mult = auto_potion_speed;
-    cache.automation_pre.export_gq_per_hour = export_gq;
+    automation_pre.offering_potion_count = offering_potions;
+    automation_pre.obtainium_potion_count = obtainium_potions;
+    automation_pre.auto_potion_speed_mult = auto_potion_speed;
+    automation_pre.export_gq_per_hour = export_gq;
     let ambrosia_luck = compute_ambrosia_luck_pre(state);
-    cache.automation_pre.ambrosia_luck = ambrosia_luck;
+    automation_pre.ambrosia_luck = ambrosia_luck;
     let ambrosia_generation_speed = compute_ambrosia_generation_speed_pre(state);
-    cache.automation_pre.ambrosia_generation_speed = ambrosia_generation_speed;
+    automation_pre.ambrosia_generation_speed = ambrosia_generation_speed;
     // Red-ambrosia luck / generation speed compose on this tick's ambrosia
     // luck (the `LuckConversion` line) and ambrosia generation speed (the
     // `BlueberrySpeed` line) respectively.
-    cache.automation_pre.red_ambrosia_luck = compute_red_ambrosia_luck_pre(state, ambrosia_luck);
-    cache.automation_pre.red_ambrosia_generation_speed =
+    automation_pre.red_ambrosia_luck = compute_red_ambrosia_luck_pre(state, ambrosia_luck);
+    automation_pre.red_ambrosia_generation_speed =
         compute_red_ambrosia_generation_speed_pre(state, ambrosia_generation_speed);
     // Ambrosia-timer threshold fields (legacy Helper.ts `addTimers('ambrosia')`).
     let (bonus_ambrosia, time_per_ambrosia, ambrosia_accelerator_mult, ambrosia_brick_of_lead_mult) =
         compute_ambrosia_timer_fields(state);
-    cache.automation_pre.bonus_ambrosia = bonus_ambrosia;
-    cache.automation_pre.time_per_ambrosia = time_per_ambrosia;
-    cache.automation_pre.ambrosia_accelerator_mult = ambrosia_accelerator_mult;
-    cache.automation_pre.ambrosia_brick_of_lead_mult = ambrosia_brick_of_lead_mult;
+    automation_pre.bonus_ambrosia = bonus_ambrosia;
+    automation_pre.time_per_ambrosia = time_per_ambrosia;
+    automation_pre.ambrosia_accelerator_mult = ambrosia_accelerator_mult;
+    automation_pre.ambrosia_brick_of_lead_mult = ambrosia_brick_of_lead_mult;
     // Red-ambrosia-timer threshold fields (legacy Helper.ts `addTimers('redAmbrosia')`).
     let (
         ambrosia_time_per_red_ambrosia,
         time_per_red_ambrosia,
         red_ambrosia_bar_requirement_multiplier,
     ) = compute_red_ambrosia_timer_fields(state);
-    cache.automation_pre.ambrosia_time_per_red_ambrosia = ambrosia_time_per_red_ambrosia;
-    cache.automation_pre.time_per_red_ambrosia = time_per_red_ambrosia;
-    cache.automation_pre.red_ambrosia_bar_requirement_multiplier =
+    automation_pre.ambrosia_time_per_red_ambrosia = ambrosia_time_per_red_ambrosia;
+    automation_pre.time_per_red_ambrosia = time_per_red_ambrosia;
+    automation_pre.red_ambrosia_bar_requirement_multiplier =
         red_ambrosia_bar_requirement_multiplier;
     // Octeract-timer unlock gate (legacy `getGQUpgradeEffect('octeractUnlock',
     // 'unlocked')`).
-    cache.automation_pre.octeract_unlocked = compute_octeract_unlocked(state);
+    automation_pre.octeract_unlocked = compute_octeract_unlocked(state);
     // Quark-export timer cap (legacy `quarkHandler().maxTime`).
-    cache.automation_pre.max_quark_timer = compute_max_quark_timer(state);
+    automation_pre.max_quark_timer = compute_max_quark_timer(state);
     // Automation unlock gates: auto-research Roomba, the rune auto-sacrifice
     // shop gate, and the auto-prestige level milestone.
-    cache.automation_pre.roomba_unlocked = compute_roomba_unlocked(state);
-    cache.automation_pre.offering_auto_rune = compute_offering_auto_rune(state);
-    cache.automation_pre.auto_prestige_milestone = compute_auto_prestige_milestone(state);
+    automation_pre.roomba_unlocked = compute_roomba_unlocked(state);
+    automation_pre.offering_auto_rune = compute_offering_auto_rune(state);
+    automation_pre.auto_prestige_milestone = compute_auto_prestige_milestone(state);
     // Ant-sacrifice unlock gate (legacy `getAchievementReward('antSacrificeUnlock')`
     // = achievement #173 earned).
-    cache.automation_pre.ant_sacrifice_unlocked =
+    automation_pre.ant_sacrifice_unlocked =
         crate::mechanics::achievement_rewards::ant_sacrifice_unlocked(
             &state.achievements.achievements,
         );
     // Available reborn ELO (legacy `calculateAvailableRebornELO()`) — feeds the
     // "maxed reborn ELO" ant-sacrifice toggles.
-    cache.automation_pre.available_reborn_elo = compute_available_reborn_elo(state);
+    automation_pre.available_reborn_elo = compute_available_reborn_elo(state);
     // Ant-sacrifice immortalELO gain (legacy `antSacrificeRewards().immortalELO`).
-    cache.automation_pre.immortal_elo_gain = compute_immortal_elo_gain(state);
+    automation_pre.immortal_elo_gain = compute_immortal_elo_gain(state);
     // Challenge-sweep pre-evals (legacy `prepareSweepInputForTackTail`).
     let sweep = compute_sweep_pre_evals(state);
-    cache.automation_pre.sweep_timer_start = sweep.timer_start;
-    cache.automation_pre.sweep_timer_exit = sweep.timer_exit;
-    cache.automation_pre.sweep_timer_enter = sweep.timer_enter;
-    cache
-        .automation_pre
-        .sweep_next_regular_challenge_from_initial = sweep.next_regular_challenge_from_initial;
-    cache
-        .automation_pre
-        .sweep_next_regular_challenge_from_active = sweep.next_regular_challenge_from_active;
-    cache.automation_pre.sweep_challenge_15_auto_exponent_check =
-        sweep.challenge_15_auto_exponent_check;
-    cache.automation_pre.sweep_is_finished_still_valid = sweep.is_finished_still_valid;
+    automation_pre.sweep_timer_start = sweep.timer_start;
+    automation_pre.sweep_timer_exit = sweep.timer_exit;
+    automation_pre.sweep_timer_enter = sweep.timer_enter;
+    automation_pre.sweep_next_regular_challenge_from_initial =
+        sweep.next_regular_challenge_from_initial;
+    automation_pre.sweep_next_regular_challenge_from_active =
+        sweep.next_regular_challenge_from_active;
+    automation_pre.sweep_challenge_15_auto_exponent_check = sweep.challenge_15_auto_exponent_check;
+    automation_pre.sweep_is_finished_still_valid = sweep.is_finished_still_valid;
     // Octeract gain rate (legacy `calculateOcteractMultiplier()` = the 42-line
     // `allOcteractCubeStats` product). Gated to 0 at default by the AscensionScore
     // line; consumed only by the sing≥160 octeract giveaway.
-    cache.automation_pre.octeract_per_second = compute_octeract_per_second(state);
+    automation_pre.octeract_per_second = compute_octeract_per_second(state);
     // GQ-giveaway multiplier excluding the base GQ line (legacy
     // `addTimers('goldenQuarks')` product of `allGoldenQuarkMultiplierStats[1..]`).
-    cache.automation_pre.golden_quarks_multiplier_excluding_base =
+    automation_pre.golden_quarks_multiplier_excluding_base =
         compute_golden_quarks_multiplier_excluding_base(state);
     // Auto-research obtainium gain (legacy Helper.ts `addTimers('obtainium')` =
     // `calculateResearchAutomaticObtainium(dt)`). Self-derives to 0 at default
     // (the multiplier gate 0.5·research[61] + 0.1·research[62] + 0.8·cube[3] = 0),
     // matching the old AutomationPre default. Threads this tick's reincarnation
     // point gain (the `ReincarnationUpgrade9` obtainium line reads it).
-    cache.automation_pre.obtainium_gain =
+    automation_pre.obtainium_gain =
         compute_obtainium_gain(state, input.dt, reset_gains.reincarnation_point_gain);
     // Ant-speed multiplier (legacy `calculateActualAntSpeedMult()` = the 24-line
     // `antSpeedStats` Decimal product ^ ascension-challenge exponent).
     // Self-derives to 0 at default (the `canGenerateAntCrumbs` Base line is 0
     // until ants unlock → whole product 0), vs the old AutomationPre default of
     // 1 — ant generation multiplies by this factor so it no-ops at 0 anyway.
-    cache.automation_pre.ant_speed_mult = compute_ant_speed_mult(state);
+    automation_pre.ant_speed_mult = compute_ant_speed_mult(state);
     phase_player_input(state, input, &mut output);
     phase_generation(state, &resource_gain_pre, input.dt, &mut output);
-    phase_automation(state, &cache, input, &mut output);
+    phase_automation(state, &automation_pre, input, &mut output);
 
     output
-}
-
-/// **Phase 1** — Cross-mechanic precompute.
-///
-/// Builds the [`CrossMechanicCache`]. All four global-state bundles now
-/// self-derive inside their consuming phases ([`phase_global_state`],
-/// [`phase_tax`], [`compute_reset_currency_gains`]), so the cache is down
-/// to forwarding the last caller bundle, `automation_pre`, until the
-/// Phase-5 speed-mult aggregators port.
-fn phase_cross_mechanic_precompute(_state: &GameState, input: &TackInput) -> CrossMechanicCache {
-    CrossMechanicCache {
-        automation_pre: input.automation_pre,
-    }
 }
 
 /// Build the shared achievement-reward input from `&GameState` — the
@@ -541,8 +501,8 @@ fn compute_accelerator_multiplier(state: &GameState) -> f64 {
 /// State-derive `G.totalAcceleratorBoost` via the legacy
 /// `calculateTotalAcceleratorBoost` (free boost from upgrades /
 /// researches / runes / ant + hepteract effects, then `+ bought`).
-/// Pure function of `&GameState`. Injected into all three aggregator
-/// `*Pre` bundles by [`phase_cross_mechanic_precompute`].
+/// Pure function of `&GameState`. Consumed by the global-state
+/// aggregators in [`phase_global_state`].
 fn compute_total_accelerator_boost(state: &GameState) -> f64 {
     use crate::mechanics::accelerator_multipliers::{
         calculate_total_accelerator_boost, CalculateTotalAcceleratorBoostInput,
@@ -3658,17 +3618,16 @@ fn phase_generation(
 /// challenge sweep, auto-reset) always runs so offline catch-up still
 /// resets and accrues offerings.
 ///
-/// Cross-mechanic multipliers + unlock gates with no ported aggregator
-/// yet arrive via [`AutomationPre`] (caller pre-evaluated); each emitted
+/// Cross-mechanic multipliers + unlock gates arrive via [`AutomationPre`],
+/// which [`tack`] now self-derives from `&GameState`; each emitted
 /// [`CoreEvent`] is an intent the UI tier turns into the matching side
 /// effect.
 fn phase_automation(
     state: &mut GameState,
-    cache: &CrossMechanicCache,
+    pre: &AutomationPre,
     input: &TackInput,
     output: &mut TickOutput,
 ) {
-    let pre = &cache.automation_pre;
     let dt = input.dt;
 
     // Head, middle, and ant generation only run on live ticks; the tail
@@ -4145,18 +4104,16 @@ mod tests {
         // `tack` now self-derives `global_time_multiplier`; drive
         // `phase_automation` directly with a controlled cache so this stays a
         // focused test of timer advancement under known multipliers.
-        let cache = CrossMechanicCache {
-            automation_pre: AutomationPre {
-                global_time_multiplier: 3.0,
-                ascension_speed_multi: 5.0,
-                singularity_speed_multi: 1.0,
-                max_quark_timer: 90_000.0,
-                export_gq_per_hour: 1.0,
-                ..AutomationPre::default()
-            },
+        let automation_pre = AutomationPre {
+            global_time_multiplier: 3.0,
+            ascension_speed_multi: 5.0,
+            singularity_speed_multi: 1.0,
+            max_quark_timer: 90_000.0,
+            export_gq_per_hour: 1.0,
+            ..AutomationPre::default()
         };
         let mut output = TickOutput::default();
-        phase_automation(&mut state, &cache, &input, &mut output);
+        phase_automation(&mut state, &automation_pre, &input, &mut output);
 
         // Reset counters advance by dt × global_time_multiplier (2 × 3).
         assert_eq!(state.reset_counters.prestige_counter, 6.0);
@@ -4566,10 +4523,6 @@ mod tests {
         let input = TackInput {
             dt: 2.0,
             time_warp: true,
-            automation_pre: AutomationPre {
-                global_time_multiplier: 3.0,
-                ..AutomationPre::default()
-            },
             ..TackInput::default()
         };
         let _ = tack(&mut state, &input);
@@ -4607,15 +4560,13 @@ mod tests {
         // `phase_automation` directly with a controlled cache so this stays a
         // focused test of the octeract giveaway (octeract_per_second is still
         // caller-provided).
-        let cache = CrossMechanicCache {
-            automation_pre: AutomationPre {
-                octeract_unlocked: true,
-                octeract_per_second: 4.0,
-                ..AutomationPre::default()
-            },
+        let automation_pre = AutomationPre {
+            octeract_unlocked: true,
+            octeract_per_second: 4.0,
+            ..AutomationPre::default()
         };
         let mut output = TickOutput::default();
-        phase_automation(&mut state, &cache, &input, &mut output);
+        phase_automation(&mut state, &automation_pre, &input, &mut output);
 
         // 0.5 + 1.0 = 1.5 → 1 giveaway-second; wow_octeracts += 1 × 4.
         assert_eq!(state.cube_balances.wow_octeracts.to_number(), 4.0);
@@ -4641,16 +4592,14 @@ mod tests {
         // `tack` now self-derives ambrosia_luck (+ the speed mults); drive
         // phase_automation directly with a controlled cache so this stays a
         // focused test of ambrosia generation.
-        let cache = CrossMechanicCache {
-            automation_pre: AutomationPre {
-                ambrosia_generation_speed: 1.0,
-                ambrosia_luck: 200.0,
-                time_per_ambrosia: 45.0,
-                ..AutomationPre::default()
-            },
+        let automation_pre = AutomationPre {
+            ambrosia_generation_speed: 1.0,
+            ambrosia_luck: 200.0,
+            time_per_ambrosia: 45.0,
+            ..AutomationPre::default()
         };
         let mut output = TickOutput::default();
-        phase_automation(&mut state, &cache, &input, &mut output);
+        phase_automation(&mut state, &automation_pre, &input, &mut output);
 
         assert!(state.ambrosia.ambrosia > 0.0);
         assert!(state.ambrosia.lifetime_ambrosia > 0.0);
@@ -4674,14 +4623,12 @@ mod tests {
         // multiplier gate is 0.5 (nonzero), so the self-derived gain would not
         // be 25. Drive phase_automation directly with a controlled cache so this
         // stays a focused test of the obtainium credit path.
-        let cache = CrossMechanicCache {
-            automation_pre: AutomationPre {
-                obtainium_gain: Decimal::from_finite(25.0),
-                ..AutomationPre::default()
-            },
+        let automation_pre = AutomationPre {
+            obtainium_gain: Decimal::from_finite(25.0),
+            ..AutomationPre::default()
         };
         let mut output = TickOutput::default();
-        phase_automation(&mut state, &cache, &input, &mut output);
+        phase_automation(&mut state, &automation_pre, &input, &mut output);
 
         assert_eq!(state.researches.obtainium.to_number(), 125.0);
         // addObtainium path → AutoToolFired, and NOT the recompute request.
@@ -4752,14 +4699,12 @@ mod tests {
         // state (canGenerateAntCrumbs is false until ants unlock → whole product
         // 0). Drive phase_automation directly with a controlled cache
         // (ant_speed_mult = 1) so this stays a focused test of crumb generation.
-        let cache = CrossMechanicCache {
-            automation_pre: AutomationPre {
-                ant_speed_mult: Decimal::one(),
-                ..AutomationPre::default()
-            },
+        let automation_pre = AutomationPre {
+            ant_speed_mult: Decimal::one(),
+            ..AutomationPre::default()
         };
         let mut output = TickOutput::default();
-        phase_automation(&mut state, &cache, &input, &mut output);
+        phase_automation(&mut state, &automation_pre, &input, &mut output);
         assert!(state.ants.crumbs.to_number() > 0.0);
     }
 
@@ -4813,24 +4758,6 @@ mod tests {
         let tick = compute_update_all_tick_pre(&state, 42.0);
         assert_eq!(mult.total_accelerator_boost, 42.0);
         assert_eq!(tick.total_accelerator_boost, 42.0);
-    }
-
-    #[test]
-    fn cross_mechanic_cache_forwards_automation_pre_from_input() {
-        // `automation_pre` is the last bundle precompute forwards verbatim
-        // (the four global-state bundles all self-derive now). Pins that
-        // forwarding until the Phase-5 aggregators port.
-        let state = GameState::default();
-        let input = TackInput {
-            dt: 0.025,
-            automation_pre: AutomationPre {
-                max_quark_timer: 12_345.0,
-                ..AutomationPre::default()
-            },
-            ..TackInput::default()
-        };
-        let cache = phase_cross_mechanic_precompute(&state, &input);
-        assert_eq!(cache.automation_pre.max_quark_timer, 12_345.0);
     }
 
     #[test]
