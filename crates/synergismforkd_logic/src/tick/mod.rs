@@ -439,6 +439,10 @@ pub fn tack(state: &mut GameState, input: &TackInput) -> TickOutput {
     cache.automation_pre.sweep_challenge_15_auto_exponent_check =
         sweep.challenge_15_auto_exponent_check;
     cache.automation_pre.sweep_is_finished_still_valid = sweep.is_finished_still_valid;
+    // Octeract gain rate (legacy `calculateOcteractMultiplier()` = the 42-line
+    // `allOcteractCubeStats` product). Gated to 0 at default by the AscensionScore
+    // line; consumed only by the sing≥160 octeract giveaway.
+    cache.automation_pre.octeract_per_second = compute_octeract_per_second(state);
     phase_player_input(state, input, &mut output);
     phase_generation(state, &resource_gain_pre, input.dt, &mut output);
     phase_automation(state, &cache, input, &mut output);
@@ -1306,6 +1310,23 @@ fn compute_global_speed_mult_pre(state: &GameState) -> f64 {
 /// the singularity-debuff line (the singularity layer is paused), and the
 /// event-buff line (UI-tier).
 fn compute_ascension_speed_mult_pre(state: &GameState) -> f64 {
+    use crate::mechanics::golden_quark_upgrades::one_mind_effect;
+    use crate::state::golden_quarks::GQ_ONE_MIND;
+
+    // `oneMind` locks ascension speed to a flat ×10, bypassing the StatLine
+    // reduction entirely (legacy Helper.ts `addTimers('ascension')`).
+    if one_mind_effect(state.golden_quarks.upgrades[GQ_ONE_MIND].level) {
+        return 10.0;
+    }
+    compute_ascension_speed_mult_raw(state)
+}
+
+/// `calculateAscensionSpeedMult()` — the raw `allAscensionSpeedStats` product
+/// raised to `1 ± exponent_spread`, WITHOUT the `oneMind → 10` override the
+/// ascension timer applies (see [`compute_ascension_speed_mult_pre`]). The
+/// octeract `AscensionSpeed` StatLine references this raw value in both oneMind
+/// branches, so it is factored out here.
+fn compute_ascension_speed_mult_raw(state: &GameState) -> f64 {
     use crate::mechanics::ant_upgrades::mortuus_2_ant_upgrade_effect;
     use crate::mechanics::calculate::{
         calculate_ascension_speed_exponent_spread, calculate_ascension_speed_mult, product_f64,
@@ -1316,8 +1337,8 @@ fn compute_ascension_speed_mult_pre(state: &GameState) -> f64 {
         calculate_exalt_3_penalty, CalculateExalt3PenaltyInput,
     };
     use crate::mechanics::golden_quark_upgrades::{
-        intermediate_pack_effect, one_mind_effect, sing_ascension_speed_2_effect,
-        sing_ascension_speed_effect, IntermediatePackKey,
+        intermediate_pack_effect, sing_ascension_speed_2_effect, sing_ascension_speed_effect,
+        IntermediatePackKey,
     };
     use crate::mechanics::hepteract_effects::chronos_hepteract_effects;
     use crate::mechanics::octeracts::{
@@ -1334,7 +1355,7 @@ fn compute_ascension_speed_mult_pre(state: &GameState) -> f64 {
     };
     use crate::mechanics::talisman_effects::polymath_talisman_effects;
     use crate::state::golden_quarks::{
-        GQ_INTERMEDIATE_PACK, GQ_ONE_MIND, GQ_SING_ASCENSION_SPEED, GQ_SING_ASCENSION_SPEED_2,
+        GQ_INTERMEDIATE_PACK, GQ_SING_ASCENSION_SPEED, GQ_SING_ASCENSION_SPEED_2,
     };
     use crate::state::octeract_upgrades::{
         OCTERACT_IMPROVED_ASCENSION_SPEED, OCTERACT_IMPROVED_ASCENSION_SPEED_2,
@@ -1353,12 +1374,6 @@ fn compute_ascension_speed_mult_pre(state: &GameState) -> f64 {
     let shop = &state.shop.upgrades;
     let gq = &state.golden_quarks.upgrades;
     let oct = &state.octeract_upgrades.upgrades;
-
-    // `oneMind` locks ascension speed to a flat ×10, bypassing the StatLine
-    // reduction entirely (legacy Helper.ts `addTimers('ascension')`).
-    if one_mind_effect(gq[GQ_ONE_MIND].level) {
-        return 10.0;
-    }
 
     let scalar = |v: SingularityEffectValue| match v {
         SingularityEffectValue::Scalar(s) => s,
@@ -1449,6 +1464,275 @@ fn compute_ascension_speed_mult_pre(state: &GameState) -> f64 {
         base,
         exponent_spread,
     })
+}
+
+/// `octeract_per_second` — self-derived from `&GameState`.
+///
+/// Legacy Helper.ts `addTimers('octeracts')` = `calculateOcteractMultiplier()`
+/// = `product(allOcteractCubeStats)` (Statistics.ts:643), the 42-line octeract
+/// gain product. The `AscensionScore` line gates the whole product to `0`
+/// unless `calculateAscensionScore().effectiveScore >= 1e23`, so this is
+/// exactly `0` at the default state — matching the old
+/// `AutomationPre::octeract_per_second` default. Only consumed by the
+/// `singularityCount >= 160` octeract-giveaway loop.
+///
+/// Neutral-defaulted lines (faithful — inert / unported subsystem): PseudoCoins
+/// (PCoin meta layer), Campaign (`player.campaigns.octeractBonus`), WowSquare
+/// (the wowSquare talisman is not among the 7 ported talismans), Event (UI-tier
+/// wall-clock calendar). The Patreon bonus passes `quark_bonus = 0` (patreon
+/// meta layer); it is `1.0` whenever its upgrade is unbought regardless.
+fn compute_octeract_per_second(state: &GameState) -> f64 {
+    use crate::mechanics::achievement_levels::achievement_level_from_points;
+    use crate::mechanics::achievement_rewards::ascension_score as ascension_score_reward;
+    use crate::mechanics::ambrosia::{calculate_ambrosia_cube_mult, AmbrosiaMultInput};
+    use crate::mechanics::ant_upgrades::ascension_score_ant_upgrade_effect;
+    use crate::mechanics::blueberry_upgrades::{
+        ambrosia_cubes_1_effect, ambrosia_cubes_2_effect, ambrosia_cubes_3_effect,
+        ambrosia_luck_cube_1_effect, ambrosia_quark_cube_1_effect, ambrosia_tutorial_effect,
+        AmbrosiaTutorialEffectKey,
+    };
+    use crate::mechanics::calculate::{
+        calculate_ascension_score, compute_ascension_score_bonus_multiplier, product_f64,
+        AscensionScoreBonusMultiplierInput, CalculateAscensionScoreInput,
+    };
+    use crate::mechanics::challenge_15_rewards;
+    use crate::mechanics::golden_quark_upgrades::{
+        divine_pack_effect, expert_pack_effect, master_pack_effect, one_mind_effect,
+        platonic_delta_effect, sing_cubes_1_effect, sing_cubes_2_effect, sing_cubes_3_effect,
+        sing_octeract_gain_2_effect, sing_octeract_gain_3_effect, sing_octeract_gain_4_effect,
+        sing_octeract_gain_5_effect, sing_octeract_gain_effect, sing_octeract_patreon_bonus_effect,
+        DivinePackKey, ExpertPackKey, MasterPackKey,
+    };
+    use crate::mechanics::level_rewards::{get_level_reward, LevelRewardKey};
+    use crate::mechanics::octeracts::{
+        octeract_ascensions_octeract_gain_effect, octeract_gain_2_effect, octeract_gain_effect,
+        octeract_one_mind_improver_effect, octeract_starter_effect, OcteractStarterKey,
+    };
+    use crate::mechanics::platonic_blessings::calculate_ascension_score_platonic_blessing;
+    use crate::mechanics::red_ambrosia_bonuses::{
+        calculate_red_ambrosia_cubes, CalculateRedAmbrosiaCubesInput,
+    };
+    use crate::mechanics::red_ambrosia_upgrades::{
+        red_ambrosia_cube_effect, red_ambrosia_cube_improver_effect,
+        tutorial_effect as red_tutorial_effect,
+    };
+    use crate::mechanics::rune_effects::{finite_descent_rune_effects, FiniteDescentRuneKey};
+    use crate::mechanics::shop_upgrades::{
+        season_pass_3_effect, season_pass_infinity_effect, season_pass_lost_effect,
+        season_pass_y_effect, season_pass_z_effect, shop_cash_grab_ultra_effect,
+        shop_ex_ultra_effect, shop_singularity_speedup_effect, SeasonPassInfinityKey,
+        ShopCashGrabUltraKey,
+    };
+    use crate::mechanics::singularity_challenges::{
+        no_singularity_upgrades_effect, NoSingularityUpgradesKey, SingularityEffectValue,
+    };
+    use crate::mechanics::singularity_milestones::derpsmith_cornucopia_bonus;
+    use crate::state::ambrosia::{
+        AMBROSIA_CUBES_1, AMBROSIA_CUBES_2, AMBROSIA_CUBES_3, AMBROSIA_LUCK_CUBE_1,
+        AMBROSIA_QUARK_CUBE_1, AMBROSIA_TUTORIAL,
+    };
+    use crate::state::golden_quarks::{
+        GQ_DIVINE_PACK, GQ_EXPERT_PACK, GQ_MASTER_PACK, GQ_ONE_MIND, GQ_PLATONIC_DELTA,
+        GQ_SING_CUBES_1, GQ_SING_CUBES_2, GQ_SING_CUBES_3, GQ_SING_OCTERACT_GAIN,
+        GQ_SING_OCTERACT_GAIN_2, GQ_SING_OCTERACT_GAIN_3, GQ_SING_OCTERACT_GAIN_4,
+        GQ_SING_OCTERACT_GAIN_5, GQ_SING_OCTERACT_PATREON_BONUS,
+    };
+    use crate::state::octeract_upgrades::{
+        OCTERACT_ASCENSIONS_OCTERACT_GAIN, OCTERACT_GAIN, OCTERACT_GAIN_2,
+        OCTERACT_ONE_MIND_IMPROVER, OCTERACT_STARTER,
+    };
+    use crate::state::red_ambrosia::{
+        RED_AMBROSIA_RED_AMBROSIA_CUBE, RED_AMBROSIA_RED_AMBROSIA_CUBE_IMPROVER,
+        RED_AMBROSIA_TUTORIAL,
+    };
+    use crate::state::shop::{
+        SHOP_CASH_GRAB_ULTRA, SHOP_EX_ULTRA, SHOP_SEASON_PASS_3, SHOP_SEASON_PASS_INFINITY,
+        SHOP_SEASON_PASS_LOST, SHOP_SEASON_PASS_Y, SHOP_SEASON_PASS_Z, SHOP_SINGULARITY_SPEEDUP,
+    };
+    use crate::state::RUNE_FINITE_DESCENT;
+
+    // Legacy `player.cubeUpgrades[..]` / `player.platonicUpgrades[..]` indices.
+    const CUBE_UPGRADE_21: usize = 21;
+    const CUBE_UPGRADE_31: usize = 31;
+    const CUBE_UPGRADE_39: usize = 39;
+    const CUBE_UPGRADE_41: usize = 41;
+    const CUBE_UPGRADE_56: usize = 56;
+    const CUBE_UPGRADE_COOKIE_20: usize = 70;
+    const PLATONIC_UPGRADE_ALPHA: usize = 5;
+    const PLATONIC_UPGRADE_BETA: usize = 10;
+    const ANT_UPGRADE_ASCENSION_SCORE: usize = 14;
+
+    let sing = state.singularity.singularity_count;
+    let shop = &state.shop.upgrades;
+    let cube = &state.cube_upgrade_levels.cube_upgrades;
+    let platonic = &state.cube_upgrade_levels.platonic_upgrades;
+    let achievement_level = achievement_level_from_points(state.achievements.achievement_points);
+    let lifetime_ambrosia = state.ambrosia.lifetime_ambrosia;
+    let gq = |i: usize| {
+        state.golden_quarks.upgrades[i].level + state.golden_quarks.upgrades[i].free_level
+    };
+    let oct = |i: usize| {
+        state.octeract_upgrades.upgrades[i].level + state.octeract_upgrades.upgrades[i].free_level
+    };
+    let amb = |i: usize| state.ambrosia.upgrades[i].level + state.ambrosia.upgrades[i].free_level;
+    let red = |i: usize| state.red_ambrosia.upgrades[i].level;
+
+    // AscensionScore line: `calculateAscensionScore().effectiveScore`, gated at 1e23.
+    let bonus_multiplier =
+        compute_ascension_score_bonus_multiplier(&AscensionScoreBonusMultiplierInput {
+            challenge_15_score_reward: challenge_15_rewards::score(
+                state.challenges.challenge15_exponent,
+            ),
+            platonic_blessing_mult: calculate_ascension_score_platonic_blessing(
+                &state.platonic_blessings,
+            ),
+            campaign_ascension_score_mult: 1.0, // campaign subsystem unported → neutral
+            finite_descent_ascension_score: finite_descent_rune_effects(
+                state.runes.rune_levels[RUNE_FINITE_DESCENT],
+                FiniteDescentRuneKey::AscensionScore,
+            ),
+            cube_upgrade_21: cube[CUBE_UPGRADE_21],
+            cube_upgrade_31: cube[CUBE_UPGRADE_31],
+            cube_upgrade_41: cube[CUBE_UPGRADE_41],
+            ascension_score_achievement_reward: ascension_score_reward(
+                &state.achievements.achievements,
+                state.campaigns.ascend_shards,
+            ),
+            master_pack_ascension_score_mult: master_pack_effect(
+                gq(GQ_MASTER_PACK),
+                MasterPackKey::AscensionScoreMult,
+            ),
+            event_buff: 0.0, // UI-tier event calendar → no active event
+        });
+    let effective_score = calculate_ascension_score(&CalculateAscensionScoreInput {
+        highest_challenge_completions: &state.challenges.highest_challenge_completions,
+        cube_upgrade_56: cube[CUBE_UPGRADE_56],
+        cube_upgrade_39: cube[CUBE_UPGRADE_39],
+        platonic_upgrade_5: platonic[PLATONIC_UPGRADE_ALPHA],
+        platonic_upgrade_10: platonic[PLATONIC_UPGRADE_BETA],
+        corruption_multiplier: state.corruptions.used.total_corruption_ascension_multiplier,
+        ant_upgrade_ascension_score_base: ascension_score_ant_upgrade_effect(
+            state.ants.upgrades[ANT_UPGRADE_ASCENSION_SCORE],
+        )
+        .ascension_score_base,
+        expert_pack_ascension_score_mult: expert_pack_effect(
+            gq(GQ_EXPERT_PACK),
+            ExpertPackKey::AscensionScoreMult,
+        ),
+        bonus_multiplier,
+    })
+    .effective_score;
+    const SCORE_REQ: f64 = 1e23;
+    let ascension_score_line = if effective_score >= SCORE_REQ {
+        effective_score / SCORE_REQ
+    } else {
+        0.0
+    };
+
+    // CookieUpgrade20: `1 + (b2f(Σ used corruption levels >= 14·8) · cube[70]) / 10000`.
+    let corruption_total_levels: u32 = state.corruptions.used.levels.iter().sum();
+    let cookie_20_gate = if corruption_total_levels >= 14 * 8 {
+        1.0
+    } else {
+        0.0
+    };
+    let cookie_upgrade_20 = 1.0 + (cookie_20_gate * cube[CUBE_UPGRADE_COOKIE_20]) / 10_000.0;
+
+    // ModuleLuckCube1 reads `calculateAmbrosiaLuck()`; ModuleQuarkCube1 reads `worlds`.
+    let ambrosia_luck = compute_ambrosia_luck_pre(state);
+    let worlds = state.quarks.worlds.to_number();
+
+    // AscensionSpeed line: oneMind branch on the RAW ascension-speed mult.
+    let raw_ascension_speed = compute_ascension_speed_mult_raw(state);
+    let ascension_speed_line = if one_mind_effect(state.golden_quarks.upgrades[GQ_ONE_MIND].level) {
+        10.0_f64.powf(0.5)
+            * (raw_ascension_speed / 10.0).powf(octeract_one_mind_improver_effect(oct(
+                OCTERACT_ONE_MIND_IMPROVER,
+            )))
+    } else {
+        raw_ascension_speed.powf(0.5)
+    };
+
+    // Cubes context → a missing singularity-challenge value is the multiplicative 1.
+    let scalar = |v: SingularityEffectValue| match v {
+        SingularityEffectValue::Scalar(s) => s,
+        SingularityEffectValue::Unlock(_) => 1.0,
+    };
+
+    product_f64(&[
+        1.0 / (24.0 * 3600.0 * 365.0 * 1e15), // BasePerSecond
+        ascension_score_line,
+        1.0, // PseudoCoins — PCoin meta layer (unported)
+        get_level_reward(LevelRewardKey::WowOcteracts, achievement_level),
+        1.0, // Campaign — player.campaigns.octeractBonus (unported)
+        season_pass_3_effect(shop[SHOP_SEASON_PASS_3]),
+        season_pass_y_effect(shop[SHOP_SEASON_PASS_Y]),
+        season_pass_z_effect(shop[SHOP_SEASON_PASS_Z], sing),
+        season_pass_lost_effect(shop[SHOP_SEASON_PASS_LOST]),
+        1.0, // WowSquare — wowSquare talisman not among the 7 ported talismans
+        cookie_upgrade_20,
+        divine_pack_effect(
+            gq(GQ_DIVINE_PACK),
+            DivinePackKey::OcteractMult,
+            &state.corruptions.used.levels,
+        ),
+        sing_cubes_1_effect(gq(GQ_SING_CUBES_1)),
+        sing_cubes_2_effect(gq(GQ_SING_CUBES_2)),
+        sing_cubes_3_effect(gq(GQ_SING_CUBES_3)),
+        sing_octeract_gain_effect(gq(GQ_SING_OCTERACT_GAIN)),
+        sing_octeract_gain_2_effect(gq(GQ_SING_OCTERACT_GAIN_2)),
+        sing_octeract_gain_3_effect(gq(GQ_SING_OCTERACT_GAIN_3)),
+        sing_octeract_gain_4_effect(gq(GQ_SING_OCTERACT_GAIN_4)),
+        sing_octeract_gain_5_effect(gq(GQ_SING_OCTERACT_GAIN_5)),
+        sing_octeract_patreon_bonus_effect(gq(GQ_SING_OCTERACT_PATREON_BONUS), 0.0),
+        octeract_starter_effect(oct(OCTERACT_STARTER), OcteractStarterKey::OcteractMult),
+        octeract_gain_effect(oct(OCTERACT_GAIN)),
+        octeract_gain_2_effect(oct(OCTERACT_GAIN_2)),
+        derpsmith_cornucopia_bonus(state.singularity.highest_singularity_count),
+        octeract_ascensions_octeract_gain_effect(
+            oct(OCTERACT_ASCENSIONS_OCTERACT_GAIN),
+            state.reset_counters.ascension_count,
+        ),
+        1.0, // Event — UI-tier event calendar → 1 + 0
+        platonic_delta_effect(
+            gq(GQ_PLATONIC_DELTA),
+            state.singularity.singularity_counter,
+            shop_singularity_speedup_effect(shop[SHOP_SINGULARITY_SPEEDUP]),
+        ),
+        scalar(no_singularity_upgrades_effect(
+            state.singularity.no_singularity_upgrades.completions,
+            NoSingularityUpgradesKey::Cubes,
+        )),
+        season_pass_infinity_effect(
+            shop[SHOP_SEASON_PASS_INFINITY],
+            SeasonPassInfinityKey::WowOcteractMult,
+        ),
+        calculate_ambrosia_cube_mult(&AmbrosiaMultInput {
+            no_ambrosia_upgrades_enabled: state.singularity.no_ambrosia_upgrades.enabled,
+            lifetime_ambrosia,
+        }),
+        ambrosia_tutorial_effect(amb(AMBROSIA_TUTORIAL), AmbrosiaTutorialEffectKey::Cubes),
+        ambrosia_cubes_1_effect(amb(AMBROSIA_CUBES_1)),
+        ambrosia_luck_cube_1_effect(amb(AMBROSIA_LUCK_CUBE_1), ambrosia_luck),
+        ambrosia_quark_cube_1_effect(amb(AMBROSIA_QUARK_CUBE_1), worlds),
+        ambrosia_cubes_2_effect(amb(AMBROSIA_CUBES_2), amb(AMBROSIA_CUBES_1)),
+        ambrosia_cubes_3_effect(amb(AMBROSIA_CUBES_3), amb(AMBROSIA_CUBES_2)),
+        red_tutorial_effect(red(RED_AMBROSIA_TUTORIAL)),
+        calculate_red_ambrosia_cubes(&CalculateRedAmbrosiaCubesInput {
+            unlocked: red_ambrosia_cube_effect(red(RED_AMBROSIA_RED_AMBROSIA_CUBE)),
+            lifetime_red_ambrosia: state.red_ambrosia.lifetime_red_ambrosia,
+            extra_exponent: red_ambrosia_cube_improver_effect(red(
+                RED_AMBROSIA_RED_AMBROSIA_CUBE_IMPROVER,
+            )),
+        }),
+        shop_cash_grab_ultra_effect(
+            shop[SHOP_CASH_GRAB_ULTRA],
+            ShopCashGrabUltraKey::CubesMult,
+            lifetime_ambrosia,
+        ),
+        shop_ex_ultra_effect(shop[SHOP_EX_ULTRA], lifetime_ambrosia),
+        ascension_speed_line,
+    ])
 }
 
 /// Singularity-speed multiplier, self-derived from `&GameState`.
@@ -3231,6 +3515,30 @@ mod tests {
         state.shop.upgrades[18] = 1_000.0;
         state.golden_quarks.upgrades[59].level = 1.0;
         assert_eq!(compute_ascension_speed_mult_pre(&state), 10.0);
+    }
+
+    #[test]
+    fn octeract_per_second_is_zero_at_default() {
+        let state = GameState::default();
+        // The AscensionScore StatLine is 0 until effectiveScore >= 1e23, which
+        // gates the whole 42-line product to 0 — exactly the old
+        // `AutomationPre::default().octeract_per_second`.
+        assert_eq!(compute_octeract_per_second(&state), 0.0);
+    }
+
+    #[test]
+    fn octeract_per_second_positive_once_score_cap_cleared() {
+        let mut state = GameState::default();
+        // C1 = 9000 completions builds a nonzero ascension base score, and a
+        // huge corruption multiplier pushes effectiveScore past the 1e23 gate,
+        // so the AscensionScore line (and thus the product) becomes positive.
+        state.challenges.highest_challenge_completions[1] = 9000.0;
+        state.corruptions.used.total_corruption_ascension_multiplier = 1e25;
+        let result = compute_octeract_per_second(&state);
+        assert!(
+            result > 0.0 && result.is_finite(),
+            "expected a positive finite octeract/s, got {result}"
+        );
     }
 
     #[test]
