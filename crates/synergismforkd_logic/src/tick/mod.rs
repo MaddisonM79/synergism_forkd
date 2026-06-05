@@ -59,6 +59,7 @@ mod auto_research;
 mod auto_reset;
 mod automatic_tools;
 mod challenge_sweep;
+mod reset;
 mod timers;
 
 /// Pre-evaluated inputs for the Phase 5 automation layer — the speed
@@ -243,14 +244,16 @@ pub struct TackInput {
 }
 
 /// A single queued player input. Variants will expand as automation
-/// toggles and resets port (`ToggleAuto(AutoTool)`, `Reset(ResetRequest)`
-/// per the [[loom-tack-design]] memo).
+/// toggles port (`ToggleAuto(AutoTool)` per the [[loom-tack-design]] memo).
 #[derive(Debug, Clone)]
 #[non_exhaustive]
 pub enum PlayerAction {
     /// A buy click. Routes to one of the eight `buy_*` mutators based on
     /// the [`BuyRequest`] variant.
     Buy(BuyRequest),
+    /// A manual reset (prestige / transcension / …). Routes to the
+    /// reset executor based on the [`ResetRequest`] variant.
+    Reset(ResetRequest),
 }
 
 /// Per-mechanic dispatcher for the eight `buy_*` purchase loops. The
@@ -276,6 +279,24 @@ pub enum BuyRequest {
     /// Routes to [`buy_producer`] — manual-click loop across the producer
     /// family selected by `input.producer_type`.
     Producer(BuyProducerInput),
+}
+
+/// Per-tier dispatcher for a manual reset, mirroring [`BuyRequest`]. Only
+/// [`Self::Prestige`] / [`Self::Transcension`] / [`Self::Reincarnation`]
+/// are wired today; the ascension / singularity tiers cascade on top and
+/// port later.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum ResetRequest {
+    /// Manual prestige reset — the always-runs base reset
+    /// (`reset('prestige')`).
+    Prestige,
+    /// Manual transcension reset — base + transcension layer
+    /// (`reset('transcension')`).
+    Transcension,
+    /// Manual reincarnation reset — base + transcension + reincarnation
+    /// layers (`reset('reincarnation')`).
+    Reincarnation,
 }
 
 /// Result of [`tack`]. The accumulated event stream is the only output
@@ -433,7 +454,7 @@ pub fn tack(state: &mut GameState, input: &TackInput) -> TickOutput {
     // until ants unlock → whole product 0), vs the old AutomationPre default of
     // 1 — ant generation multiplies by this factor so it no-ops at 0 anyway.
     automation_pre.ant_speed_mult = compute_ant_speed_mult(state);
-    phase_player_input(state, input, &mut output);
+    phase_player_input(state, input, &reset_gains, &mut output);
     phase_generation(state, &resource_gain_pre, input.dt, &mut output);
     phase_automation(state, &automation_pre, input, &mut output);
 
@@ -1852,8 +1873,10 @@ fn compute_base_obtainium(state: &GameState) -> f64 {
 /// `immaculate · baseMults^DR · timeMultiplier`, floored by `baseObtainium`,
 /// with the c14 zero-out and taxman clamp.
 ///
-/// `time_multiplier` is `1.0` — the caller passes `timeMultUsed = false`
-/// (the auto-research path). `base_mults` is the Decimal product of
+/// `time_multiplier` is supplied by the caller (the legacy `timeMultUsed`
+/// branch): `1.0` for the auto-research path, or the
+/// `offeringObtainiumTimeModifiers` product (`compute_obtainium_time_multiplier`)
+/// for the reincarnation-reset award. `base_mults` is the Decimal product of
 /// `allObtainiumStats` times `calculateObtainiumCubeBlessing()` — the cube
 /// blessing also appears as the `CubeBonus` line, so it is applied twice,
 /// verbatim with the legacy `calculateObtainiumDecimal`.
@@ -1871,6 +1894,7 @@ fn compute_obtainium(
     state: &GameState,
     base_obtainium: f64,
     reincarnation_point_gain: Decimal,
+    time_multiplier: f64,
 ) -> Decimal {
     use crate::mechanics::achievement_levels::achievement_level_from_points;
     use crate::mechanics::achievement_rewards::obtainium_bonus;
@@ -2152,13 +2176,51 @@ fn compute_obtainium(
         base_obtainium,
         immaculate,
         dr,
-        time_multiplier: 1.0, // timeMultUsed = false (the auto-research path)
+        time_multiplier,
         base_mults,
         in_ascension_challenge_14: state.challenges.current_ascension_challenge == 14,
         taxman_last_stand_enabled: state.singularity.taxman_last_stand.enabled,
         taxman_last_stand_completions: state.singularity.taxman_last_stand.completions,
         current_obtainium: state.researches.obtainium,
     })
+}
+
+/// `offeringObtainiumTimeModifiers(reincarnationcounter, reincarnationCount >= 5)`
+/// reduced to a product (Statistics.ts:1727) — the `timeMultUsed = true`
+/// obtainium time multiplier used by the reincarnation-reset award.
+///
+/// Three lines: `ThresholdPenalty` (`min(1, (t/threshold)^2)`, ≤1, penalises
+/// resets faster than the threshold), `TimeMultiplier` (`max(1, t/threshold)`
+/// once `reincarnationCount >= 5`, else 1, rewarding longer resets), and
+/// `HalfMind` (`globalSpeedMult / 10` when the half-mind GQ upgrade is
+/// unlocked, else 1). `threshold` uses `campaignTimeThresholdReduction = 0`
+/// (campaign subsystem unported → threshold 10).
+fn compute_obtainium_time_multiplier(state: &GameState) -> f64 {
+    use crate::mechanics::golden_quark_upgrades::half_mind_effect;
+    use crate::mechanics::reset_time_and_auto_obtainium::{
+        reset_time_threshold, ResetTimeThresholdInput,
+    };
+    use crate::state::golden_quarks::GQ_HALF_MIND;
+
+    let threshold = reset_time_threshold(&ResetTimeThresholdInput {
+        campaign_time_threshold_reduction: 0.0,
+    });
+    let time = state.reset_counters.reincarnation_counter;
+    let ratio = time / threshold;
+
+    let threshold_penalty = 1.0_f64.min(ratio.powi(2));
+    let time_multiplier = if state.reset_counters.reincarnation_count >= 5.0 {
+        1.0_f64.max(ratio)
+    } else {
+        1.0
+    };
+    let half_mind = if half_mind_effect(state.golden_quarks.upgrades[GQ_HALF_MIND].level) {
+        compute_global_speed_mult_pre(state) / 10.0
+    } else {
+        1.0
+    };
+
+    threshold_penalty * time_multiplier * half_mind
 }
 
 /// `obtainium_gain` — self-derived from `&GameState`.
@@ -2191,7 +2253,8 @@ fn compute_obtainium_gain(
 
     let cube = &state.cube_upgrade_levels.cube_upgrades;
     let base_obtainium = compute_base_obtainium(state);
-    let resource_mult = compute_obtainium(state, base_obtainium, reincarnation_point_gain);
+    // Auto-research path: legacy `calculateObtainium(false)` ⇒ timeMult 1.0.
+    let resource_mult = compute_obtainium(state, base_obtainium, reincarnation_point_gain, 1.0);
     let reset_time_divisor = reset_time_threshold(&ResetTimeThresholdInput {
         campaign_time_threshold_reduction: 0.0, // campaign subsystem unported → 0
     });
@@ -3527,14 +3590,25 @@ fn compute_resource_gain_pre(
 
 /// **Phase 3** — Player input drain.
 ///
-/// Each queued [`PlayerAction`] dispatches into its corresponding `buy_*`
-/// mutator. Events flow into [`TickOutput::events`].
-fn phase_player_input(state: &mut GameState, input: &TackInput, output: &mut TickOutput) {
+/// Each queued [`PlayerAction`] dispatches into its corresponding mutator:
+/// [`BuyRequest`] → a `buy_*` loop, [`ResetRequest`] → the reset executor
+/// (which awards `reset_gains`, computed at the top of [`tack`]). Events
+/// flow into [`TickOutput::events`].
+fn phase_player_input(
+    state: &mut GameState,
+    input: &TackInput,
+    reset_gains: &crate::mechanics::reset_currency::ResetCurrencyResult,
+    output: &mut TickOutput,
+) {
     for action in &input.player_actions {
         match action {
             PlayerAction::Buy(req) => {
-                let events = dispatch_buy(state, req);
-                output.events.extend(events);
+                output.events.extend(dispatch_buy(state, req));
+            }
+            PlayerAction::Reset(req) => {
+                output
+                    .events
+                    .extend(reset::perform_reset(state, *req, reset_gains));
             }
         }
     }
@@ -3986,7 +4060,40 @@ fn phase_automation(
     state.automation.auto_reset_timer_prestige = resets.auto_reset_timer_prestige;
     state.automation.auto_reset_timer_transcension = resets.auto_reset_timer_transcension;
     state.automation.auto_reset_timer_reincarnation = resets.auto_reset_timer_reincarnation;
+
+    // Execute the fired resets. Only the prestige tier is ported, so a
+    // transcension / reincarnation intent still resolves to emit-only —
+    // mirroring the manual dispatch in Phase 3. At default state
+    // `auto_prestige_enabled` is false, so this never fires and the sim
+    // stays unshifted. `pre.prestige_point_gain` is the same gain the
+    // amount-mode gate compared against (and equals the manual path's
+    // `reset_gains.prestige_point_gain`).
+    use crate::events::AutoResetTier;
+    use crate::mechanics::reset_currency::ResetCurrencyResult;
+    let auto_gains = ResetCurrencyResult {
+        prestige_point_gain: pre.prestige_point_gain,
+        transcend_point_gain: pre.transcend_point_gain,
+        reincarnation_point_gain: pre.reincarnation_point_gain,
+    };
+    let mut performed: SmallVec<[CoreEvent; 2]> = SmallVec::new();
+    for event in &resets.events {
+        if let CoreEvent::AutoResetTriggered { tier, .. } = event {
+            let request = match tier {
+                AutoResetTier::Prestige => Some(ResetRequest::Prestige),
+                AutoResetTier::Transcension => Some(ResetRequest::Transcension),
+                AutoResetTier::Reincarnation => Some(ResetRequest::Reincarnation),
+                // Ascension execution is not ported (cubes / hepteracts /
+                // corruptions); the intent still flows to the UI below.
+                AutoResetTier::Ascension => None,
+            };
+            if let Some(request) = request {
+                performed.extend(reset::perform_reset(state, request, &auto_gains));
+            }
+        }
+    }
+    // Intent (`AutoResetTriggered`) before effect (`ResetPerformed`).
     output.events.extend(resets.events);
+    output.events.extend(performed);
 }
 
 /// `player.insideSingularityChallenge` — true when the player is inside
@@ -4581,6 +4688,66 @@ mod tests {
     }
 
     #[test]
+    fn phase_automation_executes_prestige_auto_reset() {
+        use synergismforkd_bignum::Decimal;
+
+        use crate::events::AutoResetTier;
+
+        // Auto-prestige (amount mode) meets its gate, so the tail both emits
+        // the `AutoResetTriggered` intent AND now performs the reset.
+        let mut state = GameState::default();
+        state.automation.auto_prestige_enabled = true;
+        state.upgrades.prestige_points = Decimal::from_finite(1.0); // threshold = 1 × 10^0
+        state.coin_counters.coins_this_prestige = Decimal::from_finite(1e16);
+        state.coin_producers.tiers[0].cost = Decimal::from_finite(999.0);
+
+        // `auto_prestige_milestone` + `prestige_point_gain` are self-derived
+        // in `tack`; drive `phase_automation` directly with a controlled
+        // cache so this stays a focused test of the auto-reset → execution
+        // wiring. `time_warp` skips head/middle; the auto-reset tail runs.
+        let automation_pre = AutomationPre {
+            auto_prestige_milestone: 1.0,
+            prestige_point_gain: Decimal::from_finite(5.0),
+            ..AutomationPre::default()
+        };
+        let input = TackInput {
+            dt: 1.0,
+            time_warp: true,
+            ..TackInput::default()
+        };
+        let mut output = TickOutput::default();
+        phase_automation(&mut state, &automation_pre, &input, &mut output);
+
+        assert!(
+            output.events.iter().any(|e| matches!(
+                e,
+                CoreEvent::AutoResetTriggered {
+                    tier: AutoResetTier::Prestige,
+                    ..
+                }
+            )),
+            "expected the prestige intent, got {:?}",
+            output.events
+        );
+        assert!(
+            output.events.iter().any(|e| matches!(
+                e,
+                CoreEvent::ResetPerformed {
+                    tier: AutoResetTier::Prestige,
+                    ..
+                }
+            )),
+            "expected the reset to execute, got {:?}",
+            output.events
+        );
+        // prestige_points: 1 + 5 (awarded gain) = 6; coin economy reset.
+        assert_eq!(state.upgrades.prestige_points.to_number(), 6.0);
+        assert_eq!(state.coin_counters.coins_this_prestige.to_number(), 100.0);
+        assert_eq!(state.coin_producers.tiers[0].cost.to_number(), 100.0);
+        assert_eq!(state.reset_counters.prestige_count, 1.0);
+    }
+
+    #[test]
     fn phase_automation_generates_ambrosia() {
         let mut state = GameState::default();
         // Unlock ambrosia generation (noSingularityUpgrades completed once).
@@ -4794,6 +4961,102 @@ mod tests {
             output.events
         );
         assert_eq!(state.upgrades.upgrades[5], 1);
+    }
+
+    #[test]
+    fn tack_dispatches_manual_prestige_reset() {
+        use synergismforkd_bignum::Decimal;
+
+        use crate::events::AutoResetTier;
+
+        let mut state = GameState::default();
+        // 1e18 coins-this-prestige ⇒ floor((1e18 / 1e12) ^ 0.5) = 1000 points.
+        state.coin_counters.coins_this_prestige = Decimal::from_finite(1e18);
+        // Dirty a producer cost + a coin upgrade to prove the reset clears
+        // them through `tack`. (Leave `owned` at 0: nonzero producers would
+        // credit one last coin batch in Phase 4 from the `produce_total`
+        // computed in Phase 2b, *before* the Phase-3 reset — a small
+        // same-tick generation residual, not a reset bug.)
+        state.coin_producers.tiers[0].cost = Decimal::from_finite(999.0);
+        state.upgrades.upgrades[5] = 1;
+
+        let mut input = TackInput {
+            dt: 0.025,
+            ..TackInput::default()
+        };
+        input
+            .player_actions
+            .push(PlayerAction::Reset(ResetRequest::Prestige));
+
+        let output = tack(&mut state, &input);
+
+        // End-to-end through `tack`: the reset awards the tick's
+        // prestige_point_gain and clears the coin economy.
+        assert!(
+            output.events.iter().any(|e| matches!(
+                e,
+                CoreEvent::ResetPerformed {
+                    tier: AutoResetTier::Prestige,
+                    ..
+                }
+            )),
+            "expected ResetPerformed in events, got {:?}",
+            output.events
+        );
+        assert_eq!(state.upgrades.prestige_points.to_number(), 1000.0);
+        assert_eq!(state.coin_counters.coins_this_prestige.to_number(), 100.0);
+        assert_eq!(state.coin_producers.tiers[0].cost.to_number(), 100.0);
+        assert_eq!(state.upgrades.upgrades[5], 0);
+        assert_eq!(state.reset_counters.prestige_count, 1.0);
+        assert!(state.reset_counters.prestige_unlocked);
+    }
+
+    #[test]
+    fn tack_dispatches_manual_transcension_reset() {
+        use synergismforkd_bignum::Decimal;
+
+        use crate::events::AutoResetTier;
+
+        let mut state = GameState::default();
+        // 1e200 coins-this-transcension ⇒ floor((1e200 / 1e100) ^ 0.03)
+        // = floor(10^3) = 1000 transcend points.
+        state.coin_counters.coins_this_transcension = Decimal::from_finite(1e200);
+        // Dirty a diamond-producer cost + a transcension-tier upgrade slot
+        // to prove the transcension layer clears them through `tack`. (Leave
+        // `owned` at 0 to avoid the Phase-4 generation residual.)
+        state.diamond_producers.tiers[0].cost = Decimal::from_finite(7.0);
+        state.upgrades.upgrades[30] = 1;
+
+        let mut input = TackInput {
+            dt: 0.025,
+            ..TackInput::default()
+        };
+        input
+            .player_actions
+            .push(PlayerAction::Reset(ResetRequest::Transcension));
+
+        let output = tack(&mut state, &input);
+
+        assert!(
+            output.events.iter().any(|e| matches!(
+                e,
+                CoreEvent::ResetPerformed {
+                    tier: AutoResetTier::Transcension,
+                    ..
+                }
+            )),
+            "expected a transcension ResetPerformed, got {:?}",
+            output.events
+        );
+        assert_eq!(state.upgrades.transcend_points.to_number(), 1000.0);
+        assert_eq!(state.upgrades.prestige_points.to_number(), 0.0); // zeroed by transcension
+        assert_eq!(
+            state.coin_counters.coins_this_transcension.to_number(),
+            100.0
+        );
+        assert_eq!(state.diamond_producers.tiers[0].cost.to_number(), 100.0);
+        assert_eq!(state.upgrades.upgrades[30], 0);
+        assert_eq!(state.reset_counters.transcend_count, 1.0);
     }
 
     #[test]
