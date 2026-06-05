@@ -8,9 +8,11 @@
 //!
 //! Ported subset: the rewards consumed by the Phase-2 aggregator
 //! `*Pre` bundles (`coinExponent`, `exponent`, `constantBonus`,
-//! `accelerator`, `multiplier`) plus the tax-phase reward (`taxes`).
-//! Other c15 rewards (`runeExp`, `antSpeed`, `globalSpeed`, …) land with
-//! the chunks that consume them.
+//! `accelerator`, `multiplier`), the tax-phase reward (`taxes`), and the
+//! speed rewards (`globalSpeed`, `ascensionSpeed`) that feed the
+//! global / ascension speed StatLine products. Other c15 rewards
+//! (`runeExp`, `antSpeed`, `blessingBonus`, …) land with the chunks that
+//! consume them.
 
 use crate::math::sigmoid::calculate_sigmoid;
 
@@ -80,6 +82,30 @@ pub fn exponent_reward(exponent: f64) -> f64 {
     }
 }
 
+/// `challenge15Rewards.globalSpeed.value` — multiplied into the global
+/// speed StatLine product. Requirement `1e7`. Legacy formula
+/// `1 + (1/20) * log2(e / 2.5e6)`.
+#[must_use]
+pub fn global_speed(exponent: f64) -> f64 {
+    if exponent >= 1e7 {
+        1.0 + (1.0 / 20.0) * (exponent / 2.5e6).log2()
+    } else {
+        1.0
+    }
+}
+
+/// `challenge15Rewards.ascensionSpeed.value` — multiplied into the
+/// ascension speed StatLine product. Requirement `1.5e18`. Legacy
+/// formula `1 + 5/100 + 2 * log2(e / 1.5e18) / 100`.
+#[must_use]
+pub fn ascension_speed(exponent: f64) -> f64 {
+    if exponent >= 1.5e18 {
+        1.0 + 5.0 / 100.0 + 2.0 * (exponent / 1.5e18).log2() / 100.0
+    } else {
+        1.0
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -92,8 +118,13 @@ mod tests {
         assert_eq!(multiplier(0.0), 1.0);
         assert_eq!(constant_bonus(0.0), 1.0);
         assert_eq!(exponent_reward(0.0), 1.0);
+        assert_eq!(global_speed(0.0), 1.0);
+        assert_eq!(ascension_speed(0.0), 1.0);
         // Just under the taxes requirement → still identity.
         assert_eq!(taxes(4_999.0), 1.0);
+        // Just under the speed requirements → still identity.
+        assert_eq!(global_speed(9.9e6), 1.0);
+        assert_eq!(ascension_speed(1.4e18), 1.0);
     }
 
     #[test]
@@ -124,5 +155,15 @@ mod tests {
     fn constant_bonus_scales_above_requirement() {
         // e = 1e8 → 1 + (1/5)*(1)^(2/3) = 1.2
         assert!((constant_bonus(1e8) - 1.2).abs() < 1e-12);
+    }
+
+    #[test]
+    fn speed_rewards_scale_above_requirement() {
+        // global: e = 1e7 → 1 + (1/20)*log2(1e7/2.5e6) = 1 + (1/20)*log2(4) = 1.1
+        assert!((global_speed(1e7) - 1.1).abs() < 1e-12);
+        // ascension: e = 1.5e18 → 1.05 + 0.02*log2(1) = 1.05
+        assert!((ascension_speed(1.5e18) - 1.05).abs() < 1e-12);
+        // ascension: e = 3e18 → 1.05 + 0.02*log2(2) = 1.07
+        assert!((ascension_speed(3e18) - 1.07).abs() < 1e-12);
     }
 }

@@ -364,6 +364,21 @@ pub fn tack(state: &mut GameState, input: &TackInput) -> TickOutput {
     cache.automation_pre.prestige_point_gain = reset_gains.prestige_point_gain;
     cache.automation_pre.transcend_point_gain = reset_gains.transcend_point_gain;
     cache.automation_pre.reincarnation_point_gain = reset_gains.reincarnation_point_gain;
+    // Speed multipliers (legacy `G.timeMultiplier` / `ascensionSpeedMult`) —
+    // self-derived from state, replacing the caller-provided AutomationPre
+    // values.
+    cache.automation_pre.global_time_multiplier = compute_global_speed_mult_pre(state);
+    cache.automation_pre.ascension_speed_multi = compute_ascension_speed_mult_pre(state);
+    cache.automation_pre.singularity_speed_multi = compute_singularity_speed_mult_pre(state);
+    // Non-speed timer fields (auto-potion + GQ export), self-derived.
+    let (offering_potions, obtainium_potions, auto_potion_speed, export_gq) =
+        compute_auto_timer_fields(state);
+    cache.automation_pre.offering_potion_count = offering_potions;
+    cache.automation_pre.obtainium_potion_count = obtainium_potions;
+    cache.automation_pre.auto_potion_speed_mult = auto_potion_speed;
+    cache.automation_pre.export_gq_per_hour = export_gq;
+    cache.automation_pre.ambrosia_luck = compute_ambrosia_luck_pre(state);
+    cache.automation_pre.ambrosia_generation_speed = compute_ambrosia_generation_speed_pre(state);
     phase_player_input(state, input, &mut output);
     phase_generation(state, &resource_gain_pre, input.dt, &mut output);
     phase_automation(state, &cache, input, &mut output);
@@ -968,13 +983,11 @@ fn phase_tax(state: &mut GameState, agg: &AggregatorOutputs) -> TaxOutputs {
     use crate::mechanics::talisman_effects::exemption_talisman_effects;
     use crate::mechanics::tax::{calculate_tax, CalculateTaxInput};
     use crate::mechanics::{campaign_token_rewards, challenge_15_rewards};
-    use crate::state::{RUNE_DUPLICATION, RUNE_THRIFT};
+    use crate::state::{RUNE_DUPLICATION, RUNE_THRIFT, TALISMAN_EXEMPTION};
 
     /// Ant-upgrade indices (legacy `AntUpgrades` enum): Coins / Taxes.
     const ANT_UPGRADE_COINS: usize = 1;
     const ANT_UPGRADE_TAXES: usize = 2;
-    /// Exemption talisman — index 0 in the talisman ordering.
-    const TALISMAN_EXEMPTION: usize = 0;
 
     let g = &agg.global_multipliers;
     let coin = &state.coin_producers.tiers;
@@ -1083,6 +1096,655 @@ fn phase_tax(state: &mut GameState, agg: &AggregatorOutputs) -> TaxOutputs {
         taxdivisorcheck: tax.taxdivisorcheck,
         maxexponent: tax.maxexponent,
     }
+}
+
+/// Global-speed multiplier (legacy `G.timeMultiplier` /
+/// `calculateGlobalSpeedMult`), self-derived from `&GameState`.
+///
+/// Reduces the two legacy StatLine arrays — `allGlobalSpeedStats`
+/// (DR-enabled "normal" leg) and `allGlobalSpeedIgnoreDRStats` (DR-ignored
+/// "immaculate" leg) — with [`product_f64`] and combines them through
+/// [`calculate_global_speed_mult`] using the platonic-7 DR power. Replaces
+/// the caller-provided `AutomationPre::global_time_multiplier`.
+///
+/// Three lines are neutral `1.0` pending unported inputs — each is exactly
+/// `1.0` at the current play state, so this stays faithful now:
+/// - obtainium-log line: `maxObtainium` is not tracked in state (and
+///   `upgrades[70] == 0`);
+/// - speed-spirit line: effective rune-spirit power needs the unported
+///   `spiritMultiplier` chain (cf. the prism-spirit caveat);
+/// - singularity-debuff line: the singularity layer is paused
+///   (`calculate_singularity_debuff` has no production caller yet).
+///
+/// The event-buff line is `1.0` (no wall-clock event calendar in logic).
+fn compute_global_speed_mult_pre(state: &GameState) -> f64 {
+    use crate::mechanics::ant_upgrades::mortuus_ant_upgrade_effect;
+    use crate::mechanics::calculate::{
+        calculate_global_speed_mult, calculate_platonic_7_upgrade_power, product_f64,
+        GlobalSpeedMultInput,
+    };
+    use crate::mechanics::cube_blessings::calculate_global_speed_cube_blessing;
+    use crate::mechanics::golden_quark_upgrades::{intermediate_pack_effect, IntermediatePackKey};
+    use crate::mechanics::hypercube_blessings::calculate_global_speed_hypercube_blessing;
+    use crate::mechanics::octeracts::octeract_improved_global_speed_effect;
+    use crate::mechanics::platonic_blessings::{
+        calculate_global_speed_platonic_blessing,
+        calculate_hypercube_blessing_multiplier_platonic_blessing,
+    };
+    use crate::mechanics::rune_blessing_effects::speed_rune_blessing_effects;
+    use crate::mechanics::rune_effects::{speed_rune_effects, SpeedRuneKey};
+    use crate::mechanics::shop_upgrades::shop_chronometer_s_effect;
+    use crate::mechanics::singularity_challenges::{
+        limited_time_effect, LimitedTimeKey, SingularityEffectValue,
+    };
+    use crate::mechanics::talisman_effects::chronos_talisman_effects;
+    use crate::mechanics::tesseract_blessings::calculate_global_speed_tesseract_blessing;
+    use crate::mechanics::{challenge_15_rewards, corruptions::dilation_multiplier_at_level};
+    use crate::state::golden_quarks::GQ_INTERMEDIATE_PACK;
+    use crate::state::octeract_upgrades::OCTERACT_IMPROVED_GLOBAL_SPEED;
+    use crate::state::shop::SHOP_CHRONOMETER_S;
+    use crate::state::{DILATION_INDEX, RUNE_SPEED, TALISMAN_CHRONOS};
+
+    // Ant-upgrade index (legacy `AntUpgrades.Mortuus`) + the cube upgrades
+    // touching global speed (legacy `player.cubeUpgrades[18|34|52]`).
+    const ANT_UPGRADE_MORTUUS: usize = 11;
+    const CUBE_UPGRADE_2X8: usize = 18;
+    const CUBE_UPGRADE_GLOBAL_SPEED_BLESSING: usize = 34;
+    const CUBE_UPGRADE_CX2: usize = 52;
+
+    let sing = state.singularity.singularity_count;
+    let researches = &state.researches.researches;
+    let cube_upgrades = &state.cube_upgrade_levels.cube_upgrades;
+
+    // Cube-blessing chain platonic → hypercube → tesseract → cube, mirroring
+    // the legacy `calculateGlobalSpeedCubeBlessing` call chain in `Cubes.ts`.
+    let platonic_amplifier =
+        calculate_hypercube_blessing_multiplier_platonic_blessing(&state.platonic_blessings);
+    let hypercube_blessing =
+        calculate_global_speed_hypercube_blessing(&state.hypercube_blessings, platonic_amplifier);
+    let tesseract_blessing =
+        calculate_global_speed_tesseract_blessing(&state.tesseract_blessings, hypercube_blessing);
+    let chronos_cube = calculate_global_speed_cube_blessing(
+        &state.cube_blessings,
+        tesseract_blessing,
+        cube_upgrades[CUBE_UPGRADE_GLOBAL_SPEED_BLESSING],
+    );
+
+    let limited_time = match limited_time_effect(
+        state.singularity.limited_time.completions,
+        LimitedTimeKey::AscensionSpeed,
+    ) {
+        SingularityEffectValue::Scalar(v) => v,
+        SingularityEffectValue::Unlock(_) => 1.0,
+    };
+
+    // DR-enabled ("normal") leg — legacy `allGlobalSpeedStats`.
+    let normal_mult = product_f64(&[
+        speed_rune_effects(
+            state.runes.rune_levels[RUNE_SPEED],
+            SpeedRuneKey::GlobalSpeed,
+        ),
+        1.0, // obtainium-log: maxObtainium untracked → 1.0 (upgrades[70] == 0)
+        1.0 + researches[121] / 50.0,
+        1.0 + 0.015 * researches[136],
+        1.0 + 0.012 * researches[151],
+        1.0 + 0.009 * researches[166],
+        1.0 + 0.006 * researches[181],
+        1.0 + 0.003 * researches[196],
+        speed_rune_blessing_effects(state.runes.rune_blessing_levels[RUNE_SPEED]).global_speed,
+        1.0, // speed spirit: effective spirit power unported → 1.0
+        chronos_cube,
+        1.0 + cube_upgrades[CUBE_UPGRADE_2X8] / 5.0,
+        mortuus_ant_upgrade_effect(state.ants.upgrades[ANT_UPGRADE_MORTUUS]).global_speed,
+        chronos_talisman_effects(state.talismans.talisman_rarity[TALISMAN_CHRONOS] as i32)
+            .global_speed,
+        challenge_15_rewards::global_speed(state.challenges.challenge15_exponent),
+        1.0 + 0.01 * cube_upgrades[CUBE_UPGRADE_CX2],
+        dilation_multiplier_at_level(state.corruptions.used.levels[DILATION_INDEX]),
+    ]);
+
+    // DR-ignored ("immaculate") leg — legacy `allGlobalSpeedIgnoreDRStats`.
+    let immaculate_mult = product_f64(&[
+        calculate_global_speed_platonic_blessing(&state.platonic_blessings),
+        1.0, // singularity debuff: singularity layer paused → 1.0 (sing == 0)
+        intermediate_pack_effect(
+            state.golden_quarks.upgrades[GQ_INTERMEDIATE_PACK].level,
+            IntermediatePackKey::GlobalSpeedMult,
+        ),
+        octeract_improved_global_speed_effect(
+            state.octeract_upgrades.upgrades[OCTERACT_IMPROVED_GLOBAL_SPEED].level,
+            sing,
+        ),
+        limited_time,
+        shop_chronometer_s_effect(state.shop.upgrades[SHOP_CHRONOMETER_S], sing),
+        1.0, // event buff: UI-tier (wall-clock event calendar) → 1.0
+    ]);
+
+    calculate_global_speed_mult(&GlobalSpeedMultInput {
+        normal_mult,
+        immaculate_mult,
+        dr_power: calculate_platonic_7_upgrade_power(
+            state.cube_upgrade_levels.platonic_upgrades[7],
+        ),
+    })
+}
+
+/// Ascension-speed multiplier (legacy `calculateAscensionSpeedMult`),
+/// self-derived from `&GameState`.
+///
+/// Reduces the legacy `allAscensionSpeedStats` array with [`product_f64`]
+/// into a `base`, then applies the exponent spread (the sum of GQ
+/// `singAscensionSpeed`, `singAscensionSpeed2`, and shop
+/// `chronometerInfinity`) via [`calculate_ascension_speed_mult`]. Replaces
+/// the caller-provided `AutomationPre::ascension_speed_multi`. When the
+/// `oneMind` GQ upgrade is unlocked the speed is a flat ×10 (legacy
+/// `addTimers('ascension')`), bypassing the StatLine reduction.
+///
+/// Three lines are neutral `1.0` pending unported inputs — each is exactly
+/// `1.0` at the current play state, so this stays faithful now: the shop
+/// `panthema` line (needs the unported infinite-shop-upgrade bonus levels),
+/// the singularity-debuff line (the singularity layer is paused), and the
+/// event-buff line (UI-tier).
+fn compute_ascension_speed_mult_pre(state: &GameState) -> f64 {
+    use crate::mechanics::ant_upgrades::mortuus_2_ant_upgrade_effect;
+    use crate::mechanics::calculate::{
+        calculate_ascension_speed_exponent_spread, calculate_ascension_speed_mult, product_f64,
+        AscensionSpeedMultInput,
+    };
+    use crate::mechanics::challenge_15_rewards;
+    use crate::mechanics::exalt_penalties::{
+        calculate_exalt_3_penalty, CalculateExalt3PenaltyInput,
+    };
+    use crate::mechanics::golden_quark_upgrades::{
+        intermediate_pack_effect, one_mind_effect, sing_ascension_speed_2_effect,
+        sing_ascension_speed_effect, IntermediatePackKey,
+    };
+    use crate::mechanics::hepteract_effects::chronos_hepteract_effects;
+    use crate::mechanics::octeracts::{
+        octeract_improved_ascension_speed_2_effect, octeract_improved_ascension_speed_effect,
+    };
+    use crate::mechanics::shop_upgrades::{
+        chronometer_2_effect, chronometer_3_effect, chronometer_effect,
+        chronometer_infinity_effect, chronometer_z_effect, shop_chronometer_s_effect,
+        ChronometerInfinityKey,
+    };
+    use crate::mechanics::singularity_challenges::{
+        limited_ascensions_effect, limited_time_effect, LimitedAscensionsKey, LimitedTimeKey,
+        SingularityEffectValue,
+    };
+    use crate::mechanics::talisman_effects::polymath_talisman_effects;
+    use crate::state::golden_quarks::{
+        GQ_INTERMEDIATE_PACK, GQ_ONE_MIND, GQ_SING_ASCENSION_SPEED, GQ_SING_ASCENSION_SPEED_2,
+    };
+    use crate::state::octeract_upgrades::{
+        OCTERACT_IMPROVED_ASCENSION_SPEED, OCTERACT_IMPROVED_ASCENSION_SPEED_2,
+    };
+    use crate::state::shop::{
+        SHOP_CHRONOMETER, SHOP_CHRONOMETER_2, SHOP_CHRONOMETER_3, SHOP_CHRONOMETER_INFINITY,
+        SHOP_CHRONOMETER_S, SHOP_CHRONOMETER_Z,
+    };
+    use crate::state::TALISMAN_POLYMATH;
+
+    const ANT_UPGRADE_MORTUUS_2: usize = 15;
+    const CUBE_UPGRADE_COOKIE_9: usize = 59;
+    const PLATONIC_UPGRADE_OMEGA: usize = 15;
+
+    let sing = state.singularity.singularity_count;
+    let shop = &state.shop.upgrades;
+    let gq = &state.golden_quarks.upgrades;
+    let oct = &state.octeract_upgrades.upgrades;
+
+    // `oneMind` locks ascension speed to a flat ×10, bypassing the StatLine
+    // reduction entirely (legacy Helper.ts `addTimers('ascension')`).
+    if one_mind_effect(gq[GQ_ONE_MIND].level) {
+        return 10.0;
+    }
+
+    let scalar = |v: SingularityEffectValue| match v {
+        SingularityEffectValue::Scalar(s) => s,
+        SingularityEffectValue::Unlock(_) => 1.0,
+    };
+
+    // Platonic OMEGA: 0.002 × (Σ used corruption levels) × platonicUpgrades[15].
+    let corruption_total_levels: f64 = state
+        .corruptions
+        .used
+        .levels
+        .iter()
+        .map(|&l| f64::from(l))
+        .sum();
+    let platonic_omega = 1.0
+        + 0.002
+            * corruption_total_levels
+            * state.cube_upgrade_levels.platonic_upgrades[PLATONIC_UPGRADE_OMEGA];
+
+    // EXALT limitedAscensions buff: effect ^ (1 + max(0, ⌊log10(ascensions)⌋)).
+    let ascension_count = state.reset_counters.ascension_count;
+    let limited_ascensions_mult = scalar(limited_ascensions_effect(
+        state.singularity.limited_ascensions.completions,
+        LimitedAscensionsKey::AscensionSpeedMult,
+    ));
+    let exalt_buff =
+        limited_ascensions_mult.powf(1.0 + 0.0_f64.max(ascension_count.log10().floor()));
+
+    // EXALT limitedAscensions debuff: 1 / Exalt-3 penalty (1 outside Exalt 3).
+    let exalt_3_debuff = 1.0
+        / calculate_exalt_3_penalty(&CalculateExalt3PenaltyInput {
+            limited_ascensions_enabled: state.singularity.limited_ascensions.enabled,
+            limited_ascensions_completions: state.singularity.limited_ascensions.completions,
+            ascension_count,
+        });
+
+    // Base StatLine product — legacy `allAscensionSpeedStats`.
+    let base = product_f64(&[
+        mortuus_2_ant_upgrade_effect(state.ants.upgrades[ANT_UPGRADE_MORTUUS_2]).ascension_speed,
+        polymath_talisman_effects(state.talismans.talisman_rarity[TALISMAN_POLYMATH] as i32)
+            .ascension_speed_bonus,
+        chronometer_effect(shop[SHOP_CHRONOMETER]),
+        chronometer_2_effect(shop[SHOP_CHRONOMETER_2]),
+        chronometer_3_effect(shop[SHOP_CHRONOMETER_3]),
+        chronos_hepteract_effects(state.hepteracts.chronos.bal).ascension_speed,
+        platonic_omega,
+        challenge_15_rewards::ascension_speed(state.challenges.challenge15_exponent),
+        1.0 + (1.0 / 400.0) * state.cube_upgrade_levels.cube_upgrades[CUBE_UPGRADE_COOKIE_9],
+        intermediate_pack_effect(
+            gq[GQ_INTERMEDIATE_PACK].level,
+            IntermediatePackKey::AscensionSpeedMult,
+        ),
+        chronometer_z_effect(shop[SHOP_CHRONOMETER_Z], sing),
+        octeract_improved_ascension_speed_effect(
+            oct[OCTERACT_IMPROVED_ASCENSION_SPEED].level,
+            sing,
+        ),
+        octeract_improved_ascension_speed_2_effect(
+            oct[OCTERACT_IMPROVED_ASCENSION_SPEED_2].level,
+            sing,
+        ),
+        chronometer_infinity_effect(
+            shop[SHOP_CHRONOMETER_INFINITY],
+            ChronometerInfinityKey::AscensionSpeedMult,
+        ),
+        exalt_buff,
+        1.0, // shop panthema (Jack): infinite-shop-upgrade bonus levels unported → 1.0
+        scalar(limited_time_effect(
+            state.singularity.limited_time.completions,
+            LimitedTimeKey::AscensionSpeed,
+        )),
+        shop_chronometer_s_effect(shop[SHOP_CHRONOMETER_S], sing),
+        exalt_3_debuff,
+        1.0, // singularity debuff: singularity layer paused → 1.0 (sing == 0)
+        1.0, // event buff: UI-tier (wall-clock event calendar) → 1.0
+    ]);
+
+    let exponent_spread = calculate_ascension_speed_exponent_spread(
+        sing_ascension_speed_effect(gq[GQ_SING_ASCENSION_SPEED].level),
+        sing_ascension_speed_2_effect(gq[GQ_SING_ASCENSION_SPEED_2].level),
+        chronometer_infinity_effect(
+            shop[SHOP_CHRONOMETER_INFINITY],
+            ChronometerInfinityKey::ExponentSpread,
+        ),
+    );
+
+    calculate_ascension_speed_mult(&AscensionSpeedMultInput {
+        base,
+        exponent_spread,
+    })
+}
+
+/// Singularity-speed multiplier, self-derived from `&GameState`.
+///
+/// Legacy Helper.ts `addTimers('singularity')` sets this to
+/// `getAmbrosiaUpgradeEffects('ambrosiaBrickOfLead', 'singularitySpeedMult')`
+/// — NOT a StatLine reduction — i.e. `1 - effectiveLevel / 100` (= 1 at
+/// level 0). Replaces the caller-provided
+/// `AutomationPre::singularity_speed_multi`.
+///
+/// Uses the stored effective level (`level + free_level`). The live
+/// effective-level refinements — the red-ambrosia free-level chain
+/// (`extraLevelCalc`) and the `noAmbrosiaUpgrades` / `sadisticPrequel` EXALT
+/// gate that zeroes it — are not applied; both are inert at the current
+/// play state, so this stays faithful now.
+fn compute_singularity_speed_mult_pre(state: &GameState) -> f64 {
+    use crate::mechanics::blueberry_upgrades::{
+        ambrosia_brick_of_lead_effect, AmbrosiaBrickOfLeadEffectKey,
+    };
+    use crate::state::ambrosia::AMBROSIA_BRICK_OF_LEAD;
+
+    let u = &state.ambrosia.upgrades[AMBROSIA_BRICK_OF_LEAD];
+    ambrosia_brick_of_lead_effect(
+        u.level + u.free_level,
+        AmbrosiaBrickOfLeadEffectKey::SingularitySpeedMult,
+    )
+}
+
+/// Pure-state non-speed `AutomationPre` timer fields, from the legacy
+/// Helper.ts `addTimers('autoPotion' | 'goldenQuarks')` cases: the
+/// offering/obtainium potion counts (`player.shopUpgrades.{offering,obtainium}Potion`),
+/// the auto-potion speed (`octeractAutoPotionSpeed`), and the GQ export
+/// rate (`goldenQuarks3`'s `exportGQPerHour`). Returned as
+/// `(offering_potion_count, obtainium_potion_count, auto_potion_speed_mult,
+/// export_gq_per_hour)`.
+fn compute_auto_timer_fields(state: &GameState) -> (f64, f64, f64, f64) {
+    use crate::mechanics::golden_quark_upgrades::golden_quarks_3_effect;
+    use crate::mechanics::octeracts::octeract_auto_potion_speed_effect;
+    use crate::state::golden_quarks::GQ_GOLDEN_QUARKS_3;
+    use crate::state::octeract_upgrades::OCTERACT_AUTO_POTION_SPEED;
+    use crate::state::shop::{SHOP_OBTAINIUM_POTION, SHOP_OFFERING_POTION};
+
+    (
+        state.shop.upgrades[SHOP_OFFERING_POTION],
+        state.shop.upgrades[SHOP_OBTAINIUM_POTION],
+        octeract_auto_potion_speed_effect(
+            state.octeract_upgrades.upgrades[OCTERACT_AUTO_POTION_SPEED].level,
+        ),
+        golden_quarks_3_effect(state.golden_quarks.upgrades[GQ_GOLDEN_QUARKS_3].level),
+    )
+}
+
+/// Ambrosia-luck multiplier (legacy `calculateAmbrosiaLuck`), self-derived
+/// from `&GameState`.
+///
+/// `raw_luck × multiplier`, where BOTH legs are **sums** (additive luck):
+/// `raw_luck = Σ allAmbrosiaLuckStats` (base 100) and `multiplier =
+/// Σ allAdditiveLuckMultStats` (base 1). Replaces the caller-provided
+/// `AutomationPre::ambrosia_luck` (which the ambrosia timer consumes, gated
+/// by `noSingularityUpgrades.completions > 0` — so it is inert at default).
+///
+/// Ambrosia/GQ/octeract effect inputs use the stored effective level
+/// (`level + free_level`). Lines whose extra context is unported or
+/// uncertain are neutral `0` (faithful at the current play state, where the
+/// owning upgrade is `0` anyway): the planar-coin / campaign-luck / shop
+/// `panthema` lines, the cube-/quark-luck synergy modules (need
+/// `wow_cube_log_sum` / `worlds`), `ambrosiaLuck3` (needs the blueberry
+/// inventory), `ambrosiaUltra` (needs the EXALT-completion sum), the
+/// horseshoe rune/talisman lines, and the event buff (UI-tier).
+fn compute_ambrosia_luck_pre(state: &GameState) -> f64 {
+    use crate::mechanics::achievement_levels::achievement_level_from_points;
+    use crate::mechanics::blueberry_upgrades::{
+        ambrosia_brick_of_lead_effect, ambrosia_luck_1_effect, ambrosia_luck_2_effect,
+        ambrosia_luck_4_effect, AmbrosiaBrickOfLeadEffectKey,
+    };
+    use crate::mechanics::calculate::{calculate_ambrosia_luck, sum_f64};
+    use crate::mechanics::golden_quark_upgrades::{
+        sing_ambrosia_luck_2_effect, sing_ambrosia_luck_3_effect, sing_ambrosia_luck_4_effect,
+        sing_ambrosia_luck_effect,
+    };
+    use crate::mechanics::level_rewards::{get_level_reward, LevelRewardKey};
+    use crate::mechanics::octeracts::{
+        octeract_ambrosia_luck_2_effect, octeract_ambrosia_luck_3_effect,
+        octeract_ambrosia_luck_4_effect, octeract_ambrosia_luck_effect,
+    };
+    use crate::mechanics::red_ambrosia_bonuses::{
+        calculate_cookie_upgrade_29_luck, CalculateCookieUpgrade29LuckInput,
+    };
+    use crate::mechanics::red_ambrosia_upgrades::{
+        regular_luck_2_effect, regular_luck_effect, viscount_effect, ViscountEffectKey,
+        ViscountEffectValue,
+    };
+    use crate::mechanics::shop_upgrades::{
+        shop_ambrosia_luck_1_effect, shop_ambrosia_luck_2_effect, shop_ambrosia_luck_3_effect,
+        shop_ambrosia_luck_4_effect, shop_ambrosia_luck_multiplier_4_effect,
+        shop_octeract_ambrosia_luck_effect,
+    };
+    use crate::mechanics::singularity_challenges::{
+        no_ambrosia_upgrades_effect, no_singularity_upgrades_effect, NoAmbrosiaUpgradesKey,
+        NoSingularityUpgradesKey, SingularityEffectValue,
+    };
+    use crate::mechanics::singularity_milestones::{
+        calculate_dilated_five_leaf_bonus, calculate_singularity_ambrosia_luck_milestone_bonus,
+    };
+    use crate::state::ambrosia::{
+        AMBROSIA_BRICK_OF_LEAD, AMBROSIA_LUCK_1, AMBROSIA_LUCK_2, AMBROSIA_LUCK_4,
+    };
+    use crate::state::golden_quarks::{
+        GQ_SING_AMBROSIA_LUCK, GQ_SING_AMBROSIA_LUCK_2, GQ_SING_AMBROSIA_LUCK_3,
+        GQ_SING_AMBROSIA_LUCK_4,
+    };
+    use crate::state::octeract_upgrades::{
+        OCTERACT_AMBROSIA_LUCK, OCTERACT_AMBROSIA_LUCK_2, OCTERACT_AMBROSIA_LUCK_3,
+        OCTERACT_AMBROSIA_LUCK_4,
+    };
+    use crate::state::red_ambrosia::{
+        RED_AMBROSIA_REGULAR_LUCK, RED_AMBROSIA_REGULAR_LUCK_2, RED_AMBROSIA_VISCOUNT,
+    };
+    use crate::state::shop::{
+        SHOP_AMBROSIA_LUCK_1, SHOP_AMBROSIA_LUCK_2, SHOP_AMBROSIA_LUCK_3, SHOP_AMBROSIA_LUCK_4,
+        SHOP_AMBROSIA_LUCK_MULTIPLIER_4, SHOP_OCTERACT_AMBROSIA_LUCK,
+    };
+
+    // Legacy `player.cubeUpgrades[77|79]` (Cookie 5 / Cookie 29 gate).
+    const CUBE_UPGRADE_COOKIE_5: usize = 77;
+    const CUBE_UPGRADE_COOKIE_29: usize = 79;
+
+    let shop = &state.shop.upgrades;
+    let cube = &state.cube_upgrade_levels.cube_upgrades;
+    let highest_sing = state.singularity.highest_singularity_count;
+    let amb = |i: usize| state.ambrosia.upgrades[i].level + state.ambrosia.upgrades[i].free_level;
+    let gq = |i: usize| {
+        state.golden_quarks.upgrades[i].level + state.golden_quarks.upgrades[i].free_level
+    };
+    let oct = |i: usize| {
+        state.octeract_upgrades.upgrades[i].level + state.octeract_upgrades.upgrades[i].free_level
+    };
+    let red = |i: usize| state.red_ambrosia.upgrades[i].level;
+    // Additive (luck) context → a missing singularity-effect value is 0.
+    let sc = |v: SingularityEffectValue| match v {
+        SingularityEffectValue::Scalar(s) => s,
+        SingularityEffectValue::Unlock(_) => 0.0,
+    };
+
+    let raw_luck = sum_f64(&[
+        100.0, // Base
+        0.0,   // PseudoCoins — planar-coin AMBROSIA_LUCK_BUFF (unported)
+        get_level_reward(
+            LevelRewardKey::AmbrosiaLuck,
+            achievement_level_from_points(state.achievements.achievement_points),
+        ),
+        0.0, // Campaign — player.campaigns.ambrosiaLuckBonus (unported)
+        calculate_singularity_ambrosia_luck_milestone_bonus(highest_sing),
+        shop_ambrosia_luck_1_effect(shop[SHOP_AMBROSIA_LUCK_1]),
+        shop_ambrosia_luck_2_effect(shop[SHOP_AMBROSIA_LUCK_2]),
+        shop_ambrosia_luck_3_effect(shop[SHOP_AMBROSIA_LUCK_3]),
+        shop_ambrosia_luck_4_effect(shop[SHOP_AMBROSIA_LUCK_4]),
+        0.0, // Jack — shopPanthema (needs ShopPanthemaBonusLevels)
+        sing_ambrosia_luck_effect(gq(GQ_SING_AMBROSIA_LUCK))
+            + sing_ambrosia_luck_2_effect(gq(GQ_SING_AMBROSIA_LUCK_2))
+            + sing_ambrosia_luck_3_effect(gq(GQ_SING_AMBROSIA_LUCK_3))
+            + sing_ambrosia_luck_4_effect(gq(GQ_SING_AMBROSIA_LUCK_4)),
+        octeract_ambrosia_luck_effect(oct(OCTERACT_AMBROSIA_LUCK))
+            + octeract_ambrosia_luck_2_effect(oct(OCTERACT_AMBROSIA_LUCK_2))
+            + octeract_ambrosia_luck_3_effect(oct(OCTERACT_AMBROSIA_LUCK_3))
+            + octeract_ambrosia_luck_4_effect(oct(OCTERACT_AMBROSIA_LUCK_4)),
+        ambrosia_luck_1_effect(amb(AMBROSIA_LUCK_1)),
+        ambrosia_luck_2_effect(amb(AMBROSIA_LUCK_2), amb(AMBROSIA_LUCK_1)),
+        0.0, // AmbrosiaLuck3 — needs the blueberry inventory
+        0.0, // AmbrosiaCubeLuck1 — needs wow_cube_log_sum
+        0.0, // AmbrosiaQuarkLuck1 — needs `worlds`
+        if highest_sing >= 131.0 { 131.0 } else { 0.0 },
+        if highest_sing >= 269.0 { 269.0 } else { 0.0 },
+        shop_octeract_ambrosia_luck_effect(
+            shop[SHOP_OCTERACT_AMBROSIA_LUCK],
+            state.cube_balances.wow_octeracts.to_number(),
+        ),
+        sc(no_ambrosia_upgrades_effect(
+            state.singularity.no_ambrosia_upgrades.completions,
+            NoAmbrosiaUpgradesKey::AmbrosiaLuck,
+        )),
+        regular_luck_effect(red(RED_AMBROSIA_REGULAR_LUCK)),
+        regular_luck_2_effect(red(RED_AMBROSIA_REGULAR_LUCK_2)),
+        match viscount_effect(red(RED_AMBROSIA_VISCOUNT), ViscountEffectKey::LuckBonus) {
+            ViscountEffectValue::Scalar(s) => s,
+            ViscountEffectValue::RoleUnlock(_) => 0.0,
+        },
+        2.0 * cube[CUBE_UPGRADE_COOKIE_5],
+        calculate_cookie_upgrade_29_luck(&CalculateCookieUpgrade29LuckInput {
+            cube_upgrade_79: cube[CUBE_UPGRADE_COOKIE_29],
+            lifetime_red_ambrosia: state.red_ambrosia.lifetime_red_ambrosia,
+        }),
+        0.0, // AmbrosiaUltra — shopAmbrosiaUltra (needs the EXALT-completion sum)
+        0.0, // HorseShoeRune — horseshoe-rune level source unported
+    ]);
+
+    let multiplier = sum_f64(&[
+        1.0, // Base
+        sc(no_singularity_upgrades_effect(
+            state.singularity.no_singularity_upgrades.completions,
+            NoSingularityUpgradesKey::AdditiveLuckMult,
+        )),
+        calculate_dilated_five_leaf_bonus(highest_sing),
+        shop_ambrosia_luck_multiplier_4_effect(shop[SHOP_AMBROSIA_LUCK_MULTIPLIER_4]),
+        sc(no_ambrosia_upgrades_effect(
+            state.singularity.no_ambrosia_upgrades.completions,
+            NoAmbrosiaUpgradesKey::AdditiveLuckMult,
+        )),
+        0.001 * cube[CUBE_UPGRADE_COOKIE_5],
+        ambrosia_luck_4_effect(
+            amb(AMBROSIA_LUCK_4),
+            state.red_ambrosia.lifetime_red_ambrosia,
+            state.ambrosia.lifetime_ambrosia,
+        ),
+        ambrosia_brick_of_lead_effect(
+            amb(AMBROSIA_BRICK_OF_LEAD),
+            AmbrosiaBrickOfLeadEffectKey::AdditiveLuckMult,
+        ),
+        0.0, // HorseShoeTalisman — level source unported
+        0.0, // Event buff — UI-tier
+    ]);
+
+    calculate_ambrosia_luck(raw_luck, multiplier)
+}
+
+/// Ambrosia generation speed (legacy `calculateAmbrosiaGenerationSpeed`),
+/// self-derived from `&GameState`.
+///
+/// `raw_speed × blueberries`, where `raw_speed = Π allAmbrosiaGenerationSpeedStats`
+/// (a **product** — the `Default` gate `0|1` × multipliers) and `blueberries
+/// = Σ allAmbrosiaBlueberryStats` (a **sum** — additive blueberry count).
+/// Replaces the caller-provided `AutomationPre::ambrosia_generation_speed`.
+/// The `Default` gate is `0` until `noSingularityUpgrades.completions > 0`,
+/// so this is exactly `0` at the default state (ambrosia locked) — matching
+/// the old default.
+///
+/// Multiplicative lines whose context is unported are neutral `1.0`
+/// (planar-coin, campaign bonus [campaign-token total not tracked], shop
+/// `panthema`, patreon [quark-bonus arg], event); the additive blueberry
+/// lines neutral `0`. All are inert at the current play state.
+fn compute_ambrosia_generation_speed_pre(state: &GameState) -> f64 {
+    use crate::mechanics::ambrosia::{
+        calculate_number_of_thresholds, calculate_singularity_milestone_blueberries,
+    };
+    use crate::mechanics::calculate::{calculate_ambrosia_generation_speed, product_f64, sum_f64};
+    use crate::mechanics::golden_quark_upgrades::{
+        blueberries_effect as gq_blueberries_effect, sing_ambrosia_generation_2_effect,
+        sing_ambrosia_generation_3_effect, sing_ambrosia_generation_4_effect,
+        sing_ambrosia_generation_effect,
+    };
+    use crate::mechanics::octeracts::{
+        octeract_ambrosia_generation_2_effect, octeract_ambrosia_generation_3_effect,
+        octeract_ambrosia_generation_4_effect, octeract_ambrosia_generation_effect,
+        octeract_blueberries_effect,
+    };
+    use crate::mechanics::red_ambrosia_upgrades::{
+        blueberries_effect as red_blueberries_effect, blueberry_generation_speed_2_effect,
+        blueberry_generation_speed_effect,
+    };
+    use crate::mechanics::shop_upgrades::{
+        shop_ambrosia_generation_1_effect, shop_ambrosia_generation_2_effect,
+        shop_ambrosia_generation_3_effect, shop_ambrosia_generation_4_effect,
+        shop_cash_grab_ultra_effect, ShopCashGrabUltraKey,
+    };
+    use crate::mechanics::singularity_challenges::{
+        no_ambrosia_upgrades_effect, one_challenge_cap_effect, NoAmbrosiaUpgradesKey,
+        OneChallengeCapKey, SingularityEffectValue,
+    };
+    use crate::state::golden_quarks::{
+        GQ_BLUEBERRIES, GQ_SING_AMBROSIA_GENERATION, GQ_SING_AMBROSIA_GENERATION_2,
+        GQ_SING_AMBROSIA_GENERATION_3, GQ_SING_AMBROSIA_GENERATION_4,
+    };
+    use crate::state::octeract_upgrades::{
+        OCTERACT_AMBROSIA_GENERATION, OCTERACT_AMBROSIA_GENERATION_2,
+        OCTERACT_AMBROSIA_GENERATION_3, OCTERACT_AMBROSIA_GENERATION_4, OCTERACT_BLUEBERRIES,
+    };
+    use crate::state::red_ambrosia::{
+        RED_AMBROSIA_BLUEBERRIES, RED_AMBROSIA_BLUEBERRY_GENERATION_SPEED,
+        RED_AMBROSIA_BLUEBERRY_GENERATION_SPEED_2,
+    };
+    use crate::state::shop::{
+        SHOP_AMBROSIA_GENERATION_1, SHOP_AMBROSIA_GENERATION_2, SHOP_AMBROSIA_GENERATION_3,
+        SHOP_AMBROSIA_GENERATION_4, SHOP_CASH_GRAB_ULTRA,
+    };
+
+    const CUBE_UPGRADE_COOKIE_26: usize = 76; // legacy player.cubeUpgrades[76]
+
+    let shop = &state.shop.upgrades;
+    let cube = &state.cube_upgrade_levels.cube_upgrades;
+    let highest_sing = state.singularity.highest_singularity_count;
+    let lifetime_amb = state.ambrosia.lifetime_ambrosia;
+    let no_sing = state.singularity.no_singularity_upgrades.completions;
+    let no_amb = state.singularity.no_ambrosia_upgrades.completions;
+    let gq = |i: usize| {
+        state.golden_quarks.upgrades[i].level + state.golden_quarks.upgrades[i].free_level
+    };
+    let oct = |i: usize| {
+        state.octeract_upgrades.upgrades[i].level + state.octeract_upgrades.upgrades[i].free_level
+    };
+    let red = |i: usize| state.red_ambrosia.upgrades[i].level;
+    // Multiplicative context → a missing singularity-effect value is 1.
+    let mc = |v: SingularityEffectValue| match v {
+        SingularityEffectValue::Scalar(s) => s,
+        SingularityEffectValue::Unlock(_) => 1.0,
+    };
+
+    let raw_speed = product_f64(&[
+        if no_sing > 0.0 { 1.0 } else { 0.0 }, // Default gate
+        1.0,                                   // PseudoCoins (planar, unported)
+        1.0,                                   // Campaign (token total not tracked)
+        shop_ambrosia_generation_1_effect(shop[SHOP_AMBROSIA_GENERATION_1]),
+        shop_ambrosia_generation_2_effect(shop[SHOP_AMBROSIA_GENERATION_2]),
+        shop_ambrosia_generation_3_effect(shop[SHOP_AMBROSIA_GENERATION_3]),
+        shop_ambrosia_generation_4_effect(shop[SHOP_AMBROSIA_GENERATION_4]),
+        1.0, // Jack (panthema)
+        sing_ambrosia_generation_effect(gq(GQ_SING_AMBROSIA_GENERATION))
+            * sing_ambrosia_generation_2_effect(gq(GQ_SING_AMBROSIA_GENERATION_2))
+            * sing_ambrosia_generation_3_effect(gq(GQ_SING_AMBROSIA_GENERATION_3))
+            * sing_ambrosia_generation_4_effect(gq(GQ_SING_AMBROSIA_GENERATION_4)),
+        octeract_ambrosia_generation_effect(oct(OCTERACT_AMBROSIA_GENERATION))
+            * octeract_ambrosia_generation_2_effect(oct(OCTERACT_AMBROSIA_GENERATION_2))
+            * octeract_ambrosia_generation_3_effect(oct(OCTERACT_AMBROSIA_GENERATION_3))
+            * octeract_ambrosia_generation_4_effect(oct(OCTERACT_AMBROSIA_GENERATION_4)),
+        1.0, // PatreonBonus (quark-bonus arg uncertain)
+        mc(one_challenge_cap_effect(
+            state.singularity.one_challenge_cap.completions,
+            OneChallengeCapKey::BlueberrySpeedMult,
+        )),
+        mc(no_ambrosia_upgrades_effect(
+            no_amb,
+            NoAmbrosiaUpgradesKey::BlueberrySpeedMult,
+        )),
+        blueberry_generation_speed_effect(red(RED_AMBROSIA_BLUEBERRY_GENERATION_SPEED)),
+        blueberry_generation_speed_2_effect(red(RED_AMBROSIA_BLUEBERRY_GENERATION_SPEED_2)),
+        1.0 + 0.01 * cube[CUBE_UPGRADE_COOKIE_26] * calculate_number_of_thresholds(lifetime_amb),
+        shop_cash_grab_ultra_effect(
+            shop[SHOP_CASH_GRAB_ULTRA],
+            ShopCashGrabUltraKey::AmbrosiaGenerationMult,
+            lifetime_amb,
+        ),
+        1.0, // Event (UI-tier)
+    ]);
+
+    let blueberries = sum_f64(&[
+        if no_sing > 0.0 { 3.0 } else { 0.0 }, // E1x1Clear
+        gq_blueberries_effect(gq(GQ_BLUEBERRIES)),
+        octeract_blueberries_effect(oct(OCTERACT_BLUEBERRIES)),
+        red_blueberries_effect(red(RED_AMBROSIA_BLUEBERRIES)),
+        calculate_singularity_milestone_blueberries(highest_sing),
+        match no_ambrosia_upgrades_effect(no_amb, NoAmbrosiaUpgradesKey::Blueberries) {
+            SingularityEffectValue::Scalar(s) => s,
+            SingularityEffectValue::Unlock(_) => 0.0,
+        },
+    ]);
+
+    calculate_ambrosia_generation_speed(raw_speed, blueberries)
 }
 
 /// Compute the per-tick reset-currency point gains (prestige / transcend /
@@ -1784,6 +2446,12 @@ mod tests {
         let mut state = GameState::default();
         let input = TackInput {
             dt: 2.0,
+            ..TackInput::default()
+        };
+        // `tack` now self-derives `global_time_multiplier`; drive
+        // `phase_automation` directly with a controlled cache so this stays a
+        // focused test of timer advancement under known multipliers.
+        let cache = CrossMechanicCache {
             automation_pre: AutomationPre {
                 global_time_multiplier: 3.0,
                 ascension_speed_multi: 5.0,
@@ -1792,9 +2460,9 @@ mod tests {
                 export_gq_per_hour: 1.0,
                 ..AutomationPre::default()
             },
-            ..TackInput::default()
         };
-        let output = tack(&mut state, &input);
+        let mut output = TickOutput::default();
+        phase_automation(&mut state, &cache, &input, &mut output);
 
         // Reset counters advance by dt × global_time_multiplier (2 × 3).
         assert_eq!(state.reset_counters.prestige_counter, 6.0);
@@ -1817,6 +2485,116 @@ mod tests {
             output.events[0],
             CoreEvent::ObtainiumMultiplierRecomputeRequested
         ));
+    }
+
+    #[test]
+    fn global_speed_mult_pre_is_one_at_default() {
+        let state = GameState::default();
+        // Every contributing line is the multiplicative identity at the
+        // default state, so the self-derived global-speed mult is exactly 1.
+        assert_eq!(compute_global_speed_mult_pre(&state), 1.0);
+    }
+
+    #[test]
+    fn global_speed_mult_pre_scales_with_research() {
+        let mut state = GameState::default();
+        // Research 5x21 (`researches[121]`) adds `1 + n/50` to the DR-enabled
+        // leg. n = 100 → factor 3.0; nothing else is active and 3.0 sits in
+        // the (1, 100] no-DR band, so the mult is exactly 3.0.
+        state.researches.researches[121] = 100.0;
+        assert!((compute_global_speed_mult_pre(&state) - 3.0).abs() < 1e-12);
+    }
+
+    #[test]
+    fn ascension_speed_mult_pre_is_one_at_default() {
+        let state = GameState::default();
+        // Every base line is the multiplicative identity and the exponent
+        // spread is 0 at the default state → mult is exactly 1.
+        assert_eq!(compute_ascension_speed_mult_pre(&state), 1.0);
+    }
+
+    #[test]
+    fn ascension_speed_mult_pre_applies_exponent_spread() {
+        let mut state = GameState::default();
+        // Chronometer (shop[18]) adds `1 + 0.012n` to the base; n = 100 → 2.2.
+        state.shop.upgrades[18] = 100.0;
+        // GQ singAscensionSpeed (gq[55]) contributes 0.03 to the exponent
+        // spread once its level > 0, so the result is base^(1 + 0.03).
+        state.golden_quarks.upgrades[55].level = 1.0;
+        let expected = (1.0 + 0.012 * 100.0_f64).powf(1.0 + 0.03);
+        assert!((compute_ascension_speed_mult_pre(&state) - expected).abs() < 1e-9);
+    }
+
+    #[test]
+    fn ascension_speed_mult_pre_one_mind_locks_to_ten() {
+        let mut state = GameState::default();
+        // A large chronometer base would otherwise dominate, but oneMind
+        // (gq[59]) locks ascension speed to a flat ×10.
+        state.shop.upgrades[18] = 1_000.0;
+        state.golden_quarks.upgrades[59].level = 1.0;
+        assert_eq!(compute_ascension_speed_mult_pre(&state), 10.0);
+    }
+
+    #[test]
+    fn singularity_speed_mult_pre_is_one_at_default() {
+        let state = GameState::default();
+        assert_eq!(compute_singularity_speed_mult_pre(&state), 1.0);
+    }
+
+    #[test]
+    fn singularity_speed_mult_pre_decreases_with_brick_of_lead() {
+        let mut state = GameState::default();
+        // ambrosiaBrickOfLead (ambrosia[31]) singularitySpeedMult = 1 - n/100.
+        state.ambrosia.upgrades[31].level = 25.0;
+        assert!((compute_singularity_speed_mult_pre(&state) - 0.75).abs() < 1e-12);
+    }
+
+    #[test]
+    fn ambrosia_luck_pre_is_one_hundred_at_default() {
+        let state = GameState::default();
+        // Base raw luck 100 × base multiplier 1 = 100.
+        assert_eq!(compute_ambrosia_luck_pre(&state), 100.0);
+    }
+
+    #[test]
+    fn ambrosia_luck_pre_grows_with_shop_luck() {
+        let mut state = GameState::default();
+        // shopAmbrosiaLuck1 (shop[65]) adds to the raw-luck sum.
+        state.shop.upgrades[65] = 10.0;
+        assert!(compute_ambrosia_luck_pre(&state) > 100.0);
+    }
+
+    #[test]
+    fn ambrosia_generation_speed_pre_is_zero_when_locked() {
+        let state = GameState::default();
+        // Ambrosia gated (noSingularityUpgrades completions == 0) → 0.
+        assert_eq!(compute_ambrosia_generation_speed_pre(&state), 0.0);
+    }
+
+    #[test]
+    fn ambrosia_generation_speed_pre_unlocks_with_e1x1() {
+        let mut state = GameState::default();
+        // Gate open → raw_speed 1; E1x1 grants +3 blueberries → 1 × 3 = 3.
+        state.singularity.no_singularity_upgrades.completions = 1.0;
+        assert!((compute_ambrosia_generation_speed_pre(&state) - 3.0).abs() < 1e-12);
+    }
+
+    #[test]
+    fn auto_timer_fields_at_default() {
+        let state = GameState::default();
+        assert_eq!(compute_auto_timer_fields(&state), (0.0, 0.0, 1.0, 0.0));
+    }
+
+    #[test]
+    fn auto_timer_fields_track_upgrades() {
+        let mut state = GameState::default();
+        state.shop.upgrades[0] = 3.0; // offeringPotion
+        state.shop.upgrades[1] = 5.0; // obtainiumPotion
+        state.octeract_upgrades.upgrades[26].level = 10.0; // 1 + 4*10/100 = 1.4
+        state.golden_quarks.upgrades[2].level = 4.0; // 4*5/2 = 10
+        let (off, obt, speed, export) = compute_auto_timer_fields(&state);
+        assert_eq!((off, obt, export), (3.0, 5.0, 10.0));
+        assert!((speed - 1.4).abs() < 1e-12);
     }
 
     #[test]
@@ -1888,15 +2666,21 @@ mod tests {
         state.singularity.no_singularity_upgrades.completions = 1.0;
         let input = TackInput {
             dt: 1000.0,
+            ..TackInput::default()
+        };
+        // `tack` now self-derives ambrosia_luck (+ the speed mults); drive
+        // phase_automation directly with a controlled cache so this stays a
+        // focused test of ambrosia generation.
+        let cache = CrossMechanicCache {
             automation_pre: AutomationPre {
                 ambrosia_generation_speed: 1.0,
                 ambrosia_luck: 200.0,
                 time_per_ambrosia: 45.0,
                 ..AutomationPre::default()
             },
-            ..TackInput::default()
         };
-        let output = tack(&mut state, &input);
+        let mut output = TickOutput::default();
+        phase_automation(&mut state, &cache, &input, &mut output);
 
         assert!(state.ambrosia.ambrosia > 0.0);
         assert!(state.ambrosia.lifetime_ambrosia > 0.0);

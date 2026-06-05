@@ -6,13 +6,30 @@
 //! [`crate::mechanics::talisman_levels`], and
 //! [`crate::mechanics::talisman_effects`].
 
-/// Number of talismans in the legacy synergism build. Seven named:
-/// Exemption, Chronos, Midas, Metaphysics, PolymathPharaoh,
-/// Mortuus, Plastic (and the order matches the legacy `Talismans`
-/// enum).
 use serde::{Deserialize, Serialize};
 
+/// Number of talismans in the legacy synergism build. Seven named:
+/// Exemption, Chronos, Midas, Metaphysics, Polymath, Mortuus, Plastic.
+/// The order matches the legacy `talismans` const
+/// (`legacy/core_split/packages/web_ui/src/Talismans.ts`); index `i` is
+/// the i-th talisman, and the `TALISMAN_*` constants below give the
+/// name → index mapping the UI tier must match.
 pub const TALISMAN_COUNT: usize = 7;
+
+/// `exemption` — index 0.
+pub const TALISMAN_EXEMPTION: usize = 0;
+/// `chronos` — index 1.
+pub const TALISMAN_CHRONOS: usize = 1;
+/// `midas` — index 2.
+pub const TALISMAN_MIDAS: usize = 2;
+/// `metaphysics` — index 3.
+pub const TALISMAN_METAPHYSICS: usize = 3;
+/// `polymath` — index 4.
+pub const TALISMAN_POLYMATH: usize = 4;
+/// `mortuus` — index 5.
+pub const TALISMAN_MORTUUS: usize = 5;
+/// `plastic` — index 6.
+pub const TALISMAN_PLASTIC: usize = 6;
 
 /// Per-talisman fragment-allocation state. Mirrors the legacy
 /// `player.talismanOne..Seven` arrays: a small fixed slot list
@@ -78,5 +95,15 @@ mod tests {
         let s = TalismansState::default();
         assert_eq!(s.talisman_levels.len(), 7);
         assert_eq!(s.rune_assignments[0].len(), 5);
+    }
+
+    #[test]
+    fn talisman_index_convention_sentinels() {
+        // Coverage: the last named slot pins the array length.
+        assert_eq!(TALISMAN_PLASTIC, TALISMAN_COUNT - 1);
+        // StatLine anchors (legacy `talismans` const order).
+        assert_eq!(TALISMAN_EXEMPTION, 0);
+        assert_eq!(TALISMAN_CHRONOS, 1);
+        assert_eq!(TALISMAN_POLYMATH, 4);
     }
 }
