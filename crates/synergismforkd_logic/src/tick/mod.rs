@@ -443,6 +443,10 @@ pub fn tack(state: &mut GameState, input: &TackInput) -> TickOutput {
     // `allOcteractCubeStats` product). Gated to 0 at default by the AscensionScore
     // line; consumed only by the sing≥160 octeract giveaway.
     cache.automation_pre.octeract_per_second = compute_octeract_per_second(state);
+    // GQ-giveaway multiplier excluding the base GQ line (legacy
+    // `addTimers('goldenQuarks')` product of `allGoldenQuarkMultiplierStats[1..]`).
+    cache.automation_pre.golden_quarks_multiplier_excluding_base =
+        compute_golden_quarks_multiplier_excluding_base(state);
     phase_player_input(state, input, &mut output);
     phase_generation(state, &resource_gain_pre, input.dt, &mut output);
     phase_automation(state, &cache, input, &mut output);
@@ -1732,6 +1736,91 @@ fn compute_octeract_per_second(state: &GameState) -> f64 {
         ),
         shop_ex_ultra_effect(shop[SHOP_EX_ULTRA], lifetime_ambrosia),
         ascension_speed_line,
+    ])
+}
+
+/// `golden_quarks_multiplier_excluding_base` — self-derived from `&GameState`.
+///
+/// Legacy Helper.ts `addTimers('goldenQuarks')` reduces
+/// `allGoldenQuarkMultiplierStats` (Statistics.ts:2337) but divides the `Base`
+/// line (`calculateBaseGoldenQuarks`) back out and applies it separately, so
+/// this is the product of the OTHER 12 lines. Companion to
+/// [`compute_octeract_per_second`] — both feed the `singularityCount >= 160`
+/// golden-quark giveaway loop. Every line is the multiplicative identity at the
+/// default state, so this is exactly `1.0` — matching the old
+/// `AutomationPre::default().golden_quarks_multiplier_excluding_base`.
+///
+/// Neutral-defaulted lines (faithful — no logic state source): PseudoCoins
+/// (PCoin meta), Campaign (`player.campaigns.goldenQuarkBonus`, campaign
+/// subsystem unported), GlobalSubscriber / AccountBonus (patreon / account meta
+/// — `getGlobalBonus` / `getPersonalBonus`), Event (UI-tier calendar).
+fn compute_golden_quarks_multiplier_excluding_base(state: &GameState) -> f64 {
+    use crate::mechanics::calculate::product_f64;
+    use crate::mechanics::golden_quark_upgrades::{
+        golden_quarks_1_effect, sing_fast_forward_2_effect, sing_fast_forward_effect,
+    };
+    use crate::mechanics::octeracts::octeract_fast_forward_effect;
+    use crate::mechanics::singularity_challenges::{
+        no_singularity_upgrades_effect, NoSingularityUpgradesKey, SingularityEffectValue,
+    };
+    use crate::mechanics::singularity_helpers::{
+        max_singularity_lookahead, MaxSingularityLookaheadInput,
+    };
+    use crate::mechanics::singularity_milestones::calculate_immaculate_alchemy_bonus;
+    use crate::state::golden_quarks::{
+        GQ_GOLDEN_QUARKS_1, GQ_SING_FAST_FORWARD, GQ_SING_FAST_FORWARD_2,
+    };
+    use crate::state::octeract_upgrades::OCTERACT_FAST_FORWARD;
+
+    const CUBE_UPGRADE_19: usize = 69;
+
+    let sing = state.singularity.singularity_count;
+    let highest_sing = state.singularity.highest_singularity_count;
+    let cube = &state.cube_upgrade_levels.cube_upgrades;
+    let gq = |i: usize| {
+        state.golden_quarks.upgrades[i].level + state.golden_quarks.upgrades[i].free_level
+    };
+    let oct = |i: usize| {
+        state.octeract_upgrades.upgrades[i].level + state.octeract_upgrades.upgrades[i].free_level
+    };
+
+    // FastForwards = 1 + 0.025·(calculateMaxSingularityLookahead(true) − 1).
+    let lookahead = max_singularity_lookahead(&MaxSingularityLookaheadInput {
+        non_zero: true,
+        sing_fast_forward_lookahead: sing_fast_forward_effect(gq(GQ_SING_FAST_FORWARD)),
+        sing_fast_forward_2_lookahead: sing_fast_forward_2_effect(gq(GQ_SING_FAST_FORWARD_2)),
+        octeract_fast_forward_lookahead: octeract_fast_forward_effect(oct(OCTERACT_FAST_FORWARD)),
+    });
+
+    // GoldenRevolution2 = highestSing >= 100 ? 1 + min(1, highestSing/250) : 1.
+    let golden_revolution_2 = if highest_sing >= 100.0 {
+        1.0 + 1.0_f64.min(highest_sing / 250.0)
+    } else {
+        1.0
+    };
+
+    let no_sing_upgrades = match no_singularity_upgrades_effect(
+        state.singularity.no_singularity_upgrades.completions,
+        NoSingularityUpgradesKey::GoldenQuarks,
+    ) {
+        SingularityEffectValue::Scalar(s) => s,
+        SingularityEffectValue::Unlock(_) => 1.0,
+    };
+
+    product_f64(&[
+        1.0, // PseudoCoins — PCoin meta layer (unported)
+        1.0, // Campaign — player.campaigns.goldenQuarkBonus (unported)
+        // Challenge15: 1 + max(0, log10(challenge15Exponent + 1) − 20) / 2.
+        1.0 + 0.0_f64.max((state.challenges.challenge15_exponent + 1.0).log10() - 20.0) / 2.0,
+        golden_quarks_1_effect(gq(GQ_GOLDEN_QUARKS_1)),
+        1.0 + 0.12 * cube[CUBE_UPGRADE_19], // CookieUpgrade19
+        no_sing_upgrades,
+        golden_revolution_2,
+        1.0 + 0.025 * (lookahead - 1.0), // FastForwards
+        calculate_immaculate_alchemy_bonus(sing),
+        1.0, // GlobalSubscriber — patreon meta (getGlobalBonus)
+        1.0, // AccountBonus — account meta (getPersonalBonus)
+        1.0, // Event — UI-tier event calendar
     ])
 }
 
@@ -3539,6 +3628,25 @@ mod tests {
             result > 0.0 && result.is_finite(),
             "expected a positive finite octeract/s, got {result}"
         );
+    }
+
+    #[test]
+    fn golden_quarks_multiplier_excluding_base_is_one_at_default() {
+        let state = GameState::default();
+        // Every non-base line is the multiplicative identity at default → 1.0,
+        // matching the old AutomationPre default.
+        assert_eq!(compute_golden_quarks_multiplier_excluding_base(&state), 1.0);
+    }
+
+    #[test]
+    fn golden_quarks_multiplier_excluding_base_scales_with_contributors() {
+        let mut state = GameState::default();
+        // goldenQuarks1 (gq[0]) goldenQuarkMult = 1 + 0.1n; n = 5 → 1.5.
+        state.golden_quarks.upgrades[0].level = 5.0;
+        // CookieUpgrade19 (cube[69]) = 1 + 0.12n; n = 10 → 2.2.
+        state.cube_upgrade_levels.cube_upgrades[69] = 10.0;
+        let expected = 1.5 * 2.2;
+        assert!((compute_golden_quarks_multiplier_excluding_base(&state) - expected).abs() < 1e-9);
     }
 
     #[test]
