@@ -48,7 +48,7 @@ pub use ambrosia::{AmbrosiaState, AmbrosiaUpgrade};
 pub use ants::{
     AntsState, AntsToggles, AutoSacrificeMode, PlayerAntMastery, PlayerAntProducer, RebornELOEntry,
 };
-pub use automation::AutomationState;
+pub use automation::{AutoAscendMode, AutoChallengeTimer, AutomationState};
 pub use blessings::{BlessingValues, PlatonicBlessings};
 pub use campaigns::CampaignsState;
 pub use challenges::ChallengesState;
