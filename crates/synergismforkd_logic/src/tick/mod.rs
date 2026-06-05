@@ -7,10 +7,11 @@
 //! rates.
 //!
 //! ## Phases
-//! 1. **Cross-mechanic precompute** — stubbed; `*Pre` bundles still
-//!    caller-provided. Becomes a single `CrossMechanicCache` once the
-//!    upstream mechanics (rune effects, ant effects, hepteract effects,
-//!    achievement rewards, challenge-15 rewards) finish porting.
+//! 1. **Automation-input derivation** — all five `*Pre` bundles have been
+//!    retired; [`tack`] self-derives the Phase-5 [`AutomationPre`] inputs
+//!    field-by-field from `&GameState` (the four global-state bundles
+//!    derive inside their consuming phases). No caller bundle, no
+//!    cross-mechanic cache remains.
 //! 2. **Global state aggregators** — the four pure aggregators
 //!    ([`compute_global_multipliers`], [`update_all_multiplier`],
 //!    [`update_all_tick`], plus the helpers reading their outputs). Their
@@ -60,18 +61,17 @@ mod automatic_tools;
 mod challenge_sweep;
 mod timers;
 
-/// Caller-provided pre-evaluated inputs for the Phase 5 automation
-/// layer — speed multipliers and unlock gates that have no ported
-/// aggregator yet (`calculateGlobalSpeedMult`,
-/// `calculateAscensionSpeedMult`, `calculateSingularitySpeedMult`,
-/// `quark_handler`, `exportGQPerHour`, …).
+/// Pre-evaluated inputs for the Phase 5 automation layer — the speed
+/// multipliers, timer fields, and unlock gates [`phase_automation`]
+/// reads (`calculateGlobalSpeedMult`, `calculateAscensionSpeedMult`,
+/// `calculateSingularitySpeedMult`, `quark_handler`, `exportGQPerHour`,
+/// the ambrosia / octeract / obtainium / ant-speed mults, …).
 ///
-/// Mirrors the four existing `*_pre` bundles: caller-packed for the
-/// duration of the MVP port, migrating to compute-from-state as each
-/// upstream aggregator lands. **Grows per chunk** — each automation
-/// sub-phase adds the fields it consumes. Today it carries the head-
-/// timer multipliers + gates consumed by the simple counter and
-/// octeract timers (Chunks 1–2).
+/// **Fully self-derived from `&GameState`.** [`tack`] builds this
+/// field-by-field from the ported aggregators (the `compute_*` helpers)
+/// before Phase 5; it is no longer threaded through [`TackInput`] or a
+/// cross-mechanic cache. It remains a distinct struct purely as the
+/// argument bundle handed to [`phase_automation`].
 #[derive(Debug, Clone, Copy)]
 pub struct AutomationPre {
     /// `calculateGlobalSpeedMult()` — scales the prestige / transcend /
@@ -222,11 +222,12 @@ impl Default for AutomationPre {
 /// Inputs to [`tack`]. Owned by the caller — `logic` has no clock, no
 /// input device, no RNG seed source of its own.
 ///
-/// `automation_pre` is the last caller-provided `*_pre` bundle; the four
-/// global-state bundles (`global_multipliers`, `update_all_multiplier`,
-/// `update_all_tick`, `resource_gain`) have all been retired — the tick
-/// now self-derives them from `&GameState`. `automation_pre` follows once
-/// the Phase-5 speed-mult aggregators port.
+/// All five `*_pre` bundles have now been retired: the four global-state
+/// bundles (`global_multipliers`, `update_all_multiplier`,
+/// `update_all_tick`, `resource_gain`) and the Phase-5 `automation_pre`
+/// bundle all self-derive from `&GameState` inside [`tack`]. `TackInput`
+/// therefore carries only the genuine inputs the caller controls: the tick
+/// delta, the time-warp flag, and the queued player actions.
 #[derive(Debug, Clone, Default)]
 pub struct TackInput {
     /// Wall-clock seconds since the previous tick. The caller is the
@@ -239,8 +240,6 @@ pub struct TackInput {
     /// Player inputs queued since the previous tick. Drained FIFO in
     /// Phase 3. Empty in pure background ticks.
     pub player_actions: SmallVec<[PlayerAction; 4]>,
-    /// Pre-evaluated inputs for the Phase 5 automation layer.
-    pub automation_pre: AutomationPre,
 }
 
 /// A single queued player input. Variants will expand as automation
@@ -290,32 +289,6 @@ pub struct TickOutput {
     pub events: SmallVec<[CoreEvent; 16]>,
 }
 
-/// Cross-mechanic precomputed values, computed once per tick at the top
-/// of [`tack`] and threaded through every downstream phase. **The
-/// canonical artifact for cross-mechanic flow** — when a designer wants
-/// to read "where does Corruption affect Cubes affect Ants?", the
-/// answer is this struct and the function that populates it
-/// (`phase_cross_mechanic_precompute`).
-///
-/// Per Loom's tack-design memo, the goal of the cache is to make the
-/// synergy graph **legible**. The legacy TS scattered these
-/// computations across the aggregators' `*Pre` parameters, which every
-/// caller hand-packed — silently dropping a field gave a working tick
-/// that produced slightly less, with no compile error.
-///
-/// The four global-state bundles have all migrated to compute-from-state
-/// (their derivations live in the Phase-1/2 functions, not the cache).
-/// `automation_pre` is the last bundle still forwarded from
-/// [`TackInput`]; it follows once the Phase-5 speed-mult aggregators port,
-/// after which the cache is fully self-derived from `&GameState`.
-#[derive(Debug, Clone, Default)]
-pub struct CrossMechanicCache {
-    /// Pre-evaluated inputs for the Phase 5 automation layer. Forwarded
-    /// from [`TackInput`] today; state-derived field-by-field as the
-    /// upstream speed-mult aggregators port.
-    pub automation_pre: AutomationPre,
-}
-
 /// Captured outputs of the three Phase 2 aggregators, so downstream
 /// phases can read aggregator-derived values without rerunning the
 /// math. (Replaces what would otherwise be `G.*`-style mutable globals
@@ -343,7 +316,10 @@ struct AggregatorOutputs {
 pub fn tack(state: &mut GameState, input: &TackInput) -> TickOutput {
     let mut output = TickOutput::default();
 
-    let mut cache = phase_cross_mechanic_precompute(state, input);
+    // The automation-layer inputs are now fully self-derived from `&GameState`
+    // (no caller bundle, no cross-mechanic cache). Built field-by-field below,
+    // then handed to Phase 5.
+    let mut automation_pre = AutomationPre::default();
     let aggregator_outputs = phase_global_state(state);
     // Phase 2b: coin production + tax. Mirrors the legacy `calculatetax()`
     // call slot — runs after the aggregators (it needs the fresh coin
@@ -361,110 +337,107 @@ pub fn tack(state: &mut GameState, input: &TackInput) -> TickOutput {
         compute_resource_gain_pre(&aggregator_outputs, &tax_outputs, &reset_gains);
     // Thread the same point gains into the automation bundle so auto-reset
     // amount mode compares against this tick's gain (state-derived now).
-    cache.automation_pre.prestige_point_gain = reset_gains.prestige_point_gain;
-    cache.automation_pre.transcend_point_gain = reset_gains.transcend_point_gain;
-    cache.automation_pre.reincarnation_point_gain = reset_gains.reincarnation_point_gain;
+    automation_pre.prestige_point_gain = reset_gains.prestige_point_gain;
+    automation_pre.transcend_point_gain = reset_gains.transcend_point_gain;
+    automation_pre.reincarnation_point_gain = reset_gains.reincarnation_point_gain;
     // Speed multipliers (legacy `G.timeMultiplier` / `ascensionSpeedMult`) —
     // self-derived from state, replacing the caller-provided AutomationPre
     // values.
-    cache.automation_pre.global_time_multiplier = compute_global_speed_mult_pre(state);
-    cache.automation_pre.ascension_speed_multi = compute_ascension_speed_mult_pre(state);
-    cache.automation_pre.singularity_speed_multi = compute_singularity_speed_mult_pre(state);
+    automation_pre.global_time_multiplier = compute_global_speed_mult_pre(state);
+    automation_pre.ascension_speed_multi = compute_ascension_speed_mult_pre(state);
+    automation_pre.singularity_speed_multi = compute_singularity_speed_mult_pre(state);
     // Non-speed timer fields (auto-potion + GQ export), self-derived.
     let (offering_potions, obtainium_potions, auto_potion_speed, export_gq) =
         compute_auto_timer_fields(state);
-    cache.automation_pre.offering_potion_count = offering_potions;
-    cache.automation_pre.obtainium_potion_count = obtainium_potions;
-    cache.automation_pre.auto_potion_speed_mult = auto_potion_speed;
-    cache.automation_pre.export_gq_per_hour = export_gq;
+    automation_pre.offering_potion_count = offering_potions;
+    automation_pre.obtainium_potion_count = obtainium_potions;
+    automation_pre.auto_potion_speed_mult = auto_potion_speed;
+    automation_pre.export_gq_per_hour = export_gq;
     let ambrosia_luck = compute_ambrosia_luck_pre(state);
-    cache.automation_pre.ambrosia_luck = ambrosia_luck;
+    automation_pre.ambrosia_luck = ambrosia_luck;
     let ambrosia_generation_speed = compute_ambrosia_generation_speed_pre(state);
-    cache.automation_pre.ambrosia_generation_speed = ambrosia_generation_speed;
+    automation_pre.ambrosia_generation_speed = ambrosia_generation_speed;
     // Red-ambrosia luck / generation speed compose on this tick's ambrosia
     // luck (the `LuckConversion` line) and ambrosia generation speed (the
     // `BlueberrySpeed` line) respectively.
-    cache.automation_pre.red_ambrosia_luck = compute_red_ambrosia_luck_pre(state, ambrosia_luck);
-    cache.automation_pre.red_ambrosia_generation_speed =
+    automation_pre.red_ambrosia_luck = compute_red_ambrosia_luck_pre(state, ambrosia_luck);
+    automation_pre.red_ambrosia_generation_speed =
         compute_red_ambrosia_generation_speed_pre(state, ambrosia_generation_speed);
     // Ambrosia-timer threshold fields (legacy Helper.ts `addTimers('ambrosia')`).
     let (bonus_ambrosia, time_per_ambrosia, ambrosia_accelerator_mult, ambrosia_brick_of_lead_mult) =
         compute_ambrosia_timer_fields(state);
-    cache.automation_pre.bonus_ambrosia = bonus_ambrosia;
-    cache.automation_pre.time_per_ambrosia = time_per_ambrosia;
-    cache.automation_pre.ambrosia_accelerator_mult = ambrosia_accelerator_mult;
-    cache.automation_pre.ambrosia_brick_of_lead_mult = ambrosia_brick_of_lead_mult;
+    automation_pre.bonus_ambrosia = bonus_ambrosia;
+    automation_pre.time_per_ambrosia = time_per_ambrosia;
+    automation_pre.ambrosia_accelerator_mult = ambrosia_accelerator_mult;
+    automation_pre.ambrosia_brick_of_lead_mult = ambrosia_brick_of_lead_mult;
     // Red-ambrosia-timer threshold fields (legacy Helper.ts `addTimers('redAmbrosia')`).
     let (
         ambrosia_time_per_red_ambrosia,
         time_per_red_ambrosia,
         red_ambrosia_bar_requirement_multiplier,
     ) = compute_red_ambrosia_timer_fields(state);
-    cache.automation_pre.ambrosia_time_per_red_ambrosia = ambrosia_time_per_red_ambrosia;
-    cache.automation_pre.time_per_red_ambrosia = time_per_red_ambrosia;
-    cache.automation_pre.red_ambrosia_bar_requirement_multiplier =
+    automation_pre.ambrosia_time_per_red_ambrosia = ambrosia_time_per_red_ambrosia;
+    automation_pre.time_per_red_ambrosia = time_per_red_ambrosia;
+    automation_pre.red_ambrosia_bar_requirement_multiplier =
         red_ambrosia_bar_requirement_multiplier;
     // Octeract-timer unlock gate (legacy `getGQUpgradeEffect('octeractUnlock',
     // 'unlocked')`).
-    cache.automation_pre.octeract_unlocked = compute_octeract_unlocked(state);
+    automation_pre.octeract_unlocked = compute_octeract_unlocked(state);
     // Quark-export timer cap (legacy `quarkHandler().maxTime`).
-    cache.automation_pre.max_quark_timer = compute_max_quark_timer(state);
+    automation_pre.max_quark_timer = compute_max_quark_timer(state);
     // Automation unlock gates: auto-research Roomba, the rune auto-sacrifice
     // shop gate, and the auto-prestige level milestone.
-    cache.automation_pre.roomba_unlocked = compute_roomba_unlocked(state);
-    cache.automation_pre.offering_auto_rune = compute_offering_auto_rune(state);
-    cache.automation_pre.auto_prestige_milestone = compute_auto_prestige_milestone(state);
+    automation_pre.roomba_unlocked = compute_roomba_unlocked(state);
+    automation_pre.offering_auto_rune = compute_offering_auto_rune(state);
+    automation_pre.auto_prestige_milestone = compute_auto_prestige_milestone(state);
     // Ant-sacrifice unlock gate (legacy `getAchievementReward('antSacrificeUnlock')`
     // = achievement #173 earned).
-    cache.automation_pre.ant_sacrifice_unlocked =
+    automation_pre.ant_sacrifice_unlocked =
         crate::mechanics::achievement_rewards::ant_sacrifice_unlocked(
             &state.achievements.achievements,
         );
     // Available reborn ELO (legacy `calculateAvailableRebornELO()`) — feeds the
     // "maxed reborn ELO" ant-sacrifice toggles.
-    cache.automation_pre.available_reborn_elo = compute_available_reborn_elo(state);
+    automation_pre.available_reborn_elo = compute_available_reborn_elo(state);
     // Ant-sacrifice immortalELO gain (legacy `antSacrificeRewards().immortalELO`).
-    cache.automation_pre.immortal_elo_gain = compute_immortal_elo_gain(state);
+    automation_pre.immortal_elo_gain = compute_immortal_elo_gain(state);
     // Challenge-sweep pre-evals (legacy `prepareSweepInputForTackTail`).
     let sweep = compute_sweep_pre_evals(state);
-    cache.automation_pre.sweep_timer_start = sweep.timer_start;
-    cache.automation_pre.sweep_timer_exit = sweep.timer_exit;
-    cache.automation_pre.sweep_timer_enter = sweep.timer_enter;
-    cache
-        .automation_pre
-        .sweep_next_regular_challenge_from_initial = sweep.next_regular_challenge_from_initial;
-    cache
-        .automation_pre
-        .sweep_next_regular_challenge_from_active = sweep.next_regular_challenge_from_active;
-    cache.automation_pre.sweep_challenge_15_auto_exponent_check =
-        sweep.challenge_15_auto_exponent_check;
-    cache.automation_pre.sweep_is_finished_still_valid = sweep.is_finished_still_valid;
+    automation_pre.sweep_timer_start = sweep.timer_start;
+    automation_pre.sweep_timer_exit = sweep.timer_exit;
+    automation_pre.sweep_timer_enter = sweep.timer_enter;
+    automation_pre.sweep_next_regular_challenge_from_initial =
+        sweep.next_regular_challenge_from_initial;
+    automation_pre.sweep_next_regular_challenge_from_active =
+        sweep.next_regular_challenge_from_active;
+    automation_pre.sweep_challenge_15_auto_exponent_check = sweep.challenge_15_auto_exponent_check;
+    automation_pre.sweep_is_finished_still_valid = sweep.is_finished_still_valid;
     // Octeract gain rate (legacy `calculateOcteractMultiplier()` = the 42-line
     // `allOcteractCubeStats` product). Gated to 0 at default by the AscensionScore
     // line; consumed only by the sing≥160 octeract giveaway.
-    cache.automation_pre.octeract_per_second = compute_octeract_per_second(state);
+    automation_pre.octeract_per_second = compute_octeract_per_second(state);
     // GQ-giveaway multiplier excluding the base GQ line (legacy
     // `addTimers('goldenQuarks')` product of `allGoldenQuarkMultiplierStats[1..]`).
-    cache.automation_pre.golden_quarks_multiplier_excluding_base =
+    automation_pre.golden_quarks_multiplier_excluding_base =
         compute_golden_quarks_multiplier_excluding_base(state);
+    // Auto-research obtainium gain (legacy Helper.ts `addTimers('obtainium')` =
+    // `calculateResearchAutomaticObtainium(dt)`). Self-derives to 0 at default
+    // (the multiplier gate 0.5·research[61] + 0.1·research[62] + 0.8·cube[3] = 0),
+    // matching the old AutomationPre default. Threads this tick's reincarnation
+    // point gain (the `ReincarnationUpgrade9` obtainium line reads it).
+    automation_pre.obtainium_gain =
+        compute_obtainium_gain(state, input.dt, reset_gains.reincarnation_point_gain);
+    // Ant-speed multiplier (legacy `calculateActualAntSpeedMult()` = the 24-line
+    // `antSpeedStats` Decimal product ^ ascension-challenge exponent).
+    // Self-derives to 0 at default (the `canGenerateAntCrumbs` Base line is 0
+    // until ants unlock → whole product 0), vs the old AutomationPre default of
+    // 1 — ant generation multiplies by this factor so it no-ops at 0 anyway.
+    automation_pre.ant_speed_mult = compute_ant_speed_mult(state);
     phase_player_input(state, input, &mut output);
     phase_generation(state, &resource_gain_pre, input.dt, &mut output);
-    phase_automation(state, &cache, input, &mut output);
+    phase_automation(state, &automation_pre, input, &mut output);
 
     output
-}
-
-/// **Phase 1** — Cross-mechanic precompute.
-///
-/// Builds the [`CrossMechanicCache`]. All four global-state bundles now
-/// self-derive inside their consuming phases ([`phase_global_state`],
-/// [`phase_tax`], [`compute_reset_currency_gains`]), so the cache is down
-/// to forwarding the last caller bundle, `automation_pre`, until the
-/// Phase-5 speed-mult aggregators port.
-fn phase_cross_mechanic_precompute(_state: &GameState, input: &TackInput) -> CrossMechanicCache {
-    CrossMechanicCache {
-        automation_pre: input.automation_pre,
-    }
 }
 
 /// Build the shared achievement-reward input from `&GameState` — the
@@ -528,8 +501,8 @@ fn compute_accelerator_multiplier(state: &GameState) -> f64 {
 /// State-derive `G.totalAcceleratorBoost` via the legacy
 /// `calculateTotalAcceleratorBoost` (free boost from upgrades /
 /// researches / runes / ant + hepteract effects, then `+ bought`).
-/// Pure function of `&GameState`. Injected into all three aggregator
-/// `*Pre` bundles by [`phase_cross_mechanic_precompute`].
+/// Pure function of `&GameState`. Consumed by the global-state
+/// aggregators in [`phase_global_state`].
 fn compute_total_accelerator_boost(state: &GameState) -> f64 {
     use crate::mechanics::accelerator_multipliers::{
         calculate_total_accelerator_boost, CalculateTotalAcceleratorBoostInput,
@@ -1824,6 +1797,616 @@ fn compute_golden_quarks_multiplier_excluding_base(state: &GameState) -> f64 {
     ])
 }
 
+/// `calculateBaseObtainium()` — the **sum** of the `allBaseObtainiumStats`
+/// StatLine (Statistics.ts:1416). Used both as the additive base obtainium
+/// and as the first (Base) line of the DR-ignore immaculate product.
+///
+/// Neutral-defaulted line: `PseudoCoins` (the PCoin meta layer is unported →
+/// additive `0`). `ShopPotionBonus` reads the single Rust
+/// `shop.shop_potions_consumed` count (the legacy offering/obtainium split is
+/// not modelled). All other lines derive from state.
+fn compute_base_obtainium(state: &GameState) -> f64 {
+    use crate::mechanics::blueberry_upgrades::{
+        ambrosia_base_obtainium_1_effect, ambrosia_base_obtainium_2_effect,
+    };
+    use crate::mechanics::calculate::sum_f64;
+    use crate::mechanics::potion_bonuses::calculate_obtainium_potion_base_obtainium;
+    use crate::state::ambrosia::{AMBROSIA_BASE_OBTAINIUM_1, AMBROSIA_BASE_OBTAINIUM_2};
+
+    let researches = &state.researches.researches;
+    let reincarnation_counter = state.reset_counters.reincarnation_counter;
+    let amb = |i: usize| state.ambrosia.upgrades[i].level + state.ambrosia.upgrades[i].free_level;
+
+    sum_f64(&[
+        1.0, // Base
+        0.0, // PseudoCoins — PCoin meta layer (unported) → additive 0
+        calculate_obtainium_potion_base_obtainium(state.shop.shop_potions_consumed).amount,
+        // Research3x13 — gated by the reincarnation timer ≥ 2s.
+        if reincarnation_counter >= 2.0 {
+            researches[63]
+        } else {
+            0.0
+        },
+        // Research3x14 — gated by the reincarnation timer ≥ 5s.
+        if reincarnation_counter >= 5.0 {
+            2.0 * researches[64]
+        } else {
+            0.0
+        },
+        // FirstSingularity perk.
+        if state.singularity.highest_singularity_count > 0.0 {
+            3.0
+        } else {
+            0.0
+        },
+        (state.singularity.singularity_count / 10.0).floor(), // SingularityCount
+        ambrosia_base_obtainium_1_effect(amb(AMBROSIA_BASE_OBTAINIUM_1)),
+        ambrosia_base_obtainium_2_effect(amb(AMBROSIA_BASE_OBTAINIUM_2)),
+    ])
+}
+
+/// `calculateObtainium(timeMultUsed = false)` — the obtainium resource
+/// multiplier feeding the auto-research gain. Assembles the three obtainium
+/// StatLine arrays (Statistics.ts:1416/1456/1541) into a
+/// [`CalculateObtainiumInput`] and runs the ported aggregator:
+/// `immaculate · baseMults^DR · timeMultiplier`, floored by `baseObtainium`,
+/// with the c14 zero-out and taxman clamp.
+///
+/// `time_multiplier` is `1.0` — the caller passes `timeMultUsed = false`
+/// (the auto-research path). `base_mults` is the Decimal product of
+/// `allObtainiumStats` times `calculateObtainiumCubeBlessing()` — the cube
+/// blessing also appears as the `CubeBonus` line, so it is applied twice,
+/// verbatim with the legacy `calculateObtainiumDecimal`.
+///
+/// Neutral-defaulted lines (faithful — no logic state source / inert at the
+/// current state): campaign `TutorialBonus`/`CampaignBonus` (campaign
+/// subsystem unported → 1), `Event` (UI-tier event calendar → 1),
+/// `ReincarnationUpgrade14` (reads `maxOfferings`, untracked → 1; its branch
+/// is `1` at `maxOfferings 0` anyway), `Jack`/`shopPanthema` (needs the
+/// unported `ShopPanthemaBonusLevels` → 1), `SpiritPower` (effective
+/// rune-spirit power needs the unported `spiritMultiplier` chain → 1), and
+/// `SingularityDebuff` (`1 / calculateSingularityDebuff`; the singularity
+/// layer is paused → 1).
+fn compute_obtainium(
+    state: &GameState,
+    base_obtainium: f64,
+    reincarnation_point_gain: Decimal,
+) -> Decimal {
+    use crate::mechanics::achievement_levels::achievement_level_from_points;
+    use crate::mechanics::achievement_rewards::obtainium_bonus;
+    use crate::mechanics::ant_upgrades::obtainium_ant_upgrade_effect;
+    use crate::mechanics::blueberry_upgrades::ambrosia_obtainium_1_effect;
+    use crate::mechanics::calculate::{
+        calculate_obtainium, product_decimal, product_f64, CalculateObtainiumInput,
+    };
+    use crate::mechanics::challenge_15_rewards;
+    use crate::mechanics::challenges::{calc_ecc, ChallengeType};
+    use crate::mechanics::corruptions::{
+        illiteracy_effect, illiteracy_power_at_level, IlliteracyEffectInput,
+    };
+    use crate::mechanics::cube_blessings::calculate_obtainium_cube_blessing;
+    use crate::mechanics::exalt_penalties::calculate_exalt_6_penalty;
+    use crate::mechanics::golden_quark_upgrades::{
+        sing_citadel_2_effect, sing_citadel_effect, sing_obtainium_1_effect,
+        sing_obtainium_2_effect, sing_obtainium_3_effect, starter_pack_effect, SingCitadel2Key,
+        StarterPackKey,
+    };
+    use crate::mechanics::hypercube_blessings::calculate_obtainium_hypercube_blessing;
+    use crate::mechanics::level_rewards::{get_level_reward, LevelRewardKey};
+    use crate::mechanics::octeract_bonuses::{
+        calculate_total_octeract_cube_bonus, calculate_total_octeract_obtainium_bonus,
+        CalculateTotalOcteractCubeBonusInput, CalculateTotalOcteractObtainiumBonusInput,
+    };
+    use crate::mechanics::octeracts::octeract_obtainium_1_effect;
+    use crate::mechanics::platonic_blessings::calculate_hypercube_blessing_multiplier_platonic_blessing;
+    use crate::mechanics::red_ambrosia_bonuses::{
+        calculate_red_ambrosia_obtainium, CalculateRedAmbrosiaResourceInput,
+    };
+    use crate::mechanics::red_ambrosia_upgrades::{
+        red_ambrosia_obtainium_effect, tutorial_effect as red_tutorial_effect,
+    };
+    use crate::mechanics::rune_effects::{
+        antiquities_rune_effects, superior_intellect_rune_effects, AntiquitiesRuneInput,
+        AntiquitiesRuneKey, SuperiorIntellectRuneKey,
+    };
+    use crate::mechanics::shop_upgrades::{
+        cash_grab_2_effect, cash_grab_effect, obtainium_ex_2_effect, obtainium_ex_3_effect,
+        obtainium_ex_effect, shop_ex_ultra_effect, ObtainiumEX3Key,
+    };
+    use crate::mechanics::singularity_challenges::{
+        no_octeracts_effect, NoOcteractsKey, SingularityEffectValue,
+    };
+    use crate::mechanics::talisman_levels::sum_of_talisman_rarities;
+    use crate::mechanics::tesseract_blessings::calculate_obtainium_tesseract_blessing;
+    use crate::state::ambrosia::AMBROSIA_OBTAINIUM_1;
+    use crate::state::golden_quarks::{
+        GQ_SING_CITADEL, GQ_SING_CITADEL_2, GQ_SING_OBTAINIUM_1, GQ_SING_OBTAINIUM_2,
+        GQ_SING_OBTAINIUM_3, GQ_STARTER_PACK,
+    };
+    use crate::state::octeract_upgrades::OCTERACT_OBTAINIUM_1;
+    use crate::state::red_ambrosia::{RED_AMBROSIA_RED_AMBROSIA_OBTAINIUM, RED_AMBROSIA_TUTORIAL};
+    use crate::state::shop::{
+        SHOP_CASH_GRAB, SHOP_CASH_GRAB_2, SHOP_EX_ULTRA, SHOP_OBTAINIUM_EX, SHOP_OBTAINIUM_EX_2,
+        SHOP_OBTAINIUM_EX_3,
+    };
+    use crate::state::{ILLITERACY_INDEX, RUNE_ANTIQUITIES, RUNE_SUPERIOR_INTELLECT};
+
+    // Legacy `AntUpgrades.Obtainium` + the obtainium cube-blessing upgrade
+    // (`player.cubeUpgrades[40]`).
+    const ANT_UPGRADE_OBTAINIUM: usize = 9;
+    const CUBE_UPGRADE_OBTAINIUM_BLESSING: usize = 40;
+
+    let sing = state.singularity.singularity_count;
+    let researches = &state.researches.researches;
+    let cube = &state.cube_upgrade_levels.cube_upgrades;
+    let platonic = &state.cube_upgrade_levels.platonic_upgrades;
+    let shop = &state.shop.upgrades;
+    let achievement_level = achievement_level_from_points(state.achievements.achievement_points);
+    let lifetime_ambrosia = state.ambrosia.lifetime_ambrosia;
+    let ambrosia_luck = compute_ambrosia_luck_pre(state);
+    let gq = |i: usize| {
+        state.golden_quarks.upgrades[i].level + state.golden_quarks.upgrades[i].free_level
+    };
+    let oct = |i: usize| {
+        state.octeract_upgrades.upgrades[i].level + state.octeract_upgrades.upgrades[i].free_level
+    };
+    let amb = |i: usize| state.ambrosia.upgrades[i].level + state.ambrosia.upgrades[i].free_level;
+    let red = |i: usize| state.red_ambrosia.upgrades[i].level;
+
+    // Obtainium cube-blessing chain platonic → hypercube → tesseract → cube,
+    // mirroring `calculateObtainiumCubeBlessing` in `Cubes.ts`.
+    let platonic_amplifier =
+        calculate_hypercube_blessing_multiplier_platonic_blessing(&state.platonic_blessings);
+    let hypercube_blessing =
+        calculate_obtainium_hypercube_blessing(&state.hypercube_blessings, platonic_amplifier);
+    let tesseract_blessing =
+        calculate_obtainium_tesseract_blessing(&state.tesseract_blessings, hypercube_blessing);
+    let obtainium_cube_blessing = calculate_obtainium_cube_blessing(
+        &state.cube_blessings,
+        tesseract_blessing,
+        cube[CUBE_UPGRADE_OBTAINIUM_BLESSING],
+    );
+
+    // OcteractBonus line — the noOcteracts (Exalt 4) obtainium-bonus gate ×
+    // the precomputed total-octeract cube bonus.
+    let obtainium_bonus_enabled = matches!(
+        no_octeracts_effect(
+            state.singularity.no_octeracts.completions,
+            NoOcteractsKey::ObtainiumBonus,
+        ),
+        SingularityEffectValue::Unlock(true)
+    );
+    let octeract_pow = match no_octeracts_effect(
+        state.singularity.no_octeracts.completions,
+        NoOcteractsKey::OcteractPow,
+    ) {
+        SingularityEffectValue::Scalar(s) => s,
+        SingularityEffectValue::Unlock(_) => 0.0,
+    };
+    let octeract_cube_bonus =
+        calculate_total_octeract_cube_bonus(&CalculateTotalOcteractCubeBonusInput {
+            exalt_4_enabled: state.singularity.no_octeracts.enabled,
+            total_wow_octeracts: state.cube_balances.total_wow_octeracts.to_number(),
+            octeract_pow,
+        });
+
+    // CubeUpgradeCx21 — `1.04 ^ (cubeUpgrades[71] · ΣtalismanRarities)`.
+    let talisman_rarities = state.talismans.talisman_rarity.map(|r| r as u8);
+
+    // immaculate = Π allObtainiumIgnoreDRStats (line 1 = calculateBaseObtainium).
+    let immaculate = product_f64(&[
+        base_obtainium,                                                         // Base
+        1.0 + 0.04 * cube[42],                                                  // CubeUpgrade4x2
+        1.0 + 0.03 * cube[43],                                                  // CubeUpgrade4x3
+        1.0, // TutorialBonus — campaign subsystem unported → 1
+        1.0, // CampaignBonus — campaign subsystem unported → 1
+        challenge_15_rewards::obtainium(state.challenges.challenge15_exponent), // ChallengeBonus
+        1.0 + platonic[5], // PlatonicALPHA
+        1.0 + 1.5 * platonic[9], // PlatonicUpgrade9
+        1.0 + 2.5 * platonic[10], // PlatonicBETA
+        1.0 + 5.0 * platonic[15], // PlatonicOMEGA
+        10.0_f64.powf(antiquities_rune_effects(
+            state.runes.rune_levels[RUNE_ANTIQUITIES],
+            AntiquitiesRuneKey::ObtainiumLog10,
+            AntiquitiesRuneInput {
+                singularity_count: sing,
+            },
+        )), // Antiquities
+        1.0 + cube[55] / 100.0, // CubeUpgradeCx5
+        if cube[62] > 0.0 && state.challenges.current_ascension_challenge == 15 {
+            8.0
+        } else {
+            1.0
+        }, // CubeUpgradeCx12
+        red_tutorial_effect(red(RED_AMBROSIA_TUTORIAL)), // RedAmbrosiaTutorial
+        calculate_red_ambrosia_obtainium(&CalculateRedAmbrosiaResourceInput {
+            unlocked: red_ambrosia_obtainium_effect(red(RED_AMBROSIA_RED_AMBROSIA_OBTAINIUM)),
+            lifetime_red_ambrosia: state.red_ambrosia.lifetime_red_ambrosia,
+        }), // RedAmbrosia
+        1.04_f64.powf(cube[71] * sum_of_talisman_rarities(&talisman_rarities)), // CubeUpgradeCx21
+        obtainium_ex_3_effect(
+            shop[SHOP_OBTAINIUM_EX_3],
+            ObtainiumEX3Key::ImmaculateObtainiuMult,
+        ), // ObtainiumEX3
+        if state.singularity.limited_time.enabled {
+            calculate_exalt_6_penalty(
+                state.singularity.limited_time.completions,
+                state.singularity.sing_challenge_timer,
+            )
+        } else {
+            1.0
+        }, // Exalt6Penalty
+        1.0, // Event — UI-tier event calendar → 1 + 0
+    ]);
+
+    // base_mults = Π allObtainiumStats × calculateObtainiumCubeBlessing(),
+    // reduced in Decimal space (the legacy `calculateObtainiumDecimal` folds
+    // the per-line product into a Decimal, then multiplies the cube blessing
+    // back in — so it appears twice: once as the `CubeBonus` line below and
+    // once as the trailing factor).
+    let transcend_shards_log10 = (state.reset_counters.transcend_shards + Decimal::one())
+        .log10()
+        .to_number();
+    let reincarnation_point_gain_log10 = (reincarnation_point_gain + Decimal::from_finite(10.0))
+        .log10()
+        .to_number();
+    let uncommon_fragments = state.talismans.uncommon_fragments;
+    let base_mult_lines: [f64; 38] = [
+        // TranscendShards — `max(1, (log10(transcendShards + 1) / 300)^2)`.
+        1.0_f64.max((transcend_shards_log10 / 300.0).powi(2)),
+        obtainium_bonus(
+            &state.achievements.achievements,
+            state.reset_counters.reincarnation_count,
+        ), // AchievementBonus
+        get_level_reward(LevelRewardKey::Obtainium, achievement_level), // SynergismLevel
+        // ReincarnationUpgrade9 — `min(10, log10(reincarnationPointGain + 10)^0.5)`.
+        if state.upgrades.upgrades[69] > 0 {
+            10.0_f64.min(reincarnation_point_gain_log10.powf(0.5))
+        } else {
+            1.0
+        },
+        // ReincarnationUpgrade12 — `min(50, 1 + 2·Σ challengecompletions[6..=10])`.
+        if state.upgrades.upgrades[72] > 0 {
+            50.0_f64.min(
+                1.0 + 2.0
+                    * state.challenges.challenge_completions[6..=10]
+                        .iter()
+                        .sum::<f64>(),
+            )
+        } else {
+            1.0
+        },
+        1.0, // ReincarnationUpgrade14 — maxOfferings untracked → 1.0 (the upgrades[74] branch is 1 at maxOfferings 0)
+        1.0 + researches[65] / 5.0, // Research3x15
+        1.0 + researches[76] / 10.0, // Research4x1
+        1.0 + researches[81] / 10.0, // Research4x6
+        1.0 + researches[119] / 200.0, // Research5x19
+        cash_grab_effect(shop[SHOP_CASH_GRAB]), // ShopCashGrab
+        obtainium_ex_effect(shop[SHOP_OBTAINIUM_EX]), // ShopObtainiumEX
+        superior_intellect_rune_effects(
+            state.runes.rune_levels[RUNE_SUPERIOR_INTELLECT],
+            SuperiorIntellectRuneKey::ObtainiumMult,
+        ), // Rune5
+        obtainium_ant_upgrade_effect(state.ants.upgrades[ANT_UPGRADE_OBTAINIUM]), // Ant10
+        obtainium_cube_blessing, // CubeBonus
+        1.0 + 0.04 * state.campaigns.constant_upgrades[4], // ConstantUpgrade4
+        1.0 + 0.1 * cube[3], // CubeUpgrade1x3
+        // Challenge12 — `1 + 0.5·CalcECC('ascension', challengecompletions[12])`.
+        1.0 + 0.5
+            * calc_ecc(
+                ChallengeType::Ascension,
+                state.challenges.challenge_completions[12],
+            ),
+        1.0, // SpiritPower — effective rune-spirit power (spiritMultiplier chain) unported → 1.0
+        // Research6x19 — `1 + 0.03·log4(uncommonFragments + 1)·researches[144]`.
+        1.0 + 0.03 * ((uncommon_fragments + 1.0).ln() / 4.0_f64.ln()) * researches[144],
+        1.0 + 0.0002 * cube[50], // CubeUpgrade5x10
+        1.0, // Jack — shopPanthema needs the unported ShopPanthemaBonusLevels → 1.0
+        starter_pack_effect(gq(GQ_STARTER_PACK), StarterPackKey::ObtainiumMult), // StarterPack
+        sing_obtainium_1_effect(gq(GQ_SING_OBTAINIUM_1)),
+        sing_obtainium_2_effect(gq(GQ_SING_OBTAINIUM_2)),
+        sing_obtainium_3_effect(gq(GQ_SING_OBTAINIUM_3)),
+        sing_citadel_effect(gq(GQ_SING_CITADEL)),
+        sing_citadel_2_effect(gq(GQ_SING_CITADEL_2), SingCitadel2Key::Mult),
+        cash_grab_2_effect(shop[SHOP_CASH_GRAB_2]),
+        obtainium_ex_2_effect(shop[SHOP_OBTAINIUM_EX_2], sing),
+        obtainium_ex_3_effect(shop[SHOP_OBTAINIUM_EX_3], ObtainiumEX3Key::ObtainiumMult),
+        calculate_total_octeract_obtainium_bonus(&CalculateTotalOcteractObtainiumBonusInput {
+            obtainium_bonus_enabled,
+            cube_bonus: octeract_cube_bonus,
+        }), // OcteractBonus
+        octeract_obtainium_1_effect(oct(OCTERACT_OBTAINIUM_1)),
+        ambrosia_obtainium_1_effect(amb(AMBROSIA_OBTAINIUM_1), ambrosia_luck), // AmbrosiaObtainium1
+        shop_ex_ultra_effect(shop[SHOP_EX_ULTRA], lifetime_ambrosia),          // EXUltraObtainium
+        // Challenge14 — no obtainium inside ascension challenge 14.
+        if state.challenges.current_ascension_challenge == 14 {
+            0.0
+        } else {
+            1.0
+        },
+        1.0, // SingularityDebuff — `1/calculateSingularityDebuff('Obtainium')`; sing layer paused → 1.0
+        // TaxmanDebuff — `2.5 ^ -min(500, floor(1 + max(0, log10(offerings))))`.
+        if state.singularity.taxman_last_stand.enabled {
+            let offerings_log10 = state.automation.offerings.log10().to_number();
+            let offering_digits = (1.0 + 0.0_f64.max(offerings_log10)).floor();
+            2.5_f64.powf(-(500.0_f64.min(offering_digits)))
+        } else {
+            1.0
+        },
+    ];
+    let base_mults = product_decimal(&base_mult_lines.map(Decimal::from_finite))
+        * Decimal::from_finite(obtainium_cube_blessing);
+
+    // DR exponent — `player.corruptions.used.corruptionEffects('illiteracy')`.
+    let dr = illiteracy_effect(&IlliteracyEffectInput {
+        base_power: illiteracy_power_at_level(state.corruptions.used.levels[ILLITERACY_INDEX]),
+        platonic_upgrade_9: platonic[9],
+        obtainium_log10: if state.researches.obtainium >= Decimal::one() {
+            Some(state.researches.obtainium.log10().to_number())
+        } else {
+            None
+        },
+    });
+
+    calculate_obtainium(&CalculateObtainiumInput {
+        base_obtainium,
+        immaculate,
+        dr,
+        time_multiplier: 1.0, // timeMultUsed = false (the auto-research path)
+        base_mults,
+        in_ascension_challenge_14: state.challenges.current_ascension_challenge == 14,
+        taxman_last_stand_enabled: state.singularity.taxman_last_stand.enabled,
+        taxman_last_stand_completions: state.singularity.taxman_last_stand.completions,
+        current_obtainium: state.researches.obtainium,
+    })
+}
+
+/// `obtainium_gain` — self-derived from `&GameState`.
+///
+/// Legacy Helper.ts `addTimers('obtainium')` sets this to
+/// `calculateResearchAutomaticObtainium(dt)`: the per-tick automatic obtainium
+/// from research idle gain. Replaces the caller-provided
+/// `AutomationPre::obtainium_gain`. **Self-derives to `0` at the default
+/// state** — the per-upgrade multiplier gate
+/// (`0.5·research[61] + 0.1·research[62] + 0.8·cubeUpgrade[3]`) is `0` — which
+/// matches the old `AutomationPre::default().obtainium_gain`.
+///
+/// The resource multiplier (`calculateObtainium(false)`) and base obtainium
+/// flow through [`compute_obtainium`] / [`compute_base_obtainium`]. The
+/// ant-sacrifice obtainium source (a `max()` alternative gated by
+/// `cubeUpgrades[47] > 0`) is neutral-defaulted to `0`: it needs
+/// `calculateAntSacrificeMultiplier()` — the unported `antSacrificeRewardStats`
+/// StatLine + ant-sacrifice cube blessing — and is inert at the current state
+/// (`cubeUpgrades[47] == 0`). The reset-time divisor uses
+/// `campaignTimeThresholdReduction = 0` (campaign subsystem unported).
+fn compute_obtainium_gain(
+    state: &GameState,
+    dt: f64,
+    reincarnation_point_gain: Decimal,
+) -> Decimal {
+    use crate::mechanics::reset_time_and_auto_obtainium::{
+        calculate_research_automatic_obtainium, reset_time_threshold,
+        ResearchAutomaticObtainiumInput, ResetTimeThresholdInput,
+    };
+
+    let cube = &state.cube_upgrade_levels.cube_upgrades;
+    let base_obtainium = compute_base_obtainium(state);
+    let resource_mult = compute_obtainium(state, base_obtainium, reincarnation_point_gain);
+    let reset_time_divisor = reset_time_threshold(&ResetTimeThresholdInput {
+        campaign_time_threshold_reduction: 0.0, // campaign subsystem unported → 0
+    });
+
+    calculate_research_automatic_obtainium(&ResearchAutomaticObtainiumInput {
+        delta_time: dt,
+        ascension_challenge: state.challenges.current_ascension_challenge,
+        research_61: state.researches.researches[61],
+        research_62: state.researches.researches[62],
+        cube_upgrade_3: cube[3],
+        cube_upgrade_47: cube[47],
+        resource_mult,
+        global_speed_mult: compute_global_speed_mult_pre(state),
+        reset_time_divisor,
+        reincarnation_counter: state.reset_counters.reincarnation_counter,
+        base_obtainium,
+        ant_sacrifice_obtainium: Decimal::zero(),
+        ant_sacrifice_timer: state.ants.ant_sacrifice_timer,
+    })
+}
+
+/// `ant_speed_mult` — self-derived from `&GameState`.
+///
+/// Legacy `calculateActualAntSpeedMult()`: the Decimal product of the 24-line
+/// `antSpeedStats` StatLine (Statistics.ts:2967), raised to the
+/// ascension-challenge exponent via [`calculate_actual_ant_speed_mult`].
+/// Replaces the caller-provided `AutomationPre::ant_speed_mult`.
+///
+/// **Self-derives to 0 at the default state** (unlike most fields): the `Base`
+/// line is `canGenerateAntCrumbs ? 1 : 0`
+/// (`challengecompletions[8] > 0 || cubeUpgrades[48] > 0`), which is `0` until
+/// ants are unlocked — zeroing the whole product. The old
+/// `AutomationPre::default().ant_speed_mult` was `Decimal::one()`, so this is a
+/// genuine default change; ant generation multiplies its per-tier output by
+/// this factor and so no-ops at `0` (and at default no producers are owned
+/// anyway). `canGenerateAntCrumbs` and `calculateAntSpeedMultFromELO`
+/// (`1.02 ^ rebornELO`) are inlined — both are one-liners in the legacy.
+///
+/// Neutral-defaulted line (faithful / inert at the current state):
+/// `ReincarnationUpgrade18` reads `maxOfferings` (untracked) → 1 (its
+/// `upgrades[78]` branch evaluates to 1 at `maxOfferings 0`).
+fn compute_ant_speed_mult(state: &GameState) -> Decimal {
+    use crate::mechanics::achievement_rewards::ant_speed as ant_speed_reward;
+    use crate::mechanics::ant_upgrades::{ant_speed_ant_upgrade_effect, AntSpeedAntUpgradeInput};
+    use crate::mechanics::calculate::{
+        calculate_actual_ant_speed_mult, product_decimal, ActualAntSpeedMultInput,
+    };
+    use crate::mechanics::challenge_15_rewards;
+    use crate::mechanics::challenges::{calc_ecc, ChallengeType};
+    use crate::mechanics::cube_blessings::calculate_ant_speed_cube_blessing;
+    use crate::mechanics::hypercube_blessings::calculate_ant_speed_hypercube_blessing;
+    use crate::mechanics::octeracts::{octeract_starter_effect, OcteractStarterKey};
+    use crate::mechanics::platonic_blessings::calculate_hypercube_blessing_multiplier_platonic_blessing;
+    use crate::mechanics::rune_blessing_effects::superior_intellect_rune_blessing_effects;
+    use crate::mechanics::rune_effects::{
+        superior_intellect_rune_effects, SuperiorIntellectRuneKey,
+    };
+    use crate::mechanics::tesseract_blessings::calculate_ant_speed_tesseract_blessing;
+    use crate::state::octeract_upgrades::OCTERACT_STARTER;
+    use crate::state::RUNE_SUPERIOR_INTELLECT;
+
+    // Legacy AntUpgrades.AntSpeed (index 0), AntProducers.Workers (index 0),
+    // and the ant-speed cube-blessing upgrade (player.cubeUpgrades[22]).
+    const ANT_UPGRADE_ANT_SPEED: usize = 0;
+    const ANT_PRODUCER_WORKERS: usize = 0;
+    const CUBE_UPGRADE_ANT_SPEED_BLESSING: usize = 22;
+
+    let cube = &state.cube_upgrade_levels.cube_upgrades;
+    let platonic = &state.cube_upgrade_levels.platonic_upgrades;
+    let researches = &state.researches.researches;
+    let upgrades = &state.upgrades.upgrades;
+    let up = |i: usize| f64::from(upgrades[i]);
+    let workers_purchased = state.ants.producers[ANT_PRODUCER_WORKERS].purchased;
+    let crumbs = state.ants.crumbs;
+    let obtainium = state.researches.obtainium;
+    let highest_sing = state.singularity.highest_singularity_count;
+
+    // GlobalSpeed line: speedMult^(1 + 3·upgrades[79]) when > 1, else speedMult.
+    let global_speed = compute_global_speed_mult_pre(state);
+    let global_speed_line = {
+        let exponent = 1.0 + 3.0 * up(79);
+        if global_speed > 1.0 {
+            Decimal::from_finite(global_speed).pow(Decimal::from_finite(exponent))
+        } else {
+            Decimal::from_finite(global_speed)
+        }
+    };
+
+    // CubeTribute: ant-speed cube-blessing chain platonic → hypercube →
+    // tesseract → cube (mirrors `calculateAntSpeedCubeBlessing` in Cubes.ts).
+    let platonic_amplifier =
+        calculate_hypercube_blessing_multiplier_platonic_blessing(&state.platonic_blessings);
+    let hypercube_blessing =
+        calculate_ant_speed_hypercube_blessing(&state.hypercube_blessings, platonic_amplifier);
+    let tesseract_blessing =
+        calculate_ant_speed_tesseract_blessing(&state.tesseract_blessings, hypercube_blessing);
+    let cube_tribute = calculate_ant_speed_cube_blessing(
+        &state.cube_blessings,
+        tesseract_blessing,
+        cube[CUBE_UPGRADE_ANT_SPEED_BLESSING],
+    );
+
+    // RuneBlessingBonus: max(1, obtainium) ^ obtToAntExponent.
+    let obt_to_ant_exponent = superior_intellect_rune_blessing_effects(
+        state.runes.rune_blessing_levels[RUNE_SUPERIOR_INTELLECT],
+    )
+    .obt_to_ant_exponent;
+    let rune_blessing_bonus = obtainium
+        .max(Decimal::one())
+        .pow(Decimal::from_finite(obt_to_ant_exponent));
+
+    // log10(crumbs + 10) — reused by Research6x22 / Research8x2.
+    let crumbs_log10 = (crumbs + Decimal::from_finite(10.0)).log10().to_number();
+
+    // SingularityPerk tiers.
+    let singularity_perk = if highest_sing >= 100.0 {
+        1e12
+    } else if highest_sing >= 70.0 {
+        1e6
+    } else if highest_sing >= 40.0 {
+        1e3
+    } else if highest_sing >= 1.0 {
+        4.44
+    } else {
+        1.0
+    };
+
+    let base = product_decimal(&[
+        // Base — canGenerateAntCrumbs ? 1 : 0.
+        if state.challenges.challenge_completions[8] > 0.0 || cube[48] > 0.0 {
+            Decimal::one()
+        } else {
+            Decimal::zero()
+        },
+        global_speed_line,
+        Decimal::from_finite(ant_speed_reward(
+            &state.achievements.achievements,
+            crumbs,
+            state.ants.immortal_elo,
+        )), // AchievementBonus
+        // ImmortalELO — calculateAntSpeedMultFromELO = 1.02 ^ rebornELO.
+        Decimal::from_finite(1.02).pow(Decimal::from_finite(state.ants.reborn_elo)),
+        ant_speed_ant_upgrade_effect(&AntSpeedAntUpgradeInput {
+            level: state.ants.upgrades[ANT_UPGRADE_ANT_SPEED],
+            research_101: researches[101],
+            research_162: researches[162],
+        }), // AntUpgrade1
+        Decimal::from_finite(1.0 + 0.6 * up(39)), // DiamondUpgrade19
+        Decimal::from_finite(1.0 + 4.0 * up(76)), // ReincarnationUpgrade16
+        // ReincarnationUpgrade17 — (1 + upgrades[77]/250) ^ workersPurchased.
+        if upgrades[77] > 0 {
+            Decimal::from_finite(1.0 + up(77) / 250.0).pow(Decimal::from_finite(workers_purchased))
+        } else {
+            Decimal::one()
+        },
+        Decimal::one(), // ReincarnationUpgrade18 — maxOfferings untracked → 1 (upgrades[78] branch is 1 at maxOfferings 0)
+        // Research4x21 — (1 + researches[96]/5000) ^ workersPurchased.
+        Decimal::from_finite(1.0 + researches[96] / 5000.0)
+            .pow(Decimal::from_finite(workers_purchased)),
+        // Research5x17 — 1 + researches[117]·antSacrificeCount/10000.
+        Decimal::from_finite(1.0 + researches[117] * state.ants.ant_sacrifice_count / 10_000.0),
+        Decimal::from_finite(1.0 + researches[147] * crumbs_log10), // Research6x22
+        Decimal::from_finite(1.0 + researches[177] * crumbs_log10), // Research8x2
+        Decimal::from_finite(superior_intellect_rune_effects(
+            state.runes.rune_levels[RUNE_SUPERIOR_INTELLECT],
+            SuperiorIntellectRuneKey::AntSpeed,
+        )), // SuperiorIntellect
+        rune_blessing_bonus,
+        // Challenge9Bonus — 1.1 ^ CalcECC('reincarnation', cc[9]).
+        Decimal::from_finite(1.1).pow(Decimal::from_finite(calc_ecc(
+            ChallengeType::Reincarnation,
+            state.challenges.challenge_completions[9],
+        ))),
+        // Challenge11Bonus — 1e5 ^ CalcECC('ascension', cc[11]).
+        Decimal::from_finite(1e5).pow(Decimal::from_finite(calc_ecc(
+            ChallengeType::Ascension,
+            state.challenges.challenge_completions[11],
+        ))),
+        cube_tribute,
+        // ConstantUpgrade — 1 + 0.1·log10(ascendShards + 1)·constantUpgrades[5].
+        Decimal::from_finite(
+            1.0 + 0.1
+                * (state.campaigns.ascend_shards + Decimal::one())
+                    .log10()
+                    .to_number()
+                * state.campaigns.constant_upgrades[5],
+        ),
+        Decimal::from_finite(challenge_15_rewards::ant_speed(
+            state.challenges.challenge15_exponent,
+        )), // Challenge15
+        // PlatonicUpgrade — (1 + 0.01·platonic[12]) ^ Σ highestChallengeCompletions.
+        Decimal::from_finite(1.0 + 0.01 * platonic[12]).pow(Decimal::from_finite(
+            state
+                .challenges
+                .highest_challenge_completions
+                .iter()
+                .sum::<f64>(),
+        )),
+        Decimal::from_finite(singularity_perk), // SingularityPerk
+        // CookieUpgrade — (1 + cubeUpgrades[65]/250) ^ workersPurchased.
+        Decimal::from_finite(1.0 + cube[65] / 250.0).pow(Decimal::from_finite(workers_purchased)),
+        Decimal::from_finite(octeract_starter_effect(
+            state.octeract_upgrades.upgrades[OCTERACT_STARTER].level
+                + state.octeract_upgrades.upgrades[OCTERACT_STARTER].free_level,
+            OcteractStarterKey::AntSpeedMult,
+        )), // OcteractUpgrade
+    ]);
+
+    calculate_actual_ant_speed_mult(&ActualAntSpeedMultInput {
+        base,
+        ascension_challenge: state.challenges.current_ascension_challenge,
+        platonic_upgrade_10: platonic[10],
+    })
+}
+
 /// Singularity-speed multiplier, self-derived from `&GameState`.
 ///
 /// Legacy Helper.ts `addTimers('singularity')` sets this to
@@ -3035,17 +3618,16 @@ fn phase_generation(
 /// challenge sweep, auto-reset) always runs so offline catch-up still
 /// resets and accrues offerings.
 ///
-/// Cross-mechanic multipliers + unlock gates with no ported aggregator
-/// yet arrive via [`AutomationPre`] (caller pre-evaluated); each emitted
+/// Cross-mechanic multipliers + unlock gates arrive via [`AutomationPre`],
+/// which [`tack`] now self-derives from `&GameState`; each emitted
 /// [`CoreEvent`] is an intent the UI tier turns into the matching side
 /// effect.
 fn phase_automation(
     state: &mut GameState,
-    cache: &CrossMechanicCache,
+    pre: &AutomationPre,
     input: &TackInput,
     output: &mut TickOutput,
 ) {
-    let pre = &cache.automation_pre;
     let dt = input.dt;
 
     // Head, middle, and ant generation only run on live ticks; the tail
@@ -3522,18 +4104,16 @@ mod tests {
         // `tack` now self-derives `global_time_multiplier`; drive
         // `phase_automation` directly with a controlled cache so this stays a
         // focused test of timer advancement under known multipliers.
-        let cache = CrossMechanicCache {
-            automation_pre: AutomationPre {
-                global_time_multiplier: 3.0,
-                ascension_speed_multi: 5.0,
-                singularity_speed_multi: 1.0,
-                max_quark_timer: 90_000.0,
-                export_gq_per_hour: 1.0,
-                ..AutomationPre::default()
-            },
+        let automation_pre = AutomationPre {
+            global_time_multiplier: 3.0,
+            ascension_speed_multi: 5.0,
+            singularity_speed_multi: 1.0,
+            max_quark_timer: 90_000.0,
+            export_gq_per_hour: 1.0,
+            ..AutomationPre::default()
         };
         let mut output = TickOutput::default();
-        phase_automation(&mut state, &cache, &input, &mut output);
+        phase_automation(&mut state, &automation_pre, &input, &mut output);
 
         // Reset counters advance by dt × global_time_multiplier (2 × 3).
         assert_eq!(state.reset_counters.prestige_counter, 6.0);
@@ -3943,10 +4523,6 @@ mod tests {
         let input = TackInput {
             dt: 2.0,
             time_warp: true,
-            automation_pre: AutomationPre {
-                global_time_multiplier: 3.0,
-                ..AutomationPre::default()
-            },
             ..TackInput::default()
         };
         let _ = tack(&mut state, &input);
@@ -3984,15 +4560,13 @@ mod tests {
         // `phase_automation` directly with a controlled cache so this stays a
         // focused test of the octeract giveaway (octeract_per_second is still
         // caller-provided).
-        let cache = CrossMechanicCache {
-            automation_pre: AutomationPre {
-                octeract_unlocked: true,
-                octeract_per_second: 4.0,
-                ..AutomationPre::default()
-            },
+        let automation_pre = AutomationPre {
+            octeract_unlocked: true,
+            octeract_per_second: 4.0,
+            ..AutomationPre::default()
         };
         let mut output = TickOutput::default();
-        phase_automation(&mut state, &cache, &input, &mut output);
+        phase_automation(&mut state, &automation_pre, &input, &mut output);
 
         // 0.5 + 1.0 = 1.5 → 1 giveaway-second; wow_octeracts += 1 × 4.
         assert_eq!(state.cube_balances.wow_octeracts.to_number(), 4.0);
@@ -4018,16 +4592,14 @@ mod tests {
         // `tack` now self-derives ambrosia_luck (+ the speed mults); drive
         // phase_automation directly with a controlled cache so this stays a
         // focused test of ambrosia generation.
-        let cache = CrossMechanicCache {
-            automation_pre: AutomationPre {
-                ambrosia_generation_speed: 1.0,
-                ambrosia_luck: 200.0,
-                time_per_ambrosia: 45.0,
-                ..AutomationPre::default()
-            },
+        let automation_pre = AutomationPre {
+            ambrosia_generation_speed: 1.0,
+            ambrosia_luck: 200.0,
+            time_per_ambrosia: 45.0,
+            ..AutomationPre::default()
         };
         let mut output = TickOutput::default();
-        phase_automation(&mut state, &cache, &input, &mut output);
+        phase_automation(&mut state, &automation_pre, &input, &mut output);
 
         assert!(state.ambrosia.ambrosia > 0.0);
         assert!(state.ambrosia.lifetime_ambrosia > 0.0);
@@ -4045,13 +4617,18 @@ mod tests {
         state.researches.obtainium = Decimal::from_finite(100.0);
         let input = TackInput {
             dt: 1.0,
-            automation_pre: AutomationPre {
-                obtainium_gain: Decimal::from_finite(25.0),
-                ..AutomationPre::default()
-            },
             ..TackInput::default()
         };
-        let output = tack(&mut state, &input);
+        // `tack` now self-derives obtainium_gain; with research[61] == 1 the
+        // multiplier gate is 0.5 (nonzero), so the self-derived gain would not
+        // be 25. Drive phase_automation directly with a controlled cache so this
+        // stays a focused test of the obtainium credit path.
+        let automation_pre = AutomationPre {
+            obtainium_gain: Decimal::from_finite(25.0),
+            ..AutomationPre::default()
+        };
+        let mut output = TickOutput::default();
+        phase_automation(&mut state, &automation_pre, &input, &mut output);
 
         assert_eq!(state.researches.obtainium.to_number(), 125.0);
         // addObtainium path → AutoToolFired, and NOT the recompute request.
@@ -4118,8 +4695,31 @@ mod tests {
             dt: 1.0,
             ..TackInput::default()
         };
-        let _ = tack(&mut state, &input);
+        // `tack` now self-derives ant_speed_mult, which is 0 at the default
+        // state (canGenerateAntCrumbs is false until ants unlock → whole product
+        // 0). Drive phase_automation directly with a controlled cache
+        // (ant_speed_mult = 1) so this stays a focused test of crumb generation.
+        let automation_pre = AutomationPre {
+            ant_speed_mult: Decimal::one(),
+            ..AutomationPre::default()
+        };
+        let mut output = TickOutput::default();
+        phase_automation(&mut state, &automation_pre, &input, &mut output);
         assert!(state.ants.crumbs.to_number() > 0.0);
+    }
+
+    #[test]
+    fn ant_speed_mult_self_derives_zero_until_ants_unlock() {
+        // Base line `canGenerateAntCrumbs` is false at default → product 0.
+        let mut state = GameState::default();
+        assert_eq!(compute_ant_speed_mult(&state).to_number(), 0.0);
+        // challengecompletions[8] > 0 flips canGenerateAntCrumbs true → nonzero.
+        state.challenges.challenge_completions[8] = 1.0;
+        assert!(compute_ant_speed_mult(&state).to_number() > 0.0);
+        // cubeUpgrades[48] > 0 is the other unlock path.
+        let mut state2 = GameState::default();
+        state2.cube_upgrade_levels.cube_upgrades[48] = 1.0;
+        assert!(compute_ant_speed_mult(&state2).to_number() > 0.0);
     }
 
     #[test]
@@ -4158,24 +4758,6 @@ mod tests {
         let tick = compute_update_all_tick_pre(&state, 42.0);
         assert_eq!(mult.total_accelerator_boost, 42.0);
         assert_eq!(tick.total_accelerator_boost, 42.0);
-    }
-
-    #[test]
-    fn cross_mechanic_cache_forwards_automation_pre_from_input() {
-        // `automation_pre` is the last bundle precompute forwards verbatim
-        // (the four global-state bundles all self-derive now). Pins that
-        // forwarding until the Phase-5 aggregators port.
-        let state = GameState::default();
-        let input = TackInput {
-            dt: 0.025,
-            automation_pre: AutomationPre {
-                max_quark_timer: 12_345.0,
-                ..AutomationPre::default()
-            },
-            ..TackInput::default()
-        };
-        let cache = phase_cross_mechanic_precompute(&state, &input);
-        assert_eq!(cache.automation_pre.max_quark_timer, 12_345.0);
     }
 
     #[test]

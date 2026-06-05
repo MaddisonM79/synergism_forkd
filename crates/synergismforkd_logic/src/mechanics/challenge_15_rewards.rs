@@ -8,11 +8,14 @@
 //!
 //! Ported subset: the rewards consumed by the Phase-2 aggregator
 //! `*Pre` bundles (`coinExponent`, `exponent`, `constantBonus`,
-//! `accelerator`, `multiplier`), the tax-phase reward (`taxes`), and the
+//! `accelerator`, `multiplier`), the tax-phase reward (`taxes`), the
 //! speed rewards (`globalSpeed`, `ascensionSpeed`) that feed the
-//! global / ascension speed StatLine products. Other c15 rewards
-//! (`runeExp`, `antSpeed`, `blessingBonus`, …) land with the chunks that
-//! consume them.
+//! global / ascension speed StatLine products, the ascension-score
+//! reward (`score`), the obtainium reward (`obtainium`) feeding the
+//! obtainium DR-ignore StatLine product, and the `antSpeed` reward
+//! feeding the ant-speed StatLine product. Other c15 rewards
+//! (`runeExp`, `blessingBonus`, …) land with the chunks that consume
+//! them.
 
 use crate::math::sigmoid::calculate_sigmoid;
 
@@ -34,6 +37,18 @@ pub fn coin_exponent(exponent: f64) -> f64 {
 pub fn taxes(exponent: f64) -> f64 {
     if exponent >= 5_000.0 {
         0.98_f64.powf((exponent / 1_250.0).log2())
+    } else {
+        1.0
+    }
+}
+
+/// `challenge15Rewards.obtainium.value` — multiplied into the obtainium
+/// DR-ignore (`allObtainiumIgnoreDRStats`) StatLine product. Requirement
+/// `7500`, `baseValue` `1`. Legacy formula `1 + (1/4)·(e / 7.5e3)^0.6`.
+#[must_use]
+pub fn obtainium(exponent: f64) -> f64 {
+    if exponent >= 7_500.0 {
+        1.0 + (1.0 / 4.0) * (exponent / 7.5e3).powf(0.6)
     } else {
         1.0
     }
@@ -124,6 +139,18 @@ pub fn score(exponent: f64) -> f64 {
     }
 }
 
+/// `challenge15Rewards.antSpeed.value` — multiplied into the ant-speed
+/// StatLine product (`antSpeedStats`). Requirement `2e5`, `baseValue` `1`.
+/// Legacy formula `(1 + log2(e / 2e5))^4`.
+#[must_use]
+pub fn ant_speed(exponent: f64) -> f64 {
+    if exponent >= 2e5 {
+        (1.0 + (exponent / 2e5).log2()).powi(4)
+    } else {
+        1.0
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -132,6 +159,7 @@ mod tests {
     fn below_requirement_is_identity() {
         assert_eq!(coin_exponent(0.0), 1.0);
         assert_eq!(taxes(0.0), 1.0);
+        assert_eq!(obtainium(0.0), 1.0);
         assert_eq!(accelerator(0.0), 1.0);
         assert_eq!(multiplier(0.0), 1.0);
         assert_eq!(constant_bonus(0.0), 1.0);
@@ -139,13 +167,26 @@ mod tests {
         assert_eq!(global_speed(0.0), 1.0);
         assert_eq!(ascension_speed(0.0), 1.0);
         assert_eq!(score(0.0), 1.0);
+        assert_eq!(ant_speed(0.0), 1.0);
         // Just under the taxes requirement → still identity.
         assert_eq!(taxes(4_999.0), 1.0);
+        // Just under the obtainium requirement → still identity.
+        assert_eq!(obtainium(7_499.0), 1.0);
         // Just under the speed requirements → still identity.
         assert_eq!(global_speed(9.9e6), 1.0);
         assert_eq!(ascension_speed(1.4e18), 1.0);
         // Just under the score requirement → still identity.
         assert_eq!(score(9.9e9), 1.0);
+        // Just under the ant-speed requirement → still identity.
+        assert_eq!(ant_speed(1.99e5), 1.0);
+    }
+
+    #[test]
+    fn ant_speed_scales_above_requirement() {
+        // e = 2e5 → (1 + log2(1))^4 = 1.
+        assert!((ant_speed(2e5) - 1.0).abs() < 1e-12);
+        // e = 4e5 → (1 + log2(2))^4 = 2^4 = 16.
+        assert!((ant_speed(4e5) - 16.0).abs() < 1e-9);
     }
 
     #[test]
@@ -158,6 +199,14 @@ mod tests {
         // (e/1e10)^(1/4) = (e/1e10)^(1/8)·(1e10)^(1/8) when e = 1e20.
         let lo = 1.0 + (1.0 / 4.0) * (1e20_f64 / 1e10).powf(1.0 / 4.0);
         assert!((score(1e20) - lo).abs() < 1e-6);
+    }
+
+    #[test]
+    fn obtainium_scales_above_requirement() {
+        // e = 7500 → 1 + (1/4)·(7500/7500)^0.6 = 1.25.
+        assert!((obtainium(7_500.0) - 1.25).abs() < 1e-12);
+        // Monotonic increasing above the requirement.
+        assert!(obtainium(7.5e4) > obtainium(7_500.0));
     }
 
     #[test]

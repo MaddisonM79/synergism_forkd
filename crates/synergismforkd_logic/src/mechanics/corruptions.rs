@@ -111,6 +111,22 @@ pub fn recession_power_at_level(level: u32) -> f64 {
     RECESSION_POWER.get(level as usize).copied().unwrap_or(0.0)
 }
 
+/// `G.illiteracyPower` lookup table — illiteracy obtainium DR exponent
+/// indexed by `player.corruptions.used.illiteracy` corruption level.
+/// 17 entries (`0..=16`); levels past `16` collapse to `0.0`. Verbatim
+/// port of the constant in
+/// `legacy/core_split/packages/web_ui/src/Variables.ts:170`.
+pub const ILLITERACY_POWER: [f64; 17] = [
+    1.0, 0.9, 0.8, 0.7, 0.6, 0.5, 0.45, 0.4, 0.35, 0.3, 0.25, 0.20, 0.15, 0.10, 0.08, 0.06, 0.04,
+];
+
+/// `G.illiteracyPower[level]` with a safe out-of-range fallback to
+/// `0.0`.
+#[must_use]
+pub fn illiteracy_power_at_level(level: u32) -> f64 {
+    ILLITERACY_POWER.get(level as usize).copied().unwrap_or(0.0)
+}
+
 /// `G.deflationMultiplier` lookup table — prestige-power scaler indexed by
 /// `player.corruptions.used.deflation` corruption level. 17 entries
 /// (`0..=16`); the tail is `0`. Verbatim port of the constant in
@@ -371,6 +387,18 @@ mod tests {
         assert!((recession_power_at_level(16) - 0.000_07).abs() < 1e-9);
         // Past the last entry — saturates to 0.
         assert_eq!(recession_power_at_level(100), 0.0);
+    }
+
+    #[test]
+    fn illiteracy_power_table_matches_legacy() {
+        // Legacy `G.illiteracyPower` from
+        // `legacy/core_split/packages/web_ui/src/Variables.ts:170`.
+        assert_eq!(illiteracy_power_at_level(0), 1.0);
+        assert_eq!(illiteracy_power_at_level(1), 0.9);
+        assert_eq!(illiteracy_power_at_level(6), 0.45);
+        assert_eq!(illiteracy_power_at_level(16), 0.04);
+        // Past the last entry — saturates to 0.
+        assert_eq!(illiteracy_power_at_level(100), 0.0);
     }
 
     #[test]
