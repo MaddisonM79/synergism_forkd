@@ -219,9 +219,27 @@ pub(crate) fn perform_reincarnation_reset(
     // before the transcension layer zeroes `transcend_shards`.
     let reincarnation_check = state.reset_counters.transcend_shards
         >= Decimal::from_finite(REINCARNATION_COUNT_THRESHOLD);
+    // Obtainium award (Reset.ts:418, 568-569): `calculateObtainium()` is
+    // captured *before* the reset mutates challenge completions / counters
+    // (it reads them via `calc_ecc`). Reuses the ported `compute_obtainium`
+    // (base × immaculate × baseMults^DR); the `timeMultUsed` reset-time
+    // factor (`offeringObtainiumTimeModifiers`, an unported StatLine) is
+    // neutral-defaulted to 1 — faithful at the default `reincarnationcounter`
+    // of 0, where that factor is itself 1.
+    let obtainium_to_gain = if reincarnation_check {
+        let base = super::compute_base_obtainium(state);
+        super::compute_obtainium(state, base, gains.reincarnation_point_gain)
+    } else {
+        Decimal::zero()
+    };
     apply_base_reset(state, gains.prestige_point_gain);
     apply_transcension_layer(state, gains.transcend_point_gain);
-    apply_reincarnation_layer(state, gains.reincarnation_point_gain, reincarnation_check);
+    apply_reincarnation_layer(
+        state,
+        gains.reincarnation_point_gain,
+        reincarnation_check,
+        obtainium_to_gain,
+    );
     smallvec![CoreEvent::ResetPerformed {
         tier: AutoResetTier::Reincarnation,
         points_gained: gains.reincarnation_point_gain,
@@ -229,18 +247,17 @@ pub(crate) fn perform_reincarnation_reset(
 }
 
 /// The reincarnation block (Reset.ts:549-626) — no event. Assumes the base
-/// + transcension layers already ran.
+/// and transcension layers already ran. `obtainium_to_gain` is the
+/// pre-reset `calculateObtainium()` value computed by the caller.
 ///
-/// Deferred (faithful at current state): the **obtainium award**
-/// (`obtainium += calculateObtainium()`) — `calculateObtainium` needs the
-/// unported `calculateBaseObtainium`, and is `0` at default; the
-/// `instantChallenge` shop completion-restore (shop level `0`);
-/// `awardAchievementGroup` / `awardUngroupedAchievement`; and
-/// `fastestreincarnate`.
+/// Deferred (faithful at current state): the `instantChallenge` shop
+/// completion-restore (shop level `0`), `awardAchievementGroup` /
+/// `awardUngroupedAchievement`, and `fastestreincarnate`.
 fn apply_reincarnation_layer(
     state: &mut GameState,
     reincarnation_point_gain: Decimal,
     reincarnation_check: bool,
+    obtainium_to_gain: Decimal,
 ) {
     // Deflation-corruption bonus (Reset.ts:550-552) — false at default
     // (deflation level `0`, platonic upgrade `0`).
@@ -251,7 +268,9 @@ fn apply_reincarnation_layer(
     }
 
     if reincarnation_check {
-        // Obtainium award deferred (see fn doc): calculateObtainium unported.
+        // Obtainium award (Reset.ts:568-569) — `obtainium_to_gain` was
+        // computed pre-reset by `perform_reincarnation_reset`.
+        state.researches.obtainium += obtainium_to_gain;
         // updateReincarnationCount(1) — multiplier is `1` at default, so +1.
         state.reset_counters.reincarnation_count += 1.0;
     }
@@ -493,5 +512,35 @@ mod tests {
                 points_gained,
             } if points_gained.to_number() == 9.0
         ));
+    }
+
+    #[test]
+    fn reincarnation_reset_credits_obtainium_above_threshold() {
+        let mut state = GameState::default();
+        // transcendShards ≥ 1e300 ⇒ reincarnationCheck true.
+        state.reset_counters.transcend_shards = Decimal::from_finite(1e305);
+        assert_eq!(state.researches.obtainium.to_number(), 0.0);
+
+        perform_reincarnation_reset(&mut state, &gains(0.0, 0.0, 9.0));
+
+        // `calculateObtainium` has a constant Base line of 1.0, so even at
+        // default the award is strictly positive.
+        assert!(
+            state.researches.obtainium.to_number() > 0.0,
+            "expected an obtainium award, got {}",
+            state.researches.obtainium.to_number()
+        );
+    }
+
+    #[test]
+    fn reincarnation_reset_skips_obtainium_below_threshold() {
+        let mut state = GameState::default();
+        // transcendShards < 1e300 ⇒ reincarnationCheck false ⇒ no award / count.
+        state.reset_counters.transcend_shards = Decimal::from_finite(1e200);
+
+        perform_reincarnation_reset(&mut state, &gains(0.0, 0.0, 9.0));
+
+        assert_eq!(state.researches.obtainium.to_number(), 0.0);
+        assert_eq!(state.reset_counters.reincarnation_count, 0.0);
     }
 }
