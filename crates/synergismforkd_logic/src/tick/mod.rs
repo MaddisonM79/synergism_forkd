@@ -404,6 +404,9 @@ pub fn tack(state: &mut GameState, input: &TackInput) -> TickOutput {
     cache.automation_pre.time_per_red_ambrosia = time_per_red_ambrosia;
     cache.automation_pre.red_ambrosia_bar_requirement_multiplier =
         red_ambrosia_bar_requirement_multiplier;
+    // Octeract-timer unlock gate (legacy `getGQUpgradeEffect('octeractUnlock',
+    // 'unlocked')`).
+    cache.automation_pre.octeract_unlocked = compute_octeract_unlocked(state);
     phase_player_input(state, input, &mut output);
     phase_generation(state, &resource_gain_pre, input.dt, &mut output);
     phase_automation(state, &cache, input, &mut output);
@@ -1544,6 +1547,17 @@ fn compute_red_ambrosia_timer_fields(state: &GameState) -> (f64, f64, f64) {
         TIME_PER_RED_AMBROSIA,
         bar_req,
     )
+}
+
+/// Octeract-timer unlock gate, from the legacy Helper.ts
+/// `addTimers('octeracts')` guard: `getGQUpgradeEffect('octeractUnlock',
+/// 'unlocked')` = the GQ `octeractUnlock` slot's `bool_unlock` (`level > 0`).
+/// `false` at the default state, matching the old `AutomationPre::default()`.
+fn compute_octeract_unlocked(state: &GameState) -> bool {
+    use crate::mechanics::golden_quark_upgrades::octeract_unlock_effect;
+    use crate::state::golden_quarks::GQ_OCTERACT_UNLOCK;
+
+    octeract_unlock_effect(state.golden_quarks.upgrades[GQ_OCTERACT_UNLOCK].level)
 }
 
 /// Ambrosia-luck multiplier (legacy `calculateAmbrosiaLuck`), self-derived
@@ -2930,6 +2944,19 @@ mod tests {
     }
 
     #[test]
+    fn octeract_unlocked_false_at_default() {
+        let state = GameState::default();
+        assert!(!compute_octeract_unlocked(&state));
+    }
+
+    #[test]
+    fn octeract_unlocked_true_when_gq_bought() {
+        let mut state = GameState::default();
+        state.golden_quarks.upgrades[24].level = 1.0; // octeractUnlock
+        assert!(compute_octeract_unlocked(&state));
+    }
+
+    #[test]
     fn time_warp_skips_head_timers() {
         let mut state = GameState::default();
         let input = TackInput {
@@ -2970,14 +2997,21 @@ mod tests {
         state.octeract_upgrades.octeract_timer = 0.5;
         let input = TackInput {
             dt: 1.0,
+            ..TackInput::default()
+        };
+        // `tack` now self-derives `octeract_unlocked` (false at default); drive
+        // `phase_automation` directly with a controlled cache so this stays a
+        // focused test of the octeract giveaway (octeract_per_second is still
+        // caller-provided).
+        let cache = CrossMechanicCache {
             automation_pre: AutomationPre {
                 octeract_unlocked: true,
                 octeract_per_second: 4.0,
                 ..AutomationPre::default()
             },
-            ..TackInput::default()
         };
-        let output = tack(&mut state, &input);
+        let mut output = TickOutput::default();
+        phase_automation(&mut state, &cache, &input, &mut output);
 
         // 0.5 + 1.0 = 1.5 → 1 giveaway-second; wow_octeracts += 1 × 4.
         assert_eq!(state.cube_balances.wow_octeracts.to_number(), 4.0);
