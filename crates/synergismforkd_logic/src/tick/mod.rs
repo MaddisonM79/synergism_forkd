@@ -407,6 +407,8 @@ pub fn tack(state: &mut GameState, input: &TackInput) -> TickOutput {
     // Octeract-timer unlock gate (legacy `getGQUpgradeEffect('octeractUnlock',
     // 'unlocked')`).
     cache.automation_pre.octeract_unlocked = compute_octeract_unlocked(state);
+    // Quark-export timer cap (legacy `quarkHandler().maxTime`).
+    cache.automation_pre.max_quark_timer = compute_max_quark_timer(state);
     phase_player_input(state, input, &mut output);
     phase_generation(state, &resource_gain_pre, input.dt, &mut output);
     phase_automation(state, &cache, input, &mut output);
@@ -1558,6 +1560,26 @@ fn compute_octeract_unlocked(state: &GameState) -> bool {
     use crate::state::golden_quarks::GQ_OCTERACT_UNLOCK;
 
     octeract_unlock_effect(state.golden_quarks.upgrades[GQ_OCTERACT_UNLOCK].level)
+}
+
+/// Quark-export timer cap, from the legacy Helper.ts `addTimers('quarks')`
+/// case: `quarkHandler().maxTime`. The quark timer reads only `max_time` (its
+/// upper-bound clamp), which depends solely on `research[195]` (`90000 +
+/// 18000·n` when `n > 0`, else `90000`); the per-hour / gain / capacity
+/// outputs are unused here, so [`quark_handler`]'s other inputs are passed at
+/// their neutral values. `90000` at the default state, matching the old
+/// `AutomationPre::default()`.
+fn compute_max_quark_timer(state: &GameState) -> f64 {
+    use crate::mechanics::quarks::{quark_handler, QuarkHandlerInput};
+
+    quark_handler(&QuarkHandlerInput {
+        research_195: state.researches.researches[195],
+        researches_sum: 0.0,
+        export_quark_mult: 1.0,
+        quarks_timer: 0.0,
+        cube_mult: 1.0,
+    })
+    .max_time
 }
 
 /// Ambrosia-luck multiplier (legacy `calculateAmbrosiaLuck`), self-derived
@@ -2954,6 +2976,19 @@ mod tests {
         let mut state = GameState::default();
         state.golden_quarks.upgrades[24].level = 1.0; // octeractUnlock
         assert!(compute_octeract_unlocked(&state));
+    }
+
+    #[test]
+    fn max_quark_timer_is_baseline_at_default() {
+        let state = GameState::default();
+        assert_eq!(compute_max_quark_timer(&state), 90_000.0);
+    }
+
+    #[test]
+    fn max_quark_timer_extends_with_research_195() {
+        let mut state = GameState::default();
+        state.researches.researches[195] = 2.0; // 90000 + 18000·2 = 126000
+        assert_eq!(compute_max_quark_timer(&state), 126_000.0);
     }
 
     #[test]
