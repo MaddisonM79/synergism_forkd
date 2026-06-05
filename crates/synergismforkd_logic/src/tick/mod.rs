@@ -423,6 +423,8 @@ pub fn tack(state: &mut GameState, input: &TackInput) -> TickOutput {
     // Available reborn ELO (legacy `calculateAvailableRebornELO()`) — feeds the
     // "maxed reborn ELO" ant-sacrifice toggles.
     cache.automation_pre.available_reborn_elo = compute_available_reborn_elo(state);
+    // Ant-sacrifice immortalELO gain (legacy `antSacrificeRewards().immortalELO`).
+    cache.automation_pre.immortal_elo_gain = compute_immortal_elo_gain(state);
     // Challenge-sweep pre-evals (legacy `prepareSweepInputForTackTail`).
     let sweep = compute_sweep_pre_evals(state);
     cache.automation_pre.sweep_timer_start = sweep.timer_start;
@@ -1665,6 +1667,143 @@ fn compute_available_reborn_elo(state: &GameState) -> f64 {
     calculate_available_reborn_elo(&AvailableRebornELOInput {
         immortal_elo: state.ants.immortal_elo,
         reborn_elo: state.ants.reborn_elo,
+    })
+}
+
+/// Ant-sacrifice `immortalELO` gain (legacy `antSacrificeRewards().immortalELO`),
+/// self-derived from `&GameState`. `max(0, calculateEffectiveAntELO −
+/// immortalELO)`, where `calculateEffectiveAntELO = ⌊Σ antELOStats ×
+/// Σ additiveAntELOMultStats⌋` — the base-ELO sum (15 lines) times the
+/// additive-multiplier sum (10 lines, base 1), both StatLine reductions.
+/// Drives the `ImmortalELOGain` auto-sacrifice mode.
+///
+/// Self-derives to `1` at the default state — the `ants` level reward's
+/// `defaultValue` (1) is the sole non-zero base line, × mult 1, floored — vs
+/// the old `AutomationPre` default `0`. Harmless: the ant-sacrifice middle that
+/// reads it is gated by `ant_sacrifice_unlocked` (false at default), so it is
+/// never consumed there, and `1` is in fact the faithful legacy value. The
+/// `SingularityDebuff` line neutral-defaults to its Ant-ELO no-penalty value
+/// `0` (additive context; `calculate_singularity_debuff` is banner-flagged
+/// DO NOT extend / paused).
+fn compute_immortal_elo_gain(state: &GameState) -> f64 {
+    use crate::mechanics::achievement_levels::achievement_level_from_points;
+    use crate::mechanics::achievement_rewards::{
+        ant_elo_additive, ant_elo_additive_multiplier, ant_speed_2_upgrade_improver,
+    };
+    use crate::mechanics::ant_reborn_elo::{
+        calculate_singularity_perk_elo, singularity_elo_bonus_mult, SingularityPerkELOInput,
+    };
+    use crate::mechanics::ant_sacrifice_reward_calc::{
+        calculate_immortal_elo_gain, CalculateImmortalELOGainInput,
+    };
+    use crate::mechanics::ant_upgrades::{
+        ant_elo_ant_upgrade_effect, ant_sacrifice_ant_upgrade_effect, AntELOAntUpgradeInput,
+    };
+    use crate::mechanics::calculate::sum_f64;
+    use crate::mechanics::challenges::{calc_ecc, ChallengeType};
+    use crate::mechanics::level_rewards::{get_level_reward, LevelRewardKey};
+    use crate::mechanics::shop_upgrades::ant_speed_effect;
+    use crate::state::shop::SHOP_ANT_SPEED;
+    use crate::state::EXTINCTION_INDEX;
+
+    // Ant producer slots (no enum in logic): Workers .. HolySpirit = 0..=8.
+    const WORKERS: usize = 0;
+    const QUEENS: usize = 4;
+    const LORD_ROYALS: usize = 5;
+    const ALMIGHTIES: usize = 6;
+    const DISCIPLES: usize = 7;
+    const HOLY_SPIRIT: usize = 8;
+    // Ant upgrade slots.
+    const ANT_UPGRADE_ANT_SACRIFICE: usize = 10;
+    const ANT_UPGRADE_ANT_ELO: usize = 12;
+    // legacy `player.upgrades[80]` — Reincarnation upgrade 2x20.
+    const REINCARNATION_UPGRADE_20: usize = 80;
+    // legacy `player.platonicUpgrades[12]`.
+    const PLATONIC_UPGRADE_12: usize = 12;
+
+    let ach = &state.achievements.achievements;
+    let ach_level = achievement_level_from_points(state.achievements.achievement_points);
+    let researches = &state.researches.researches;
+    let producers = &state.ants.producers;
+    let sac_count = state.ants.ant_sacrifice_count;
+    let immortal_elo = state.ants.immortal_elo;
+    let sing_count = state.singularity.singularity_count;
+    let purchased = |i: usize| producers[i].purchased;
+
+    // ReincarnationUpgrade20 — `player.upgrades[80]` gates a sac-count ramp.
+    let reincarnation_upgrade_20 = if state.upgrades.upgrades[REINCARNATION_UPGRADE_20] == 0 {
+        0.0
+    } else {
+        10.0 * 50.0_f64.min(sac_count)
+            + 5.0 * 50.0_f64.min(0.0_f64.max(sac_count - 50.0))
+            + 250.0_f64.min(0.0_f64.max(sac_count - 100.0))
+    };
+
+    let base_ant_elo = sum_f64(&[
+        purchased(WORKERS),
+        ant_elo_additive(ach),
+        get_level_reward(LevelRewardKey::Ants, ach_level),
+        reincarnation_upgrade_20,
+        100.0
+            * calc_ecc(
+                ChallengeType::Reincarnation,
+                state.challenges.challenge_completions[10],
+            ),
+        ant_speed_effect(state.shop.upgrades[SHOP_ANT_SPEED]),
+        25.0 * researches[108],
+        25.0 * researches[109],
+        2.0 * researches[120],
+        50.0 * researches[123],
+        0.02 * researches[169],
+        666.0 * researches[178],
+        ant_sacrifice_ant_upgrade_effect(state.ants.upgrades[ANT_UPGRADE_ANT_SACRIFICE]).elo,
+        ant_elo_ant_upgrade_effect(&AntELOAntUpgradeInput {
+            level: state.ants.upgrades[ANT_UPGRADE_ANT_ELO],
+            ant_sacrifice_count: sac_count,
+            ant_speed_2_upgrade_improver: ant_speed_2_upgrade_improver(ach, ach_level),
+        })
+        .ant_elo,
+        calculate_singularity_perk_elo(&SingularityPerkELOInput {
+            sing_count,
+            immortal_elo,
+        }),
+    ]);
+
+    let elo_mult = sum_f64(&[
+        1.0, // Base
+        ant_elo_additive_multiplier(ach),
+        if purchased(QUEENS) > 0.0 { 0.01 } else { 0.0 },
+        if purchased(LORD_ROYALS) > 0.0 {
+            0.01
+        } else {
+            0.0
+        },
+        if purchased(ALMIGHTIES) > 0.0 {
+            0.01
+        } else {
+            0.0
+        },
+        if purchased(DISCIPLES) > 0.0 {
+            0.02
+        } else {
+            0.0
+        },
+        if purchased(HOLY_SPIRIT) > 0.0 {
+            0.02
+        } else {
+            0.0
+        },
+        (1.0 / 200.0)
+            * state.cube_upgrade_levels.platonic_upgrades[PLATONIC_UPGRADE_12]
+            * f64::from(state.corruptions.used.levels[EXTINCTION_INDEX]),
+        0.0, // SingularityDebuff — Ant-ELO no-penalty value (paused layer)
+        singularity_elo_bonus_mult(sing_count),
+    ]);
+
+    let effective_elo = (base_ant_elo * elo_mult).floor();
+    calculate_immortal_elo_gain(&CalculateImmortalELOGainInput {
+        effective_elo,
+        immortal_elo,
     })
 }
 
@@ -3309,6 +3448,30 @@ mod tests {
         // Floors at 0 when reborn exceeds immortal.
         state.ants.reborn_elo = 500.0;
         assert_eq!(compute_available_reborn_elo(&state), 0.0);
+    }
+
+    #[test]
+    fn immortal_elo_gain_at_default_is_one() {
+        let state = GameState::default();
+        // Base ELO 1 (the `ants` level-reward defaultValue) × mult 1, floored;
+        // max(0, 1 − immortalELO 0) = 1.
+        assert_eq!(compute_immortal_elo_gain(&state), 1.0);
+    }
+
+    #[test]
+    fn immortal_elo_gain_grows_with_ant_elo_research() {
+        let mut state = GameState::default();
+        state.researches.researches[108] = 4.0; // Research5x8: 25·4 = +100 base ELO
+                                                // ⌊(1 + 100) × 1⌋ = 101; max(0, 101 − 0) = 101.
+        assert_eq!(compute_immortal_elo_gain(&state), 101.0);
+    }
+
+    #[test]
+    fn immortal_elo_gain_floors_against_immortal_elo() {
+        let mut state = GameState::default();
+        state.researches.researches[108] = 4.0; // effective ELO 101
+        state.ants.immortal_elo = 50.0;
+        assert_eq!(compute_immortal_elo_gain(&state), 51.0);
     }
 
     #[test]
