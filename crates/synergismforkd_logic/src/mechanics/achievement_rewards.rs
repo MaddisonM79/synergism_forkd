@@ -121,6 +121,17 @@ const PARTICLE_GAIN_INDEX: usize = 50;
 /// bool reward (`Boolean(player.achievements[173])`), not an aggregator.
 const ANT_SACRIFICE_UNLOCK_INDEX: usize = 173;
 
+/// Legacy index of the lone `antELOAdditiveMultiplier` achievement (#484):
+/// `() => 0.01`.
+const ANT_ELO_ADDITIVE_MULTIPLIER_INDEX: usize = 484;
+
+/// Legacy index of the lone `antELOAdditive` achievement (#485): `() => 25`.
+const ANT_ELO_ADDITIVE_INDEX: usize = 485;
+
+/// Legacy index of the lone `antSpeed2UpgradeImprover` achievement (#486):
+/// `() => achievementLevel`.
+const ANT_SPEED_2_UPGRADE_IMPROVER_INDEX: usize = 486;
+
 #[inline]
 fn earned(achievements: &[u8; ACHIEVEMENTS_LEN], index: usize) -> bool {
     achievements[index] != 0
@@ -237,6 +248,44 @@ pub fn ant_sacrifice_unlocked(achievements: &[u8; ACHIEVEMENTS_LEN]) -> bool {
     earned(achievements, ANT_SACRIFICE_UNLOCK_INDEX)
 }
 
+/// `getAchievementReward('antELOAdditive')` — `25` once achievement #485 is
+/// earned, else `0`. An additive line in the base ant-ELO sum.
+#[must_use]
+pub fn ant_elo_additive(achievements: &[u8; ACHIEVEMENTS_LEN]) -> f64 {
+    if earned(achievements, ANT_ELO_ADDITIVE_INDEX) {
+        25.0
+    } else {
+        0.0
+    }
+}
+
+/// `getAchievementReward('antELOAdditiveMultiplier')` — `0.01` once
+/// achievement #484 is earned, else `0`. An additive line in the ant-ELO
+/// multiplier sum.
+#[must_use]
+pub fn ant_elo_additive_multiplier(achievements: &[u8; ACHIEVEMENTS_LEN]) -> f64 {
+    if earned(achievements, ANT_ELO_ADDITIVE_MULTIPLIER_INDEX) {
+        0.01
+    } else {
+        0.0
+    }
+}
+
+/// `getAchievementReward('antSpeed2UpgradeImprover')` — the player's
+/// achievement level once achievement #486 is earned, else `0`. Feeds the
+/// AntELO ant-upgrade's sac-count improver.
+#[must_use]
+pub fn ant_speed_2_upgrade_improver(
+    achievements: &[u8; ACHIEVEMENTS_LEN],
+    achievement_level: f64,
+) -> f64 {
+    if earned(achievements, ANT_SPEED_2_UPGRADE_IMPROVER_INDEX) {
+        achievement_level
+    } else {
+        0.0
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -264,6 +313,20 @@ mod tests {
     fn ant_sacrifice_unlock_tracks_achievement_173() {
         assert!(!ant_sacrifice_unlocked(&earned_array(&[])));
         assert!(ant_sacrifice_unlocked(&earned_array(&[173])));
+    }
+
+    #[test]
+    fn ant_elo_achievement_rewards_track_their_indices() {
+        assert_eq!(ant_elo_additive(&earned_array(&[])), 0.0);
+        assert_eq!(ant_elo_additive(&earned_array(&[485])), 25.0);
+        assert_eq!(ant_elo_additive_multiplier(&earned_array(&[])), 0.0);
+        assert_eq!(ant_elo_additive_multiplier(&earned_array(&[484])), 0.01);
+        // antSpeed2UpgradeImprover returns the achievement level when earned.
+        assert_eq!(ant_speed_2_upgrade_improver(&earned_array(&[]), 40.0), 0.0);
+        assert_eq!(
+            ant_speed_2_upgrade_improver(&earned_array(&[486]), 40.0),
+            40.0
+        );
     }
 
     #[test]
