@@ -394,6 +394,16 @@ pub fn tack(state: &mut GameState, input: &TackInput) -> TickOutput {
     cache.automation_pre.time_per_ambrosia = time_per_ambrosia;
     cache.automation_pre.ambrosia_accelerator_mult = ambrosia_accelerator_mult;
     cache.automation_pre.ambrosia_brick_of_lead_mult = ambrosia_brick_of_lead_mult;
+    // Red-ambrosia-timer threshold fields (legacy Helper.ts `addTimers('redAmbrosia')`).
+    let (
+        ambrosia_time_per_red_ambrosia,
+        time_per_red_ambrosia,
+        red_ambrosia_bar_requirement_multiplier,
+    ) = compute_red_ambrosia_timer_fields(state);
+    cache.automation_pre.ambrosia_time_per_red_ambrosia = ambrosia_time_per_red_ambrosia;
+    cache.automation_pre.time_per_red_ambrosia = time_per_red_ambrosia;
+    cache.automation_pre.red_ambrosia_bar_requirement_multiplier =
+        red_ambrosia_bar_requirement_multiplier;
     phase_player_input(state, input, &mut output);
     phase_generation(state, &resource_gain_pre, input.dt, &mut output);
     phase_automation(state, &cache, input, &mut output);
@@ -1496,6 +1506,43 @@ fn compute_ambrosia_timer_fields(state: &GameState) -> (f64, f64, f64, f64) {
             brick.level + brick.free_level,
             AmbrosiaBrickOfLeadEffectKey::BarRequirementMult,
         ),
+    )
+}
+
+/// `G.TIME_PER_RED_AMBROSIA` — base seconds per red-ambrosia bar
+/// (Variables.ts; a fixed `G` constant, never reassigned in the legacy).
+const TIME_PER_RED_AMBROSIA: f64 = 100_000.0;
+
+/// Pure-state red-ambrosia-timer threshold fields, from the legacy Helper.ts
+/// `addTimers('redAmbrosia')` case: the red-accelerator's bonus blueberry
+/// time minted per red ambrosia
+/// (`redAmbrosiaAccelerator.ambrosiaTimePerRedAmbrosia`), the base
+/// `TIME_PER_RED_AMBROSIA` constant, and the EXALT-2 `limitedTime`
+/// bar-requirement multiplier. Returned as `(ambrosia_time_per_red_ambrosia,
+/// time_per_red_ambrosia, red_ambrosia_bar_requirement_multiplier)`. The
+/// red-accelerator upgrade uses `.level` only (red upgrades have no
+/// free-level). All three equal the old `AutomationPre::default()` at the
+/// default state, so the sim/tests don't shift.
+fn compute_red_ambrosia_timer_fields(state: &GameState) -> (f64, f64, f64) {
+    use crate::mechanics::red_ambrosia_upgrades::red_ambrosia_accelerator_effect;
+    use crate::mechanics::singularity_challenges::{
+        limited_time_effect, LimitedTimeKey, SingularityEffectValue,
+    };
+    use crate::state::red_ambrosia::RED_AMBROSIA_RED_AMBROSIA_ACCELERATOR;
+
+    let bar_req = match limited_time_effect(
+        state.singularity.limited_time.completions,
+        LimitedTimeKey::BarRequirementMultiplier,
+    ) {
+        SingularityEffectValue::Scalar(s) => s,
+        SingularityEffectValue::Unlock(_) => 1.0,
+    };
+    (
+        red_ambrosia_accelerator_effect(
+            state.red_ambrosia.upgrades[RED_AMBROSIA_RED_AMBROSIA_ACCELERATOR].level,
+        ),
+        TIME_PER_RED_AMBROSIA,
+        bar_req,
     )
 }
 
@@ -2859,6 +2906,27 @@ mod tests {
         assert_eq!(tpa, 45.0);
         assert!((accel - 0.7).abs() < 1e-12);
         assert!((brick - 2.0).abs() < 1e-12);
+    }
+
+    #[test]
+    fn red_ambrosia_timer_fields_at_default() {
+        let state = GameState::default();
+        // accelerator 0, TIME_PER_RED_AMBROSIA 100000, bar-req multiplier 1.
+        assert_eq!(
+            compute_red_ambrosia_timer_fields(&state),
+            (0.0, 100_000.0, 1.0)
+        );
+    }
+
+    #[test]
+    fn red_ambrosia_timer_fields_track_state() {
+        let mut state = GameState::default();
+        state.red_ambrosia.upgrades[19].level = 10.0; // redAmbrosiaAccelerator: 0.02·10 + 1 = 1.2
+        state.singularity.limited_time.completions = 5.0; // limitedTime barReq: 1 − 0.02·5 = 0.9
+        let (atpra, tpra, bar) = compute_red_ambrosia_timer_fields(&state);
+        assert!((atpra - 1.2).abs() < 1e-12);
+        assert_eq!(tpra, 100_000.0);
+        assert!((bar - 0.9).abs() < 1e-12);
     }
 
     #[test]
