@@ -379,10 +379,14 @@ pub fn tack(state: &mut GameState, input: &TackInput) -> TickOutput {
     cache.automation_pre.export_gq_per_hour = export_gq;
     let ambrosia_luck = compute_ambrosia_luck_pre(state);
     cache.automation_pre.ambrosia_luck = ambrosia_luck;
-    cache.automation_pre.ambrosia_generation_speed = compute_ambrosia_generation_speed_pre(state);
-    // Red-ambrosia luck composes on this tick's ambrosia luck (the
-    // `LuckConversion` stat line).
+    let ambrosia_generation_speed = compute_ambrosia_generation_speed_pre(state);
+    cache.automation_pre.ambrosia_generation_speed = ambrosia_generation_speed;
+    // Red-ambrosia luck / generation speed compose on this tick's ambrosia
+    // luck (the `LuckConversion` line) and ambrosia generation speed (the
+    // `BlueberrySpeed` line) respectively.
     cache.automation_pre.red_ambrosia_luck = compute_red_ambrosia_luck_pre(state, ambrosia_luck);
+    cache.automation_pre.red_ambrosia_generation_speed =
+        compute_red_ambrosia_generation_speed_pre(state, ambrosia_generation_speed);
     phase_player_input(state, input, &mut output);
     phase_generation(state, &resource_gain_pre, input.dt, &mut output);
     phase_automation(state, &cache, input, &mut output);
@@ -1838,6 +1842,56 @@ fn compute_red_ambrosia_luck_pre(state: &GameState, ambrosia_luck: f64) -> f64 {
     ])
 }
 
+/// Red-ambrosia generation speed (legacy `calculateRedAmbrosiaGenerationSpeed`),
+/// self-derived from `&GameState`.
+///
+/// `Π allRedAmbrosiaGenerationSpeedStats` (5 lines, multiplicative). The
+/// `Base` line gates on `noAmbrosiaUpgrades.completions > 0` (`0` otherwise),
+/// and the `BlueberrySpeed` line wraps this tick's ambrosia generation speed
+/// `b` (`b > 1000 ? √(b·1000) : b`). Both are `0` at default (ambrosia
+/// locked → `ambrosia_generation_speed` is `0`), so this self-derives to
+/// exactly `0`, matching the old `AutomationPre::default()`. Replaces the
+/// caller-provided `AutomationPre::red_ambrosia_generation_speed`.
+///
+/// Neutral `1` line: the planar-coin `RED_GENERATION_BUFF` (unported).
+fn compute_red_ambrosia_generation_speed_pre(
+    state: &GameState,
+    ambrosia_generation_speed: f64,
+) -> f64 {
+    use crate::mechanics::calculate::product_f64;
+    use crate::mechanics::red_ambrosia_upgrades::red_generation_speed_effect;
+    use crate::mechanics::singularity_challenges::{
+        no_ambrosia_upgrades_effect, NoAmbrosiaUpgradesKey, SingularityEffectValue,
+    };
+    use crate::state::red_ambrosia::RED_AMBROSIA_RED_GENERATION_SPEED;
+
+    let no_amb = state.singularity.no_ambrosia_upgrades.completions;
+    // Multiplicative context → a missing singularity-effect value is 1.
+    let mc = |v: SingularityEffectValue| match v {
+        SingularityEffectValue::Scalar(s) => s,
+        SingularityEffectValue::Unlock(_) => 1.0,
+    };
+
+    let blueberry_speed = if ambrosia_generation_speed > 1000.0 {
+        (ambrosia_generation_speed * 1000.0).sqrt()
+    } else {
+        ambrosia_generation_speed
+    };
+
+    product_f64(&[
+        if no_amb > 0.0 { 1.0 } else { 0.0 }, // Base gate
+        1.0,                                  // PseudoCoins — planar RED_GENERATION_BUFF (unported)
+        blueberry_speed,                      // BlueberrySpeed
+        red_generation_speed_effect(
+            state.red_ambrosia.upgrades[RED_AMBROSIA_RED_GENERATION_SPEED].level,
+        ),
+        mc(no_ambrosia_upgrades_effect(
+            no_amb,
+            NoAmbrosiaUpgradesKey::RedSpeedMult,
+        )),
+    ])
+}
+
 /// Compute the per-tick reset-currency point gains (prestige / transcend /
 /// reincarnation) from `&GameState` plus the Phase-2 accelerator effect.
 ///
@@ -2691,6 +2745,31 @@ mod tests {
         // shopRedLuck1 (shop[77]) redLuck = 0.05 × n adds to the sum.
         state.shop.upgrades[77] = 10.0;
         assert!(compute_red_ambrosia_luck_pre(&state, 100.0) > 100.0);
+    }
+
+    #[test]
+    fn red_ambrosia_generation_speed_pre_is_zero_when_locked() {
+        let state = GameState::default();
+        // Base gate (noAmbrosiaUpgrades == 0) and BlueberrySpeed (0) both 0.
+        assert_eq!(compute_red_ambrosia_generation_speed_pre(&state, 0.0), 0.0);
+    }
+
+    #[test]
+    fn red_ambrosia_generation_speed_pre_unlocks_with_exalt5() {
+        let mut state = GameState::default();
+        // Gate open → 1 × BlueberrySpeed 10 × redGen 1 × redSpeedMult
+        // (1 + 2·1/100 = 1.02) = 10.2.
+        state.singularity.no_ambrosia_upgrades.completions = 1.0;
+        assert!((compute_red_ambrosia_generation_speed_pre(&state, 10.0) - 10.2).abs() < 1e-12);
+    }
+
+    #[test]
+    fn red_ambrosia_generation_speed_pre_sqrt_softcaps_above_1000() {
+        let mut state = GameState::default();
+        // BlueberrySpeed softcap: b > 1000 → √(b·1000); √(4000·1000) = 2000,
+        // × redSpeedMult 1.02 = 2040.
+        state.singularity.no_ambrosia_upgrades.completions = 1.0;
+        assert!((compute_red_ambrosia_generation_speed_pre(&state, 4000.0) - 2040.0).abs() < 1e-9);
     }
 
     #[test]
