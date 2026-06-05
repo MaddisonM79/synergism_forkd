@@ -409,6 +409,11 @@ pub fn tack(state: &mut GameState, input: &TackInput) -> TickOutput {
     cache.automation_pre.octeract_unlocked = compute_octeract_unlocked(state);
     // Quark-export timer cap (legacy `quarkHandler().maxTime`).
     cache.automation_pre.max_quark_timer = compute_max_quark_timer(state);
+    // Automation unlock gates: auto-research Roomba, the rune auto-sacrifice
+    // shop gate, and the auto-prestige level milestone.
+    cache.automation_pre.roomba_unlocked = compute_roomba_unlocked(state);
+    cache.automation_pre.offering_auto_rune = compute_offering_auto_rune(state);
+    cache.automation_pre.auto_prestige_milestone = compute_auto_prestige_milestone(state);
     phase_player_input(state, input, &mut output);
     phase_generation(state, &resource_gain_pre, input.dt, &mut output);
     phase_automation(state, &cache, input, &mut output);
@@ -1580,6 +1585,49 @@ fn compute_max_quark_timer(state: &GameState) -> f64 {
         cube_mult: 1.0,
     })
     .max_time
+}
+
+/// Roomba auto-research unlock gate (legacy `roombaResearchEnabled()`):
+/// `cubeUpgrades[9] === 1 || highestSingularityCount > 10`. `false` at the
+/// default state, matching the old `AutomationPre::default()`.
+fn compute_roomba_unlocked(state: &GameState) -> bool {
+    // legacy `player.cubeUpgrades[9]`
+    const CUBE_UPGRADE_ROOMBA: usize = 9;
+    state.cube_upgrade_levels.cube_upgrades[CUBE_UPGRADE_ROOMBA] == 1.0
+        || state.singularity.highest_singularity_count > 10.0
+}
+
+/// Rune auto-sacrifice shop gate (legacy `getShopUpgradeEffects('offeringAuto',
+/// 'autoRune')`): the `offeringAuto` slot's `AutoRune` unlock (`level > 0`),
+/// AND-combined downstream with the persisted `rune_sacrifice_auto_enabled`
+/// toggle. `false` at the default state.
+fn compute_offering_auto_rune(state: &GameState) -> bool {
+    use crate::mechanics::shop_upgrades::{
+        offering_auto_effect, OfferingAutoKey, OfferingAutoValue,
+    };
+    use crate::state::shop::SHOP_OFFERING_AUTO;
+
+    matches!(
+        offering_auto_effect(
+            state.shop.upgrades[SHOP_OFFERING_AUTO],
+            OfferingAutoKey::AutoRune
+        ),
+        OfferingAutoValue::Unlock(true)
+    )
+}
+
+/// Auto-prestige level milestone (legacy `getLevelMilestone('autoPrestige')`):
+/// `1` once the achievement level reaches the milestone's `level_req` (7),
+/// else `0`. The auto-reset machine unlocks auto-prestige when this `== 1`.
+/// `0` at the default state.
+fn compute_auto_prestige_milestone(state: &GameState) -> f64 {
+    use crate::mechanics::achievement_levels::achievement_level_from_points;
+    use crate::mechanics::level_milestones::{get_level_milestone, LevelMilestoneKey};
+
+    get_level_milestone(
+        LevelMilestoneKey::AutoPrestige,
+        achievement_level_from_points(state.achievements.achievement_points),
+    )
 }
 
 /// Ambrosia-luck multiplier (legacy `calculateAmbrosiaLuck`), self-derived
@@ -2989,6 +3037,33 @@ mod tests {
         let mut state = GameState::default();
         state.researches.researches[195] = 2.0; // 90000 + 18000·2 = 126000
         assert_eq!(compute_max_quark_timer(&state), 126_000.0);
+    }
+
+    #[test]
+    fn roomba_unlocked_tracks_cube_upgrade_and_singularity() {
+        let mut state = GameState::default();
+        assert!(!compute_roomba_unlocked(&state));
+        state.cube_upgrade_levels.cube_upgrades[9] = 1.0; // cubeUpgrades[9] === 1
+        assert!(compute_roomba_unlocked(&state));
+        state.cube_upgrade_levels.cube_upgrades[9] = 0.0;
+        state.singularity.highest_singularity_count = 11.0; // > 10
+        assert!(compute_roomba_unlocked(&state));
+    }
+
+    #[test]
+    fn offering_auto_rune_tracks_shop_slot() {
+        let mut state = GameState::default();
+        assert!(!compute_offering_auto_rune(&state));
+        state.shop.upgrades[3] = 1.0; // offeringAuto
+        assert!(compute_offering_auto_rune(&state));
+    }
+
+    #[test]
+    fn auto_prestige_milestone_unlocks_at_level_7() {
+        let mut state = GameState::default();
+        assert_eq!(compute_auto_prestige_milestone(&state), 0.0);
+        state.achievements.achievement_points = 350.0; // ⌊350/50⌋ = level 7 → 1
+        assert_eq!(compute_auto_prestige_milestone(&state), 1.0);
     }
 
     #[test]
