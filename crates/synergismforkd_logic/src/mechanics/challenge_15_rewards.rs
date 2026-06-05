@@ -11,10 +11,11 @@
 //! `accelerator`, `multiplier`), the tax-phase reward (`taxes`), the
 //! speed rewards (`globalSpeed`, `ascensionSpeed`) that feed the
 //! global / ascension speed StatLine products, the ascension-score
-//! reward (`score`), and the obtainium reward (`obtainium`) feeding the
-//! obtainium DR-ignore StatLine product. Other c15 rewards
-//! (`runeExp`, `antSpeed`, `blessingBonus`, …) land with the chunks that
-//! consume them.
+//! reward (`score`), the obtainium reward (`obtainium`) feeding the
+//! obtainium DR-ignore StatLine product, and the `antSpeed` reward
+//! feeding the ant-speed StatLine product. Other c15 rewards
+//! (`runeExp`, `blessingBonus`, …) land with the chunks that consume
+//! them.
 
 use crate::math::sigmoid::calculate_sigmoid;
 
@@ -138,6 +139,18 @@ pub fn score(exponent: f64) -> f64 {
     }
 }
 
+/// `challenge15Rewards.antSpeed.value` — multiplied into the ant-speed
+/// StatLine product (`antSpeedStats`). Requirement `2e5`, `baseValue` `1`.
+/// Legacy formula `(1 + log2(e / 2e5))^4`.
+#[must_use]
+pub fn ant_speed(exponent: f64) -> f64 {
+    if exponent >= 2e5 {
+        (1.0 + (exponent / 2e5).log2()).powi(4)
+    } else {
+        1.0
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -154,6 +167,7 @@ mod tests {
         assert_eq!(global_speed(0.0), 1.0);
         assert_eq!(ascension_speed(0.0), 1.0);
         assert_eq!(score(0.0), 1.0);
+        assert_eq!(ant_speed(0.0), 1.0);
         // Just under the taxes requirement → still identity.
         assert_eq!(taxes(4_999.0), 1.0);
         // Just under the obtainium requirement → still identity.
@@ -163,6 +177,16 @@ mod tests {
         assert_eq!(ascension_speed(1.4e18), 1.0);
         // Just under the score requirement → still identity.
         assert_eq!(score(9.9e9), 1.0);
+        // Just under the ant-speed requirement → still identity.
+        assert_eq!(ant_speed(1.99e5), 1.0);
+    }
+
+    #[test]
+    fn ant_speed_scales_above_requirement() {
+        // e = 2e5 → (1 + log2(1))^4 = 1.
+        assert!((ant_speed(2e5) - 1.0).abs() < 1e-12);
+        // e = 4e5 → (1 + log2(2))^4 = 2^4 = 16.
+        assert!((ant_speed(4e5) - 16.0).abs() < 1e-9);
     }
 
     #[test]

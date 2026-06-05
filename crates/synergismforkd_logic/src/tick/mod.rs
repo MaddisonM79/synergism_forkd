@@ -454,6 +454,12 @@ pub fn tack(state: &mut GameState, input: &TackInput) -> TickOutput {
     // point gain (the `ReincarnationUpgrade9` obtainium line reads it).
     cache.automation_pre.obtainium_gain =
         compute_obtainium_gain(state, input.dt, reset_gains.reincarnation_point_gain);
+    // Ant-speed multiplier (legacy `calculateActualAntSpeedMult()` = the 24-line
+    // `antSpeedStats` Decimal product ^ ascension-challenge exponent).
+    // Self-derives to 0 at default (the `canGenerateAntCrumbs` Base line is 0
+    // until ants unlock → whole product 0), vs the old AutomationPre default of
+    // 1 — ant generation multiplies by this factor so it no-ops at 0 anyway.
+    cache.automation_pre.ant_speed_mult = compute_ant_speed_mult(state);
     phase_player_input(state, input, &mut output);
     phase_generation(state, &resource_gain_pre, input.dt, &mut output);
     phase_automation(state, &cache, input, &mut output);
@@ -2244,6 +2250,200 @@ fn compute_obtainium_gain(
         base_obtainium,
         ant_sacrifice_obtainium: Decimal::zero(),
         ant_sacrifice_timer: state.ants.ant_sacrifice_timer,
+    })
+}
+
+/// `ant_speed_mult` — self-derived from `&GameState`.
+///
+/// Legacy `calculateActualAntSpeedMult()`: the Decimal product of the 24-line
+/// `antSpeedStats` StatLine (Statistics.ts:2967), raised to the
+/// ascension-challenge exponent via [`calculate_actual_ant_speed_mult`].
+/// Replaces the caller-provided `AutomationPre::ant_speed_mult`.
+///
+/// **Self-derives to 0 at the default state** (unlike most fields): the `Base`
+/// line is `canGenerateAntCrumbs ? 1 : 0`
+/// (`challengecompletions[8] > 0 || cubeUpgrades[48] > 0`), which is `0` until
+/// ants are unlocked — zeroing the whole product. The old
+/// `AutomationPre::default().ant_speed_mult` was `Decimal::one()`, so this is a
+/// genuine default change; ant generation multiplies its per-tier output by
+/// this factor and so no-ops at `0` (and at default no producers are owned
+/// anyway). `canGenerateAntCrumbs` and `calculateAntSpeedMultFromELO`
+/// (`1.02 ^ rebornELO`) are inlined — both are one-liners in the legacy.
+///
+/// Neutral-defaulted line (faithful / inert at the current state):
+/// `ReincarnationUpgrade18` reads `maxOfferings` (untracked) → 1 (its
+/// `upgrades[78]` branch evaluates to 1 at `maxOfferings 0`).
+fn compute_ant_speed_mult(state: &GameState) -> Decimal {
+    use crate::mechanics::achievement_rewards::ant_speed as ant_speed_reward;
+    use crate::mechanics::ant_upgrades::{ant_speed_ant_upgrade_effect, AntSpeedAntUpgradeInput};
+    use crate::mechanics::calculate::{
+        calculate_actual_ant_speed_mult, product_decimal, ActualAntSpeedMultInput,
+    };
+    use crate::mechanics::challenge_15_rewards;
+    use crate::mechanics::challenges::{calc_ecc, ChallengeType};
+    use crate::mechanics::cube_blessings::calculate_ant_speed_cube_blessing;
+    use crate::mechanics::hypercube_blessings::calculate_ant_speed_hypercube_blessing;
+    use crate::mechanics::octeracts::{octeract_starter_effect, OcteractStarterKey};
+    use crate::mechanics::platonic_blessings::calculate_hypercube_blessing_multiplier_platonic_blessing;
+    use crate::mechanics::rune_blessing_effects::superior_intellect_rune_blessing_effects;
+    use crate::mechanics::rune_effects::{
+        superior_intellect_rune_effects, SuperiorIntellectRuneKey,
+    };
+    use crate::mechanics::tesseract_blessings::calculate_ant_speed_tesseract_blessing;
+    use crate::state::octeract_upgrades::OCTERACT_STARTER;
+    use crate::state::RUNE_SUPERIOR_INTELLECT;
+
+    // Legacy AntUpgrades.AntSpeed (index 0), AntProducers.Workers (index 0),
+    // and the ant-speed cube-blessing upgrade (player.cubeUpgrades[22]).
+    const ANT_UPGRADE_ANT_SPEED: usize = 0;
+    const ANT_PRODUCER_WORKERS: usize = 0;
+    const CUBE_UPGRADE_ANT_SPEED_BLESSING: usize = 22;
+
+    let cube = &state.cube_upgrade_levels.cube_upgrades;
+    let platonic = &state.cube_upgrade_levels.platonic_upgrades;
+    let researches = &state.researches.researches;
+    let upgrades = &state.upgrades.upgrades;
+    let up = |i: usize| f64::from(upgrades[i]);
+    let workers_purchased = state.ants.producers[ANT_PRODUCER_WORKERS].purchased;
+    let crumbs = state.ants.crumbs;
+    let obtainium = state.researches.obtainium;
+    let highest_sing = state.singularity.highest_singularity_count;
+
+    // GlobalSpeed line: speedMult^(1 + 3·upgrades[79]) when > 1, else speedMult.
+    let global_speed = compute_global_speed_mult_pre(state);
+    let global_speed_line = {
+        let exponent = 1.0 + 3.0 * up(79);
+        if global_speed > 1.0 {
+            Decimal::from_finite(global_speed).pow(Decimal::from_finite(exponent))
+        } else {
+            Decimal::from_finite(global_speed)
+        }
+    };
+
+    // CubeTribute: ant-speed cube-blessing chain platonic → hypercube →
+    // tesseract → cube (mirrors `calculateAntSpeedCubeBlessing` in Cubes.ts).
+    let platonic_amplifier =
+        calculate_hypercube_blessing_multiplier_platonic_blessing(&state.platonic_blessings);
+    let hypercube_blessing =
+        calculate_ant_speed_hypercube_blessing(&state.hypercube_blessings, platonic_amplifier);
+    let tesseract_blessing =
+        calculate_ant_speed_tesseract_blessing(&state.tesseract_blessings, hypercube_blessing);
+    let cube_tribute = calculate_ant_speed_cube_blessing(
+        &state.cube_blessings,
+        tesseract_blessing,
+        cube[CUBE_UPGRADE_ANT_SPEED_BLESSING],
+    );
+
+    // RuneBlessingBonus: max(1, obtainium) ^ obtToAntExponent.
+    let obt_to_ant_exponent = superior_intellect_rune_blessing_effects(
+        state.runes.rune_blessing_levels[RUNE_SUPERIOR_INTELLECT],
+    )
+    .obt_to_ant_exponent;
+    let rune_blessing_bonus = obtainium
+        .max(Decimal::one())
+        .pow(Decimal::from_finite(obt_to_ant_exponent));
+
+    // log10(crumbs + 10) — reused by Research6x22 / Research8x2.
+    let crumbs_log10 = (crumbs + Decimal::from_finite(10.0)).log10().to_number();
+
+    // SingularityPerk tiers.
+    let singularity_perk = if highest_sing >= 100.0 {
+        1e12
+    } else if highest_sing >= 70.0 {
+        1e6
+    } else if highest_sing >= 40.0 {
+        1e3
+    } else if highest_sing >= 1.0 {
+        4.44
+    } else {
+        1.0
+    };
+
+    let base = product_decimal(&[
+        // Base — canGenerateAntCrumbs ? 1 : 0.
+        if state.challenges.challenge_completions[8] > 0.0 || cube[48] > 0.0 {
+            Decimal::one()
+        } else {
+            Decimal::zero()
+        },
+        global_speed_line,
+        Decimal::from_finite(ant_speed_reward(
+            &state.achievements.achievements,
+            crumbs,
+            state.ants.immortal_elo,
+        )), // AchievementBonus
+        // ImmortalELO — calculateAntSpeedMultFromELO = 1.02 ^ rebornELO.
+        Decimal::from_finite(1.02).pow(Decimal::from_finite(state.ants.reborn_elo)),
+        ant_speed_ant_upgrade_effect(&AntSpeedAntUpgradeInput {
+            level: state.ants.upgrades[ANT_UPGRADE_ANT_SPEED],
+            research_101: researches[101],
+            research_162: researches[162],
+        }), // AntUpgrade1
+        Decimal::from_finite(1.0 + 0.6 * up(39)), // DiamondUpgrade19
+        Decimal::from_finite(1.0 + 4.0 * up(76)), // ReincarnationUpgrade16
+        // ReincarnationUpgrade17 — (1 + upgrades[77]/250) ^ workersPurchased.
+        if upgrades[77] > 0 {
+            Decimal::from_finite(1.0 + up(77) / 250.0).pow(Decimal::from_finite(workers_purchased))
+        } else {
+            Decimal::one()
+        },
+        Decimal::one(), // ReincarnationUpgrade18 — maxOfferings untracked → 1 (upgrades[78] branch is 1 at maxOfferings 0)
+        // Research4x21 — (1 + researches[96]/5000) ^ workersPurchased.
+        Decimal::from_finite(1.0 + researches[96] / 5000.0)
+            .pow(Decimal::from_finite(workers_purchased)),
+        // Research5x17 — 1 + researches[117]·antSacrificeCount/10000.
+        Decimal::from_finite(1.0 + researches[117] * state.ants.ant_sacrifice_count / 10_000.0),
+        Decimal::from_finite(1.0 + researches[147] * crumbs_log10), // Research6x22
+        Decimal::from_finite(1.0 + researches[177] * crumbs_log10), // Research8x2
+        Decimal::from_finite(superior_intellect_rune_effects(
+            state.runes.rune_levels[RUNE_SUPERIOR_INTELLECT],
+            SuperiorIntellectRuneKey::AntSpeed,
+        )), // SuperiorIntellect
+        rune_blessing_bonus,
+        // Challenge9Bonus — 1.1 ^ CalcECC('reincarnation', cc[9]).
+        Decimal::from_finite(1.1).pow(Decimal::from_finite(calc_ecc(
+            ChallengeType::Reincarnation,
+            state.challenges.challenge_completions[9],
+        ))),
+        // Challenge11Bonus — 1e5 ^ CalcECC('ascension', cc[11]).
+        Decimal::from_finite(1e5).pow(Decimal::from_finite(calc_ecc(
+            ChallengeType::Ascension,
+            state.challenges.challenge_completions[11],
+        ))),
+        cube_tribute,
+        // ConstantUpgrade — 1 + 0.1·log10(ascendShards + 1)·constantUpgrades[5].
+        Decimal::from_finite(
+            1.0 + 0.1
+                * (state.campaigns.ascend_shards + Decimal::one())
+                    .log10()
+                    .to_number()
+                * state.campaigns.constant_upgrades[5],
+        ),
+        Decimal::from_finite(challenge_15_rewards::ant_speed(
+            state.challenges.challenge15_exponent,
+        )), // Challenge15
+        // PlatonicUpgrade — (1 + 0.01·platonic[12]) ^ Σ highestChallengeCompletions.
+        Decimal::from_finite(1.0 + 0.01 * platonic[12]).pow(Decimal::from_finite(
+            state
+                .challenges
+                .highest_challenge_completions
+                .iter()
+                .sum::<f64>(),
+        )),
+        Decimal::from_finite(singularity_perk), // SingularityPerk
+        // CookieUpgrade — (1 + cubeUpgrades[65]/250) ^ workersPurchased.
+        Decimal::from_finite(1.0 + cube[65] / 250.0).pow(Decimal::from_finite(workers_purchased)),
+        Decimal::from_finite(octeract_starter_effect(
+            state.octeract_upgrades.upgrades[OCTERACT_STARTER].level
+                + state.octeract_upgrades.upgrades[OCTERACT_STARTER].free_level,
+            OcteractStarterKey::AntSpeedMult,
+        )), // OcteractUpgrade
+    ]);
+
+    calculate_actual_ant_speed_mult(&ActualAntSpeedMultInput {
+        base,
+        ascension_challenge: state.challenges.current_ascension_challenge,
+        platonic_upgrade_10: platonic[10],
     })
 }
 
@@ -4548,8 +4748,33 @@ mod tests {
             dt: 1.0,
             ..TackInput::default()
         };
-        let _ = tack(&mut state, &input);
+        // `tack` now self-derives ant_speed_mult, which is 0 at the default
+        // state (canGenerateAntCrumbs is false until ants unlock → whole product
+        // 0). Drive phase_automation directly with a controlled cache
+        // (ant_speed_mult = 1) so this stays a focused test of crumb generation.
+        let cache = CrossMechanicCache {
+            automation_pre: AutomationPre {
+                ant_speed_mult: Decimal::one(),
+                ..AutomationPre::default()
+            },
+        };
+        let mut output = TickOutput::default();
+        phase_automation(&mut state, &cache, &input, &mut output);
         assert!(state.ants.crumbs.to_number() > 0.0);
+    }
+
+    #[test]
+    fn ant_speed_mult_self_derives_zero_until_ants_unlock() {
+        // Base line `canGenerateAntCrumbs` is false at default → product 0.
+        let mut state = GameState::default();
+        assert_eq!(compute_ant_speed_mult(&state).to_number(), 0.0);
+        // challengecompletions[8] > 0 flips canGenerateAntCrumbs true → nonzero.
+        state.challenges.challenge_completions[8] = 1.0;
+        assert!(compute_ant_speed_mult(&state).to_number() > 0.0);
+        // cubeUpgrades[48] > 0 is the other unlock path.
+        let mut state2 = GameState::default();
+        state2.cube_upgrade_levels.cube_upgrades[48] = 1.0;
+        assert!(compute_ant_speed_mult(&state2).to_number() > 0.0);
     }
 
     #[test]

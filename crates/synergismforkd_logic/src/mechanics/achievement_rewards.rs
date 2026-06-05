@@ -132,6 +132,15 @@ const ANT_ELO_ADDITIVE_INDEX: usize = 485;
 /// `() => achievementLevel`.
 const ANT_SPEED_2_UPGRADE_IMPROVER_INDEX: usize = 486;
 
+/// Legacy indices of the five `antSpeed` reward achievements (a product):
+/// #169 grants `log10(crumbs + 10)`, #171/#172 grant `1.2`/`1.25`, #173 grants
+/// `1.4` (the same achievement as [`ANT_SACRIFICE_UNLOCK_INDEX`]), and #174
+/// grants `1 + immortalELO / 1000`.
+const ANT_SPEED_CRUMBS_INDEX: usize = 169;
+const ANT_SPEED_FLAT_1_2_INDEX: usize = 171;
+const ANT_SPEED_FLAT_1_25_INDEX: usize = 172;
+const ANT_SPEED_IMMORTAL_ELO_INDEX: usize = 174;
+
 /// Legacy indices of the two `ascensionScore` reward achievements:
 /// #259 grants `1.01 ^ hepteracts.abyss.TIMES_CAP_EXTENDED` and #267 grants
 /// `1 + min(log10(ascendShards + 1) / 1e5, 1)`.
@@ -302,6 +311,35 @@ pub fn ant_speed_2_upgrade_improver(
     }
 }
 
+/// `+getAchievementReward('antSpeed')` — multiplicative (base 1). The product
+/// of the five contributing achievements: #169 grants `log10(crumbs + 10)`,
+/// #171/#172 grant `1.2`/`1.25`, #173 grants `1.4`, and #174 grants
+/// `1 + immortalELO / 1000`. Feeds the `AchievementBonus` line of the
+/// ant-speed StatLine product (`antSpeedStats`). At default state (no
+/// achievements earned) this is the product identity `1.0`; even with #169
+/// earned at `crumbs = 0` the term is `log10(10) = 1`.
+#[must_use]
+pub fn ant_speed(achievements: &[u8; ACHIEVEMENTS_LEN], crumbs: Decimal, immortal_elo: f64) -> f64 {
+    let mut prod = 1.0;
+    if earned(achievements, ANT_SPEED_CRUMBS_INDEX) {
+        // `Decimal.log(crumbs + 10, 10)` — log base 10.
+        prod *= (crumbs + Decimal::from_finite(10.0)).log10().to_number();
+    }
+    if earned(achievements, ANT_SPEED_FLAT_1_2_INDEX) {
+        prod *= 1.2;
+    }
+    if earned(achievements, ANT_SPEED_FLAT_1_25_INDEX) {
+        prod *= 1.25;
+    }
+    if earned(achievements, ANT_SACRIFICE_UNLOCK_INDEX) {
+        prod *= 1.4;
+    }
+    if earned(achievements, ANT_SPEED_IMMORTAL_ELO_INDEX) {
+        prod *= 1.0 + immortal_elo / 1000.0;
+    }
+    prod
+}
+
 /// `getAchievementReward('ascensionScore')` — multiplicative (base 1). The
 /// product of the two contributing achievements: #259 grants
 /// `1.01 ^ TIMES_CAP_EXTENDED` (abyss hepteract unported → exponent 0 → 1.0,
@@ -415,6 +453,24 @@ mod tests {
         assert!((obtainium_bonus(&earned_array(&[468]), 0.0) - 1.02).abs() < 1e-12);
         // Earned at reincarnationCount = 1000 → 1 + 0.02·max(1, 1 + 3) = 1.08.
         assert!((obtainium_bonus(&earned_array(&[468]), 1_000.0) - 1.08).abs() < 1e-12);
+    }
+
+    #[test]
+    fn ant_speed_is_product_of_its_five_achievements() {
+        // Nothing earned → product identity.
+        assert_eq!(ant_speed(&earned_array(&[]), Decimal::zero(), 0.0), 1.0);
+        // #169 at crumbs = 0 → log10(10) = 1 (neutral).
+        assert_eq!(ant_speed(&earned_array(&[169]), Decimal::zero(), 0.0), 1.0);
+        // #169 at crumbs = 990 → log10(1000) = 3.
+        assert!(
+            (ant_speed(&earned_array(&[169]), Decimal::from_finite(990.0), 0.0) - 3.0).abs() < 1e-9
+        );
+        // Flat terms #171/#172/#173 → 1.2 · 1.25 · 1.4 = 2.1.
+        assert!(
+            (ant_speed(&earned_array(&[171, 172, 173]), Decimal::zero(), 0.0) - 2.1).abs() < 1e-12
+        );
+        // #174 at immortalELO = 1000 → 1 + 1 = 2.
+        assert!((ant_speed(&earned_array(&[174]), Decimal::zero(), 1_000.0) - 2.0).abs() < 1e-12);
     }
 
     #[test]
