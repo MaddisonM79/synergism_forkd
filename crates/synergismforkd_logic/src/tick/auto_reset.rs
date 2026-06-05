@@ -3,8 +3,10 @@
 //!
 //! Decides whether prestige / transcend / reincarnation auto-resets fire
 //! this tick, accumulates the time-mode counters, and emits
-//! `AutoResetTriggered` intents. The actual `reset(tier, true)` side
-//! effect lives in the UI tier.
+//! `AutoResetTriggered` intents. Execution now lives in the tick tier:
+//! `phase_automation` performs the **prestige** reset
+//! (`perform_prestige_reset`) when a prestige intent fires. Transcension /
+//! reincarnation remain intent-only until those tiers port.
 
 use smallvec::SmallVec;
 

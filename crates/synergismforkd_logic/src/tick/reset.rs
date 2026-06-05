@@ -55,7 +55,11 @@ pub(crate) fn perform_reset(
 ///   (flag-setting) is a separate subsystem.
 /// - `G.generatorPower = 1` (recomputed per tick, not stored) and
 ///   `player.fastestprestige` (a record-keeping stat with no state field).
-fn perform_prestige_reset(
+///
+/// Invoked by both the manual dispatch ([`perform_reset`]) and the
+/// auto-reset tail in [`phase_automation`](super::phase_automation) when a
+/// prestige `AutoResetTriggered` fires.
+pub(crate) fn perform_prestige_reset(
     state: &mut GameState,
     prestige_point_gain: Decimal,
 ) -> SmallVec<[CoreEvent; 2]> {

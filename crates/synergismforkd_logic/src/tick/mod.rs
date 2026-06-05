@@ -4012,7 +4012,33 @@ fn phase_automation(
     state.automation.auto_reset_timer_prestige = resets.auto_reset_timer_prestige;
     state.automation.auto_reset_timer_transcension = resets.auto_reset_timer_transcension;
     state.automation.auto_reset_timer_reincarnation = resets.auto_reset_timer_reincarnation;
+
+    // Execute the fired resets. Only the prestige tier is ported, so a
+    // transcension / reincarnation intent still resolves to emit-only —
+    // mirroring the manual dispatch in Phase 3. At default state
+    // `auto_prestige_enabled` is false, so this never fires and the sim
+    // stays unshifted. `pre.prestige_point_gain` is the same gain the
+    // amount-mode gate compared against (and equals the manual path's
+    // `reset_gains.prestige_point_gain`).
+    use crate::events::AutoResetTier;
+    let mut performed: SmallVec<[CoreEvent; 2]> = SmallVec::new();
+    for event in &resets.events {
+        if matches!(
+            event,
+            CoreEvent::AutoResetTriggered {
+                tier: AutoResetTier::Prestige,
+                ..
+            }
+        ) {
+            performed.extend(reset::perform_prestige_reset(
+                state,
+                pre.prestige_point_gain,
+            ));
+        }
+    }
+    // Intent (`AutoResetTriggered`) before effect (`ResetPerformed`).
     output.events.extend(resets.events);
+    output.events.extend(performed);
 }
 
 /// `player.insideSingularityChallenge` — true when the player is inside
@@ -4604,6 +4630,66 @@ mod tests {
                 amount_of_giveaways: 1
             }
         )));
+    }
+
+    #[test]
+    fn phase_automation_executes_prestige_auto_reset() {
+        use synergismforkd_bignum::Decimal;
+
+        use crate::events::AutoResetTier;
+
+        // Auto-prestige (amount mode) meets its gate, so the tail both emits
+        // the `AutoResetTriggered` intent AND now performs the reset.
+        let mut state = GameState::default();
+        state.automation.auto_prestige_enabled = true;
+        state.upgrades.prestige_points = Decimal::from_finite(1.0); // threshold = 1 × 10^0
+        state.coin_counters.coins_this_prestige = Decimal::from_finite(1e16);
+        state.coin_producers.tiers[0].cost = Decimal::from_finite(999.0);
+
+        // `auto_prestige_milestone` + `prestige_point_gain` are self-derived
+        // in `tack`; drive `phase_automation` directly with a controlled
+        // cache so this stays a focused test of the auto-reset → execution
+        // wiring. `time_warp` skips head/middle; the auto-reset tail runs.
+        let automation_pre = AutomationPre {
+            auto_prestige_milestone: 1.0,
+            prestige_point_gain: Decimal::from_finite(5.0),
+            ..AutomationPre::default()
+        };
+        let input = TackInput {
+            dt: 1.0,
+            time_warp: true,
+            ..TackInput::default()
+        };
+        let mut output = TickOutput::default();
+        phase_automation(&mut state, &automation_pre, &input, &mut output);
+
+        assert!(
+            output.events.iter().any(|e| matches!(
+                e,
+                CoreEvent::AutoResetTriggered {
+                    tier: AutoResetTier::Prestige,
+                    ..
+                }
+            )),
+            "expected the prestige intent, got {:?}",
+            output.events
+        );
+        assert!(
+            output.events.iter().any(|e| matches!(
+                e,
+                CoreEvent::ResetPerformed {
+                    tier: AutoResetTier::Prestige,
+                    ..
+                }
+            )),
+            "expected the reset to execute, got {:?}",
+            output.events
+        );
+        // prestige_points: 1 + 5 (awarded gain) = 6; coin economy reset.
+        assert_eq!(state.upgrades.prestige_points.to_number(), 6.0);
+        assert_eq!(state.coin_counters.coins_this_prestige.to_number(), 100.0);
+        assert_eq!(state.coin_producers.tiers[0].cost.to_number(), 100.0);
+        assert_eq!(state.reset_counters.prestige_count, 1.0);
     }
 
     #[test]
