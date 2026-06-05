@@ -144,6 +144,10 @@ const ASCENSION_SCORE_SHARDS_INDEX: usize = 267;
 /// for the real craft value once the abyss hepteract lands.
 const ABYSS_TIMES_CAP_EXTENDED: f64 = 0.0;
 
+/// Legacy index of the lone `obtainiumBonus` reward achievement (#468):
+/// `1 + 0.02 · max(1, 1 + floor(log10(reincarnationCount)))`.
+const OBTAINIUM_BONUS_INDEX: usize = 468;
+
 #[inline]
 fn earned(achievements: &[u8; ACHIEVEMENTS_LEN], index: usize) -> bool {
     achievements[index] != 0
@@ -320,6 +324,25 @@ pub fn ascension_score(achievements: &[u8; ACHIEVEMENTS_LEN], ascend_shards: Dec
     prod
 }
 
+/// `+getAchievementReward('obtainiumBonus')` — multiplicative (base 1). The
+/// single contributing achievement (#468) grants
+/// `1 + 0.02 · max(1, 1 + floor(log10(reincarnationCount)))`. Feeds the
+/// `AchievementBonus` line of the obtainium base-multiplier StatLine
+/// product (`allObtainiumStats`). At default state (achievement unearned)
+/// this is the product identity `1.0`.
+///
+/// `log10(0) = -inf` (JS `Math.log10(0)` and Rust `f64::log10` agree), so at
+/// `reincarnationCount = 0` the `max(1, …)` clamps the term to `1.02` — but
+/// the gate means it only contributes once #468 is earned.
+#[must_use]
+pub fn obtainium_bonus(achievements: &[u8; ACHIEVEMENTS_LEN], reincarnation_count: f64) -> f64 {
+    if earned(achievements, OBTAINIUM_BONUS_INDEX) {
+        1.0 + 0.02 * 1.0_f64.max(1.0 + reincarnation_count.log10().floor())
+    } else {
+        1.0
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -382,6 +405,16 @@ mod tests {
         // ascendShards = 1e100000 → log10 ≈ 1e5 → min(1e5/1e5, 1) = 1 → factor 2.0.
         let huge = Decimal::from_mantissa_exponent(1.0, 100_000.0);
         assert!((ascension_score(&a, huge) - 2.0).abs() < 1e-9);
+    }
+
+    #[test]
+    fn obtainium_bonus_tracks_achievement_468() {
+        // Unearned → product identity, regardless of reincarnation count.
+        assert_eq!(obtainium_bonus(&earned_array(&[]), 1e9), 1.0);
+        // Earned at reincarnationCount = 0 → 1 + 0.02·max(1, 1 + (-inf)) = 1.02.
+        assert!((obtainium_bonus(&earned_array(&[468]), 0.0) - 1.02).abs() < 1e-12);
+        // Earned at reincarnationCount = 1000 → 1 + 0.02·max(1, 1 + 3) = 1.08.
+        assert!((obtainium_bonus(&earned_array(&[468]), 1_000.0) - 1.08).abs() < 1e-12);
     }
 
     #[test]

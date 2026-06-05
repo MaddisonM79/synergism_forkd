@@ -447,6 +447,13 @@ pub fn tack(state: &mut GameState, input: &TackInput) -> TickOutput {
     // `addTimers('goldenQuarks')` product of `allGoldenQuarkMultiplierStats[1..]`).
     cache.automation_pre.golden_quarks_multiplier_excluding_base =
         compute_golden_quarks_multiplier_excluding_base(state);
+    // Auto-research obtainium gain (legacy Helper.ts `addTimers('obtainium')` =
+    // `calculateResearchAutomaticObtainium(dt)`). Self-derives to 0 at default
+    // (the multiplier gate 0.5·research[61] + 0.1·research[62] + 0.8·cube[3] = 0),
+    // matching the old AutomationPre default. Threads this tick's reincarnation
+    // point gain (the `ReincarnationUpgrade9` obtainium line reads it).
+    cache.automation_pre.obtainium_gain =
+        compute_obtainium_gain(state, input.dt, reset_gains.reincarnation_point_gain);
     phase_player_input(state, input, &mut output);
     phase_generation(state, &resource_gain_pre, input.dt, &mut output);
     phase_automation(state, &cache, input, &mut output);
@@ -1822,6 +1829,422 @@ fn compute_golden_quarks_multiplier_excluding_base(state: &GameState) -> f64 {
         1.0, // AccountBonus — account meta (getPersonalBonus)
         1.0, // Event — UI-tier event calendar
     ])
+}
+
+/// `calculateBaseObtainium()` — the **sum** of the `allBaseObtainiumStats`
+/// StatLine (Statistics.ts:1416). Used both as the additive base obtainium
+/// and as the first (Base) line of the DR-ignore immaculate product.
+///
+/// Neutral-defaulted line: `PseudoCoins` (the PCoin meta layer is unported →
+/// additive `0`). `ShopPotionBonus` reads the single Rust
+/// `shop.shop_potions_consumed` count (the legacy offering/obtainium split is
+/// not modelled). All other lines derive from state.
+fn compute_base_obtainium(state: &GameState) -> f64 {
+    use crate::mechanics::blueberry_upgrades::{
+        ambrosia_base_obtainium_1_effect, ambrosia_base_obtainium_2_effect,
+    };
+    use crate::mechanics::calculate::sum_f64;
+    use crate::mechanics::potion_bonuses::calculate_obtainium_potion_base_obtainium;
+    use crate::state::ambrosia::{AMBROSIA_BASE_OBTAINIUM_1, AMBROSIA_BASE_OBTAINIUM_2};
+
+    let researches = &state.researches.researches;
+    let reincarnation_counter = state.reset_counters.reincarnation_counter;
+    let amb = |i: usize| state.ambrosia.upgrades[i].level + state.ambrosia.upgrades[i].free_level;
+
+    sum_f64(&[
+        1.0, // Base
+        0.0, // PseudoCoins — PCoin meta layer (unported) → additive 0
+        calculate_obtainium_potion_base_obtainium(state.shop.shop_potions_consumed).amount,
+        // Research3x13 — gated by the reincarnation timer ≥ 2s.
+        if reincarnation_counter >= 2.0 {
+            researches[63]
+        } else {
+            0.0
+        },
+        // Research3x14 — gated by the reincarnation timer ≥ 5s.
+        if reincarnation_counter >= 5.0 {
+            2.0 * researches[64]
+        } else {
+            0.0
+        },
+        // FirstSingularity perk.
+        if state.singularity.highest_singularity_count > 0.0 {
+            3.0
+        } else {
+            0.0
+        },
+        (state.singularity.singularity_count / 10.0).floor(), // SingularityCount
+        ambrosia_base_obtainium_1_effect(amb(AMBROSIA_BASE_OBTAINIUM_1)),
+        ambrosia_base_obtainium_2_effect(amb(AMBROSIA_BASE_OBTAINIUM_2)),
+    ])
+}
+
+/// `calculateObtainium(timeMultUsed = false)` — the obtainium resource
+/// multiplier feeding the auto-research gain. Assembles the three obtainium
+/// StatLine arrays (Statistics.ts:1416/1456/1541) into a
+/// [`CalculateObtainiumInput`] and runs the ported aggregator:
+/// `immaculate · baseMults^DR · timeMultiplier`, floored by `baseObtainium`,
+/// with the c14 zero-out and taxman clamp.
+///
+/// `time_multiplier` is `1.0` — the caller passes `timeMultUsed = false`
+/// (the auto-research path). `base_mults` is the Decimal product of
+/// `allObtainiumStats` times `calculateObtainiumCubeBlessing()` — the cube
+/// blessing also appears as the `CubeBonus` line, so it is applied twice,
+/// verbatim with the legacy `calculateObtainiumDecimal`.
+///
+/// Neutral-defaulted lines (faithful — no logic state source / inert at the
+/// current state): campaign `TutorialBonus`/`CampaignBonus` (campaign
+/// subsystem unported → 1), `Event` (UI-tier event calendar → 1),
+/// `ReincarnationUpgrade14` (reads `maxOfferings`, untracked → 1; its branch
+/// is `1` at `maxOfferings 0` anyway), `Jack`/`shopPanthema` (needs the
+/// unported `ShopPanthemaBonusLevels` → 1), `SpiritPower` (effective
+/// rune-spirit power needs the unported `spiritMultiplier` chain → 1), and
+/// `SingularityDebuff` (`1 / calculateSingularityDebuff`; the singularity
+/// layer is paused → 1).
+fn compute_obtainium(
+    state: &GameState,
+    base_obtainium: f64,
+    reincarnation_point_gain: Decimal,
+) -> Decimal {
+    use crate::mechanics::achievement_levels::achievement_level_from_points;
+    use crate::mechanics::achievement_rewards::obtainium_bonus;
+    use crate::mechanics::ant_upgrades::obtainium_ant_upgrade_effect;
+    use crate::mechanics::blueberry_upgrades::ambrosia_obtainium_1_effect;
+    use crate::mechanics::calculate::{
+        calculate_obtainium, product_decimal, product_f64, CalculateObtainiumInput,
+    };
+    use crate::mechanics::challenge_15_rewards;
+    use crate::mechanics::challenges::{calc_ecc, ChallengeType};
+    use crate::mechanics::corruptions::{
+        illiteracy_effect, illiteracy_power_at_level, IlliteracyEffectInput,
+    };
+    use crate::mechanics::cube_blessings::calculate_obtainium_cube_blessing;
+    use crate::mechanics::exalt_penalties::calculate_exalt_6_penalty;
+    use crate::mechanics::golden_quark_upgrades::{
+        sing_citadel_2_effect, sing_citadel_effect, sing_obtainium_1_effect,
+        sing_obtainium_2_effect, sing_obtainium_3_effect, starter_pack_effect, SingCitadel2Key,
+        StarterPackKey,
+    };
+    use crate::mechanics::hypercube_blessings::calculate_obtainium_hypercube_blessing;
+    use crate::mechanics::level_rewards::{get_level_reward, LevelRewardKey};
+    use crate::mechanics::octeract_bonuses::{
+        calculate_total_octeract_cube_bonus, calculate_total_octeract_obtainium_bonus,
+        CalculateTotalOcteractCubeBonusInput, CalculateTotalOcteractObtainiumBonusInput,
+    };
+    use crate::mechanics::octeracts::octeract_obtainium_1_effect;
+    use crate::mechanics::platonic_blessings::calculate_hypercube_blessing_multiplier_platonic_blessing;
+    use crate::mechanics::red_ambrosia_bonuses::{
+        calculate_red_ambrosia_obtainium, CalculateRedAmbrosiaResourceInput,
+    };
+    use crate::mechanics::red_ambrosia_upgrades::{
+        red_ambrosia_obtainium_effect, tutorial_effect as red_tutorial_effect,
+    };
+    use crate::mechanics::rune_effects::{
+        antiquities_rune_effects, superior_intellect_rune_effects, AntiquitiesRuneInput,
+        AntiquitiesRuneKey, SuperiorIntellectRuneKey,
+    };
+    use crate::mechanics::shop_upgrades::{
+        cash_grab_2_effect, cash_grab_effect, obtainium_ex_2_effect, obtainium_ex_3_effect,
+        obtainium_ex_effect, shop_ex_ultra_effect, ObtainiumEX3Key,
+    };
+    use crate::mechanics::singularity_challenges::{
+        no_octeracts_effect, NoOcteractsKey, SingularityEffectValue,
+    };
+    use crate::mechanics::talisman_levels::sum_of_talisman_rarities;
+    use crate::mechanics::tesseract_blessings::calculate_obtainium_tesseract_blessing;
+    use crate::state::ambrosia::AMBROSIA_OBTAINIUM_1;
+    use crate::state::golden_quarks::{
+        GQ_SING_CITADEL, GQ_SING_CITADEL_2, GQ_SING_OBTAINIUM_1, GQ_SING_OBTAINIUM_2,
+        GQ_SING_OBTAINIUM_3, GQ_STARTER_PACK,
+    };
+    use crate::state::octeract_upgrades::OCTERACT_OBTAINIUM_1;
+    use crate::state::red_ambrosia::{RED_AMBROSIA_RED_AMBROSIA_OBTAINIUM, RED_AMBROSIA_TUTORIAL};
+    use crate::state::shop::{
+        SHOP_CASH_GRAB, SHOP_CASH_GRAB_2, SHOP_EX_ULTRA, SHOP_OBTAINIUM_EX, SHOP_OBTAINIUM_EX_2,
+        SHOP_OBTAINIUM_EX_3,
+    };
+    use crate::state::{ILLITERACY_INDEX, RUNE_ANTIQUITIES, RUNE_SUPERIOR_INTELLECT};
+
+    // Legacy `AntUpgrades.Obtainium` + the obtainium cube-blessing upgrade
+    // (`player.cubeUpgrades[40]`).
+    const ANT_UPGRADE_OBTAINIUM: usize = 9;
+    const CUBE_UPGRADE_OBTAINIUM_BLESSING: usize = 40;
+
+    let sing = state.singularity.singularity_count;
+    let researches = &state.researches.researches;
+    let cube = &state.cube_upgrade_levels.cube_upgrades;
+    let platonic = &state.cube_upgrade_levels.platonic_upgrades;
+    let shop = &state.shop.upgrades;
+    let achievement_level = achievement_level_from_points(state.achievements.achievement_points);
+    let lifetime_ambrosia = state.ambrosia.lifetime_ambrosia;
+    let ambrosia_luck = compute_ambrosia_luck_pre(state);
+    let gq = |i: usize| {
+        state.golden_quarks.upgrades[i].level + state.golden_quarks.upgrades[i].free_level
+    };
+    let oct = |i: usize| {
+        state.octeract_upgrades.upgrades[i].level + state.octeract_upgrades.upgrades[i].free_level
+    };
+    let amb = |i: usize| state.ambrosia.upgrades[i].level + state.ambrosia.upgrades[i].free_level;
+    let red = |i: usize| state.red_ambrosia.upgrades[i].level;
+
+    // Obtainium cube-blessing chain platonic → hypercube → tesseract → cube,
+    // mirroring `calculateObtainiumCubeBlessing` in `Cubes.ts`.
+    let platonic_amplifier =
+        calculate_hypercube_blessing_multiplier_platonic_blessing(&state.platonic_blessings);
+    let hypercube_blessing =
+        calculate_obtainium_hypercube_blessing(&state.hypercube_blessings, platonic_amplifier);
+    let tesseract_blessing =
+        calculate_obtainium_tesseract_blessing(&state.tesseract_blessings, hypercube_blessing);
+    let obtainium_cube_blessing = calculate_obtainium_cube_blessing(
+        &state.cube_blessings,
+        tesseract_blessing,
+        cube[CUBE_UPGRADE_OBTAINIUM_BLESSING],
+    );
+
+    // OcteractBonus line — the noOcteracts (Exalt 4) obtainium-bonus gate ×
+    // the precomputed total-octeract cube bonus.
+    let obtainium_bonus_enabled = matches!(
+        no_octeracts_effect(
+            state.singularity.no_octeracts.completions,
+            NoOcteractsKey::ObtainiumBonus,
+        ),
+        SingularityEffectValue::Unlock(true)
+    );
+    let octeract_pow = match no_octeracts_effect(
+        state.singularity.no_octeracts.completions,
+        NoOcteractsKey::OcteractPow,
+    ) {
+        SingularityEffectValue::Scalar(s) => s,
+        SingularityEffectValue::Unlock(_) => 0.0,
+    };
+    let octeract_cube_bonus =
+        calculate_total_octeract_cube_bonus(&CalculateTotalOcteractCubeBonusInput {
+            exalt_4_enabled: state.singularity.no_octeracts.enabled,
+            total_wow_octeracts: state.cube_balances.total_wow_octeracts.to_number(),
+            octeract_pow,
+        });
+
+    // CubeUpgradeCx21 — `1.04 ^ (cubeUpgrades[71] · ΣtalismanRarities)`.
+    let talisman_rarities = state.talismans.talisman_rarity.map(|r| r as u8);
+
+    // immaculate = Π allObtainiumIgnoreDRStats (line 1 = calculateBaseObtainium).
+    let immaculate = product_f64(&[
+        base_obtainium,                                                         // Base
+        1.0 + 0.04 * cube[42],                                                  // CubeUpgrade4x2
+        1.0 + 0.03 * cube[43],                                                  // CubeUpgrade4x3
+        1.0, // TutorialBonus — campaign subsystem unported → 1
+        1.0, // CampaignBonus — campaign subsystem unported → 1
+        challenge_15_rewards::obtainium(state.challenges.challenge15_exponent), // ChallengeBonus
+        1.0 + platonic[5], // PlatonicALPHA
+        1.0 + 1.5 * platonic[9], // PlatonicUpgrade9
+        1.0 + 2.5 * platonic[10], // PlatonicBETA
+        1.0 + 5.0 * platonic[15], // PlatonicOMEGA
+        10.0_f64.powf(antiquities_rune_effects(
+            state.runes.rune_levels[RUNE_ANTIQUITIES],
+            AntiquitiesRuneKey::ObtainiumLog10,
+            AntiquitiesRuneInput {
+                singularity_count: sing,
+            },
+        )), // Antiquities
+        1.0 + cube[55] / 100.0, // CubeUpgradeCx5
+        if cube[62] > 0.0 && state.challenges.current_ascension_challenge == 15 {
+            8.0
+        } else {
+            1.0
+        }, // CubeUpgradeCx12
+        red_tutorial_effect(red(RED_AMBROSIA_TUTORIAL)), // RedAmbrosiaTutorial
+        calculate_red_ambrosia_obtainium(&CalculateRedAmbrosiaResourceInput {
+            unlocked: red_ambrosia_obtainium_effect(red(RED_AMBROSIA_RED_AMBROSIA_OBTAINIUM)),
+            lifetime_red_ambrosia: state.red_ambrosia.lifetime_red_ambrosia,
+        }), // RedAmbrosia
+        1.04_f64.powf(cube[71] * sum_of_talisman_rarities(&talisman_rarities)), // CubeUpgradeCx21
+        obtainium_ex_3_effect(
+            shop[SHOP_OBTAINIUM_EX_3],
+            ObtainiumEX3Key::ImmaculateObtainiuMult,
+        ), // ObtainiumEX3
+        if state.singularity.limited_time.enabled {
+            calculate_exalt_6_penalty(
+                state.singularity.limited_time.completions,
+                state.singularity.sing_challenge_timer,
+            )
+        } else {
+            1.0
+        }, // Exalt6Penalty
+        1.0, // Event — UI-tier event calendar → 1 + 0
+    ]);
+
+    // base_mults = Π allObtainiumStats × calculateObtainiumCubeBlessing(),
+    // reduced in Decimal space (the legacy `calculateObtainiumDecimal` folds
+    // the per-line product into a Decimal, then multiplies the cube blessing
+    // back in — so it appears twice: once as the `CubeBonus` line below and
+    // once as the trailing factor).
+    let transcend_shards_log10 = (state.reset_counters.transcend_shards + Decimal::one())
+        .log10()
+        .to_number();
+    let reincarnation_point_gain_log10 = (reincarnation_point_gain + Decimal::from_finite(10.0))
+        .log10()
+        .to_number();
+    let uncommon_fragments = state.talismans.uncommon_fragments;
+    let base_mult_lines: [f64; 38] = [
+        // TranscendShards — `max(1, (log10(transcendShards + 1) / 300)^2)`.
+        1.0_f64.max((transcend_shards_log10 / 300.0).powi(2)),
+        obtainium_bonus(
+            &state.achievements.achievements,
+            state.reset_counters.reincarnation_count,
+        ), // AchievementBonus
+        get_level_reward(LevelRewardKey::Obtainium, achievement_level), // SynergismLevel
+        // ReincarnationUpgrade9 — `min(10, log10(reincarnationPointGain + 10)^0.5)`.
+        if state.upgrades.upgrades[69] > 0 {
+            10.0_f64.min(reincarnation_point_gain_log10.powf(0.5))
+        } else {
+            1.0
+        },
+        // ReincarnationUpgrade12 — `min(50, 1 + 2·Σ challengecompletions[6..=10])`.
+        if state.upgrades.upgrades[72] > 0 {
+            50.0_f64.min(
+                1.0 + 2.0
+                    * state.challenges.challenge_completions[6..=10]
+                        .iter()
+                        .sum::<f64>(),
+            )
+        } else {
+            1.0
+        },
+        1.0, // ReincarnationUpgrade14 — maxOfferings untracked → 1.0 (the upgrades[74] branch is 1 at maxOfferings 0)
+        1.0 + researches[65] / 5.0, // Research3x15
+        1.0 + researches[76] / 10.0, // Research4x1
+        1.0 + researches[81] / 10.0, // Research4x6
+        1.0 + researches[119] / 200.0, // Research5x19
+        cash_grab_effect(shop[SHOP_CASH_GRAB]), // ShopCashGrab
+        obtainium_ex_effect(shop[SHOP_OBTAINIUM_EX]), // ShopObtainiumEX
+        superior_intellect_rune_effects(
+            state.runes.rune_levels[RUNE_SUPERIOR_INTELLECT],
+            SuperiorIntellectRuneKey::ObtainiumMult,
+        ), // Rune5
+        obtainium_ant_upgrade_effect(state.ants.upgrades[ANT_UPGRADE_OBTAINIUM]), // Ant10
+        obtainium_cube_blessing, // CubeBonus
+        1.0 + 0.04 * state.campaigns.constant_upgrades[4], // ConstantUpgrade4
+        1.0 + 0.1 * cube[3], // CubeUpgrade1x3
+        // Challenge12 — `1 + 0.5·CalcECC('ascension', challengecompletions[12])`.
+        1.0 + 0.5
+            * calc_ecc(
+                ChallengeType::Ascension,
+                state.challenges.challenge_completions[12],
+            ),
+        1.0, // SpiritPower — effective rune-spirit power (spiritMultiplier chain) unported → 1.0
+        // Research6x19 — `1 + 0.03·log4(uncommonFragments + 1)·researches[144]`.
+        1.0 + 0.03 * ((uncommon_fragments + 1.0).ln() / 4.0_f64.ln()) * researches[144],
+        1.0 + 0.0002 * cube[50], // CubeUpgrade5x10
+        1.0, // Jack — shopPanthema needs the unported ShopPanthemaBonusLevels → 1.0
+        starter_pack_effect(gq(GQ_STARTER_PACK), StarterPackKey::ObtainiumMult), // StarterPack
+        sing_obtainium_1_effect(gq(GQ_SING_OBTAINIUM_1)),
+        sing_obtainium_2_effect(gq(GQ_SING_OBTAINIUM_2)),
+        sing_obtainium_3_effect(gq(GQ_SING_OBTAINIUM_3)),
+        sing_citadel_effect(gq(GQ_SING_CITADEL)),
+        sing_citadel_2_effect(gq(GQ_SING_CITADEL_2), SingCitadel2Key::Mult),
+        cash_grab_2_effect(shop[SHOP_CASH_GRAB_2]),
+        obtainium_ex_2_effect(shop[SHOP_OBTAINIUM_EX_2], sing),
+        obtainium_ex_3_effect(shop[SHOP_OBTAINIUM_EX_3], ObtainiumEX3Key::ObtainiumMult),
+        calculate_total_octeract_obtainium_bonus(&CalculateTotalOcteractObtainiumBonusInput {
+            obtainium_bonus_enabled,
+            cube_bonus: octeract_cube_bonus,
+        }), // OcteractBonus
+        octeract_obtainium_1_effect(oct(OCTERACT_OBTAINIUM_1)),
+        ambrosia_obtainium_1_effect(amb(AMBROSIA_OBTAINIUM_1), ambrosia_luck), // AmbrosiaObtainium1
+        shop_ex_ultra_effect(shop[SHOP_EX_ULTRA], lifetime_ambrosia),          // EXUltraObtainium
+        // Challenge14 — no obtainium inside ascension challenge 14.
+        if state.challenges.current_ascension_challenge == 14 {
+            0.0
+        } else {
+            1.0
+        },
+        1.0, // SingularityDebuff — `1/calculateSingularityDebuff('Obtainium')`; sing layer paused → 1.0
+        // TaxmanDebuff — `2.5 ^ -min(500, floor(1 + max(0, log10(offerings))))`.
+        if state.singularity.taxman_last_stand.enabled {
+            let offerings_log10 = state.automation.offerings.log10().to_number();
+            let offering_digits = (1.0 + 0.0_f64.max(offerings_log10)).floor();
+            2.5_f64.powf(-(500.0_f64.min(offering_digits)))
+        } else {
+            1.0
+        },
+    ];
+    let base_mults = product_decimal(&base_mult_lines.map(Decimal::from_finite))
+        * Decimal::from_finite(obtainium_cube_blessing);
+
+    // DR exponent — `player.corruptions.used.corruptionEffects('illiteracy')`.
+    let dr = illiteracy_effect(&IlliteracyEffectInput {
+        base_power: illiteracy_power_at_level(state.corruptions.used.levels[ILLITERACY_INDEX]),
+        platonic_upgrade_9: platonic[9],
+        obtainium_log10: if state.researches.obtainium >= Decimal::one() {
+            Some(state.researches.obtainium.log10().to_number())
+        } else {
+            None
+        },
+    });
+
+    calculate_obtainium(&CalculateObtainiumInput {
+        base_obtainium,
+        immaculate,
+        dr,
+        time_multiplier: 1.0, // timeMultUsed = false (the auto-research path)
+        base_mults,
+        in_ascension_challenge_14: state.challenges.current_ascension_challenge == 14,
+        taxman_last_stand_enabled: state.singularity.taxman_last_stand.enabled,
+        taxman_last_stand_completions: state.singularity.taxman_last_stand.completions,
+        current_obtainium: state.researches.obtainium,
+    })
+}
+
+/// `obtainium_gain` — self-derived from `&GameState`.
+///
+/// Legacy Helper.ts `addTimers('obtainium')` sets this to
+/// `calculateResearchAutomaticObtainium(dt)`: the per-tick automatic obtainium
+/// from research idle gain. Replaces the caller-provided
+/// `AutomationPre::obtainium_gain`. **Self-derives to `0` at the default
+/// state** — the per-upgrade multiplier gate
+/// (`0.5·research[61] + 0.1·research[62] + 0.8·cubeUpgrade[3]`) is `0` — which
+/// matches the old `AutomationPre::default().obtainium_gain`.
+///
+/// The resource multiplier (`calculateObtainium(false)`) and base obtainium
+/// flow through [`compute_obtainium`] / [`compute_base_obtainium`]. The
+/// ant-sacrifice obtainium source (a `max()` alternative gated by
+/// `cubeUpgrades[47] > 0`) is neutral-defaulted to `0`: it needs
+/// `calculateAntSacrificeMultiplier()` — the unported `antSacrificeRewardStats`
+/// StatLine + ant-sacrifice cube blessing — and is inert at the current state
+/// (`cubeUpgrades[47] == 0`). The reset-time divisor uses
+/// `campaignTimeThresholdReduction = 0` (campaign subsystem unported).
+fn compute_obtainium_gain(
+    state: &GameState,
+    dt: f64,
+    reincarnation_point_gain: Decimal,
+) -> Decimal {
+    use crate::mechanics::reset_time_and_auto_obtainium::{
+        calculate_research_automatic_obtainium, reset_time_threshold,
+        ResearchAutomaticObtainiumInput, ResetTimeThresholdInput,
+    };
+
+    let cube = &state.cube_upgrade_levels.cube_upgrades;
+    let base_obtainium = compute_base_obtainium(state);
+    let resource_mult = compute_obtainium(state, base_obtainium, reincarnation_point_gain);
+    let reset_time_divisor = reset_time_threshold(&ResetTimeThresholdInput {
+        campaign_time_threshold_reduction: 0.0, // campaign subsystem unported → 0
+    });
+
+    calculate_research_automatic_obtainium(&ResearchAutomaticObtainiumInput {
+        delta_time: dt,
+        ascension_challenge: state.challenges.current_ascension_challenge,
+        research_61: state.researches.researches[61],
+        research_62: state.researches.researches[62],
+        cube_upgrade_3: cube[3],
+        cube_upgrade_47: cube[47],
+        resource_mult,
+        global_speed_mult: compute_global_speed_mult_pre(state),
+        reset_time_divisor,
+        reincarnation_counter: state.reset_counters.reincarnation_counter,
+        base_obtainium,
+        ant_sacrifice_obtainium: Decimal::zero(),
+        ant_sacrifice_timer: state.ants.ant_sacrifice_timer,
+    })
 }
 
 /// Singularity-speed multiplier, self-derived from `&GameState`.
@@ -4045,13 +4468,20 @@ mod tests {
         state.researches.obtainium = Decimal::from_finite(100.0);
         let input = TackInput {
             dt: 1.0,
+            ..TackInput::default()
+        };
+        // `tack` now self-derives obtainium_gain; with research[61] == 1 the
+        // multiplier gate is 0.5 (nonzero), so the self-derived gain would not
+        // be 25. Drive phase_automation directly with a controlled cache so this
+        // stays a focused test of the obtainium credit path.
+        let cache = CrossMechanicCache {
             automation_pre: AutomationPre {
                 obtainium_gain: Decimal::from_finite(25.0),
                 ..AutomationPre::default()
             },
-            ..TackInput::default()
         };
-        let output = tack(&mut state, &input);
+        let mut output = TickOutput::default();
+        phase_automation(&mut state, &cache, &input, &mut output);
 
         assert_eq!(state.researches.obtainium.to_number(), 125.0);
         // addObtainium path → AutoToolFired, and NOT the recompute request.
