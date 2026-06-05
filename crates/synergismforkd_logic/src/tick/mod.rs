@@ -420,6 +420,9 @@ pub fn tack(state: &mut GameState, input: &TackInput) -> TickOutput {
         crate::mechanics::achievement_rewards::ant_sacrifice_unlocked(
             &state.achievements.achievements,
         );
+    // Available reborn ELO (legacy `calculateAvailableRebornELO()`) — feeds the
+    // "maxed reborn ELO" ant-sacrifice toggles.
+    cache.automation_pre.available_reborn_elo = compute_available_reborn_elo(state);
     phase_player_input(state, input, &mut output);
     phase_generation(state, &resource_gain_pre, input.dt, &mut output);
     phase_automation(state, &cache, input, &mut output);
@@ -1634,6 +1637,21 @@ fn compute_auto_prestige_milestone(state: &GameState) -> f64 {
         LevelMilestoneKey::AutoPrestige,
         achievement_level_from_points(state.achievements.achievement_points),
     )
+}
+
+/// Available (un-activated) reborn ELO, from the legacy middle's
+/// `calculateAvailableRebornELO()`: `max(0, immortalELO − rebornELO)`, both
+/// plain ant state. Drives the "maxed reborn ELO" ant-sacrifice toggles.
+/// `0` at the default state.
+fn compute_available_reborn_elo(state: &GameState) -> f64 {
+    use crate::mechanics::ant_reborn_elo::{
+        calculate_available_reborn_elo, AvailableRebornELOInput,
+    };
+
+    calculate_available_reborn_elo(&AvailableRebornELOInput {
+        immortal_elo: state.ants.immortal_elo,
+        reborn_elo: state.ants.reborn_elo,
+    })
 }
 
 /// Ambrosia-luck multiplier (legacy `calculateAmbrosiaLuck`), self-derived
@@ -3070,6 +3088,18 @@ mod tests {
         assert_eq!(compute_auto_prestige_milestone(&state), 0.0);
         state.achievements.achievement_points = 350.0; // ⌊350/50⌋ = level 7 → 1
         assert_eq!(compute_auto_prestige_milestone(&state), 1.0);
+    }
+
+    #[test]
+    fn available_reborn_elo_is_immortal_minus_reborn() {
+        let mut state = GameState::default();
+        assert_eq!(compute_available_reborn_elo(&state), 0.0);
+        state.ants.immortal_elo = 300.0;
+        state.ants.reborn_elo = 120.0;
+        assert_eq!(compute_available_reborn_elo(&state), 180.0);
+        // Floors at 0 when reborn exceeds immortal.
+        state.ants.reborn_elo = 500.0;
+        assert_eq!(compute_available_reborn_elo(&state), 0.0);
     }
 
     #[test]
