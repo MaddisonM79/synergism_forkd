@@ -423,6 +423,20 @@ pub fn tack(state: &mut GameState, input: &TackInput) -> TickOutput {
     // Available reborn ELO (legacy `calculateAvailableRebornELO()`) — feeds the
     // "maxed reborn ELO" ant-sacrifice toggles.
     cache.automation_pre.available_reborn_elo = compute_available_reborn_elo(state);
+    // Challenge-sweep pre-evals (legacy `prepareSweepInputForTackTail`).
+    let sweep = compute_sweep_pre_evals(state);
+    cache.automation_pre.sweep_timer_start = sweep.timer_start;
+    cache.automation_pre.sweep_timer_exit = sweep.timer_exit;
+    cache.automation_pre.sweep_timer_enter = sweep.timer_enter;
+    cache
+        .automation_pre
+        .sweep_next_regular_challenge_from_initial = sweep.next_regular_challenge_from_initial;
+    cache
+        .automation_pre
+        .sweep_next_regular_challenge_from_active = sweep.next_regular_challenge_from_active;
+    cache.automation_pre.sweep_challenge_15_auto_exponent_check =
+        sweep.challenge_15_auto_exponent_check;
+    cache.automation_pre.sweep_is_finished_still_valid = sweep.is_finished_still_valid;
     phase_player_input(state, input, &mut output);
     phase_generation(state, &resource_gain_pre, input.dt, &mut output);
     phase_automation(state, &cache, input, &mut output);
@@ -1652,6 +1666,201 @@ fn compute_available_reborn_elo(state: &GameState) -> f64 {
         immortal_elo: state.ants.immortal_elo,
         reborn_elo: state.ants.reborn_elo,
     })
+}
+
+/// Per-challenge completion caps for the ten regular challenges (`1..=10`),
+/// from the legacy `getMaxChallenges`. Index `0` is unused. The shared
+/// reincarnation/ascension-tier cap inputs are evaluated once; only the
+/// transcension tier (`1..=5`) varies per challenge (via `researches[65 + i]`).
+/// Feeds the challenge-sweep `getNextRegularChallenge` lookups and the
+/// `finished` revalidation guard. GQ cap-increase upgrades use the effective
+/// level (`level + free_level`, the `actualGQUpgradeTotalLevels` convention).
+fn compute_max_challenges_1_to_10(state: &GameState) -> [f64; 11] {
+    use crate::mechanics::challenges::{get_max_challenges, GetMaxChallengesInput};
+    use crate::mechanics::golden_quark_upgrades::{
+        sing_challenge_extension_2_effect, sing_challenge_extension_3_effect,
+        sing_challenge_extension_effect, SingChallengeExtensionKey,
+    };
+    use crate::mechanics::shop_upgrades::challenge_extension_effect;
+    use crate::mechanics::singularity_challenges::{
+        one_challenge_cap_effect, OneChallengeCapKey, SingularityEffectValue,
+    };
+    use crate::state::golden_quarks::{
+        GQ_SING_CHALLENGE_EXTENSION, GQ_SING_CHALLENGE_EXTENSION_2, GQ_SING_CHALLENGE_EXTENSION_3,
+    };
+    use crate::state::shop::SHOP_CHALLENGE_EXTENSION;
+
+    let researches = &state.researches.researches;
+    let cube = &state.cube_upgrade_levels;
+    let occ = &state.singularity.one_challenge_cap;
+    let gq = |i: usize| {
+        state.golden_quarks.upgrades[i].level + state.golden_quarks.upgrades[i].free_level
+    };
+    let scalar = |v: SingularityEffectValue| match v {
+        SingularityEffectValue::Scalar(s) => s,
+        SingularityEffectValue::Unlock(_) => 0.0,
+    };
+
+    let cap_increase = |key: SingChallengeExtensionKey| {
+        sing_challenge_extension_effect(gq(GQ_SING_CHALLENGE_EXTENSION), key)
+            + sing_challenge_extension_2_effect(gq(GQ_SING_CHALLENGE_EXTENSION_2), key)
+            + sing_challenge_extension_3_effect(gq(GQ_SING_CHALLENGE_EXTENSION_3), key)
+    };
+    let gq_reincarnation_cap_increase =
+        cap_increase(SingChallengeExtensionKey::ReincarnationCapIncrease);
+    let gq_ascension_cap_increase = cap_increase(SingChallengeExtensionKey::AscensionCapIncrease);
+    let sing_reincarnation_cap_increase = scalar(one_challenge_cap_effect(
+        occ.completions,
+        OneChallengeCapKey::CapIncrease,
+    )) + scalar(one_challenge_cap_effect(
+        occ.completions,
+        OneChallengeCapKey::ReinCapIncrease2,
+    ));
+    let sing_ascension_cap_increase = scalar(one_challenge_cap_effect(
+        occ.completions,
+        OneChallengeCapKey::AscCapIncrease2,
+    ));
+    let challenge_extension_cap =
+        challenge_extension_effect(state.shop.upgrades[SHOP_CHALLENGE_EXTENSION]);
+
+    let mut caps = [0.0_f64; 11];
+    for (i, slot) in caps.iter_mut().enumerate().skip(1) {
+        *slot = get_max_challenges(&GetMaxChallengesInput {
+            challenge: i as u8,
+            one_challenge_cap_enabled: occ.enabled,
+            infinite_transcend_research: researches[105],
+            transcend_research_for_challenge: researches[65 + i],
+            cube_upgrade_29: cube.cube_upgrades[29],
+            challenge_extension_cap,
+            gq_reincarnation_cap_increase,
+            sing_reincarnation_cap_increase,
+            gq_ascension_cap_increase,
+            sing_ascension_cap_increase,
+            platonic_upgrade_5: cube.platonic_upgrades[5],
+            platonic_upgrade_10: cube.platonic_upgrades[10],
+            platonic_upgrade_15: cube.platonic_upgrades[15],
+        });
+    }
+    caps
+}
+
+/// The seven challenge-sweep pre-evaluations the tail's `tick_challenge_sweep`
+/// consumes ([`AutomationPre`] `sweep_*` fields), self-derived from
+/// `&GameState`. Verbatim port of the legacy `prepareSweepInputForTackTail`
+/// (web_ui/Challenges.ts): scoped to the current `sweep_state`, so the
+/// `getNextRegularChallenge` / `challenge15AutoExponentCheck` / finished-guard
+/// lookups only run for the state that could consult them this tick.
+struct SweepPreEvals {
+    timer_start: f64,
+    timer_exit: f64,
+    timer_enter: f64,
+    next_regular_challenge_from_initial: i32,
+    next_regular_challenge_from_active: i32,
+    challenge_15_auto_exponent_check: bool,
+    is_finished_still_valid: bool,
+}
+
+fn compute_sweep_pre_evals(state: &GameState) -> SweepPreEvals {
+    use crate::events::SweepState;
+    use crate::mechanics::challenges::{
+        auto_ascension_challenge_sweep_unlock, challenge_15_auto_exponent_check,
+        get_next_regular_challenge, Challenge15AutoExponentCheckInput,
+        GetNextRegularChallengeInput,
+    };
+    use crate::mechanics::shop_upgrades::{
+        challenge_15_auto_effect, instant_challenge_2_effect, InstantChallengeKey,
+        InstantChallengeValue,
+    };
+    use crate::state::automation::AutoAscendMode;
+    use crate::state::shop::{SHOP_CHALLENGE_15_AUTO, SHOP_INSTANT_CHALLENGE_2};
+
+    let timer = state.automation.auto_challenge_timer;
+    let toggles = &state.automation.auto_challenge_toggles;
+    let highest_sing = state.singularity.highest_singularity_count;
+    let highest_completions = &state.challenges.highest_challenge_completions;
+
+    // Only the initial-wait / active / finished states consult lookups (the
+    // legacy scoping); all others leave the four non-timer fields inert.
+    let (
+        next_regular_challenge_from_initial,
+        next_regular_challenge_from_active,
+        challenge_15_auto_exponent_check,
+        is_finished_still_valid,
+    ) = match &state.automation.sweep_state {
+        SweepState::InitialWait => {
+            let max_challenges = compute_max_challenges_1_to_10(state);
+            // initialIndex 10 once an ascension challenge is active past sing 2.
+            let initial_index: u8 =
+                if highest_sing >= 2.0 && state.challenges.current_ascension_challenge != 0 {
+                    10
+                } else {
+                    1
+                };
+            let next = get_next_regular_challenge(&GetNextRegularChallengeInput {
+                start_index: initial_index,
+                explored: &[],
+                max_challenges: &max_challenges,
+                highest_completions,
+                auto_challenge_toggles: toggles,
+            });
+            (next, -1, false, false)
+        }
+        SweepState::Active { index, explored } => {
+            let max_challenges = compute_max_challenges_1_to_10(state);
+            let explored: Vec<u8> = explored.iter().copied().collect();
+            let next = get_next_regular_challenge(&GetNextRegularChallengeInput {
+                start_index: *index,
+                explored: &explored,
+                max_challenges: &max_challenges,
+                highest_completions,
+                auto_challenge_toggles: toggles,
+            });
+            let instant_c2_unlocked = matches!(
+                instant_challenge_2_effect(
+                    state.shop.upgrades[SHOP_INSTANT_CHALLENGE_2],
+                    InstantChallengeKey::Unlocked,
+                    highest_sing,
+                ),
+                InstantChallengeValue::Unlock(true)
+            );
+            let c15 = challenge_15_auto_exponent_check(&Challenge15AutoExponentCheckInput {
+                sweep_unlocked: auto_ascension_challenge_sweep_unlock(
+                    highest_sing,
+                    instant_c2_unlocked,
+                ),
+                current_ascension_challenge: state.challenges.current_ascension_challenge,
+                challenge_15_auto_shop_unlocked: challenge_15_auto_effect(
+                    state.shop.upgrades[SHOP_CHALLENGE_15_AUTO],
+                ),
+                auto_ascend: state.automation.auto_ascend,
+                cube_upgrade_10: state.cube_upgrade_levels.cube_upgrades[10],
+                auto_ascend_mode_is_real_time: matches!(
+                    state.automation.auto_ascend_mode,
+                    AutoAscendMode::RealAscensionTime
+                ),
+                ascension_counter_real_real: state.reset_counters.ascension_counter_real_real,
+                auto_ascend_threshold: state.automation.auto_ascend_threshold,
+            });
+            (-1, next, c15, false)
+        }
+        SweepState::Finished => {
+            let max_challenges = compute_max_challenges_1_to_10(state);
+            let valid = highest_completions[1] == max_challenges[1]
+                && highest_completions[6] == max_challenges[6];
+            (-1, -1, false, valid)
+        }
+        _ => (-1, -1, false, false),
+    };
+
+    SweepPreEvals {
+        timer_start: timer.start,
+        timer_exit: timer.exit,
+        timer_enter: timer.enter,
+        next_regular_challenge_from_initial,
+        next_regular_challenge_from_active,
+        challenge_15_auto_exponent_check,
+        is_finished_still_valid,
+    }
 }
 
 /// Ambrosia-luck multiplier (legacy `calculateAmbrosiaLuck`), self-derived
@@ -3100,6 +3309,53 @@ mod tests {
         // Floors at 0 when reborn exceeds immortal.
         state.ants.reborn_elo = 500.0;
         assert_eq!(compute_available_reborn_elo(&state), 0.0);
+    }
+
+    #[test]
+    fn max_challenges_1_to_10_at_default() {
+        let state = GameState::default();
+        let caps = compute_max_challenges_1_to_10(&state);
+        // Transcension tier base 25, reincarnation tier base 40 (no upgrades).
+        assert_eq!(caps[1], 25.0);
+        assert_eq!(caps[5], 25.0);
+        assert_eq!(caps[6], 40.0);
+        assert_eq!(caps[10], 40.0);
+    }
+
+    #[test]
+    fn sweep_pre_evals_idle_at_default() {
+        let state = GameState::default();
+        let s = compute_sweep_pre_evals(&state);
+        // Timers from autoChallengeTimer defaults; lookups inert in Idle.
+        assert_eq!(
+            (s.timer_start, s.timer_exit, s.timer_enter),
+            (10.0, 2.0, 2.0)
+        );
+        assert_eq!(s.next_regular_challenge_from_initial, -1);
+        assert_eq!(s.next_regular_challenge_from_active, -1);
+        assert!(!s.challenge_15_auto_exponent_check);
+        assert!(!s.is_finished_still_valid);
+    }
+
+    #[test]
+    fn sweep_pre_evals_initial_wait_finds_first_challenge() {
+        let mut state = GameState::default();
+        state.automation.sweep_state = crate::events::SweepState::InitialWait;
+        let s = compute_sweep_pre_evals(&state);
+        // Challenge 1 uncompleted (0 < cap 25) + toggled on → next = 1.
+        assert_eq!(s.next_regular_challenge_from_initial, 1);
+        assert_eq!(s.next_regular_challenge_from_active, -1);
+    }
+
+    #[test]
+    fn sweep_pre_evals_finished_guard_tracks_c1_c6_caps() {
+        let mut state = GameState::default();
+        state.automation.sweep_state = crate::events::SweepState::Finished;
+        // Invalid until c1 + c6 sit exactly at their caps (25 / 40).
+        assert!(!compute_sweep_pre_evals(&state).is_finished_still_valid);
+        state.challenges.highest_challenge_completions[1] = 25.0;
+        state.challenges.highest_challenge_completions[6] = 40.0;
+        assert!(compute_sweep_pre_evals(&state).is_finished_still_valid);
     }
 
     #[test]
