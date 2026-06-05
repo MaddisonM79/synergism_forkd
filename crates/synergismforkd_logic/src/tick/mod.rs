@@ -1873,8 +1873,10 @@ fn compute_base_obtainium(state: &GameState) -> f64 {
 /// `immaculate · baseMults^DR · timeMultiplier`, floored by `baseObtainium`,
 /// with the c14 zero-out and taxman clamp.
 ///
-/// `time_multiplier` is `1.0` — the caller passes `timeMultUsed = false`
-/// (the auto-research path). `base_mults` is the Decimal product of
+/// `time_multiplier` is supplied by the caller (the legacy `timeMultUsed`
+/// branch): `1.0` for the auto-research path, or the
+/// `offeringObtainiumTimeModifiers` product (`compute_obtainium_time_multiplier`)
+/// for the reincarnation-reset award. `base_mults` is the Decimal product of
 /// `allObtainiumStats` times `calculateObtainiumCubeBlessing()` — the cube
 /// blessing also appears as the `CubeBonus` line, so it is applied twice,
 /// verbatim with the legacy `calculateObtainiumDecimal`.
@@ -1892,6 +1894,7 @@ fn compute_obtainium(
     state: &GameState,
     base_obtainium: f64,
     reincarnation_point_gain: Decimal,
+    time_multiplier: f64,
 ) -> Decimal {
     use crate::mechanics::achievement_levels::achievement_level_from_points;
     use crate::mechanics::achievement_rewards::obtainium_bonus;
@@ -2173,13 +2176,51 @@ fn compute_obtainium(
         base_obtainium,
         immaculate,
         dr,
-        time_multiplier: 1.0, // timeMultUsed = false (the auto-research path)
+        time_multiplier,
         base_mults,
         in_ascension_challenge_14: state.challenges.current_ascension_challenge == 14,
         taxman_last_stand_enabled: state.singularity.taxman_last_stand.enabled,
         taxman_last_stand_completions: state.singularity.taxman_last_stand.completions,
         current_obtainium: state.researches.obtainium,
     })
+}
+
+/// `offeringObtainiumTimeModifiers(reincarnationcounter, reincarnationCount >= 5)`
+/// reduced to a product (Statistics.ts:1727) — the `timeMultUsed = true`
+/// obtainium time multiplier used by the reincarnation-reset award.
+///
+/// Three lines: `ThresholdPenalty` (`min(1, (t/threshold)^2)`, ≤1, penalises
+/// resets faster than the threshold), `TimeMultiplier` (`max(1, t/threshold)`
+/// once `reincarnationCount >= 5`, else 1, rewarding longer resets), and
+/// `HalfMind` (`globalSpeedMult / 10` when the half-mind GQ upgrade is
+/// unlocked, else 1). `threshold` uses `campaignTimeThresholdReduction = 0`
+/// (campaign subsystem unported → threshold 10).
+fn compute_obtainium_time_multiplier(state: &GameState) -> f64 {
+    use crate::mechanics::golden_quark_upgrades::half_mind_effect;
+    use crate::mechanics::reset_time_and_auto_obtainium::{
+        reset_time_threshold, ResetTimeThresholdInput,
+    };
+    use crate::state::golden_quarks::GQ_HALF_MIND;
+
+    let threshold = reset_time_threshold(&ResetTimeThresholdInput {
+        campaign_time_threshold_reduction: 0.0,
+    });
+    let time = state.reset_counters.reincarnation_counter;
+    let ratio = time / threshold;
+
+    let threshold_penalty = 1.0_f64.min(ratio.powi(2));
+    let time_multiplier = if state.reset_counters.reincarnation_count >= 5.0 {
+        1.0_f64.max(ratio)
+    } else {
+        1.0
+    };
+    let half_mind = if half_mind_effect(state.golden_quarks.upgrades[GQ_HALF_MIND].level) {
+        compute_global_speed_mult_pre(state) / 10.0
+    } else {
+        1.0
+    };
+
+    threshold_penalty * time_multiplier * half_mind
 }
 
 /// `obtainium_gain` — self-derived from `&GameState`.
@@ -2212,7 +2253,8 @@ fn compute_obtainium_gain(
 
     let cube = &state.cube_upgrade_levels.cube_upgrades;
     let base_obtainium = compute_base_obtainium(state);
-    let resource_mult = compute_obtainium(state, base_obtainium, reincarnation_point_gain);
+    // Auto-research path: legacy `calculateObtainium(false)` ⇒ timeMult 1.0.
+    let resource_mult = compute_obtainium(state, base_obtainium, reincarnation_point_gain, 1.0);
     let reset_time_divisor = reset_time_threshold(&ResetTimeThresholdInput {
         campaign_time_threshold_reduction: 0.0, // campaign subsystem unported → 0
     });

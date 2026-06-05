@@ -221,14 +221,14 @@ pub(crate) fn perform_reincarnation_reset(
         >= Decimal::from_finite(REINCARNATION_COUNT_THRESHOLD);
     // Obtainium award (Reset.ts:418, 568-569): `calculateObtainium()` is
     // captured *before* the reset mutates challenge completions / counters
-    // (it reads them via `calc_ecc`). Reuses the ported `compute_obtainium`
-    // (base × immaculate × baseMults^DR); the `timeMultUsed` reset-time
-    // factor (`offeringObtainiumTimeModifiers`, an unported StatLine) is
-    // neutral-defaulted to 1 — faithful at the default `reincarnationcounter`
-    // of 0, where that factor is itself 1.
+    // (read via `calc_ecc`) and zeroes `reincarnation_counter` (the
+    // reset-time multiplier reads it). `timeMultUsed = true` here — the
+    // `offeringObtainiumTimeModifiers` product scales the award by reset
+    // length.
     let obtainium_to_gain = if reincarnation_check {
         let base = super::compute_base_obtainium(state);
-        super::compute_obtainium(state, base, gains.reincarnation_point_gain)
+        let time_mult = super::compute_obtainium_time_multiplier(state);
+        super::compute_obtainium(state, base, gains.reincarnation_point_gain, time_mult)
     } else {
         Decimal::zero()
     };
@@ -542,5 +542,32 @@ mod tests {
 
         assert_eq!(state.researches.obtainium.to_number(), 0.0);
         assert_eq!(state.reset_counters.reincarnation_count, 0.0);
+    }
+
+    #[test]
+    fn reincarnation_obtainium_scales_with_reset_time() {
+        // Two reincarnations identical except reset length. With
+        // reincarnationCount ≥ 5 the `offeringObtainiumTimeModifiers`
+        // TimeMultiplier line rewards the longer run, so it earns strictly
+        // more obtainium (whereas the instant reset takes the
+        // ThresholdPenalty of 0 and only the base-obtainium floor).
+        let make = |counter: f64| {
+            let mut state = GameState::default();
+            state.reset_counters.transcend_shards = Decimal::from_finite(1e305);
+            state.reset_counters.reincarnation_count = 5.0; // ≥ 5 ⇒ TimeMultiplier active
+            state.reset_counters.reincarnation_counter = counter;
+            perform_reincarnation_reset(&mut state, &gains(0.0, 0.0, 0.0));
+            state.researches.obtainium
+        };
+
+        let quick = make(0.0); // ratio 0 ⇒ ThresholdPenalty 0 ⇒ base floor only
+        let slow = make(1000.0); // well past the 10s threshold ⇒ large TimeMultiplier
+
+        assert!(
+            slow > quick,
+            "a longer reincarnation should earn more obtainium: slow={} quick={}",
+            slow.to_number(),
+            quick.to_number()
+        );
     }
 }
