@@ -292,6 +292,18 @@ pub enum CoreEvent {
         /// Whether the threshold check was point-amount based or wall-clock based.
         mode: AutoResetMode,
     },
+    /// A reset tier was *executed* this tick — the player's currencies,
+    /// producers, and counters have already been mutated and the
+    /// prestige-family currency credited. Distinct from
+    /// [`Self::AutoResetTriggered`], which is only the auto-reset *intent*
+    /// (nothing applies it yet). Emitted by the manual-reset dispatch.
+    ResetPerformed {
+        /// Which reset tier executed.
+        tier: AutoResetTier,
+        /// Prestige-family points credited by the reset (`0` for an empty
+        /// reset — the execution is ungated).
+        points_gained: Decimal,
+    },
     /// One of the four `automaticTools()` branches fired this tick.
     ///
     /// Emitted by the auto-tool state machine (tick-side, not yet

@@ -59,6 +59,7 @@ mod auto_research;
 mod auto_reset;
 mod automatic_tools;
 mod challenge_sweep;
+mod reset;
 mod timers;
 
 /// Pre-evaluated inputs for the Phase 5 automation layer — the speed
@@ -243,14 +244,16 @@ pub struct TackInput {
 }
 
 /// A single queued player input. Variants will expand as automation
-/// toggles and resets port (`ToggleAuto(AutoTool)`, `Reset(ResetRequest)`
-/// per the [[loom-tack-design]] memo).
+/// toggles port (`ToggleAuto(AutoTool)` per the [[loom-tack-design]] memo).
 #[derive(Debug, Clone)]
 #[non_exhaustive]
 pub enum PlayerAction {
     /// A buy click. Routes to one of the eight `buy_*` mutators based on
     /// the [`BuyRequest`] variant.
     Buy(BuyRequest),
+    /// A manual reset (prestige / transcension / …). Routes to the
+    /// reset executor based on the [`ResetRequest`] variant.
+    Reset(ResetRequest),
 }
 
 /// Per-mechanic dispatcher for the eight `buy_*` purchase loops. The
@@ -276,6 +279,18 @@ pub enum BuyRequest {
     /// Routes to [`buy_producer`] — manual-click loop across the producer
     /// family selected by `input.producer_type`.
     Producer(BuyProducerInput),
+}
+
+/// Per-tier dispatcher for a manual reset, mirroring [`BuyRequest`]. Only
+/// [`Self::Prestige`] is wired today; the higher tiers (transcension /
+/// reincarnation / ascension / singularity) cascade on top of the
+/// prestige base and port behind the regroup.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum ResetRequest {
+    /// Manual prestige reset — the always-runs base reset
+    /// (`reset('prestige')`).
+    Prestige,
 }
 
 /// Result of [`tack`]. The accumulated event stream is the only output
@@ -433,7 +448,7 @@ pub fn tack(state: &mut GameState, input: &TackInput) -> TickOutput {
     // until ants unlock → whole product 0), vs the old AutomationPre default of
     // 1 — ant generation multiplies by this factor so it no-ops at 0 anyway.
     automation_pre.ant_speed_mult = compute_ant_speed_mult(state);
-    phase_player_input(state, input, &mut output);
+    phase_player_input(state, input, &reset_gains, &mut output);
     phase_generation(state, &resource_gain_pre, input.dt, &mut output);
     phase_automation(state, &automation_pre, input, &mut output);
 
@@ -3527,14 +3542,25 @@ fn compute_resource_gain_pre(
 
 /// **Phase 3** — Player input drain.
 ///
-/// Each queued [`PlayerAction`] dispatches into its corresponding `buy_*`
-/// mutator. Events flow into [`TickOutput::events`].
-fn phase_player_input(state: &mut GameState, input: &TackInput, output: &mut TickOutput) {
+/// Each queued [`PlayerAction`] dispatches into its corresponding mutator:
+/// [`BuyRequest`] → a `buy_*` loop, [`ResetRequest`] → the reset executor
+/// (which awards `reset_gains`, computed at the top of [`tack`]). Events
+/// flow into [`TickOutput::events`].
+fn phase_player_input(
+    state: &mut GameState,
+    input: &TackInput,
+    reset_gains: &crate::mechanics::reset_currency::ResetCurrencyResult,
+    output: &mut TickOutput,
+) {
     for action in &input.player_actions {
         match action {
             PlayerAction::Buy(req) => {
-                let events = dispatch_buy(state, req);
-                output.events.extend(events);
+                output.events.extend(dispatch_buy(state, req));
+            }
+            PlayerAction::Reset(req) => {
+                output
+                    .events
+                    .extend(reset::perform_reset(state, *req, reset_gains));
             }
         }
     }
@@ -4794,6 +4820,54 @@ mod tests {
             output.events
         );
         assert_eq!(state.upgrades.upgrades[5], 1);
+    }
+
+    #[test]
+    fn tack_dispatches_manual_prestige_reset() {
+        use synergismforkd_bignum::Decimal;
+
+        use crate::events::AutoResetTier;
+
+        let mut state = GameState::default();
+        // 1e18 coins-this-prestige ⇒ floor((1e18 / 1e12) ^ 0.5) = 1000 points.
+        state.coin_counters.coins_this_prestige = Decimal::from_finite(1e18);
+        // Dirty a producer cost + a coin upgrade to prove the reset clears
+        // them through `tack`. (Leave `owned` at 0: nonzero producers would
+        // credit one last coin batch in Phase 4 from the `produce_total`
+        // computed in Phase 2b, *before* the Phase-3 reset — a small
+        // same-tick generation residual, not a reset bug.)
+        state.coin_producers.tiers[0].cost = Decimal::from_finite(999.0);
+        state.upgrades.upgrades[5] = 1;
+
+        let mut input = TackInput {
+            dt: 0.025,
+            ..TackInput::default()
+        };
+        input
+            .player_actions
+            .push(PlayerAction::Reset(ResetRequest::Prestige));
+
+        let output = tack(&mut state, &input);
+
+        // End-to-end through `tack`: the reset awards the tick's
+        // prestige_point_gain and clears the coin economy.
+        assert!(
+            output.events.iter().any(|e| matches!(
+                e,
+                CoreEvent::ResetPerformed {
+                    tier: AutoResetTier::Prestige,
+                    ..
+                }
+            )),
+            "expected ResetPerformed in events, got {:?}",
+            output.events
+        );
+        assert_eq!(state.upgrades.prestige_points.to_number(), 1000.0);
+        assert_eq!(state.coin_counters.coins_this_prestige.to_number(), 100.0);
+        assert_eq!(state.coin_producers.tiers[0].cost.to_number(), 100.0);
+        assert_eq!(state.upgrades.upgrades[5], 0);
+        assert_eq!(state.reset_counters.prestige_count, 1.0);
+        assert!(state.reset_counters.prestige_unlocked);
     }
 
     #[test]
