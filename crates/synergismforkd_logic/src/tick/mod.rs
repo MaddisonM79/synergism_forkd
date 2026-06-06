@@ -59,6 +59,7 @@ use crate::mechanics::researches::{buy_research, BuyResearchInput};
 use crate::mechanics::resource_gain::{resource_gain, ResourceGainPre};
 use crate::mechanics::rune_levels::{buy_rune_levels, BuyRuneLevelsInput};
 use crate::mechanics::shop_costs::{buy_shop, BuyShopInput};
+use crate::mechanics::talisman_levels::{buy_talisman_level, BuyTalismanLevelInput};
 use crate::mechanics::tesseract_buildings::{buy_tesseract_building, BuyTesseractBuildingInput};
 use crate::mechanics::update_all_multiplier::{
     update_all_multiplier, UpdateAllMultiplierPre, UpdateAllMultiplierResult,
@@ -294,6 +295,8 @@ pub enum BuyRequest {
     HepteractCraft(BuyHepteractCraftInput),
     /// Routes to [`buy_hepteract_expand`].
     HepteractExpand(BuyHepteractExpandInput),
+    /// Routes to [`buy_talisman_level`].
+    TalismanLevel(BuyTalismanLevelInput),
     /// Routes to [`buy_shop`].
     Shop(BuyShopInput),
     /// Routes to [`buy_multiplier`].
@@ -4194,6 +4197,7 @@ fn dispatch_buy(state: &mut GameState, req: &BuyRequest) -> SmallVec<[CoreEvent;
             *inp,
         ),
         BuyRequest::HepteractExpand(inp) => buy_hepteract_expand(&mut state.hepteracts, *inp),
+        BuyRequest::TalismanLevel(inp) => buy_talisman_level(&mut state.talismans, *inp),
         BuyRequest::Shop(inp) => buy_shop(&mut state.shop, &mut state.quarks.worlds, *inp),
         BuyRequest::Multiplier(inp) => {
             buy_multiplier(&mut state.multiplier, &mut state.upgrades.coins, *inp)
@@ -5386,6 +5390,51 @@ mod tests {
         // Spent one cap (100) and doubled it: bal 0, cap 200.
         assert_eq!(state.hepteracts.chronos.bal, 0.0);
         assert_eq!(state.hepteracts.chronos.cap, 200.0);
+    }
+
+    #[test]
+    fn tack_dispatches_buy_talisman_level_action() {
+        use crate::mechanics::talisman_costs::TalismanCraftCosts;
+        use synergismforkd_bignum::Decimal;
+
+        let mut state = GameState::default();
+        state.talismans.talisman_shards = 100.0;
+
+        let costs = TalismanCraftCosts {
+            shard: Decimal::from_finite(10.0),
+            common_fragment: Decimal::zero(),
+            uncommon_fragment: Decimal::zero(),
+            rare_fragment: Decimal::zero(),
+            epic_fragment: Decimal::zero(),
+            legendary_fragment: Decimal::zero(),
+            mythical_fragment: Decimal::zero(),
+        };
+
+        let mut input = TackInput {
+            dt: 0.025,
+            ..TackInput::default()
+        };
+        input
+            .player_actions
+            .push(PlayerAction::Buy(BuyRequest::TalismanLevel(
+                BuyTalismanLevelInput {
+                    index: 0,
+                    costs,
+                    level_cap: 100.0,
+                },
+            )));
+
+        let output = tack(&mut state, &input);
+
+        assert!(
+            output
+                .events
+                .iter()
+                .any(|e| matches!(e, CoreEvent::TalismanLevelPurchased { .. })),
+            "expected TalismanLevelPurchased in events, got {:?}",
+            output.events
+        );
+        assert_eq!(state.talismans.talisman_levels[0], 1.0);
     }
 
     #[test]

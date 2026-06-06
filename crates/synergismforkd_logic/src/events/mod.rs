@@ -373,6 +373,17 @@ pub enum CoreEvent {
         /// The new (doubled) cap.
         cap_after: f64,
     },
+    /// Talisman `index` gained a level — the legacy `buyTalismanLevel`. The
+    /// spend lands on the seven talisman resources (shards + six fragment
+    /// tiers) in state.
+    TalismanLevelPurchased {
+        /// Talisman index (0..7, via the `TALISMAN_*` constants).
+        index: u32,
+        /// Level before the buy.
+        before: f64,
+        /// Level after the buy.
+        after: f64,
+    },
     /// A single-bit upgrade was purchased. The `spent` value is the cost
     /// in the tier's currency.
     UpgradePurchased {

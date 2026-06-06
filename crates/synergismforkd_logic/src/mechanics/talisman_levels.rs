@@ -8,9 +8,12 @@
 //! rarity)` → display rarity, the levels-until-next-rarity counter,
 //! and the per-level affordability check.
 
+use smallvec::SmallVec;
 use synergismforkd_bignum::Decimal;
 
 use super::talisman_costs::TalismanCraftCosts;
+use crate::events::CoreEvent;
+use crate::state::TalismansState;
 
 // ─── Rarity value table ────────────────────────────────────────────────────
 
@@ -163,6 +166,91 @@ pub fn affordable_talisman_level(input: &AffordableTalismanLevelInput) -> bool {
         return false;
     }
     true
+}
+
+// ─── Manual buy ────────────────────────────────────────────────────────────
+
+/// Inputs to [`buy_talisman_level`].
+#[derive(Debug, Clone, Copy)]
+pub struct BuyTalismanLevelInput {
+    /// Talisman index (`0..7`, via the `TALISMAN_*` constants). Out-of-range
+    /// is a no-op.
+    pub index: usize,
+    /// Per-item cost for the next level — the caller evaluates the talisman's
+    /// cost progression ([`regular_cost_progression`] /
+    /// [`exponential_cost_progression`]) for the current level. The per-talisman
+    /// `baseMult` / `ratio` / which-progression are UI-tier data.
+    ///
+    /// [`regular_cost_progression`]: super::talisman_costs::regular_cost_progression
+    /// [`exponential_cost_progression`]: super::talisman_costs::exponential_cost_progression
+    pub costs: TalismanCraftCosts,
+    /// `getTalismanLevelCap` = `maxLevel + levelCapIncrease()` — the purchase
+    /// cap (UI-tier). The buy stops at `level == level_cap`.
+    pub level_cap: f64,
+}
+
+/// Buy one talisman level for talisman `index` by spending talisman shards and
+/// the six fragment tiers — a port of the legacy `buyTalismanLevel`. The cost
+/// map is caller-provided (evaluated from the ported cost progression for the
+/// current level); affordability uses [`affordable_talisman_level`]. Emits
+/// [`CoreEvent::TalismanLevelPurchased`].
+///
+/// Faithful-at-current-state deferrals:
+/// - **unlock** (`isUnlocked()`) is UI-tier, so the caller gates on it; this
+///   buy is ungated on unlock;
+/// - the rarity recompute (`setTalismanRarity`) reads UI-tier `isUnlocked`
+///   (rarity is `0` while locked, the reachable state today), so it is left to
+///   the UI — `talisman_rarity` is not updated here;
+/// - `fragmentsInvested` respec tracking has no logic-state field, so it is
+///   not accumulated;
+/// - the resource pools are `f64` in state, so the `Decimal` costs are widened
+///   for the affordability check and narrowed on the spend.
+#[must_use]
+pub fn buy_talisman_level(
+    talismans: &mut TalismansState,
+    input: BuyTalismanLevelInput,
+) -> SmallVec<[CoreEvent; 4]> {
+    let mut events = SmallVec::new();
+    if input.index >= talismans.talisman_levels.len() {
+        return events;
+    }
+    let before = talismans.talisman_levels[input.index];
+    if before >= input.level_cap {
+        return events;
+    }
+
+    let budget = TalismanCraftCosts {
+        shard: Decimal::from_finite(talismans.talisman_shards),
+        common_fragment: Decimal::from_finite(talismans.common_fragments),
+        uncommon_fragment: Decimal::from_finite(talismans.uncommon_fragments),
+        rare_fragment: Decimal::from_finite(talismans.rare_fragments),
+        epic_fragment: Decimal::from_finite(talismans.epic_fragments),
+        legendary_fragment: Decimal::from_finite(talismans.legendary_fragments),
+        mythical_fragment: Decimal::from_finite(talismans.mythical_fragments),
+    };
+    if !affordable_talisman_level(&AffordableTalismanLevelInput {
+        costs: input.costs,
+        budget,
+        buffer_mult: 1.0,
+    }) {
+        return events;
+    }
+
+    talismans.talisman_shards -= input.costs.shard.to_number();
+    talismans.common_fragments -= input.costs.common_fragment.to_number();
+    talismans.uncommon_fragments -= input.costs.uncommon_fragment.to_number();
+    talismans.rare_fragments -= input.costs.rare_fragment.to_number();
+    talismans.epic_fragments -= input.costs.epic_fragment.to_number();
+    talismans.legendary_fragments -= input.costs.legendary_fragment.to_number();
+    talismans.mythical_fragments -= input.costs.mythical_fragment.to_number();
+    talismans.talisman_levels[input.index] += 1.0;
+
+    events.push(CoreEvent::TalismanLevelPurchased {
+        index: input.index as u32,
+        before,
+        after: talismans.talisman_levels[input.index],
+    });
+    events
 }
 
 // ─── Sum of rarities ───────────────────────────────────────────────────────
@@ -327,5 +415,113 @@ mod tests {
     fn sum_of_talisman_rarities_is_simple_sum() {
         let rarities = [1_u8, 3, 5, 7, 10];
         assert_eq!(sum_of_talisman_rarities(&rarities), 26.0);
+    }
+
+    // ─── Manual buy ───────────────────────────────────────────────────────
+
+    /// A cost map of `shard` shards + `common` common-fragments, the rest 0.
+    fn cost_map(shard: f64, common: f64) -> TalismanCraftCosts {
+        TalismanCraftCosts {
+            shard: Decimal::from_finite(shard),
+            common_fragment: Decimal::from_finite(common),
+            uncommon_fragment: Decimal::zero(),
+            rare_fragment: Decimal::zero(),
+            epic_fragment: Decimal::zero(),
+            legendary_fragment: Decimal::zero(),
+            mythical_fragment: Decimal::zero(),
+        }
+    }
+
+    fn talismans_with(shards: f64, common: f64) -> TalismansState {
+        TalismansState {
+            talisman_shards: shards,
+            common_fragments: common,
+            ..TalismansState::default()
+        }
+    }
+
+    #[test]
+    fn buy_talisman_level_spends_and_levels() {
+        // Talisman 0 (Exemption) at level 0, next level costs 10 shards.
+        let mut t = talismans_with(100.0, 0.0);
+        let events = buy_talisman_level(
+            &mut t,
+            BuyTalismanLevelInput {
+                index: 0,
+                costs: cost_map(10.0, 0.0),
+                level_cap: 100.0,
+            },
+        );
+        assert_eq!(t.talisman_levels[0], 1.0);
+        assert!((t.talisman_shards - 90.0).abs() < 1e-9);
+        assert!(matches!(
+            events.as_slice(),
+            [CoreEvent::TalismanLevelPurchased { index: 0, .. }]
+        ));
+    }
+
+    #[test]
+    fn buy_talisman_level_unaffordable_is_noop() {
+        let mut t = talismans_with(5.0, 0.0);
+        let events = buy_talisman_level(
+            &mut t,
+            BuyTalismanLevelInput {
+                index: 0,
+                costs: cost_map(10.0, 0.0),
+                level_cap: 100.0,
+            },
+        );
+        assert_eq!(t.talisman_levels[0], 0.0);
+        assert_eq!(t.talisman_shards, 5.0);
+        assert!(events.is_empty());
+    }
+
+    #[test]
+    fn buy_talisman_level_multi_fragment_spends_all() {
+        // 10 shards + 20 common fragments; budget covers both.
+        let mut t = talismans_with(100.0, 50.0);
+        let events = buy_talisman_level(
+            &mut t,
+            BuyTalismanLevelInput {
+                index: 0,
+                costs: cost_map(10.0, 20.0),
+                level_cap: 100.0,
+            },
+        );
+        assert_eq!(t.talisman_levels[0], 1.0);
+        assert!((t.talisman_shards - 90.0).abs() < 1e-9);
+        assert!((t.common_fragments - 30.0).abs() < 1e-9);
+        assert_eq!(events.len(), 1);
+    }
+
+    #[test]
+    fn buy_talisman_level_maxed_is_noop() {
+        let mut t = talismans_with(1e9, 0.0);
+        t.talisman_levels[0] = 100.0;
+        let events = buy_talisman_level(
+            &mut t,
+            BuyTalismanLevelInput {
+                index: 0,
+                costs: cost_map(10.0, 0.0),
+                level_cap: 100.0,
+            },
+        );
+        assert_eq!(t.talisman_levels[0], 100.0);
+        assert!(events.is_empty());
+    }
+
+    #[test]
+    fn buy_talisman_level_out_of_range_is_noop() {
+        let mut t = talismans_with(1e9, 0.0);
+        let out_of_range = t.talisman_levels.len();
+        let events = buy_talisman_level(
+            &mut t,
+            BuyTalismanLevelInput {
+                index: out_of_range,
+                costs: cost_map(10.0, 0.0),
+                level_cap: 100.0,
+            },
+        );
+        assert!(events.is_empty());
     }
 }
