@@ -4649,6 +4649,13 @@ fn complete_active_challenge(
         // Ascension-challenge unlock side-effects fired on highest[i] first rise
         // (Synergism.ts:3796-3808 — inside the `resetCheck` ascensionChallenge block).
         match q_idx {
+            // Reincarnation challenge 10 unlocks ascensions (legacy
+            // `player.unlocks.ascensions = true`, Synergism.ts:3700) — the entry
+            // gate for ascension challenge 11. Without it the c11-c15 ladder is
+            // unreachable in normal play. (c8 anthill / c9 talismans+blessings
+            // still need new `unlocks` fields — deferred to the schema-gated
+            // follow-up.)
+            10 => state.reset_counters.ascension_unlocked = true,
             11 => state.reset_counters.tesseracts_unlocked = true,
             12 => state.reset_counters.spirits_unlocked = true,
             13 => state.reset_counters.hypercubes_unlocked = true,
@@ -6757,6 +6764,43 @@ mod tests {
         let mut output = TickOutput::default();
         phase_challenge_completion(&mut state, &gains, &mut output);
         assert!(state.reset_counters.platonics_unlocked);
+    }
+
+    #[test]
+    fn completing_reincarnation_challenge_10_unlocks_ascensions() {
+        // Regression (audit C2): completing reincarnation challenge 10 must set
+        // ascension_unlocked — the entry gate for ascension challenge 11. The
+        // unlock arm only handled c11-14, so the whole c11-c15 ladder was
+        // unreachable (ascension_unlocked was assigned only in #[cfg(test)]).
+        // Drive complete_active_challenge with a trivially-met requirement so
+        // highest[10] rises 0 -> 1; instant_unlocked skips the tier reset to
+        // isolate the unlock from the cascade.
+        let mut state = GameState::default();
+        assert!(!state.reset_counters.ascension_unlocked);
+        state.challenges.current_reincarnation_challenge = 10;
+        let gains = crate::mechanics::reset_currency::ResetCurrencyResult {
+            prestige_point_gain: Decimal::zero(),
+            transcend_point_gain: Decimal::zero(),
+            reincarnation_point_gain: Decimal::zero(),
+        };
+        let mut output = TickOutput::default();
+        let requirement = |_challenge: u32, _comp: f64| Decimal::zero();
+        complete_active_challenge(
+            &mut state,
+            10,
+            Decimal::one(),
+            5.0,
+            1.0,
+            &requirement,
+            true,
+            &gains,
+            &mut output,
+        );
+        assert!(state.challenges.challenge_completions[10] >= 1.0);
+        assert!(
+            state.reset_counters.ascension_unlocked,
+            "completing reincarnation challenge 10 must unlock ascensions"
+        );
     }
 
     // ── retry_challenges tests ────────────────────────────────────────────
