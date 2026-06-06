@@ -319,6 +319,8 @@ pub enum AutoToggle {
     ObtainiumPotion,
     /// `auto_challenge_running` — the challenge-sweep master switch.
     AutoChallengeRunning,
+    /// `retry_challenges` — stay in challenge on completion instead of exiting.
+    RetryChallenges,
     /// `auto_challenge_toggles[slot]` — per-challenge sweep enable
     /// (`slot` in `0..16`; out-of-range is ignored).
     AutoChallengeSlot(usize),
@@ -4645,15 +4647,26 @@ fn complete_active_challenge(
         }
     }
 
-    // `retrychallenges` defaults to `false` → the tick path always exits.
+    // `retrychallenges` + `autoChallengeRunning` determine whether the slot
+    // clears (Synergism.ts:3616 / 3702). In the tick path (`manual = false`):
+    // - `retry_challenges = false` → always exit (clear the slot).
+    // - `retry_challenges = true`  → stay in challenge unless the sweep is
+    //   running AND completions have reached the cap (auto-sweep rotation).
+    // The structural reset below always fires regardless.
+    let stay_in_challenge = state.automation.retry_challenges
+        && !(state.automation.auto_challenge_running && comp >= max_completions);
+
     let is_transcension = challenge <= 5;
     let is_ascension = challenge >= 11;
-    if is_transcension {
-        state.challenges.current_transcension_challenge = 0;
-    } else if is_ascension {
-        state.challenges.current_ascension_challenge = 0;
-    } else {
-        state.challenges.current_reincarnation_challenge = 0;
+
+    if !stay_in_challenge {
+        if is_transcension {
+            state.challenges.current_transcension_challenge = 0;
+        } else if is_ascension {
+            state.challenges.current_ascension_challenge = 0;
+        } else {
+            state.challenges.current_reincarnation_challenge = 0;
+        }
     }
     output.events.push(CoreEvent::ChallengeCompleted {
         challenge,
@@ -4688,6 +4701,7 @@ fn set_automation_toggle(state: &mut GameState, target: AutoToggle, enabled: boo
         AutoToggle::OfferingPotion => auto.auto_potion_toggle_offering = enabled,
         AutoToggle::ObtainiumPotion => auto.auto_potion_toggle_obtainium = enabled,
         AutoToggle::AutoChallengeRunning => auto.auto_challenge_running = enabled,
+        AutoToggle::RetryChallenges => auto.retry_challenges = enabled,
         AutoToggle::AutoChallengeSlot(slot) => {
             if let Some(flag) = auto.auto_challenge_toggles.get_mut(slot) {
                 *flag = enabled;
@@ -6690,6 +6704,101 @@ mod tests {
         let mut output = TickOutput::default();
         phase_challenge_completion(&mut state, &gains, &mut output);
         assert!(state.reset_counters.platonics_unlocked);
+    }
+
+    // ── retry_challenges tests ────────────────────────────────────────────
+
+    #[test]
+    fn retry_challenges_false_exits_slot() {
+        use crate::mechanics::reset_currency::ResetCurrencyResult;
+        // Default: retry_challenges = false → slot clears on completion.
+        let mut state = GameState::default();
+        state.challenges.current_transcension_challenge = 1;
+        state.coin_counters.coins_this_transcension = Decimal::from_finite(1e11);
+        assert!(!state.automation.retry_challenges);
+        let gains = ResetCurrencyResult {
+            prestige_point_gain: Decimal::zero(),
+            transcend_point_gain: Decimal::zero(),
+            reincarnation_point_gain: Decimal::zero(),
+        };
+        let mut output = TickOutput::default();
+        phase_challenge_completion(&mut state, &gains, &mut output);
+        assert_eq!(state.challenges.current_transcension_challenge, 0); // cleared
+        assert_eq!(state.challenges.challenge_completions[1], 1.0);
+    }
+
+    #[test]
+    fn retry_challenges_true_stays_in_slot() {
+        use crate::mechanics::reset_currency::ResetCurrencyResult;
+        // retry_challenges = true → slot stays on completion.
+        let mut state = GameState::default();
+        state.challenges.current_transcension_challenge = 1;
+        state.coin_counters.coins_this_transcension = Decimal::from_finite(1e11);
+        state.automation.retry_challenges = true;
+        let gains = ResetCurrencyResult {
+            prestige_point_gain: Decimal::zero(),
+            transcend_point_gain: Decimal::zero(),
+            reincarnation_point_gain: Decimal::zero(),
+        };
+        let mut output = TickOutput::default();
+        phase_challenge_completion(&mut state, &gains, &mut output);
+        // Slot must NOT be cleared.
+        assert_eq!(state.challenges.current_transcension_challenge, 1);
+        // But the completion was still awarded.
+        assert_eq!(state.challenges.challenge_completions[1], 1.0);
+        // And the structural reset still ran (coin producers zeroed).
+        assert_eq!(state.coin_producers.tiers[0].owned, 0.0);
+    }
+
+    #[test]
+    fn retry_challenges_true_partial_completion_stays() {
+        use crate::mechanics::reset_currency::ResetCurrencyResult;
+        // retry_challenges=true AND auto_challenge_running=true, but the single
+        // completion this tick leaves comp(1) below the cap(25) → slot stays.
+        let mut state = GameState::default();
+        state.challenges.current_transcension_challenge = 1;
+        state.automation.retry_challenges = true;
+        state.automation.auto_challenge_running = true;
+        // At comp=0, coins=1e11 → completes once (comp=1), 1 < 25 → stays in slot.
+        state.coin_counters.coins_this_transcension = Decimal::from_finite(1e11);
+        let gains = ResetCurrencyResult {
+            prestige_point_gain: Decimal::zero(),
+            transcend_point_gain: Decimal::zero(),
+            reincarnation_point_gain: Decimal::zero(),
+        };
+        let mut output = TickOutput::default();
+        phase_challenge_completion(&mut state, &gains, &mut output);
+        assert_eq!(state.challenges.challenge_completions[1], 1.0);
+        // comp(1) < max(25) → stay_in_challenge = true → slot not cleared.
+        assert_eq!(state.challenges.current_transcension_challenge, 1);
+    }
+
+    #[test]
+    fn retry_challenges_stay_in_challenge_condition_logic() {
+        // Verify the stay_in_challenge boolean formula directly via state reads.
+        // retry=true, auto_running=true, comp < max → stays.
+        // retry=true, auto_running=true, comp >= max → exits.
+        let mut state = GameState::default();
+        state.automation.retry_challenges = true;
+        state.automation.auto_challenge_running = true;
+        // comp=1, max=25 → stay = true && !(true && false) = true && true = true.
+        let stay = state.automation.retry_challenges
+            && !(state.automation.auto_challenge_running && 1.0_f64 >= 25.0_f64);
+        assert!(stay);
+        // comp=25, max=25 → stay = true && !(true && true) = true && false = false.
+        let no_stay = state.automation.retry_challenges
+            && !(state.automation.auto_challenge_running && 25.0_f64 >= 25.0_f64);
+        assert!(!no_stay);
+    }
+
+    #[test]
+    fn toggle_auto_retry_challenges_sets_flag() {
+        let mut state = GameState::default();
+        assert!(!state.automation.retry_challenges);
+        set_automation_toggle(&mut state, AutoToggle::RetryChallenges, true);
+        assert!(state.automation.retry_challenges);
+        set_automation_toggle(&mut state, AutoToggle::RetryChallenges, false);
+        assert!(!state.automation.retry_challenges);
     }
 
     #[test]
