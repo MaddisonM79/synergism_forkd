@@ -289,12 +289,12 @@ pub enum PlayerAction {
     },
     /// Enter a challenge (legacy `toggleChallenges`): set the
     /// `current_*_challenge` slot and run the matching tier reset. `challenge`
-    /// is `1..=5` (transcension) or `6..=10` (reincarnation); `0` exits the
-    /// transcension slot. Ascension challenges (`11..=15`) are not yet wired.
+    /// is `1..=5` (transcension), `6..=10` (reincarnation), or `11..=15`
+    /// (ascension). `0` exits the transcension slot.
     /// Exit a reincarnation/ascension challenge with the corresponding
     /// [`Self::Reset`].
     EnterChallenge {
-        /// Challenge index (`0..=10`; `0` exits the transcension slot).
+        /// Challenge index (`0..=15`; `0` exits the transcension slot).
         challenge: u32,
     },
 }
@@ -396,6 +396,12 @@ pub enum ResetRequest {
     /// hepteract awards and the auto-ascend *decision* remain deferred (see
     /// [`reset::perform_ascension_reset`]).
     Ascension,
+    /// Ascension-challenge reset — same ascension-layer sub-resets as
+    /// [`Self::Ascension`] but triggered by entering or leaving an ascension
+    /// challenge (`reset('ascensionChallenge')`). The
+    /// `current_transcension/reincarnation_challenge` slots are zeroed as
+    /// part of the shared ascension block in [`reset::perform_ascension_reset`].
+    AscensionChallenge,
 }
 
 /// Result of [`tack`]. The accumulated event stream is the only output
@@ -4305,6 +4311,37 @@ fn enter_challenge(
     } else if challenge <= 10 {
         state.challenges.current_reincarnation_challenge = challenge;
         ResetRequest::Reincarnation
+    } else if (11..=15).contains(&challenge) {
+        // ── Ascension challenges (c11–c15) entry guard ────────────────────
+        // Mirrors `toggleChallenges` (Toggles.ts:73–105).
+        //
+        // c11: requires `player.unlocks.ascensions` (ascension_unlocked).
+        // c12-c15: requires `highestchallengecompletions[challenge-1] > 0`.
+        //
+        // The `(!auto && !toggles[31]) || challengecompletions[10] > 0`
+        // c10-condition: in the logic tier `auto = false` and confirmation
+        // dialogs (toggles[31]) are skipped, so the short-circuit
+        // `!auto && !toggles[31]` always fires as `true` — BUT the TS also
+        // allows the unconditional-enter path when all three current
+        // challenge slots are clear (no active challenge in any tier).
+        // We mirror that: if c10 has no completions AND a challenge is
+        // active somewhere, block entry; otherwise allow.
+        let c11_ok = challenge == 11 && state.reset_counters.ascension_unlocked;
+        let c12_15_ok = challenge >= 12
+            && state.challenges.highest_challenge_completions[challenge as usize - 1] > 0.0;
+        if !c11_ok && !c12_15_ok {
+            return smallvec![];
+        }
+        // c10 condition: allow if c10 completions > 0 OR no active challenge.
+        let c10_ok = state.challenges.challenge_completions[10] > 0.0
+            || (state.challenges.current_transcension_challenge == 0
+                && state.challenges.current_reincarnation_challenge == 0
+                && state.challenges.current_ascension_challenge == 0);
+        if !c10_ok {
+            return smallvec![];
+        }
+        state.challenges.current_ascension_challenge = challenge;
+        ResetRequest::AscensionChallenge
     } else {
         return smallvec![];
     };
@@ -4316,18 +4353,20 @@ fn enter_challenge(
 /// Challenge-completion tick phase (legacy `Synergism.ts:3424-3477` auto-check
 /// and the `resetCheck` completion award). Runs after [`phase_generation`] so
 /// the goal resources are fresh. Handles transcension (c1-5, goal =
-/// `coins_this_transcension`) and reincarnation (c6-10, goal = `transcend_shards`
-/// for c6-8 / `coins` for c9-10): if the goal meets `challenge_requirement`,
-/// [`complete_active_challenge`] awards completions, raises `highest`, exits, and
-/// resets out.
+/// `coins_this_transcension`), reincarnation (c6-10, goal = `transcend_shards`
+/// for c6-8 / `coins` for c9-10), and ascension challenges (c11-14, goal =
+/// `challenge_completions[10] >= challenge_requirement` multiplier):
+/// if the goal meets `challenge_requirement`, [`complete_active_challenge`]
+/// awards completions, raises `highest`, exits, and resets out.
 ///
-/// Ascension challenges (c11-15) are deferred. Faithful neutral-defaults at this
-/// scope: the corruption `hyperchallenge` requirement inflation, the c15
-/// transcend/reincarnation reductions, the c10 requirement reduction, and the
-/// shop `challengeExtension` reincarnation cap (→ requirements/caps as if those
-/// upgrades are absent); `highestChallengeRewards` (research auto-unlocks) is
-/// unported → skipped; the post-completion reset reuses the tick-start `gains`
-/// (the port's standing simplification for all in-tick resets).
+/// c15 is deferred (different requirement shape and exponent path). Faithful
+/// neutral-defaults at this scope: the corruption `hyperchallenge` requirement
+/// inflation, the c15 transcend/reincarnation reductions, the c10 requirement
+/// reduction, and the shop `challengeExtension` reincarnation cap (→
+/// requirements/caps as if those upgrades are absent); `highestChallengeRewards`
+/// (research auto-unlocks) is unported → skipped; the post-completion reset
+/// reuses the tick-start `gains` (the port's standing simplification for all
+/// in-tick resets).
 fn phase_challenge_completion(
     state: &mut GameState,
     gains: &crate::mechanics::reset_currency::ResetCurrencyResult,
@@ -4380,11 +4419,19 @@ fn phase_challenge_completion(
 
     // Shared requirement builder (captures Copy values, not `state`).
     let requirement = |challenge: u32, comp: f64| -> Decimal {
+        // `CHALLENGE_BASE_REQUIREMENTS` is indexed `[challenge-1]` for c1-10.
+        // For c11-15 the base is unused by `challenge_requirement` (the ascension
+        // path returns the raw multiplier without using base), so we pass 0.0.
+        let challenge_base_requirement = if challenge <= 10 {
+            CHALLENGE_BASE_REQUIREMENTS[challenge as usize - 1]
+        } else {
+            0.0
+        };
         challenge_requirement(&ChallengeRequirementInput {
             challenge: challenge as u8,
             completion: comp,
             special: challenge as u8,
-            challenge_base_requirement: CHALLENGE_BASE_REQUIREMENTS[challenge as usize - 1],
+            challenge_base_requirement,
             c10_requirement_reduction: 0.0, // c10 reduction deferred (neutral)
             hyperchallenge_multiplier: 1.0, // corruption hyperchallenge inflation deferred
             platonic_upgrade_8: platonic_8,
@@ -4468,6 +4515,49 @@ fn phase_challenge_completion(
             );
         }
     }
+
+    // ── Ascension challenges (c11-14): goal = challengecompletions[10] >= requirement.
+    // `challengeRequirement` for c11-14 returns the multiplier directly as a
+    // plain number (`Decimal` wrapping an f64), not a power-of-10 target.
+    // The TS comparison: `player.challengecompletions[10] >= challengeRequirement(a, …)`
+    // (Synergism.ts:3468-3473). c15 is handled separately (not via this tick path).
+    let qa = state.challenges.current_ascension_challenge;
+    if (11..=14).contains(&qa) {
+        let c10_comp = state.challenges.challenge_completions[10];
+        let req_val =
+            requirement(qa, state.challenges.challenge_completions[qa as usize]).to_number();
+        if c10_comp >= req_val {
+            let platonic = &state.cube_upgrade_levels.platonic_upgrades;
+            let max_completions = get_max_challenges(&GetMaxChallengesInput {
+                challenge: qa as u8,
+                one_challenge_cap_enabled: false,
+                infinite_transcend_research: 0.0,
+                transcend_research_for_challenge: 0.0,
+                cube_upgrade_29: 0.0,
+                challenge_extension_cap: 0.0,
+                gq_reincarnation_cap_increase: 0.0,
+                sing_reincarnation_cap_increase: 0.0,
+                gq_ascension_cap_increase: 0.0,
+                sing_ascension_cap_increase: 0.0,
+                platonic_upgrade_5: platonic[PLATONIC_UPGRADE_5],
+                platonic_upgrade_10: platonic[PLATONIC_UPGRADE_10],
+                platonic_upgrade_15: platonic[PLATONIC_UPGRADE_15],
+            });
+            // Goal for the loop is c10 completions expressed as a Decimal.
+            let goal = Decimal::from_finite(c10_comp);
+            complete_active_challenge(
+                state,
+                qa,
+                goal,
+                max_completions,
+                max_inc,
+                &requirement,
+                instant_unlocked,
+                gains,
+                output,
+            );
+        }
+    }
 }
 
 /// Award + exit + reset for one in-progress challenge that has met its goal
@@ -4500,12 +4590,24 @@ fn complete_active_challenge(
     {
         state.challenges.highest_challenge_completions[q_idx] += 1.0;
         // highestChallengeRewards(challenge, ..) unported → skipped.
+        // Ascension-challenge unlock side-effects fired on highest[i] first rise
+        // (Synergism.ts:3796-3808 — inside the `resetCheck` ascensionChallenge block).
+        match q_idx {
+            11 => state.reset_counters.tesseracts_unlocked = true,
+            12 => state.reset_counters.spirits_unlocked = true,
+            13 => state.reset_counters.hypercubes_unlocked = true,
+            14 => state.reset_counters.platonics_unlocked = true,
+            _ => {}
+        }
     }
 
     // `retrychallenges` defaults to `false` → the tick path always exits.
     let is_transcension = challenge <= 5;
+    let is_ascension = challenge >= 11;
     if is_transcension {
         state.challenges.current_transcension_challenge = 0;
+    } else if is_ascension {
+        state.challenges.current_ascension_challenge = 0;
     } else {
         state.challenges.current_reincarnation_challenge = 0;
     }
@@ -4517,6 +4619,8 @@ fn complete_active_challenge(
     if !instant_unlocked {
         let request = if is_transcension {
             ResetRequest::Transcension
+        } else if is_ascension {
+            ResetRequest::AscensionChallenge
         } else {
             ResetRequest::Reincarnation
         };
@@ -6273,7 +6377,9 @@ mod tests {
     }
 
     #[test]
-    fn enter_ascension_challenge_range_is_deferred_noop() {
+    fn enter_ascension_challenge_c12_blocked_without_highest_c11() {
+        // c12 entry requires highest_challenge_completions[11] > 0.
+        // Default state has that at 0, so the action must be a no-op.
         let mut state = GameState::default();
         let mut input = TackInput {
             dt: 0.0,
@@ -6352,6 +6458,194 @@ mod tests {
             .events
             .iter()
             .any(|e| matches!(e, CoreEvent::ChallengeCompleted { challenge: 6, .. })));
+    }
+
+    // ── Ascension challenge tests ────────────────────────────────────────────
+
+    #[test]
+    fn enter_c11_blocked_without_ascension_unlock() {
+        // c11 requires ascension_unlocked; default state has it false.
+        let mut state = GameState::default();
+        let mut input = TackInput {
+            dt: 0.0,
+            ..TackInput::default()
+        };
+        input
+            .player_actions
+            .push(PlayerAction::EnterChallenge { challenge: 11 });
+        let output = tack(&mut state, &input);
+        assert_eq!(state.challenges.current_ascension_challenge, 0);
+        assert!(!output
+            .events
+            .iter()
+            .any(|e| matches!(e, CoreEvent::ChallengeEntered { .. })));
+    }
+
+    #[test]
+    fn enter_c11_allowed_with_ascension_unlock() {
+        let mut state = GameState::default();
+        state.reset_counters.ascension_unlocked = true;
+        // c10 condition: no active challenges → c10_ok passes even without c10 comp.
+        let mut input = TackInput {
+            dt: 0.0,
+            ..TackInput::default()
+        };
+        input
+            .player_actions
+            .push(PlayerAction::EnterChallenge { challenge: 11 });
+        let output = tack(&mut state, &input);
+        assert_eq!(state.challenges.current_ascension_challenge, 11);
+        assert!(output
+            .events
+            .iter()
+            .any(|e| matches!(e, CoreEvent::ChallengeEntered { challenge: 11 })));
+        // The ascension challenge reset ran: particle producers zeroed.
+        assert_eq!(state.particle_producers.tiers[0].owned, 0.0);
+    }
+
+    #[test]
+    fn enter_c12_allowed_with_highest_c11() {
+        let mut state = GameState::default();
+        // c12 requires highest[11] > 0
+        state.challenges.highest_challenge_completions[11] = 1.0;
+        // c10 condition: no active challenges → passes.
+        let mut input = TackInput {
+            dt: 0.0,
+            ..TackInput::default()
+        };
+        input
+            .player_actions
+            .push(PlayerAction::EnterChallenge { challenge: 12 });
+        let output = tack(&mut state, &input);
+        assert_eq!(state.challenges.current_ascension_challenge, 12);
+        assert!(output
+            .events
+            .iter()
+            .any(|e| matches!(e, CoreEvent::ChallengeEntered { challenge: 12 })));
+    }
+
+    #[test]
+    fn enter_c11_c10_condition_blocks_when_active_and_no_c10_comp() {
+        // c10 condition: c10 completions == 0 AND a challenge is active → blocked.
+        let mut state = GameState::default();
+        state.reset_counters.ascension_unlocked = true;
+        state.challenges.current_transcension_challenge = 2; // active challenge
+        state.challenges.challenge_completions[10] = 0.0;
+        let mut input = TackInput {
+            dt: 0.0,
+            ..TackInput::default()
+        };
+        input
+            .player_actions
+            .push(PlayerAction::EnterChallenge { challenge: 11 });
+        let output = tack(&mut state, &input);
+        assert_eq!(state.challenges.current_ascension_challenge, 0);
+        assert!(!output
+            .events
+            .iter()
+            .any(|e| matches!(e, CoreEvent::ChallengeEntered { .. })));
+    }
+
+    #[test]
+    fn enter_c11_c10_condition_allows_with_c10_comp() {
+        // c10 condition: c10 completions > 0 → allowed even with active challenge.
+        let mut state = GameState::default();
+        state.reset_counters.ascension_unlocked = true;
+        state.challenges.challenge_completions[10] = 1.0;
+        state.challenges.current_transcension_challenge = 2;
+        let mut input = TackInput {
+            dt: 0.0,
+            ..TackInput::default()
+        };
+        input
+            .player_actions
+            .push(PlayerAction::EnterChallenge { challenge: 11 });
+        let output = tack(&mut state, &input);
+        assert_eq!(state.challenges.current_ascension_challenge, 11);
+        assert!(output
+            .events
+            .iter()
+            .any(|e| matches!(e, CoreEvent::ChallengeEntered { challenge: 11 })));
+    }
+
+    #[test]
+    fn phase_challenge_completion_c11_awards_and_exits() {
+        use crate::mechanics::reset_currency::ResetCurrencyResult;
+        let mut state = GameState::default();
+        state.challenges.current_ascension_challenge = 11;
+        // req(c11, comp=0) = calculateChallengeRequirementMultiplier(Ascension, 0, …)
+        // At 0 completions with no corruption/platonic bonuses = 1.0 (identity).
+        // challengecompletions[10] must be >= 1.0 to complete.
+        state.challenges.challenge_completions[10] = 1.0;
+        let gains = ResetCurrencyResult {
+            prestige_point_gain: Decimal::zero(),
+            transcend_point_gain: Decimal::zero(),
+            reincarnation_point_gain: Decimal::zero(),
+        };
+        let mut output = TickOutput::default();
+        phase_challenge_completion(&mut state, &gains, &mut output);
+        assert_eq!(state.challenges.challenge_completions[11], 1.0);
+        assert_eq!(state.challenges.highest_challenge_completions[11], 1.0);
+        // retrychallenges false → exits.
+        assert_eq!(state.challenges.current_ascension_challenge, 0);
+        // Tesseracts unlock fires on first highest[11] rise.
+        assert!(state.reset_counters.tesseracts_unlocked);
+        assert!(output
+            .events
+            .iter()
+            .any(|e| matches!(e, CoreEvent::ChallengeCompleted { challenge: 11, .. })));
+    }
+
+    #[test]
+    fn phase_challenge_completion_c11_noop_below_requirement() {
+        use crate::mechanics::reset_currency::ResetCurrencyResult;
+        let mut state = GameState::default();
+        state.challenges.current_ascension_challenge = 11;
+        // c10 comp = 0 < req 1.0 → no completion.
+        state.challenges.challenge_completions[10] = 0.0;
+        let gains = ResetCurrencyResult {
+            prestige_point_gain: Decimal::zero(),
+            transcend_point_gain: Decimal::zero(),
+            reincarnation_point_gain: Decimal::zero(),
+        };
+        let mut output = TickOutput::default();
+        phase_challenge_completion(&mut state, &gains, &mut output);
+        assert_eq!(state.challenges.challenge_completions[11], 0.0);
+        assert_eq!(state.challenges.current_ascension_challenge, 11); // still in
+        assert!(!state.reset_counters.tesseracts_unlocked);
+    }
+
+    #[test]
+    fn unlock_side_effects_fire_per_challenge() {
+        use crate::mechanics::reset_currency::ResetCurrencyResult;
+        let gains = ResetCurrencyResult {
+            prestige_point_gain: Decimal::zero(),
+            transcend_point_gain: Decimal::zero(),
+            reincarnation_point_gain: Decimal::zero(),
+        };
+        // c12 → spirits_unlocked
+        let mut state = GameState::default();
+        state.challenges.current_ascension_challenge = 12;
+        state.challenges.challenge_completions[10] = 1.0;
+        let mut output = TickOutput::default();
+        phase_challenge_completion(&mut state, &gains, &mut output);
+        assert!(state.reset_counters.spirits_unlocked);
+
+        // c13 → hypercubes_unlocked
+        let mut state = GameState::default();
+        state.challenges.current_ascension_challenge = 13;
+        state.challenges.challenge_completions[10] = 1.0;
+        let mut output = TickOutput::default();
+        phase_challenge_completion(&mut state, &gains, &mut output);
+        assert!(state.reset_counters.hypercubes_unlocked);
+
+        // c14 → platonics_unlocked
+        let mut state = GameState::default();
+        state.challenges.current_ascension_challenge = 14;
+        state.challenges.challenge_completions[10] = 1.0;
+        let mut output = TickOutput::default();
+        phase_challenge_completion(&mut state, &gains, &mut output);
+        assert!(state.reset_counters.platonics_unlocked);
     }
 
     #[test]
