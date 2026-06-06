@@ -157,6 +157,11 @@ const ABYSS_TIMES_CAP_EXTENDED: f64 = 0.0;
 /// `1 + 0.02 · max(1, 1 + floor(log10(reincarnationCount)))`.
 const OBTAINIUM_BONUS_INDEX: usize = 468;
 
+/// Legacy index of the lone `ascensionRewardScaling` achievement (#204):
+/// first challenge-12 completion, group `challenge12`. A single earned-flag
+/// bool reward gating the `allCubeStats` AscensionTime overflow term.
+const ASCENSION_REWARD_SCALING_INDEX: usize = 204;
+
 #[inline]
 fn earned(achievements: &[u8; ACHIEVEMENTS_LEN], index: usize) -> bool {
     achievements[index] != 0
@@ -271,6 +276,14 @@ pub fn crystal_multiplier(input: &AchievementRewardInput) -> f64 {
 #[must_use]
 pub fn ant_sacrifice_unlocked(achievements: &[u8; ACHIEVEMENTS_LEN]) -> bool {
     earned(achievements, ANT_SACRIFICE_UNLOCK_INDEX)
+}
+
+/// `getAchievementReward('ascensionRewardScaling')` — `true` once achievement
+/// #204 is earned. Gates the `allCubeStats` AscensionTime line's overflow term
+/// `(1 + max(0, ascensionCounter / threshold - 1))`. A single earned flag.
+#[must_use]
+pub fn ascension_reward_scaling(achievements: &[u8; ACHIEVEMENTS_LEN]) -> bool {
+    earned(achievements, ASCENSION_REWARD_SCALING_INDEX)
 }
 
 /// `getAchievementReward('antELOAdditive')` — `25` once achievement #485 is
@@ -408,6 +421,12 @@ mod tests {
     fn ant_sacrifice_unlock_tracks_achievement_173() {
         assert!(!ant_sacrifice_unlocked(&earned_array(&[])));
         assert!(ant_sacrifice_unlocked(&earned_array(&[173])));
+    }
+
+    #[test]
+    fn ascension_reward_scaling_tracks_achievement_204() {
+        assert!(!ascension_reward_scaling(&earned_array(&[])));
+        assert!(ascension_reward_scaling(&earned_array(&[204])));
     }
 
     #[test]
