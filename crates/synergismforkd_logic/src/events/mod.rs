@@ -590,6 +590,16 @@ pub enum CoreEvent {
         /// `0` exits the transcension slot).
         challenge: u32,
     },
+    /// A challenge auto-completed in the tick (legacy `resetCheck` completion):
+    /// the goal was met, completions were awarded, and the challenge exited.
+    /// An accompanying `ResetPerformed` carries the reset-out (unless
+    /// `instantChallenge` is unlocked).
+    ChallengeCompleted {
+        /// Challenge index that completed (`1..=5` transcension).
+        challenge: u32,
+        /// New `challenge_completions[challenge]` after the award.
+        completions: f64,
+    },
 }
 
 #[cfg(test)]

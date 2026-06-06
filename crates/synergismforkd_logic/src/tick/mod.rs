@@ -555,6 +555,7 @@ pub fn tack(state: &mut GameState, input: &TackInput) -> TickOutput {
     automation_pre.ant_speed_mult = compute_ant_speed_mult(state);
     phase_player_input(state, input, &reset_gains, &mut output);
     phase_generation(state, &resource_gain_pre, input.dt, &mut output);
+    phase_challenge_completion(state, &reset_gains, &mut output);
     phase_automation(state, &automation_pre, input, &mut output);
 
     output
@@ -4308,6 +4309,146 @@ fn enter_challenge(
     events
 }
 
+/// Challenge-completion tick phase (legacy `Synergism.ts:3424-3477` auto-check
+/// and the `resetCheck` completion award). Runs after [`phase_generation`] so the
+/// goal resource is fresh. For an active **transcension** challenge (c1-5): if
+/// `coins_this_transcension` meets `challenge_requirement`, award completions
+/// (multi-complete up to `instantChallenge.extraCompPerTick`, capped at
+/// `get_max_challenges`), raise `highest`, exit (`retrychallenges` defaults to
+/// `false` so the tick path always exits), and reset out unless
+/// `instantChallenge` is unlocked.
+///
+/// Scope: transcension (c1-5) only — reincarnation (c6-10) and ascension
+/// (c11-15) completion land in follow-ups. Faithful neutral-defaults at this
+/// scope: the corruption `hyperchallenge` requirement inflation and the c15
+/// transcend reduction (→ `1`, i.e. requirements as if uncorrupted / no c15);
+/// `highestChallengeRewards` (research auto-unlocks) is unported → skipped. The
+/// post-completion reset reuses the tick-start `gains` (the port's standing
+/// simplification for all in-tick resets).
+fn phase_challenge_completion(
+    state: &mut GameState,
+    gains: &crate::mechanics::reset_currency::ResetCurrencyResult,
+    output: &mut TickOutput,
+) {
+    use crate::mechanics::challenges::{
+        challenge_requirement, get_max_challenges, ChallengeRequirementInput, GetMaxChallengesInput,
+    };
+    use crate::mechanics::shop_upgrades::{
+        instant_challenge_2_effect, instant_challenge_effect, InstantChallengeKey,
+        InstantChallengeValue,
+    };
+    use crate::state::shop::{SHOP_INSTANT_CHALLENGE, SHOP_INSTANT_CHALLENGE_2};
+
+    const CHALLENGE_BASE_REQUIREMENTS: [f64; 5] = [10.0, 100.0, 1_000.0, 10_000.0, 100_000.0];
+    const PLATONIC_UPGRADE_8: usize = 8;
+    const RESEARCH_INFINITE_TRANSCEND: usize = 105;
+
+    let q = state.challenges.current_transcension_challenge;
+    if !(1..=5).contains(&q) {
+        return;
+    }
+    let q_idx = q as usize;
+
+    // Goal target for `comp` completions (captures Copy values, not `state`).
+    let base_req = CHALLENGE_BASE_REQUIREMENTS[q_idx - 1];
+    let platonic_8 = state.cube_upgrade_levels.platonic_upgrades[PLATONIC_UPGRADE_8];
+    let requirement = |comp: f64| -> Decimal {
+        challenge_requirement(&ChallengeRequirementInput {
+            challenge: q as u8,
+            completion: comp,
+            special: q as u8,
+            challenge_base_requirement: base_req,
+            c10_requirement_reduction: 0.0,
+            hyperchallenge_multiplier: 1.0, // corruption hyperchallenge inflation deferred
+            platonic_upgrade_8: platonic_8,
+            challenge_15_transcend_reduction: 1.0, // c15 transcend reduction deferred
+            challenge_15_reincarnation_reduction: 1.0,
+            challenge_tome_c9c10_scaling_reduction: 0.0,
+            challenge_tome_2_c9c10_scaling_reduction: 0.0,
+        })
+    };
+
+    let coins = state.coin_counters.coins_this_transcension;
+    if coins < requirement(state.challenges.challenge_completions[q_idx]) {
+        return;
+    }
+
+    let research = &state.researches.researches;
+    let max_completions = get_max_challenges(&GetMaxChallengesInput {
+        challenge: q as u8,
+        one_challenge_cap_enabled: false, // SC oneChallengeCap (singularity) → neutral
+        infinite_transcend_research: research[RESEARCH_INFINITE_TRANSCEND],
+        transcend_research_for_challenge: research[65 + q_idx],
+        cube_upgrade_29: 0.0,
+        challenge_extension_cap: 0.0,
+        gq_reincarnation_cap_increase: 0.0,
+        sing_reincarnation_cap_increase: 0.0,
+        gq_ascension_cap_increase: 0.0,
+        sing_ascension_cap_increase: 0.0,
+        platonic_upgrade_5: 0.0,
+        platonic_upgrade_10: 0.0,
+        platonic_upgrade_15: 0.0,
+    });
+
+    // Multi-completion per tick (instantChallenge extraCompPerTick), capped at 1
+    // inside ascension challenge 13.
+    let scalar = |v: InstantChallengeValue| match v {
+        InstantChallengeValue::Scalar(s) => s,
+        InstantChallengeValue::Unlock(_) => 0.0,
+    };
+    let mut max_inc =
+        1.0 + scalar(instant_challenge_effect(
+            state.shop.upgrades[SHOP_INSTANT_CHALLENGE],
+            InstantChallengeKey::ExtraCompPerTick,
+        )) + scalar(instant_challenge_2_effect(
+            state.shop.upgrades[SHOP_INSTANT_CHALLENGE_2],
+            InstantChallengeKey::ExtraCompPerTick,
+            state.singularity.highest_singularity_count,
+        ));
+    if state.challenges.current_ascension_challenge == 13 {
+        max_inc = 1.0;
+    }
+
+    let mut comp = state.challenges.challenge_completions[q_idx];
+    let mut counter = 0.0;
+    while counter < max_inc {
+        if comp < max_completions && coins >= requirement(comp) {
+            comp += 1.0;
+        }
+        counter += 1.0;
+    }
+    state.challenges.challenge_completions[q_idx] = comp;
+    while state.challenges.challenge_completions[q_idx]
+        > state.challenges.highest_challenge_completions[q_idx]
+    {
+        state.challenges.highest_challenge_completions[q_idx] += 1.0;
+        // highestChallengeRewards(q, ..) unported → skipped.
+    }
+
+    // `retrychallenges` defaults to `false` → the tick path always exits.
+    state.challenges.current_transcension_challenge = 0;
+    output.events.push(CoreEvent::ChallengeCompleted {
+        challenge: q,
+        completions: comp,
+    });
+
+    // Reset out unless instantChallenge is unlocked (leaving = false in the tick).
+    let instant_unlocked = matches!(
+        instant_challenge_effect(
+            state.shop.upgrades[SHOP_INSTANT_CHALLENGE],
+            InstantChallengeKey::Unlocked,
+        ),
+        InstantChallengeValue::Unlock(true)
+    );
+    if !instant_unlocked {
+        output.events.extend(reset::perform_reset(
+            state,
+            ResetRequest::Transcension,
+            gains,
+        ));
+    }
+}
+
 /// `PlayerAction::ToggleAuto` handler — set the selected automation flag to
 /// `enabled`. A pure config change (no event); `phase_automation` reads the
 /// flag. Out-of-range challenge slots are ignored.
@@ -6070,6 +6211,47 @@ mod tests {
             .events
             .iter()
             .any(|e| matches!(e, CoreEvent::ChallengeEntered { .. })));
+    }
+
+    #[test]
+    fn challenge_completion_transcension_awards_and_exits() {
+        use crate::mechanics::reset_currency::ResetCurrencyResult;
+        let mut state = GameState::default();
+        state.challenges.current_transcension_challenge = 1;
+        // req(c1, 0) = 10^10; provide comfortably more.
+        state.coin_counters.coins_this_transcension = Decimal::from_finite(1e11);
+        let gains = ResetCurrencyResult {
+            prestige_point_gain: Decimal::zero(),
+            transcend_point_gain: Decimal::zero(),
+            reincarnation_point_gain: Decimal::zero(),
+        };
+        let mut output = TickOutput::default();
+        phase_challenge_completion(&mut state, &gains, &mut output);
+        assert_eq!(state.challenges.challenge_completions[1], 1.0);
+        assert_eq!(state.challenges.highest_challenge_completions[1], 1.0);
+        // retrychallenges defaults false → the tick path exits.
+        assert_eq!(state.challenges.current_transcension_challenge, 0);
+        assert!(output
+            .events
+            .iter()
+            .any(|e| matches!(e, CoreEvent::ChallengeCompleted { challenge: 1, .. })));
+    }
+
+    #[test]
+    fn challenge_completion_noop_below_requirement() {
+        use crate::mechanics::reset_currency::ResetCurrencyResult;
+        let mut state = GameState::default();
+        state.challenges.current_transcension_challenge = 1;
+        state.coin_counters.coins_this_transcension = Decimal::from_finite(1e9); // < 10^10
+        let gains = ResetCurrencyResult {
+            prestige_point_gain: Decimal::zero(),
+            transcend_point_gain: Decimal::zero(),
+            reincarnation_point_gain: Decimal::zero(),
+        };
+        let mut output = TickOutput::default();
+        phase_challenge_completion(&mut state, &gains, &mut output);
+        assert_eq!(state.challenges.challenge_completions[1], 0.0);
+        assert_eq!(state.challenges.current_transcension_challenge, 1); // still in
     }
 
     #[test]
