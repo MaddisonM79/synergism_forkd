@@ -1778,6 +1778,232 @@ fn compute_octeract_per_second(state: &GameState) -> f64 {
     ])
 }
 
+/// `calculateAllCubeMultiplier()` — the GLOBAL cube-gain multiplier
+/// (`allCubeStats` product, original `Statistics.ts:172`), self-derived from
+/// `&GameState`. This is the shared base line multiplied into ALL five
+/// cube-family multipliers (`allWowCubeStats` / `allTesseractStats` /
+/// `allHypercubeStats` / `allPlatonicCubeStats` / `allHepteractCubeStats`), so
+/// it is the foundation of the ascension cube award (`CalcCorruptionStuff`).
+///
+/// The AscensionTime line reads `ascensionCounter` BEFORE the ascension reset
+/// zeroes it; the award block in `apply_ascension_layer` therefore calls this
+/// before the counter reset (Reset.ts ordering).
+///
+/// Neutral-defaulted lines (faithful — unported / paused / UI-tier):
+/// PseudoCoins (PCoin meta), CampaignTutorial + Campaign (campaign subsystem
+/// unported), InfiniteAscent (the infiniteAscent rune is outside the 7-rune
+/// `rune_levels` model → level 0 → `1 + 0/100`), SingDebuff
+/// (`1 / calculateSingularityDebuff('Cubes')` — the singularity layer is paused
+/// and has no production debuff-input builder; `= 1` at `singularityCount 0`,
+/// i.e. all pre-singularity play), Jack (`shopPanthema` `bonusLevels()` builder
+/// unported; `= 1` at panthema level 0), CookieUpgrade8 + Event (UI-tier
+/// `isEvent` calendar → `0`).
+#[expect(
+    dead_code,
+    reason = "shared base for the five cube-family multiplier wrappers; the lint \
+              flips off in the next commit when compute_cube_multiplier et al. \
+              (allWowCubeStats / allTesseractStats / …) consume it"
+)]
+fn compute_all_cube_multiplier(state: &GameState) -> f64 {
+    use crate::mechanics::achievement_rewards::ascension_reward_scaling;
+    use crate::mechanics::ambrosia::{calculate_ambrosia_cube_mult, AmbrosiaMultInput};
+    use crate::mechanics::blueberry_upgrades::{
+        ambrosia_cubes_1_effect, ambrosia_cubes_2_effect, ambrosia_cubes_3_effect,
+        ambrosia_hyperflux_effect, ambrosia_luck_cube_1_effect, ambrosia_quark_cube_1_effect,
+        ambrosia_tutorial_effect, AmbrosiaTutorialEffectKey,
+    };
+    use crate::mechanics::calculate::product_f64;
+    use crate::mechanics::challenge_15_rewards;
+    use crate::mechanics::exalt_penalties::calculate_exalt_6_penalty;
+    use crate::mechanics::golden_quark_upgrades::{
+        one_mind_effect, platonic_delta_effect, sing_citadel_2_effect, sing_citadel_effect,
+        sing_cubes_1_effect, sing_cubes_2_effect, sing_cubes_3_effect, starter_pack_effect,
+        SingCitadel2Key, StarterPackKey,
+    };
+    use crate::mechanics::octeract_bonuses::{
+        calculate_total_octeract_cube_bonus, CalculateTotalOcteractCubeBonusInput,
+    };
+    use crate::mechanics::overflux_bonuses::calculate_cube_mult_from_powder;
+    use crate::mechanics::red_ambrosia_bonuses::{
+        calculate_red_ambrosia_cubes, CalculateRedAmbrosiaCubesInput,
+    };
+    use crate::mechanics::red_ambrosia_upgrades::{
+        red_ambrosia_cube_effect, red_ambrosia_cube_improver_effect,
+        tutorial_effect as red_tutorial_effect,
+    };
+    use crate::mechanics::reset_time_and_auto_obtainium::{
+        reset_time_threshold, ResetTimeThresholdInput,
+    };
+    use crate::mechanics::shop_upgrades::{
+        season_pass_infinity_effect, season_pass_y_effect, season_pass_z_effect,
+        shop_cash_grab_ultra_effect, shop_ex_ultra_effect, shop_singularity_speedup_effect,
+        SeasonPassInfinityKey, ShopCashGrabUltraKey,
+    };
+    use crate::mechanics::singularity_challenges::{
+        no_octeracts_effect, no_singularity_upgrades_effect, NoOcteractsKey,
+        NoSingularityUpgradesKey, SingularityEffectValue,
+    };
+    use crate::state::ambrosia::{
+        AMBROSIA_CUBES_1, AMBROSIA_CUBES_2, AMBROSIA_CUBES_3, AMBROSIA_HYPERFLUX,
+        AMBROSIA_LUCK_CUBE_1, AMBROSIA_QUARK_CUBE_1, AMBROSIA_TUTORIAL,
+    };
+    use crate::state::golden_quarks::{
+        GQ_ONE_MIND, GQ_PLATONIC_DELTA, GQ_SING_CITADEL, GQ_SING_CITADEL_2, GQ_SING_CUBES_1,
+        GQ_SING_CUBES_2, GQ_SING_CUBES_3, GQ_STARTER_PACK,
+    };
+    use crate::state::red_ambrosia::{
+        RED_AMBROSIA_RED_AMBROSIA_CUBE, RED_AMBROSIA_RED_AMBROSIA_CUBE_IMPROVER,
+        RED_AMBROSIA_TUTORIAL,
+    };
+    use crate::state::shop::{
+        SHOP_CASH_GRAB_ULTRA, SHOP_EX_ULTRA, SHOP_SEASON_PASS_INFINITY, SHOP_SEASON_PASS_Y,
+        SHOP_SEASON_PASS_Z, SHOP_SINGULARITY_SPEEDUP,
+    };
+
+    // Legacy `player.cubeUpgrades[..]` / `player.platonicUpgrades[..]` indices.
+    const CUBE_UPGRADE_66: usize = 66;
+    const PLATONIC_UPGRADE_BETA: usize = 10;
+    const PLATONIC_UPGRADE_OMEGA: usize = 15;
+    const PLATONIC_UPGRADE_19: usize = 19;
+
+    let sing = state.singularity.singularity_count;
+    let shop = &state.shop.upgrades;
+    let cube = &state.cube_upgrade_levels.cube_upgrades;
+    let platonic = &state.cube_upgrade_levels.platonic_upgrades;
+    let cc = &state.challenges.challenge_completions;
+    let lifetime_ambrosia = state.ambrosia.lifetime_ambrosia;
+    let gq = |i: usize| {
+        state.golden_quarks.upgrades[i].level + state.golden_quarks.upgrades[i].free_level
+    };
+    let amb = |i: usize| state.ambrosia.upgrades[i].level + state.ambrosia.upgrades[i].free_level;
+    let red = |i: usize| state.red_ambrosia.upgrades[i].level;
+
+    // AscensionTime: `min(1, counter/threshold)^2`, times `(1 + overflow)` once
+    // the `ascensionRewardScaling` achievement (#204) is earned.
+    let reset_threshold = reset_time_threshold(&ResetTimeThresholdInput {
+        campaign_time_threshold_reduction: 0.0, // campaign subsystem unported → 0
+    });
+    let frac = state.reset_counters.ascension_counter / reset_threshold;
+    let ascension_time_base = frac.min(1.0).powi(2);
+    let ascension_time = if ascension_reward_scaling(&state.achievements.achievements) {
+        ascension_time_base * (1.0 + (frac - 1.0).max(0.0))
+    } else {
+        ascension_time_base
+    };
+
+    // Challenge15: product of the five cube rewards of `challenge15Exponent`.
+    let c15e = state.challenges.challenge15_exponent;
+    let challenge_15_cubes = challenge_15_rewards::cube1(c15e)
+        * challenge_15_rewards::cube2(c15e)
+        * challenge_15_rewards::cube3(c15e)
+        * challenge_15_rewards::cube4(c15e)
+        * challenge_15_rewards::cube5(c15e);
+
+    // WowOcteract: octeract-count cube bonus (mirrors the octeract assembly).
+    let octeract_pow = match no_octeracts_effect(
+        state.singularity.no_octeracts.completions,
+        NoOcteractsKey::OcteractPow,
+    ) {
+        SingularityEffectValue::Scalar(s) => s,
+        SingularityEffectValue::Unlock(_) => 0.0,
+    };
+    let wow_octeract = calculate_total_octeract_cube_bonus(&CalculateTotalOcteractCubeBonusInput {
+        exalt_4_enabled: state.singularity.no_octeracts.enabled,
+        total_wow_octeracts: state.cube_balances.total_wow_octeracts.to_number(),
+        octeract_pow,
+    });
+
+    // NoSing: a missing singularity-challenge value → multiplicative 1.
+    let no_sing = match no_singularity_upgrades_effect(
+        state.singularity.no_singularity_upgrades.completions,
+        NoSingularityUpgradesKey::Cubes,
+    ) {
+        SingularityEffectValue::Scalar(s) => s,
+        SingularityEffectValue::Unlock(_) => 1.0,
+    };
+
+    // OneMind: full ascension-speed mult / 10 when the oneMind GQ upgrade is bought.
+    let one_mind = if one_mind_effect(state.golden_quarks.upgrades[GQ_ONE_MIND].level) {
+        compute_ascension_speed_mult_pre(state) / 10.0
+    } else {
+        1.0
+    };
+
+    // Exalt6: the limitedTime (Exalt 6) per-second cube penalty; inert while
+    // the challenge is disabled (the singularity layer is paused).
+    let exalt6 = if state.singularity.limited_time.enabled {
+        calculate_exalt_6_penalty(
+            state.singularity.limited_time.completions,
+            state.singularity.sing_challenge_timer,
+        )
+    } else {
+        1.0
+    };
+
+    product_f64(&[
+        1.0, // PseudoCoins — PCoin meta layer (unported)
+        ascension_time,
+        1.0, // CampaignTutorial — campaign subsystem (unported)
+        1.0, // Campaign — campaign subsystem (unported)
+        challenge_15_cubes,
+        1.0, // InfiniteAscent — rune outside the 7-rune model → level 0 → 1
+        1.0 + platonic[PLATONIC_UPGRADE_BETA], // Beta
+        1.01_f64.powf(platonic[PLATONIC_UPGRADE_OMEGA] * cc[9]), // Omega
+        calculate_cube_mult_from_powder(state.hepteracts.overflux_powder), // Powder
+        1.0, // SingDebuff — singularity layer paused; = 1 at sing 0 (pre-singularity)
+        1.0, // Jack — shopPanthema bonusLevels() unported; = 1 at panthema level 0
+        season_pass_y_effect(shop[SHOP_SEASON_PASS_Y]),
+        season_pass_z_effect(shop[SHOP_SEASON_PASS_Z], sing),
+        season_pass_infinity_effect(
+            shop[SHOP_SEASON_PASS_INFINITY],
+            SeasonPassInfinityKey::GlobalCubeMult,
+        ),
+        shop_cash_grab_ultra_effect(
+            shop[SHOP_CASH_GRAB_ULTRA],
+            ShopCashGrabUltraKey::CubesMult,
+            lifetime_ambrosia,
+        ),
+        shop_ex_ultra_effect(shop[SHOP_EX_ULTRA], lifetime_ambrosia),
+        starter_pack_effect(gq(GQ_STARTER_PACK), StarterPackKey::CubeMult),
+        sing_cubes_1_effect(gq(GQ_SING_CUBES_1)),
+        sing_cubes_2_effect(gq(GQ_SING_CUBES_2)),
+        sing_cubes_3_effect(gq(GQ_SING_CUBES_3)),
+        sing_citadel_effect(gq(GQ_SING_CITADEL)),
+        sing_citadel_2_effect(gq(GQ_SING_CITADEL_2), SingCitadel2Key::Mult),
+        platonic_delta_effect(
+            gq(GQ_PLATONIC_DELTA),
+            state.singularity.singularity_counter,
+            shop_singularity_speedup_effect(shop[SHOP_SINGULARITY_SPEEDUP]),
+        ),
+        1.0, // CookieUpgrade8 — UI-tier isEvent → 1 + 0.25·0·cube[58]
+        1.0 + cube[CUBE_UPGRADE_66] * (1.0 - platonic[PLATONIC_UPGRADE_OMEGA]), // CookieUpgrade16
+        wow_octeract,
+        no_sing,
+        calculate_ambrosia_cube_mult(&AmbrosiaMultInput {
+            no_ambrosia_upgrades_enabled: state.singularity.no_ambrosia_upgrades.enabled,
+            lifetime_ambrosia,
+        }),
+        ambrosia_tutorial_effect(amb(AMBROSIA_TUTORIAL), AmbrosiaTutorialEffectKey::Cubes),
+        ambrosia_cubes_1_effect(amb(AMBROSIA_CUBES_1)),
+        ambrosia_luck_cube_1_effect(amb(AMBROSIA_LUCK_CUBE_1), compute_ambrosia_luck_pre(state)),
+        ambrosia_quark_cube_1_effect(amb(AMBROSIA_QUARK_CUBE_1), state.quarks.worlds.to_number()),
+        ambrosia_cubes_2_effect(amb(AMBROSIA_CUBES_2), amb(AMBROSIA_CUBES_1)),
+        ambrosia_hyperflux_effect(amb(AMBROSIA_HYPERFLUX), platonic[PLATONIC_UPGRADE_19]),
+        ambrosia_cubes_3_effect(amb(AMBROSIA_CUBES_3), amb(AMBROSIA_CUBES_2)),
+        red_tutorial_effect(red(RED_AMBROSIA_TUTORIAL)),
+        calculate_red_ambrosia_cubes(&CalculateRedAmbrosiaCubesInput {
+            unlocked: red_ambrosia_cube_effect(red(RED_AMBROSIA_RED_AMBROSIA_CUBE)),
+            lifetime_red_ambrosia: state.red_ambrosia.lifetime_red_ambrosia,
+            extra_exponent: red_ambrosia_cube_improver_effect(red(
+                RED_AMBROSIA_RED_AMBROSIA_CUBE_IMPROVER,
+            )),
+        }),
+        exalt6,
+        one_mind,
+        1.0, // Event — UI-tier event calendar → 1 + 0
+    ])
+}
+
 /// `golden_quarks_multiplier_excluding_base` — self-derived from `&GameState`.
 ///
 /// Legacy Helper.ts `addTimers('goldenQuarks')` reduces
