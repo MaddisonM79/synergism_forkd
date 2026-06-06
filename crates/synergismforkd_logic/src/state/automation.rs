@@ -117,6 +117,11 @@ pub struct AutomationState {
     // ── Challenge sweep machine ──────────────────────────────────────
     /// `player.autoChallengeRunning` — sweep armed.
     pub auto_challenge_running: bool,
+    /// `player.retrychallenges` — when true, completed challenges do not
+    /// exit their slot; the game re-runs the same challenge immediately on
+    /// the next tick (the standard grind path for farming completions).
+    /// The structural reset still fires each completion cycle.
+    pub retry_challenges: bool,
     /// Challenge-sweep machine state (mirrors the legacy `SweepStates`).
     pub sweep_state: SweepState,
     /// Seconds elapsed since the last sweep-state transition.
@@ -166,6 +171,7 @@ impl Default for AutomationState {
             offerings: Decimal::zero(),
             auto_offering_counter: 0.0,
             auto_challenge_running: false,
+            retry_challenges: false,
             sweep_state: SweepState::Idle,
             sweep_time_since_last_change: 0.0,
             auto_challenge_timer: AutoChallengeTimer::default(),
