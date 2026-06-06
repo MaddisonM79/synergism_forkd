@@ -43,6 +43,7 @@ use crate::mechanics::cube_upgrades::{buy_cube_upgrade, BuyCubeUpgradeInput};
 use crate::mechanics::global_multipliers::{
     compute_global_multipliers, GlobalMultipliersPreEvaluated, GlobalMultipliersResult,
 };
+use crate::mechanics::gq_upgrade_cost::{buy_gq_upgrade, BuyGQUpgradeInput};
 use crate::mechanics::multipliers::{buy_multiplier, BuyMultiplierInput};
 use crate::mechanics::particle_buildings::{buy_particle_building, BuyParticleBuildingInput};
 use crate::mechanics::producers::{buy_max, buy_producer, BuyMaxInput, BuyProducerInput};
@@ -267,6 +268,8 @@ pub enum BuyRequest {
     Upgrade(BuyUpgradeInput),
     /// Routes to [`buy_research`].
     Research(BuyResearchInput),
+    /// Routes to [`buy_gq_upgrade`].
+    GoldenQuarkUpgrade(BuyGQUpgradeInput),
     /// Routes to [`buy_multiplier`].
     Multiplier(BuyMultiplierInput),
     /// Routes to [`buy_accelerator`].
@@ -4142,6 +4145,7 @@ fn dispatch_buy(state: &mut GameState, req: &BuyRequest) -> SmallVec<[CoreEvent;
     match req {
         BuyRequest::Upgrade(inp) => buy_upgrades(&mut state.upgrades, *inp),
         BuyRequest::Research(inp) => buy_research(&mut state.researches, *inp),
+        BuyRequest::GoldenQuarkUpgrade(inp) => buy_gq_upgrade(&mut state.golden_quarks, *inp),
         BuyRequest::Multiplier(inp) => {
             buy_multiplier(&mut state.multiplier, &mut state.upgrades.coins, *inp)
         }
@@ -5053,6 +5057,46 @@ mod tests {
             output.events
         );
         assert_eq!(state.cube_upgrade_levels.cube_upgrades[1], 1.0);
+    }
+
+    #[test]
+    fn tack_dispatches_buy_gq_upgrade_action() {
+        use synergismforkd_bignum::Decimal;
+
+        use crate::state::GoldenQuarkUpgrade;
+
+        let mut state = GameState::default();
+        state.golden_quarks.golden_quarks = Decimal::from_finite(500.0);
+        state.golden_quarks.upgrades[0] = GoldenQuarkUpgrade {
+            cost_per_level: 100.0,
+            max_level: 10.0,
+            ..GoldenQuarkUpgrade::default()
+        };
+
+        let mut input = TackInput {
+            dt: 0.025,
+            ..TackInput::default()
+        };
+        input
+            .player_actions
+            .push(PlayerAction::Buy(BuyRequest::GoldenQuarkUpgrade(
+                BuyGQUpgradeInput {
+                    index: 0,
+                    computed_max_level: 10.0,
+                },
+            )));
+
+        let output = tack(&mut state, &input);
+
+        assert!(
+            output
+                .events
+                .iter()
+                .any(|e| matches!(e, CoreEvent::GoldenQuarkUpgradePurchased { .. })),
+            "expected GoldenQuarkUpgradePurchased in events, got {:?}",
+            output.events
+        );
+        assert_eq!(state.golden_quarks.upgrades[0].level, 1.0);
     }
 
     #[test]

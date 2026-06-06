@@ -233,6 +233,19 @@ pub enum CoreEvent {
         /// Wow cubes removed from the player's balance.
         spent: f64,
     },
+    /// One golden-quark (singularity) upgrade gained a level. `spent` is in
+    /// golden quarks — an `f64` mirroring the legacy `Number(goldenQuarks)`
+    /// cost comparison.
+    GoldenQuarkUpgradePurchased {
+        /// GQ-upgrade index (0..80, via the `GQ_*` constants).
+        index: u32,
+        /// Level before the purchase.
+        before: f64,
+        /// Level after the purchase.
+        after: f64,
+        /// Golden quarks removed from the player's balance.
+        spent: f64,
+    },
     /// One research slot was leveled up (zero-or-more levels at once via
     /// the closed-form max-affordable solve). `spent` is in obtainium.
     ResearchPurchased {
