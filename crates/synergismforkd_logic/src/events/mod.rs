@@ -325,6 +325,31 @@ pub enum CoreEvent {
         /// Offerings removed from the player's balance.
         spent: Decimal,
     },
+    /// One ant-producer tier was bought (single click or buy-max) — the
+    /// legacy `buyAntProducers`. `before`/`after` are the `purchased` count;
+    /// `spent` is in galactic crumbs.
+    AntProducersPurchased {
+        /// Ant-producer index (0..9, Workers..HolySpirit).
+        index: u32,
+        /// `purchased` count before the buy.
+        before: f64,
+        /// `purchased` count after the buy.
+        after: f64,
+        /// Crumbs removed from the player's balance.
+        spent: Decimal,
+    },
+    /// One ant upgrade gained level(s) (single click or buy-max) — the legacy
+    /// `buyAntUpgrade`. `spent` is in galactic crumbs.
+    AntUpgradePurchased {
+        /// Ant-upgrade index (0..16, AntSpeed..Mortuus2).
+        index: u32,
+        /// Level before the buy.
+        before: f64,
+        /// Level after the buy.
+        after: f64,
+        /// Crumbs removed from the player's balance.
+        spent: Decimal,
+    },
     /// A single-bit upgrade was purchased. The `spent` value is the cost
     /// in the tier's currency.
     UpgradePurchased {

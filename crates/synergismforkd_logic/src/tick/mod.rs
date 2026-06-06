@@ -37,6 +37,8 @@ use synergismforkd_bignum::Decimal;
 use crate::events::{CoreEvent, ProducerType};
 use crate::mechanics::accelerators::{buy_accelerator, BuyAcceleratorInput};
 use crate::mechanics::achievement_rewards;
+use crate::mechanics::ant_producers::{buy_ant_producer, BuyAntProducerInput};
+use crate::mechanics::ant_upgrades::{buy_ant_upgrade, BuyAntUpgradeInput};
 use crate::mechanics::blueberry_upgrades::{buy_ambrosia_upgrade, BuyAmbrosiaUpgradeInput};
 use crate::mechanics::challenge_15_rewards;
 use crate::mechanics::crystal_upgrades::{buy_crystal_upgrades, BuyCrystalUpgradesInput};
@@ -281,6 +283,10 @@ pub enum BuyRequest {
     AmbrosiaUpgrade(BuyAmbrosiaUpgradeInput),
     /// Routes to [`buy_rune_levels`].
     RuneLevels(BuyRuneLevelsInput),
+    /// Routes to [`buy_ant_producer`].
+    AntProducer(BuyAntProducerInput),
+    /// Routes to [`buy_ant_upgrade`].
+    AntUpgrade(BuyAntUpgradeInput),
     /// Routes to [`buy_shop`].
     Shop(BuyShopInput),
     /// Routes to [`buy_multiplier`].
@@ -4170,6 +4176,8 @@ fn dispatch_buy(state: &mut GameState, req: &BuyRequest) -> SmallVec<[CoreEvent;
         BuyRequest::RuneLevels(inp) => {
             buy_rune_levels(&mut state.runes, &mut state.automation.offerings, *inp)
         }
+        BuyRequest::AntProducer(inp) => buy_ant_producer(&mut state.ants, *inp),
+        BuyRequest::AntUpgrade(inp) => buy_ant_upgrade(&mut state.ants, *inp),
         BuyRequest::Shop(inp) => buy_shop(&mut state.shop, &mut state.quarks.worlds, *inp),
         BuyRequest::Multiplier(inp) => {
             buy_multiplier(&mut state.multiplier, &mut state.upgrades.coins, *inp)
@@ -5234,6 +5242,56 @@ mod tests {
             output.events
         );
         assert_eq!(state.runes.rune_levels[0], 5.0);
+    }
+
+    #[test]
+    fn tack_dispatches_buy_ant_actions() {
+        use synergismforkd_bignum::Decimal;
+
+        let mut state = GameState::default();
+        state.ants.crumbs = Decimal::from_finite(1000.0);
+
+        let mut input = TackInput {
+            dt: 0.025,
+            ..TackInput::default()
+        };
+        input
+            .player_actions
+            .push(PlayerAction::Buy(BuyRequest::AntProducer(
+                BuyAntProducerInput {
+                    index: 0,
+                    max: false,
+                },
+            )));
+        input
+            .player_actions
+            .push(PlayerAction::Buy(BuyRequest::AntUpgrade(
+                BuyAntUpgradeInput {
+                    index: 0,
+                    max: false,
+                },
+            )));
+
+        let output = tack(&mut state, &input);
+
+        assert!(
+            output
+                .events
+                .iter()
+                .any(|e| matches!(e, CoreEvent::AntProducersPurchased { .. })),
+            "expected AntProducersPurchased in events, got {:?}",
+            output.events
+        );
+        assert!(
+            output
+                .events
+                .iter()
+                .any(|e| matches!(e, CoreEvent::AntUpgradePurchased { .. })),
+            "expected AntUpgradePurchased in events, got {:?}",
+            output.events
+        );
+        assert_eq!(state.ants.producers[0].purchased, 1.0);
+        assert_eq!(state.ants.upgrades[0], 1.0);
     }
 
     #[test]
