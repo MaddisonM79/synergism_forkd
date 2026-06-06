@@ -831,8 +831,8 @@ fn compute_building_power(state: &GameState) -> f64 {
 /// - `building_power_mult`              ✓ state-derived (building_power ^ coin owned)
 /// - `crystal_upgrade_3_multiplier`     ✓ state-derived (crystal-upgrade-3 chain)
 /// - `crystal_multiplier_achievement`   ✓ state-derived (achievement_rewards)
-/// - `const_upgrade_1_buff_achievement` ✓ always 0 (no achievement grants it)
-/// - `const_upgrade_2_buff_achievement` ✓ always 0 (no achievement grants it)
+/// - `const_upgrade_1_buff_achievement` ✓ 0 (an ascendShards achievement grants 0.01, but the achievement system is unported — H5)
+/// - `const_upgrade_2_buff_achievement` ✓ 0 (same achievement grants 0.01; neutral until awarding lands)
 /// - `constant_ex_max_percent_increase` ✓ shop subsystem unported → 0 (no logic buy-path)
 /// - `ascend_building_dr_value`         ✓ state-derived (`ascend_building_dr`)
 /// - `multiplier_effect`                ✓ injected by phase_global_state (aggregator output)
@@ -953,8 +953,10 @@ fn compute_global_multipliers_pre(state: &GameState) -> GlobalMultipliersPreEval
         building_power_mult,
         crystal_upgrade_3_multiplier,
         crystal_multiplier_achievement: achievement_rewards::crystal_multiplier(&ach),
-        // No achievement grants `constUpgrade1Buff`/`constUpgrade2Buff` in
-        // the legacy table — the additive reward is always 0.
+        // `constUpgrade1Buff`/`constUpgrade2Buff` ARE granted (0.01 each) by an
+        // ascendShards achievement (Achievements.ts:1866-1867), but the
+        // achievement system is unported (audit H5), so the reward is 0 until
+        // achievement awarding lands.
         const_upgrade_1_buff_achievement: 0.0,
         const_upgrade_2_buff_achievement: 0.0,
         // `constantEX` shop upgrade (`getShopUpgradeEffects` = identity):

@@ -14,7 +14,7 @@
 //! transcension, reincarnation, ascension** (the ascension tier ports the
 //! structural reset + every per-feature sub-reset — `resetResearches` /
 //! `resetChallengeSweep` / `resetRunes` / `resetAnts` / `resetTalismanData`;
-//! only its c10-gated cube/hepteract awards are neutral-defaulted and deferred;
+//! its c10-gated cube/hepteract awards are implemented but inert at default;
 //! see [`apply_ascension_layer`]). The singularity layer is paused.
 
 use smallvec::{smallvec, SmallVec};
