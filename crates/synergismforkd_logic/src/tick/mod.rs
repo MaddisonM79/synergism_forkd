@@ -50,6 +50,7 @@ use crate::mechanics::platonic_upgrade_costs::{buy_platonic_upgrade, BuyPlatonic
 use crate::mechanics::producers::{buy_max, buy_producer, BuyMaxInput, BuyProducerInput};
 use crate::mechanics::researches::{buy_research, BuyResearchInput};
 use crate::mechanics::resource_gain::{resource_gain, ResourceGainPre};
+use crate::mechanics::shop_costs::{buy_shop, BuyShopInput};
 use crate::mechanics::tesseract_buildings::{buy_tesseract_building, BuyTesseractBuildingInput};
 use crate::mechanics::update_all_multiplier::{
     update_all_multiplier, UpdateAllMultiplierPre, UpdateAllMultiplierResult,
@@ -271,6 +272,8 @@ pub enum BuyRequest {
     Research(BuyResearchInput),
     /// Routes to [`buy_gq_upgrade`].
     GoldenQuarkUpgrade(BuyGQUpgradeInput),
+    /// Routes to [`buy_shop`].
+    Shop(BuyShopInput),
     /// Routes to [`buy_multiplier`].
     Multiplier(BuyMultiplierInput),
     /// Routes to [`buy_accelerator`].
@@ -4149,6 +4152,7 @@ fn dispatch_buy(state: &mut GameState, req: &BuyRequest) -> SmallVec<[CoreEvent;
         BuyRequest::Upgrade(inp) => buy_upgrades(&mut state.upgrades, *inp),
         BuyRequest::Research(inp) => buy_research(&mut state.researches, *inp),
         BuyRequest::GoldenQuarkUpgrade(inp) => buy_gq_upgrade(&mut state.golden_quarks, *inp),
+        BuyRequest::Shop(inp) => buy_shop(&mut state.shop, &mut state.quarks.worlds, *inp),
         BuyRequest::Multiplier(inp) => {
             buy_multiplier(&mut state.multiplier, &mut state.upgrades.coins, *inp)
         }
@@ -5145,6 +5149,40 @@ mod tests {
             output.events
         );
         assert_eq!(state.cube_upgrade_levels.platonic_upgrades[1], 1.0);
+    }
+
+    #[test]
+    fn tack_dispatches_buy_shop_action() {
+        use synergismforkd_bignum::Decimal;
+
+        let mut state = GameState::default();
+        state.quarks.worlds = Decimal::from_finite(500.0);
+
+        let mut input = TackInput {
+            dt: 0.025,
+            ..TackInput::default()
+        };
+        input
+            .player_actions
+            .push(PlayerAction::Buy(BuyRequest::Shop(BuyShopInput {
+                index: 8,
+                is_consumable: false,
+                max_level: 10.0,
+                price: 100.0,
+                price_increase: 25.0,
+            })));
+
+        let output = tack(&mut state, &input);
+
+        assert!(
+            output
+                .events
+                .iter()
+                .any(|e| matches!(e, CoreEvent::ShopUpgradePurchased { .. })),
+            "expected ShopUpgradePurchased in events, got {:?}",
+            output.events
+        );
+        assert_eq!(state.shop.upgrades[8], 1.0);
     }
 
     #[test]

@@ -257,6 +257,19 @@ pub enum CoreEvent {
         /// Golden quarks removed from the player's balance.
         spent: f64,
     },
+    /// One shop upgrade gained a level (or a consumable a unit of stock —
+    /// the buy is uniform). `spent` is in quarks — an `f64` mirroring the
+    /// legacy `Number(player.worlds)` cost comparison.
+    ShopUpgradePurchased {
+        /// Shop-upgrade index (0..83, via the `SHOP_*` constants).
+        index: u32,
+        /// Level / stock before the purchase.
+        before: f64,
+        /// Level / stock after the purchase.
+        after: f64,
+        /// Quarks removed from the player's balance.
+        spent: f64,
+    },
     /// One research slot was leveled up (zero-or-more levels at once via
     /// the closed-form max-affordable solve). `spent` is in obtainium.
     ResearchPurchased {
