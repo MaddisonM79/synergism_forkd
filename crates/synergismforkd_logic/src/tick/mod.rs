@@ -52,6 +52,7 @@ use crate::mechanics::platonic_upgrade_costs::{buy_platonic_upgrade, BuyPlatonic
 use crate::mechanics::producers::{buy_max, buy_producer, BuyMaxInput, BuyProducerInput};
 use crate::mechanics::researches::{buy_research, BuyResearchInput};
 use crate::mechanics::resource_gain::{resource_gain, ResourceGainPre};
+use crate::mechanics::rune_levels::{buy_rune_levels, BuyRuneLevelsInput};
 use crate::mechanics::shop_costs::{buy_shop, BuyShopInput};
 use crate::mechanics::tesseract_buildings::{buy_tesseract_building, BuyTesseractBuildingInput};
 use crate::mechanics::update_all_multiplier::{
@@ -278,6 +279,8 @@ pub enum BuyRequest {
     OcteractUpgrade(BuyOcteractUpgradeInput),
     /// Routes to [`buy_ambrosia_upgrade`].
     AmbrosiaUpgrade(BuyAmbrosiaUpgradeInput),
+    /// Routes to [`buy_rune_levels`].
+    RuneLevels(BuyRuneLevelsInput),
     /// Routes to [`buy_shop`].
     Shop(BuyShopInput),
     /// Routes to [`buy_multiplier`].
@@ -4164,6 +4167,9 @@ fn dispatch_buy(state: &mut GameState, req: &BuyRequest) -> SmallVec<[CoreEvent;
             *inp,
         ),
         BuyRequest::AmbrosiaUpgrade(inp) => buy_ambrosia_upgrade(&mut state.ambrosia, *inp),
+        BuyRequest::RuneLevels(inp) => {
+            buy_rune_levels(&mut state.runes, &mut state.automation.offerings, *inp)
+        }
         BuyRequest::Shop(inp) => buy_shop(&mut state.shop, &mut state.quarks.worlds, *inp),
         BuyRequest::Multiplier(inp) => {
             buy_multiplier(&mut state.multiplier, &mut state.upgrades.coins, *inp)
@@ -5191,6 +5197,43 @@ mod tests {
             output.events
         );
         assert_eq!(state.ambrosia.upgrades[0].level, 1.0);
+    }
+
+    #[test]
+    fn tack_dispatches_buy_rune_levels_action() {
+        use synergismforkd_bignum::Decimal;
+
+        let mut state = GameState::default();
+        state.automation.offerings = Decimal::from_finite(1000.0);
+
+        let mut input = TackInput {
+            dt: 0.025,
+            ..TackInput::default()
+        };
+        input
+            .player_actions
+            .push(PlayerAction::Buy(BuyRequest::RuneLevels(
+                BuyRuneLevelsInput {
+                    index: 0,
+                    cost_coefficient: Decimal::from_finite(100.0),
+                    levels_per_oom: 5.0,
+                    rune_exp_per_offering: Decimal::from_finite(10.0),
+                    levels_to_add: 5.0,
+                    budget: Decimal::from_finite(1000.0),
+                },
+            )));
+
+        let output = tack(&mut state, &input);
+
+        assert!(
+            output
+                .events
+                .iter()
+                .any(|e| matches!(e, CoreEvent::RuneLevelsPurchased { .. })),
+            "expected RuneLevelsPurchased in events, got {:?}",
+            output.events
+        );
+        assert_eq!(state.runes.rune_levels[0], 5.0);
     }
 
     #[test]

@@ -311,6 +311,20 @@ pub enum CoreEvent {
         /// Obtainium removed from the player's balance.
         spent: Decimal,
     },
+    /// Rune `index` gained levels by spending offerings — the legacy
+    /// `sacrificeOfferings` flow. `before`/`after` are purchased levels (which
+    /// may be equal if the budget only banked partial EXP); `spent` is the
+    /// offerings consumed.
+    RuneLevelsPurchased {
+        /// Rune index (0..7, via the `RUNE_*` constants).
+        index: u32,
+        /// Purchased level before the spend.
+        before: f64,
+        /// Purchased level after the spend (re-derived from EXP).
+        after: f64,
+        /// Offerings removed from the player's balance.
+        spent: Decimal,
+    },
     /// A single-bit upgrade was purchased. The `spent` value is the cost
     /// in the tier's currency.
     UpgradePurchased {
