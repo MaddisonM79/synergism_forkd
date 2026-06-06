@@ -350,6 +350,29 @@ pub enum CoreEvent {
         /// Crumbs removed from the player's balance.
         spent: Decimal,
     },
+    /// Hepteract `index` was crafted toward its cap — the legacy
+    /// `craftHepteracts`. `before`/`after` are the craft's balance; `amount`
+    /// is the units crafted (the multi-resource spend lands on state).
+    HepteractCrafted {
+        /// Hepteract index (0..8, chronos..multiplier).
+        index: u32,
+        /// Balance before the craft.
+        before: f64,
+        /// Balance after the craft.
+        after: f64,
+        /// Units crafted this action.
+        amount: f64,
+    },
+    /// Hepteract `index` had its cap doubled, a full bar spent — the legacy
+    /// `expandHepteracts`.
+    HepteractCapExpanded {
+        /// Hepteract index (0..8, chronos..multiplier).
+        index: u32,
+        /// Balance left after spending one cap's worth.
+        bal_after: f64,
+        /// The new (doubled) cap.
+        cap_after: f64,
+    },
     /// A single-bit upgrade was purchased. The `spent` value is the cost
     /// in the tier's currency.
     UpgradePurchased {

@@ -47,6 +47,9 @@ use crate::mechanics::global_multipliers::{
     compute_global_multipliers, GlobalMultipliersPreEvaluated, GlobalMultipliersResult,
 };
 use crate::mechanics::gq_upgrade_cost::{buy_gq_upgrade, BuyGQUpgradeInput};
+use crate::mechanics::hepteract_values::{
+    buy_hepteract_craft, buy_hepteract_expand, BuyHepteractCraftInput, BuyHepteractExpandInput,
+};
 use crate::mechanics::multipliers::{buy_multiplier, BuyMultiplierInput};
 use crate::mechanics::octeracts::{buy_octeract_upgrade, BuyOcteractUpgradeInput};
 use crate::mechanics::particle_buildings::{buy_particle_building, BuyParticleBuildingInput};
@@ -287,6 +290,10 @@ pub enum BuyRequest {
     AntProducer(BuyAntProducerInput),
     /// Routes to [`buy_ant_upgrade`].
     AntUpgrade(BuyAntUpgradeInput),
+    /// Routes to [`buy_hepteract_craft`].
+    HepteractCraft(BuyHepteractCraftInput),
+    /// Routes to [`buy_hepteract_expand`].
+    HepteractExpand(BuyHepteractExpandInput),
     /// Routes to [`buy_shop`].
     Shop(BuyShopInput),
     /// Routes to [`buy_multiplier`].
@@ -4178,6 +4185,15 @@ fn dispatch_buy(state: &mut GameState, req: &BuyRequest) -> SmallVec<[CoreEvent;
         }
         BuyRequest::AntProducer(inp) => buy_ant_producer(&mut state.ants, *inp),
         BuyRequest::AntUpgrade(inp) => buy_ant_upgrade(&mut state.ants, *inp),
+        BuyRequest::HepteractCraft(inp) => buy_hepteract_craft(
+            &mut state.hepteracts,
+            &mut state.cube_balances,
+            &mut state.researches.obtainium,
+            &mut state.automation.offerings,
+            &mut state.quarks.worlds,
+            *inp,
+        ),
+        BuyRequest::HepteractExpand(inp) => buy_hepteract_expand(&mut state.hepteracts, *inp),
         BuyRequest::Shop(inp) => buy_shop(&mut state.shop, &mut state.quarks.worlds, *inp),
         BuyRequest::Multiplier(inp) => {
             buy_multiplier(&mut state.multiplier, &mut state.upgrades.coins, *inp)
@@ -5292,6 +5308,84 @@ mod tests {
         );
         assert_eq!(state.ants.producers[0].purchased, 1.0);
         assert_eq!(state.ants.upgrades[0], 1.0);
+    }
+
+    #[test]
+    fn tack_dispatches_buy_hepteract_craft_action() {
+        use crate::mechanics::hepteract_values::{HepteractConversions, HepteractKind};
+
+        let mut state = GameState::default();
+        state.hepteracts.chronos.cap = 100.0;
+        state.cube_balances.wow_abyssals = 50.0;
+
+        let mut input = TackInput {
+            dt: 0.025,
+            ..TackInput::default()
+        };
+        input
+            .player_actions
+            .push(PlayerAction::Buy(BuyRequest::HepteractCraft(
+                BuyHepteractCraftInput {
+                    kind: HepteractKind::Chronos,
+                    conversions: HepteractConversions {
+                        hepteract: 1.0,
+                        ..HepteractConversions::default()
+                    },
+                    craft_cost_multi: 1.0,
+                    exalt_3_cap: false,
+                    requested_amount: 10.0,
+                    max: false,
+                },
+            )));
+
+        let output = tack(&mut state, &input);
+
+        assert!(
+            output
+                .events
+                .iter()
+                .any(|e| matches!(e, CoreEvent::HepteractCrafted { .. })),
+            "expected HepteractCrafted in events, got {:?}",
+            output.events
+        );
+        // 10 units crafted at cost 1 abyssal each: bal 0 → 10, abyssals 50 → 40.
+        assert_eq!(state.hepteracts.chronos.bal, 10.0);
+        assert!((state.cube_balances.wow_abyssals - 40.0).abs() < 1e-9);
+    }
+
+    #[test]
+    fn tack_dispatches_buy_hepteract_expand_action() {
+        use crate::mechanics::hepteract_values::{BuyHepteractExpandInput, HepteractKind};
+
+        let mut state = GameState::default();
+        state.hepteracts.chronos.cap = 100.0;
+        state.hepteracts.chronos.bal = 100.0; // full bar — expandable
+
+        let mut input = TackInput {
+            dt: 0.025,
+            ..TackInput::default()
+        };
+        input
+            .player_actions
+            .push(PlayerAction::Buy(BuyRequest::HepteractExpand(
+                BuyHepteractExpandInput {
+                    kind: HepteractKind::Chronos,
+                },
+            )));
+
+        let output = tack(&mut state, &input);
+
+        assert!(
+            output
+                .events
+                .iter()
+                .any(|e| matches!(e, CoreEvent::HepteractCapExpanded { .. })),
+            "expected HepteractCapExpanded in events, got {:?}",
+            output.events
+        );
+        // Spent one cap (100) and doubled it: bal 0, cap 200.
+        assert_eq!(state.hepteracts.chronos.bal, 0.0);
+        assert_eq!(state.hepteracts.chronos.cap, 200.0);
     }
 
     #[test]
