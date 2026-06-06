@@ -641,6 +641,21 @@ fn true_ant_level(state: &GameState, upgrade_index: usize) -> f64 {
     })
 }
 
+/// DR-softened hepteract balance (legacy `hepteractEffective`): linear up to
+/// the per-craft LIMIT (1000 for all non-quark crafts), then
+/// `LIMIT * (raw / LIMIT)^dr_exponent`. The exponent is the craft's fixed DR
+/// plus its `DR_INCREASE` (only chronos has one: `platonicUpgrades[19] / 750`).
+/// Feeding the raw balance skipped this softening past 1000 (audit P1.4).
+fn hepteract_effective_bal(raw_amount: f64, dr_exponent: f64) -> f64 {
+    use crate::mechanics::hepteract_values::{hepteract_effective, HepteractEffectiveInput};
+    hepteract_effective(&HepteractEffectiveInput {
+        raw_amount,
+        limit: 1000.0,
+        dr_exponent,
+        is_quark: false,
+    })
+}
+
 /// Build the shared achievement-reward input from `&GameState` — the
 /// earned-flag array plus the cross-state values the reward formulas
 /// read (coin-producer owned counts, prestige points).
@@ -1005,7 +1020,10 @@ fn compute_update_all_multiplier_pre(
     let sum_of_rune_levels: f64 = state.runes.rune_levels.iter().sum();
     let duplication_level = state.runes.rune_levels[RUNE_DUPLICATION];
     let duplication_blessing_level = state.runes.rune_blessing_levels[RUNE_DUPLICATION];
-    let hept_mult = multiplier_hepteract_effects(state.hepteracts.multiplier.bal);
+    let hept_mult = multiplier_hepteract_effects(hepteract_effective_bal(
+        state.hepteracts.multiplier.bal,
+        1.0 / 5.0,
+    ));
     let viscosity_level = state.corruptions.used.levels[VISCOSITY_INDEX];
     // Cube-blessing chain: platonic → hypercube → tesseract → cube,
     // mirroring the legacy call chain in `Cubes.ts`.
@@ -1090,7 +1108,10 @@ fn compute_update_all_tick_pre(
     const CUBE_UPGRADE_ACCELERATOR_BLESSING: usize = 45;
 
     let speed_level = state.runes.rune_levels[RUNE_SPEED];
-    let hept_acc = accelerator_hepteract_effects(state.hepteracts.accelerator.bal);
+    let hept_acc = accelerator_hepteract_effects(hepteract_effective_bal(
+        state.hepteracts.accelerator.bal,
+        1.0 / 5.0,
+    ));
     let viscosity_level = state.corruptions.used.levels[VISCOSITY_INDEX];
     // Cube-blessing chain (same shape as the multiplier chain in
     // [`compute_update_all_multiplier_pre`]; the platonic amplifier
@@ -1599,7 +1620,11 @@ fn compute_ascension_speed_mult_raw(state: &GameState) -> f64 {
         chronometer_effect(shop[SHOP_CHRONOMETER]),
         chronometer_2_effect(shop[SHOP_CHRONOMETER_2]),
         chronometer_3_effect(shop[SHOP_CHRONOMETER_3]),
-        chronos_hepteract_effects(state.hepteracts.chronos.bal).ascension_speed,
+        chronos_hepteract_effects(hepteract_effective_bal(
+            state.hepteracts.chronos.bal,
+            1.0 / 6.0 + state.cube_upgrade_levels.platonic_upgrades[19] / 750.0,
+        ))
+        .ascension_speed,
         platonic_omega,
         challenge_15_rewards::ascension_speed(state.challenges.challenge15_exponent),
         1.0 + (1.0 / 400.0) * state.cube_upgrade_levels.cube_upgrades[CUBE_UPGRADE_COOKIE_9],
@@ -2392,7 +2417,11 @@ fn compute_hypercube_multiplier(
         1.0, // WowSquare
         calculate_hypercube_multiplier_platonic_blessing(&state.platonic_blessings),
         1.0 + 0.00054 * total_corruption_levels * platonic[3], // Platonic1x3
-        hyperrealism_hepteract_effects(state.hepteracts.hyperrealism.bal).hypercube_multiplier,
+        hyperrealism_hepteract_effects(hepteract_effective_bal(
+            state.hepteracts.hyperrealism.bal,
+            1.0 / 3.0,
+        ))
+        .hypercube_multiplier,
     ])
 }
 
@@ -7628,6 +7657,18 @@ mod tests {
         // The exempt upgrade (Mortuus) ignores the divisor but still gets free levels.
         state.ants.upgrades[MORTUUS] = 100.0;
         assert!((true_ant_level(&state, MORTUUS) - 120.0).abs() < 1e-9);
+    }
+
+    #[test]
+    fn hepteract_effective_bal_applies_dr_above_limit() {
+        // Audit P1.4: hepteract effects read the DR-softened balance. Below the
+        // LIMIT (1000) the softening is identity; above it the excess is raised
+        // to the craft's DR exponent (legacy hepteractEffective).
+        assert_eq!(hepteract_effective_bal(500.0, 1.0 / 5.0), 500.0);
+        assert_eq!(hepteract_effective_bal(1000.0, 1.0 / 5.0), 1000.0);
+        // 1000 * (10000/1000)^(1/5) = 1000 * 10^0.2.
+        let expected = 1000.0 * 10.0_f64.powf(0.2);
+        assert!((hepteract_effective_bal(10000.0, 1.0 / 5.0) - expected).abs() < 1e-6);
     }
 
     #[test]
