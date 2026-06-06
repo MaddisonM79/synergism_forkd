@@ -608,6 +608,25 @@ pub fn challenge_15_auto_exponent_check(input: &Challenge15AutoExponentCheckInpu
         && input.ascension_counter_real_real >= 0.1_f64.max(input.auto_ascend_threshold - 5.0)
 }
 
+// ─── highestChallengeRewards ───────────────────────────────────────────────
+
+/// Quark award amount for one new `highest_challenge_completions` step
+/// (`highestChallengeRewards`, Challenges.ts:435).
+///
+/// Called once per completion when `challengecompletions[q]` surpasses
+/// the previous `highestchallengecompletions[q]`. The caller is responsible
+/// for gating on `ascensionCount === 0` and applying the quark multiplier
+/// before crediting `player.worlds` + `quarksThisSingularity`.
+///
+/// Formula: `1 + floor(highest_value * multiplier)` where
+/// `multiplier = 0.1` for challenges 1–5 and `1.0` for challenges ≥ 6
+/// (reincarnation, ascension, and above).
+#[must_use]
+pub fn highest_challenge_rewards(chal_num: u32, highest_value: f64) -> f64 {
+    let multiplier = if chal_num >= 6 { 1.0 } else { 0.1 };
+    1.0 + (highest_value * multiplier).floor()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1156,5 +1175,36 @@ mod tests {
         below.auto_ascend_threshold = 5.0; // max(0.1, 0) = 0.1
         below.ascension_counter_real_real = 0.05;
         assert!(!challenge_15_auto_exponent_check(&below));
+    }
+
+    // ── highest_challenge_rewards ────────────────────────────────────────
+
+    #[test]
+    fn hcr_transcension_multiplier_is_tenth() {
+        // c1-5: multiplier = 0.1; amount = 1 + floor(highestValue * 0.1)
+        // highest=1 → 1 + floor(0.1) = 1 + 0 = 1
+        assert_eq!(highest_challenge_rewards(1, 1.0), 1.0);
+        // highest=10 → 1 + floor(1.0) = 2
+        assert_eq!(highest_challenge_rewards(1, 10.0), 2.0);
+        // highest=15 → 1 + floor(1.5) = 2
+        assert_eq!(highest_challenge_rewards(5, 15.0), 2.0);
+        // highest=20 → 1 + floor(2.0) = 3
+        assert_eq!(highest_challenge_rewards(3, 20.0), 3.0);
+    }
+
+    #[test]
+    fn hcr_reincarnation_multiplier_is_one() {
+        // c6-10: multiplier = 1; amount = 1 + floor(highestValue * 1)
+        // highest=1 → 1 + 1 = 2
+        assert_eq!(highest_challenge_rewards(6, 1.0), 2.0);
+        // highest=5 → 1 + 5 = 6
+        assert_eq!(highest_challenge_rewards(10, 5.0), 6.0);
+    }
+
+    #[test]
+    fn hcr_ascension_challenges_also_use_multiplier_one() {
+        // c11-15: multiplier = 1 (chalNum >= 6)
+        assert_eq!(highest_challenge_rewards(11, 1.0), 2.0);
+        assert_eq!(highest_challenge_rewards(14, 3.0), 4.0);
     }
 }

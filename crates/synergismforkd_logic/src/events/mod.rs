@@ -595,10 +595,19 @@ pub enum CoreEvent {
     /// An accompanying `ResetPerformed` carries the reset-out (unless
     /// `instantChallenge` is unlocked).
     ChallengeCompleted {
-        /// Challenge index that completed (`1..=5` transcension).
+        /// Challenge index that completed (`1..=15`).
         challenge: u32,
         /// New `challenge_completions[challenge]` after the award.
         completions: f64,
+    },
+    /// Quarks were awarded from `highestChallengeRewards` (Challenges.ts:435).
+    /// Fires once per new `highest_challenge_completions` rise during
+    /// [`complete_active_challenge`]. The amount is pre-multiplied by the
+    /// cached quark bonus. The receiver credits `player.worlds` and
+    /// `quarks_this_singularity`.
+    QuarksAwarded {
+        /// Quarks to credit (already multiplied by the quark bonus).
+        quarks: f64,
     },
 }
 
