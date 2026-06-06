@@ -4198,9 +4198,7 @@ fn compute_resource_gain_pre(
     tax: &TaxOutputs,
     reset: &crate::mechanics::reset_currency::ResetCurrencyResult,
 ) -> ResourceGainPre {
-    /// Verbatim port of the legacy `G.challengeBaseRequirements` const.
-    /// Static lookup; no state read.
-    const CHALLENGE_BASE_REQUIREMENTS: [f64; 5] = [10.0, 100.0, 1_000.0, 10_000.0, 100_000.0];
+    use crate::mechanics::challenges::CHALLENGE_BASE_REQUIREMENTS;
 
     let g = &agg.global_multipliers;
     ResourceGainPre {
@@ -4212,8 +4210,14 @@ fn compute_resource_gain_pre(
         mythosupgrade_14: g.mythosupgrade_14,
         mythosupgrade_15: g.mythosupgrade_15,
         global_constant_mult: g.global_constant_mult,
-        // Static legacy constant.
-        challenge_base_requirements: CHALLENGE_BASE_REQUIREMENTS,
+        // Static legacy constant (c1-5 slice of the shared table).
+        challenge_base_requirements: [
+            CHALLENGE_BASE_REQUIREMENTS[0],
+            CHALLENGE_BASE_REQUIREMENTS[1],
+            CHALLENGE_BASE_REQUIREMENTS[2],
+            CHALLENGE_BASE_REQUIREMENTS[3],
+            CHALLENGE_BASE_REQUIREMENTS[4],
+        ],
         // From the tax phase (coin production + tax exponent/divisor).
         produce_total: tax.produce_total,
         taxdivisor: tax.taxdivisor,
@@ -4331,7 +4335,8 @@ fn phase_challenge_completion(
     output: &mut TickOutput,
 ) {
     use crate::mechanics::challenges::{
-        challenge_requirement, get_max_challenges, ChallengeRequirementInput, GetMaxChallengesInput,
+        challenge_requirement, get_max_challenges, ChallengeRequirementInput,
+        GetMaxChallengesInput, CHALLENGE_BASE_REQUIREMENTS,
     };
     use crate::mechanics::shop_upgrades::{
         instant_challenge_2_effect, instant_challenge_effect, InstantChallengeKey,
@@ -4339,7 +4344,6 @@ fn phase_challenge_completion(
     };
     use crate::state::shop::{SHOP_INSTANT_CHALLENGE, SHOP_INSTANT_CHALLENGE_2};
 
-    const CHALLENGE_BASE_REQUIREMENTS: [f64; 5] = [10.0, 100.0, 1_000.0, 10_000.0, 100_000.0];
     const PLATONIC_UPGRADE_8: usize = 8;
     const RESEARCH_INFINITE_TRANSCEND: usize = 105;
 
