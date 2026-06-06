@@ -271,6 +271,21 @@ pub enum CoreEvent {
         /// Octeracts removed from the player's balance.
         spent: f64,
     },
+    /// One ambrosia (blueberry) upgrade gained a level — the single-level
+    /// step of the legacy `buyAmbrosiaUpgradeLevel` loop. `spent` is in
+    /// ambrosia (`f64`); the first level out of level 0 also debits the
+    /// upgrade's blueberry-slot cost to `spent_blueberries` (reflected in
+    /// state, not on this event).
+    AmbrosiaUpgradePurchased {
+        /// Ambrosia-upgrade index (0..36, via the `AMBROSIA_*` constants).
+        index: u32,
+        /// Level before the purchase.
+        before: f64,
+        /// Level after the purchase.
+        after: f64,
+        /// Ambrosia removed from the player's balance.
+        spent: f64,
+    },
     /// One shop upgrade gained a level (or a consumable a unit of stock —
     /// the buy is uniform). `spent` is in quarks — an `f64` mirroring the
     /// legacy `Number(player.worlds)` cost comparison.

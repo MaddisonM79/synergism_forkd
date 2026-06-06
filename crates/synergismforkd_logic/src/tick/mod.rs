@@ -37,6 +37,7 @@ use synergismforkd_bignum::Decimal;
 use crate::events::{CoreEvent, ProducerType};
 use crate::mechanics::accelerators::{buy_accelerator, BuyAcceleratorInput};
 use crate::mechanics::achievement_rewards;
+use crate::mechanics::blueberry_upgrades::{buy_ambrosia_upgrade, BuyAmbrosiaUpgradeInput};
 use crate::mechanics::challenge_15_rewards;
 use crate::mechanics::crystal_upgrades::{buy_crystal_upgrades, BuyCrystalUpgradesInput};
 use crate::mechanics::cube_upgrades::{buy_cube_upgrade, BuyCubeUpgradeInput};
@@ -275,6 +276,8 @@ pub enum BuyRequest {
     GoldenQuarkUpgrade(BuyGQUpgradeInput),
     /// Routes to [`buy_octeract_upgrade`].
     OcteractUpgrade(BuyOcteractUpgradeInput),
+    /// Routes to [`buy_ambrosia_upgrade`].
+    AmbrosiaUpgrade(BuyAmbrosiaUpgradeInput),
     /// Routes to [`buy_shop`].
     Shop(BuyShopInput),
     /// Routes to [`buy_multiplier`].
@@ -4160,6 +4163,7 @@ fn dispatch_buy(state: &mut GameState, req: &BuyRequest) -> SmallVec<[CoreEvent;
             &mut state.cube_balances.wow_octeracts,
             *inp,
         ),
+        BuyRequest::AmbrosiaUpgrade(inp) => buy_ambrosia_upgrade(&mut state.ambrosia, *inp),
         BuyRequest::Shop(inp) => buy_shop(&mut state.shop, &mut state.quarks.worlds, *inp),
         BuyRequest::Multiplier(inp) => {
             buy_multiplier(&mut state.multiplier, &mut state.upgrades.coins, *inp)
@@ -5153,6 +5157,40 @@ mod tests {
             output.events
         );
         assert_eq!(state.octeract_upgrades.upgrades[0].level, 1.0);
+    }
+
+    #[test]
+    fn tack_dispatches_buy_ambrosia_upgrade_action() {
+        let mut state = GameState::default();
+        state.ambrosia.ambrosia = 10.0;
+
+        let mut input = TackInput {
+            dt: 0.025,
+            ..TackInput::default()
+        };
+        input
+            .player_actions
+            .push(PlayerAction::Buy(BuyRequest::AmbrosiaUpgrade(
+                BuyAmbrosiaUpgradeInput {
+                    index: 0,
+                    cost_per_level: 1.0,
+                    max_level: 10.0,
+                    blueberry_cost: 0.0,
+                    blueberry_inventory: 0.0,
+                },
+            )));
+
+        let output = tack(&mut state, &input);
+
+        assert!(
+            output
+                .events
+                .iter()
+                .any(|e| matches!(e, CoreEvent::AmbrosiaUpgradePurchased { .. })),
+            "expected AmbrosiaUpgradePurchased in events, got {:?}",
+            output.events
+        );
+        assert_eq!(state.ambrosia.upgrades[0].level, 1.0);
     }
 
     #[test]
