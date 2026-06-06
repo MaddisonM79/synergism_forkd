@@ -39,6 +39,7 @@ use crate::mechanics::accelerators::{buy_accelerator, BuyAcceleratorInput};
 use crate::mechanics::achievement_rewards;
 use crate::mechanics::challenge_15_rewards;
 use crate::mechanics::crystal_upgrades::{buy_crystal_upgrades, BuyCrystalUpgradesInput};
+use crate::mechanics::cube_upgrades::{buy_cube_upgrade, BuyCubeUpgradeInput};
 use crate::mechanics::global_multipliers::{
     compute_global_multipliers, GlobalMultipliersPreEvaluated, GlobalMultipliersResult,
 };
@@ -272,6 +273,8 @@ pub enum BuyRequest {
     Accelerator(BuyAcceleratorInput),
     /// Routes to [`buy_crystal_upgrades`].
     CrystalUpgrade(BuyCrystalUpgradesInput),
+    /// Routes to [`buy_cube_upgrade`].
+    CubeUpgrade(BuyCubeUpgradeInput),
     /// Routes to [`buy_particle_building`].
     ParticleBuilding(BuyParticleBuildingInput),
     /// Routes to [`buy_tesseract_building`].
@@ -4146,6 +4149,11 @@ fn dispatch_buy(state: &mut GameState, req: &BuyRequest) -> SmallVec<[CoreEvent;
             buy_accelerator(&mut state.accelerator, &mut state.upgrades.coins, *inp)
         }
         BuyRequest::CrystalUpgrade(inp) => buy_crystal_upgrades(&mut state.crystal_upgrades, *inp),
+        BuyRequest::CubeUpgrade(inp) => buy_cube_upgrade(
+            &mut state.cube_upgrade_levels,
+            &mut state.cube_balances.wow_cubes,
+            *inp,
+        ),
         BuyRequest::ParticleBuilding(inp) => buy_particle_building(
             &mut state.particle_buildings,
             &mut state.upgrades.reincarnation_points,
@@ -5011,6 +5019,40 @@ mod tests {
         );
         // Research 6 (base_cost 1, max_level 10): budget 5 ⇒ buy to level 5.
         assert_eq!(state.researches.researches[6], 5.0);
+    }
+
+    #[test]
+    fn tack_dispatches_buy_cube_upgrade_action() {
+        use synergismforkd_bignum::Decimal;
+
+        let mut state = GameState::default();
+        state.cube_balances.wow_cubes = Decimal::from_finite(1e12);
+
+        let mut input = TackInput {
+            dt: 0.025,
+            ..TackInput::default()
+        };
+        input
+            .player_actions
+            .push(PlayerAction::Buy(BuyRequest::CubeUpgrade(
+                BuyCubeUpgradeInput {
+                    index: 1,
+                    buy_max: false,
+                    singularity_debuff: 1.0,
+                },
+            )));
+
+        let output = tack(&mut state, &input);
+
+        assert!(
+            output
+                .events
+                .iter()
+                .any(|e| matches!(e, CoreEvent::CubeUpgradePurchased { .. })),
+            "expected CubeUpgradePurchased in events, got {:?}",
+            output.events
+        );
+        assert_eq!(state.cube_upgrade_levels.cube_upgrades[1], 1.0);
     }
 
     #[test]

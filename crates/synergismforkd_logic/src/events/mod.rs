@@ -220,6 +220,19 @@ pub enum CoreEvent {
         /// Prestige shards removed from the player's balance.
         spent: Decimal,
     },
+    /// One cube upgrade was leveled up (zero-or-more levels at once via the
+    /// summation cost solver). `spent` is in wow cubes — an `f64` mirroring
+    /// the legacy `Number(player.wowCubes)` cost comparison.
+    CubeUpgradePurchased {
+        /// 1-based cube-upgrade index (1..=80).
+        index: u8,
+        /// Level before the purchase.
+        before: f64,
+        /// Level after the purchase.
+        after: f64,
+        /// Wow cubes removed from the player's balance.
+        spent: f64,
+    },
     /// One research slot was leveled up (zero-or-more levels at once via
     /// the closed-form max-affordable solve). `spent` is in obtainium.
     ResearchPurchased {

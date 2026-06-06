@@ -7,9 +7,14 @@
 //! `buyCubeUpgrades`) stay in the UI — logic owns just the pure
 //! cost-curve and cap math.
 
+use smallvec::SmallVec;
+use synergismforkd_bignum::Decimal;
+
+use crate::events::CoreEvent;
 use crate::math::summations::{
     calculate_cubic_sum_data, calculate_summation_non_linear, SummationError,
 };
+use crate::state::CubeUpgradeLevelsState;
 
 // ─── Truth tables ──────────────────────────────────────────────────────────
 
@@ -235,6 +240,79 @@ pub fn get_cube_cost(input: &GetCubeCostInput) -> Result<GetCubeCostResult, Summ
     })
 }
 
+// ─── buy_cube_upgrade ──────────────────────────────────────────────────────
+
+/// Inputs to [`buy_cube_upgrade`].
+#[derive(Debug, Clone, Copy)]
+pub struct BuyCubeUpgradeInput {
+    /// 1-based cube-upgrade index (`1..=80`). Out-of-range is a no-op.
+    pub index: u8,
+    /// `player.cubeUpgradesBuyMaxToggle` — buy to the cap (else one level).
+    pub buy_max: bool,
+    /// Mirrors [`GetCubeCostInput::singularity_debuff`]:
+    /// `calculateSingularityDebuff('Cube Upgrades')` for `index <= 50`,
+    /// `1.0` for `index > 50` (the cubic branch ignores it). Caller
+    /// pre-evaluates (UI-tier).
+    pub singularity_debuff: f64,
+}
+
+/// Buy cube upgrade `index` with wow cubes. Port of `buyCubeUpgrades`
+/// (`Cubes.ts:138`) built on the logic-side [`get_cube_max`] /
+/// [`get_cube_cost`] solvers. Spends `cost` from `wow_cubes` and sets the
+/// level to `level_can_buy` when affordable and not maxed, emitting
+/// [`CoreEvent::CubeUpgradePurchased`].
+///
+/// Faithful-at-current-state deferrals:
+/// - the `index > 50` GQ-cookie unlock gate is UI-tier
+///   (`getGQUpgradeEffect`), so — like the other `buy_*` helpers — this is
+///   ungated on unlock (the caller dispatches only unlocked upgrades);
+/// - the buy-time regrants for upgrades 4/5/6 (legacy sets
+///   `player.upgrades[94..=100]`) and the `i == 51` cookie-autos / `i == 57`
+///   background side effects are not applied here. The 4/5/6 regrants are
+///   re-applied by the ascension reset from `cube_upgrades[4/5/6]`.
+#[must_use]
+pub fn buy_cube_upgrade(
+    levels: &mut CubeUpgradeLevelsState,
+    wow_cubes: &mut Decimal,
+    input: BuyCubeUpgradeInput,
+) -> SmallVec<[CoreEvent; 4]> {
+    let mut events = SmallVec::new();
+    if !matches!(input.index, 1..=80) {
+        return events;
+    }
+    let idx = usize::from(input.index);
+    let before = levels.cube_upgrades[idx];
+    let max_level = get_cube_max(&GetCubeMaxInput {
+        cube_upgrade_index: input.index,
+        cube_upgrade_57: levels.cube_upgrades[57],
+    });
+
+    let Ok(meta) = get_cube_cost(&GetCubeCostInput {
+        cube_upgrade_index: input.index,
+        buy_max: input.buy_max,
+        current_level: before,
+        max_level,
+        wow_cubes: wow_cubes.to_number(),
+        singularity_debuff: input.singularity_debuff,
+    }) else {
+        // Unsolvable cubic (unreachable in normal play) → no purchase.
+        return events;
+    };
+
+    // Legacy gate: affordable AND not already maxed.
+    if wow_cubes.to_number() >= meta.cost && before < max_level {
+        *wow_cubes -= Decimal::from_finite(meta.cost);
+        levels.cube_upgrades[idx] = meta.level_can_buy;
+        events.push(CoreEvent::CubeUpgradePurchased {
+            index: input.index,
+            before,
+            after: meta.level_can_buy,
+            spent: meta.cost,
+        });
+    }
+    events
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -329,5 +407,123 @@ mod tests {
         })
         .unwrap();
         assert!(result.level_can_buy > 0.0);
+    }
+
+    // ─── buy_cube_upgrade ───────────────────────────────────────────────
+    // Cube upgrade 1: base_cost 200, max_level 3, flat per-level (c = 0).
+
+    #[test]
+    fn buy_cube_upgrade_levels_up_and_spends() {
+        let mut levels = CubeUpgradeLevelsState::default();
+        let mut cubes = Decimal::from_finite(1e12);
+        let events = buy_cube_upgrade(
+            &mut levels,
+            &mut cubes,
+            BuyCubeUpgradeInput {
+                index: 1,
+                buy_max: false,
+                singularity_debuff: 1.0,
+            },
+        );
+        assert_eq!(levels.cube_upgrades[1], 1.0);
+        assert!(cubes.to_number() < 1e12); // spent ~200
+        assert_eq!(events.len(), 1);
+        match &events[0] {
+            CoreEvent::CubeUpgradePurchased {
+                index,
+                before,
+                after,
+                spent,
+            } => {
+                assert_eq!(*index, 1);
+                assert_eq!(*before, 0.0);
+                assert_eq!(*after, 1.0);
+                assert!(*spent > 0.0);
+            }
+            other => panic!("expected CubeUpgradePurchased, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn buy_cube_upgrade_max_reaches_cap() {
+        let mut levels = CubeUpgradeLevelsState::default();
+        let mut cubes = Decimal::from_finite(1e12);
+        let _ = buy_cube_upgrade(
+            &mut levels,
+            &mut cubes,
+            BuyCubeUpgradeInput {
+                index: 1,
+                buy_max: true,
+                singularity_debuff: 1.0,
+            },
+        );
+        let max = get_cube_max(&GetCubeMaxInput {
+            cube_upgrade_index: 1,
+            cube_upgrade_57: 0.0,
+        });
+        assert_eq!(levels.cube_upgrades[1], max); // 3.0
+    }
+
+    #[test]
+    fn buy_cube_upgrade_insufficient_cubes_is_noop() {
+        let mut levels = CubeUpgradeLevelsState::default();
+        let mut cubes = Decimal::from_finite(1.0); // base cost is 200
+        let events = buy_cube_upgrade(
+            &mut levels,
+            &mut cubes,
+            BuyCubeUpgradeInput {
+                index: 1,
+                buy_max: false,
+                singularity_debuff: 1.0,
+            },
+        );
+        assert_eq!(levels.cube_upgrades[1], 0.0);
+        assert_eq!(cubes.to_number(), 1.0);
+        assert!(events.is_empty());
+    }
+
+    #[test]
+    fn buy_cube_upgrade_maxed_is_noop() {
+        let mut levels = CubeUpgradeLevelsState::default();
+        levels.cube_upgrades[1] = 3.0; // max for cube upgrade 1
+        let mut cubes = Decimal::from_finite(1e12);
+        let events = buy_cube_upgrade(
+            &mut levels,
+            &mut cubes,
+            BuyCubeUpgradeInput {
+                index: 1,
+                buy_max: true,
+                singularity_debuff: 1.0,
+            },
+        );
+        assert_eq!(levels.cube_upgrades[1], 3.0);
+        assert_eq!(cubes.to_number(), 1e12);
+        assert!(events.is_empty());
+    }
+
+    #[test]
+    fn buy_cube_upgrade_out_of_range_is_noop() {
+        let mut levels = CubeUpgradeLevelsState::default();
+        let mut cubes = Decimal::from_finite(1e12);
+        assert!(buy_cube_upgrade(
+            &mut levels,
+            &mut cubes,
+            BuyCubeUpgradeInput {
+                index: 0,
+                buy_max: true,
+                singularity_debuff: 1.0,
+            }
+        )
+        .is_empty());
+        assert!(buy_cube_upgrade(
+            &mut levels,
+            &mut cubes,
+            BuyCubeUpgradeInput {
+                index: 81,
+                buy_max: true,
+                singularity_debuff: 1.0,
+            }
+        )
+        .is_empty());
     }
 }
