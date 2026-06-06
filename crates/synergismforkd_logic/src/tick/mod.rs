@@ -562,7 +562,17 @@ pub fn tack(state: &mut GameState, input: &TackInput) -> TickOutput {
     // 1 — ant generation multiplies by this factor so it no-ops at 0 anyway.
     automation_pre.ant_speed_mult = compute_ant_speed_mult(state);
     phase_player_input(state, input, &reset_gains, &mut output);
-    phase_generation(state, &resource_gain_pre, input.dt, &mut output);
+    // Generation runs on dt scaled by the global-speed multiplier (legacy
+    // `resourceGain(dt * timeMult)`, Synergism.ts:4604). `automation_pre`
+    // already holds this tick's `compute_global_speed_mult_pre` (set above) and
+    // the timer phase consumes the same value — this is the single
+    // generation-side application. Ant generation deliberately stays on raw dt.
+    phase_generation(
+        state,
+        &resource_gain_pre,
+        input.dt * automation_pre.global_time_multiplier,
+        &mut output,
+    );
     phase_challenge_completion(state, &reset_gains, &mut output);
     phase_automation(state, &automation_pre, input, &mut output);
 
@@ -5499,6 +5509,32 @@ mod tests {
         // the (1, 100] no-DR band, so the mult is exactly 3.0.
         state.researches.researches[121] = 100.0;
         assert!((compute_global_speed_mult_pre(&state) - 3.0).abs() < 1e-12);
+    }
+
+    #[test]
+    fn global_speed_mult_scales_resource_generation() {
+        // Regression (audit C1): the dropped global-speed multiplier meant
+        // `phase_generation` ran on raw dt, so all resource generation was
+        // under-counted. 1000 tier-1 diamond producers yield 50 prestige
+        // shards/tick at mult = 1; research 5x21 = 50 doubles the global-speed
+        // mult to 2.0, which must double the generation to 100.
+        let input = TackInput {
+            dt: 0.025,
+            ..TackInput::default()
+        };
+
+        let mut base = GameState::default();
+        base.diamond_producers.tiers[0].owned = 1000.0;
+        let _ = tack(&mut base, &input);
+        assert!((base.crystal_upgrades.prestige_shards.to_number() - 50.0).abs() < 1e-9);
+
+        let mut fast = GameState::default();
+        fast.diamond_producers.tiers[0].owned = 1000.0;
+        fast.researches.researches[121] = 50.0;
+        assert!((compute_global_speed_mult_pre(&fast) - 2.0).abs() < 1e-12);
+        let _ = tack(&mut fast, &input);
+        // Before the fix this was still 50 (the multiplier never reached generation).
+        assert!((fast.crystal_upgrades.prestige_shards.to_number() - 100.0).abs() < 1e-9);
     }
 
     #[test]
