@@ -4403,12 +4403,13 @@ fn enter_challenge(
 /// if the goal meets `challenge_requirement`, [`complete_active_challenge`]
 /// awards completions, raises `highest`, exits, and resets out.
 ///
+///
 /// c15 is deferred (different requirement shape and exponent path). Faithful
 /// neutral-defaults at this scope: the corruption `hyperchallenge` requirement
 /// inflation, the c15 transcend/reincarnation reductions, the c10 requirement
 /// reduction, and the shop `challengeExtension` reincarnation cap (→
 /// requirements/caps as if those upgrades are absent); `highestChallengeRewards`
-/// (research auto-unlocks) is unported → skipped; the post-completion reset
+/// fires quark awards per new highest rise (ported); the post-completion reset
 /// reuses the tick-start `gains` (the port's standing simplification for all
 /// in-tick resets).
 fn phase_challenge_completion(
@@ -4633,7 +4634,6 @@ fn complete_active_challenge(
         > state.challenges.highest_challenge_completions[q_idx]
     {
         state.challenges.highest_challenge_completions[q_idx] += 1.0;
-        // highestChallengeRewards(challenge, ..) unported → skipped.
         // Ascension-challenge unlock side-effects fired on highest[i] first rise
         // (Synergism.ts:3796-3808 — inside the `resetCheck` ascensionChallenge block).
         match q_idx {
@@ -4642,6 +4642,23 @@ fn complete_active_challenge(
             13 => state.reset_counters.hypercubes_unlocked = true,
             14 => state.reset_counters.platonics_unlocked = true,
             _ => {}
+        }
+        // highestChallengeRewards — award quarks when ascensionCount == 0
+        // (Challenges.ts:435). The quark bonus (cached as a %-age in
+        // state.quarks.quark_bonus) approximates calculateQuarkMultiplier().
+        if state.reset_counters.ascension_count == 0.0 {
+            use crate::mechanics::challenges::highest_challenge_rewards;
+            let base = highest_challenge_rewards(
+                challenge,
+                state.challenges.highest_challenge_completions[q_idx],
+            );
+            let multiplier = 1.0 + state.quarks.quark_bonus / 100.0;
+            let awarded = base * multiplier;
+            state.quarks.worlds += synergismforkd_bignum::Decimal::from_finite(awarded);
+            state.golden_quarks.quarks_this_singularity += awarded;
+            output
+                .events
+                .push(CoreEvent::QuarksAwarded { quarks: awarded });
         }
     }
 
@@ -6690,6 +6707,85 @@ mod tests {
         let mut output = TickOutput::default();
         phase_challenge_completion(&mut state, &gains, &mut output);
         assert!(state.reset_counters.platonics_unlocked);
+    }
+
+    #[test]
+    fn highest_challenge_rewards_fires_quarks_on_new_highest() {
+        use crate::mechanics::reset_currency::ResetCurrencyResult;
+        let mut state = GameState::default();
+        // c1 transcension challenge, enough coins to complete.
+        state.challenges.current_transcension_challenge = 1;
+        state.coin_counters.coins_this_transcension = Decimal::from_finite(1e11);
+        // ascension_count == 0 → gate passes.
+        assert_eq!(state.reset_counters.ascension_count, 0.0);
+        // quark_bonus = 0 → multiplier = 1; base = 1 + floor(1 * 0.1) = 1 + 0 = 1.
+        let gains = ResetCurrencyResult {
+            prestige_point_gain: Decimal::zero(),
+            transcend_point_gain: Decimal::zero(),
+            reincarnation_point_gain: Decimal::zero(),
+        };
+        let mut output = TickOutput::default();
+        phase_challenge_completion(&mut state, &gains, &mut output);
+        // Quark event fired once for highest[1] rising from 0 → 1.
+        let quark_events: Vec<_> = output
+            .events
+            .iter()
+            .filter(|e| matches!(e, CoreEvent::QuarksAwarded { .. }))
+            .collect();
+        assert_eq!(quark_events.len(), 1);
+        // base = 1 + floor(1 * 0.1) = 1; multiplier = 1.0 → awarded = 1.0.
+        assert!(
+            matches!(quark_events[0], CoreEvent::QuarksAwarded { quarks } if (*quarks - 1.0).abs() < 1e-9)
+        );
+        assert!((state.quarks.worlds.to_number() - 1.0).abs() < 1e-9);
+        assert!((state.golden_quarks.quarks_this_singularity - 1.0).abs() < 1e-9);
+    }
+
+    #[test]
+    fn highest_challenge_rewards_skipped_when_ascension_count_nonzero() {
+        use crate::mechanics::reset_currency::ResetCurrencyResult;
+        let mut state = GameState::default();
+        state.challenges.current_transcension_challenge = 1;
+        state.coin_counters.coins_this_transcension = Decimal::from_finite(1e11);
+        // ascension_count > 0 → gate blocks quark award.
+        state.reset_counters.ascension_count = 1.0;
+        let gains = ResetCurrencyResult {
+            prestige_point_gain: Decimal::zero(),
+            transcend_point_gain: Decimal::zero(),
+            reincarnation_point_gain: Decimal::zero(),
+        };
+        let mut output = TickOutput::default();
+        phase_challenge_completion(&mut state, &gains, &mut output);
+        assert!(!output
+            .events
+            .iter()
+            .any(|e| matches!(e, CoreEvent::QuarksAwarded { .. })));
+        assert_eq!(state.quarks.worlds.to_number(), 0.0);
+    }
+
+    #[test]
+    fn highest_challenge_rewards_reincarnation_multiplier_is_one() {
+        use crate::mechanics::reset_currency::ResetCurrencyResult;
+        // c6 reincarnation: multiplier = 1; highest will rise to 1.
+        // base = 1 + floor(1 * 1) = 2; quark_bonus = 0 → awarded = 2.0.
+        let mut state = GameState::default();
+        state.challenges.current_reincarnation_challenge = 6;
+        state.reset_counters.transcend_shards = Decimal::from_finite(1e130);
+        let gains = ResetCurrencyResult {
+            prestige_point_gain: Decimal::zero(),
+            transcend_point_gain: Decimal::zero(),
+            reincarnation_point_gain: Decimal::zero(),
+        };
+        let mut output = TickOutput::default();
+        phase_challenge_completion(&mut state, &gains, &mut output);
+        let quark_event = output
+            .events
+            .iter()
+            .find(|e| matches!(e, CoreEvent::QuarksAwarded { .. }));
+        assert!(quark_event.is_some());
+        assert!(
+            matches!(quark_event.unwrap(), CoreEvent::QuarksAwarded { quarks } if (*quarks - 2.0).abs() < 1e-9)
+        );
     }
 
     #[test]
