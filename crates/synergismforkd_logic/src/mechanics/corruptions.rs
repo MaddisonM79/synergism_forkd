@@ -127,6 +127,28 @@ pub fn illiteracy_power_at_level(level: u32) -> f64 {
     ILLITERACY_POWER.get(level as usize).copied().unwrap_or(0.0)
 }
 
+/// `G.extinctionDivisor` lookup table — ant-upgrade true-level divisor
+/// indexed by `player.corruptions.used.extinction` corruption level.
+/// 17 entries (`0..=16`); levels past `16` fall back to `0.0`.
+/// Verbatim port of the constant in
+/// `legacy/original/src/Variables.ts:191`.
+///
+/// Used by [`calculate_true_ant_level`](crate::mechanics::ant_upgrade_levels::calculate_true_ant_level)
+/// via the `corruption_extinction_divisor` input field.
+pub const EXTINCTION_DIVISOR: [f64; 17] = [
+    1.0, 1.25, 1.5, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0, 11.0, 12.0, 13.0, 14.0, 15.0,
+];
+
+/// `G.extinctionDivisor[level]` with a safe out-of-range fallback to
+/// `0.0`.
+#[must_use]
+pub fn extinction_divisor_at_level(level: u32) -> f64 {
+    EXTINCTION_DIVISOR
+        .get(level as usize)
+        .copied()
+        .unwrap_or(0.0)
+}
+
 /// `G.deflationMultiplier` lookup table — prestige-power scaler indexed by
 /// `player.corruptions.used.deflation` corruption level. 17 entries
 /// (`0..=16`); the tail is `0`. Verbatim port of the constant in
@@ -446,6 +468,18 @@ mod tests {
         assert_eq!(illiteracy_power_at_level(16), 0.04);
         // Past the last entry — saturates to 0.
         assert_eq!(illiteracy_power_at_level(100), 0.0);
+    }
+
+    #[test]
+    fn extinction_divisor_table_matches_legacy() {
+        // Legacy `G.extinctionDivisor` from `Variables.ts:191`.
+        assert_eq!(extinction_divisor_at_level(0), 1.0); // no corruption → no penalty
+        assert_eq!(extinction_divisor_at_level(1), 1.25);
+        assert_eq!(extinction_divisor_at_level(4), 3.0);
+        assert_eq!(extinction_divisor_at_level(5), 4.0);
+        assert_eq!(extinction_divisor_at_level(16), 15.0);
+        // Past the last entry — falls back to 0.
+        assert_eq!(extinction_divisor_at_level(100), 0.0);
     }
 
     #[test]
