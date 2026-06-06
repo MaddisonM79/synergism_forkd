@@ -4314,21 +4314,20 @@ fn enter_challenge(
 }
 
 /// Challenge-completion tick phase (legacy `Synergism.ts:3424-3477` auto-check
-/// and the `resetCheck` completion award). Runs after [`phase_generation`] so the
-/// goal resource is fresh. For an active **transcension** challenge (c1-5): if
-/// `coins_this_transcension` meets `challenge_requirement`, award completions
-/// (multi-complete up to `instantChallenge.extraCompPerTick`, capped at
-/// `get_max_challenges`), raise `highest`, exit (`retrychallenges` defaults to
-/// `false` so the tick path always exits), and reset out unless
-/// `instantChallenge` is unlocked.
+/// and the `resetCheck` completion award). Runs after [`phase_generation`] so
+/// the goal resources are fresh. Handles transcension (c1-5, goal =
+/// `coins_this_transcension`) and reincarnation (c6-10, goal = `transcend_shards`
+/// for c6-8 / `coins` for c9-10): if the goal meets `challenge_requirement`,
+/// [`complete_active_challenge`] awards completions, raises `highest`, exits, and
+/// resets out.
 ///
-/// Scope: transcension (c1-5) only — reincarnation (c6-10) and ascension
-/// (c11-15) completion land in follow-ups. Faithful neutral-defaults at this
-/// scope: the corruption `hyperchallenge` requirement inflation and the c15
-/// transcend reduction (→ `1`, i.e. requirements as if uncorrupted / no c15);
-/// `highestChallengeRewards` (research auto-unlocks) is unported → skipped. The
-/// post-completion reset reuses the tick-start `gains` (the port's standing
-/// simplification for all in-tick resets).
+/// Ascension challenges (c11-15) are deferred. Faithful neutral-defaults at this
+/// scope: the corruption `hyperchallenge` requirement inflation, the c15
+/// transcend/reincarnation reductions, the c10 requirement reduction, and the
+/// shop `challengeExtension` reincarnation cap (→ requirements/caps as if those
+/// upgrades are absent); `highestChallengeRewards` (research auto-unlocks) is
+/// unported → skipped; the post-completion reset reuses the tick-start `gains`
+/// (the port's standing simplification for all in-tick resets).
 fn phase_challenge_completion(
     state: &mut GameState,
     gains: &crate::mechanics::reset_currency::ResetCurrencyResult,
@@ -4346,61 +4345,20 @@ fn phase_challenge_completion(
 
     const PLATONIC_UPGRADE_8: usize = 8;
     const RESEARCH_INFINITE_TRANSCEND: usize = 105;
+    const CUBE_UPGRADE_29: usize = 29;
+    const PLATONIC_UPGRADE_5: usize = 5;
+    const PLATONIC_UPGRADE_10: usize = 10;
+    const PLATONIC_UPGRADE_15: usize = 15;
 
-    let q = state.challenges.current_transcension_challenge;
-    if !(1..=5).contains(&q) {
-        return;
-    }
-    let q_idx = q as usize;
-
-    // Goal target for `comp` completions (captures Copy values, not `state`).
-    let base_req = CHALLENGE_BASE_REQUIREMENTS[q_idx - 1];
-    let platonic_8 = state.cube_upgrade_levels.platonic_upgrades[PLATONIC_UPGRADE_8];
-    let requirement = |comp: f64| -> Decimal {
-        challenge_requirement(&ChallengeRequirementInput {
-            challenge: q as u8,
-            completion: comp,
-            special: q as u8,
-            challenge_base_requirement: base_req,
-            c10_requirement_reduction: 0.0,
-            hyperchallenge_multiplier: 1.0, // corruption hyperchallenge inflation deferred
-            platonic_upgrade_8: platonic_8,
-            challenge_15_transcend_reduction: 1.0, // c15 transcend reduction deferred
-            challenge_15_reincarnation_reduction: 1.0,
-            challenge_tome_c9c10_scaling_reduction: 0.0,
-            challenge_tome_2_c9c10_scaling_reduction: 0.0,
-        })
-    };
-
-    let coins = state.coin_counters.coins_this_transcension;
-    if coins < requirement(state.challenges.challenge_completions[q_idx]) {
-        return;
-    }
-
-    let research = &state.researches.researches;
-    let max_completions = get_max_challenges(&GetMaxChallengesInput {
-        challenge: q as u8,
-        one_challenge_cap_enabled: false, // SC oneChallengeCap (singularity) → neutral
-        infinite_transcend_research: research[RESEARCH_INFINITE_TRANSCEND],
-        transcend_research_for_challenge: research[65 + q_idx],
-        cube_upgrade_29: 0.0,
-        challenge_extension_cap: 0.0,
-        gq_reincarnation_cap_increase: 0.0,
-        sing_reincarnation_cap_increase: 0.0,
-        gq_ascension_cap_increase: 0.0,
-        sing_ascension_cap_increase: 0.0,
-        platonic_upgrade_5: 0.0,
-        platonic_upgrade_10: 0.0,
-        platonic_upgrade_15: 0.0,
-    });
-
-    // Multi-completion per tick (instantChallenge extraCompPerTick), capped at 1
-    // inside ascension challenge 13.
+    // Per-tick multi-completion (instantChallenge extraCompPerTick), shared
+    // across tiers; capped at 1 inside ascension challenge 13.
     let scalar = |v: InstantChallengeValue| match v {
         InstantChallengeValue::Scalar(s) => s,
         InstantChallengeValue::Unlock(_) => 0.0,
     };
-    let mut max_inc =
+    let max_inc = if state.challenges.current_ascension_challenge == 13 {
+        1.0
+    } else {
         1.0 + scalar(instant_challenge_effect(
             state.shop.upgrades[SHOP_INSTANT_CHALLENGE],
             InstantChallengeKey::ExtraCompPerTick,
@@ -4408,15 +4366,130 @@ fn phase_challenge_completion(
             state.shop.upgrades[SHOP_INSTANT_CHALLENGE_2],
             InstantChallengeKey::ExtraCompPerTick,
             state.singularity.highest_singularity_count,
-        ));
-    if state.challenges.current_ascension_challenge == 13 {
-        max_inc = 1.0;
+        ))
+    };
+    // Reset out unless instantChallenge is unlocked (leaving = false in the tick).
+    let instant_unlocked = matches!(
+        instant_challenge_effect(
+            state.shop.upgrades[SHOP_INSTANT_CHALLENGE],
+            InstantChallengeKey::Unlocked,
+        ),
+        InstantChallengeValue::Unlock(true)
+    );
+    let platonic_8 = state.cube_upgrade_levels.platonic_upgrades[PLATONIC_UPGRADE_8];
+
+    // Shared requirement builder (captures Copy values, not `state`).
+    let requirement = |challenge: u32, comp: f64| -> Decimal {
+        challenge_requirement(&ChallengeRequirementInput {
+            challenge: challenge as u8,
+            completion: comp,
+            special: challenge as u8,
+            challenge_base_requirement: CHALLENGE_BASE_REQUIREMENTS[challenge as usize - 1],
+            c10_requirement_reduction: 0.0, // c10 reduction deferred (neutral)
+            hyperchallenge_multiplier: 1.0, // corruption hyperchallenge inflation deferred
+            platonic_upgrade_8: platonic_8,
+            challenge_15_transcend_reduction: 1.0, // c15 reductions deferred
+            challenge_15_reincarnation_reduction: 1.0,
+            challenge_tome_c9c10_scaling_reduction: 0.0,
+            challenge_tome_2_c9c10_scaling_reduction: 0.0,
+        })
+    };
+
+    // ── Transcension challenges (c1-5): goal = coins this transcension.
+    let qt = state.challenges.current_transcension_challenge;
+    if (1..=5).contains(&qt) {
+        let goal = state.coin_counters.coins_this_transcension;
+        if goal >= requirement(qt, state.challenges.challenge_completions[qt as usize]) {
+            let research = &state.researches.researches;
+            let max_completions = get_max_challenges(&GetMaxChallengesInput {
+                challenge: qt as u8,
+                one_challenge_cap_enabled: false, // SC oneChallengeCap (singularity) → neutral
+                infinite_transcend_research: research[RESEARCH_INFINITE_TRANSCEND],
+                transcend_research_for_challenge: research[65 + qt as usize],
+                cube_upgrade_29: 0.0,
+                challenge_extension_cap: 0.0,
+                gq_reincarnation_cap_increase: 0.0,
+                sing_reincarnation_cap_increase: 0.0,
+                gq_ascension_cap_increase: 0.0,
+                sing_ascension_cap_increase: 0.0,
+                platonic_upgrade_5: 0.0,
+                platonic_upgrade_10: 0.0,
+                platonic_upgrade_15: 0.0,
+            });
+            complete_active_challenge(
+                state,
+                qt,
+                goal,
+                max_completions,
+                max_inc,
+                &requirement,
+                instant_unlocked,
+                gains,
+                output,
+            );
+        }
     }
 
+    // ── Reincarnation challenges (c6-10): goal = transcendShards (c6-8) / coins (c9-10).
+    let qr = state.challenges.current_reincarnation_challenge;
+    if (6..=10).contains(&qr) {
+        let goal = if qr < 9 {
+            state.reset_counters.transcend_shards
+        } else {
+            state.upgrades.coins
+        };
+        if goal >= requirement(qr, state.challenges.challenge_completions[qr as usize]) {
+            let platonic = &state.cube_upgrade_levels.platonic_upgrades;
+            let max_completions = get_max_challenges(&GetMaxChallengesInput {
+                challenge: qr as u8,
+                one_challenge_cap_enabled: false,
+                infinite_transcend_research: 0.0,
+                transcend_research_for_challenge: 0.0,
+                cube_upgrade_29: state.cube_upgrade_levels.cube_upgrades[CUBE_UPGRADE_29],
+                challenge_extension_cap: 0.0, // shop challengeExtension reinc cap deferred (neutral)
+                gq_reincarnation_cap_increase: 0.0,
+                sing_reincarnation_cap_increase: 0.0,
+                gq_ascension_cap_increase: 0.0,
+                sing_ascension_cap_increase: 0.0,
+                platonic_upgrade_5: platonic[PLATONIC_UPGRADE_5],
+                platonic_upgrade_10: platonic[PLATONIC_UPGRADE_10],
+                platonic_upgrade_15: platonic[PLATONIC_UPGRADE_15],
+            });
+            complete_active_challenge(
+                state,
+                qr,
+                goal,
+                max_completions,
+                max_inc,
+                &requirement,
+                instant_unlocked,
+                gains,
+                output,
+            );
+        }
+    }
+}
+
+/// Award + exit + reset for one in-progress challenge that has met its goal
+/// (the `resetCheck` completion body). The tier (transcension vs reincarnation)
+/// is derived from `challenge`. `requirement(challenge, comp)` is recomputed per
+/// completion for the multi-complete loop.
+fn complete_active_challenge(
+    state: &mut GameState,
+    challenge: u32,
+    goal: Decimal,
+    max_completions: f64,
+    max_inc: f64,
+    requirement: &impl Fn(u32, f64) -> Decimal,
+    instant_unlocked: bool,
+    gains: &crate::mechanics::reset_currency::ResetCurrencyResult,
+    output: &mut TickOutput,
+) {
+    let q_idx = challenge as usize;
     let mut comp = state.challenges.challenge_completions[q_idx];
     let mut counter = 0.0;
     while counter < max_inc {
-        if comp < max_completions && coins >= requirement(comp) {
+        if comp < max_completions && goal >= requirement(challenge, comp) {
             comp += 1.0;
         }
         counter += 1.0;
@@ -4426,30 +4499,30 @@ fn phase_challenge_completion(
         > state.challenges.highest_challenge_completions[q_idx]
     {
         state.challenges.highest_challenge_completions[q_idx] += 1.0;
-        // highestChallengeRewards(q, ..) unported → skipped.
+        // highestChallengeRewards(challenge, ..) unported → skipped.
     }
 
     // `retrychallenges` defaults to `false` → the tick path always exits.
-    state.challenges.current_transcension_challenge = 0;
+    let is_transcension = challenge <= 5;
+    if is_transcension {
+        state.challenges.current_transcension_challenge = 0;
+    } else {
+        state.challenges.current_reincarnation_challenge = 0;
+    }
     output.events.push(CoreEvent::ChallengeCompleted {
-        challenge: q,
+        challenge,
         completions: comp,
     });
 
-    // Reset out unless instantChallenge is unlocked (leaving = false in the tick).
-    let instant_unlocked = matches!(
-        instant_challenge_effect(
-            state.shop.upgrades[SHOP_INSTANT_CHALLENGE],
-            InstantChallengeKey::Unlocked,
-        ),
-        InstantChallengeValue::Unlock(true)
-    );
     if !instant_unlocked {
-        output.events.extend(reset::perform_reset(
-            state,
-            ResetRequest::Transcension,
-            gains,
-        ));
+        let request = if is_transcension {
+            ResetRequest::Transcension
+        } else {
+            ResetRequest::Reincarnation
+        };
+        output
+            .events
+            .extend(reset::perform_reset(state, request, gains));
     }
 }
 
@@ -6256,6 +6329,29 @@ mod tests {
         phase_challenge_completion(&mut state, &gains, &mut output);
         assert_eq!(state.challenges.challenge_completions[1], 0.0);
         assert_eq!(state.challenges.current_transcension_challenge, 1); // still in
+    }
+
+    #[test]
+    fn challenge_completion_reincarnation_awards_and_exits() {
+        use crate::mechanics::reset_currency::ResetCurrencyResult;
+        let mut state = GameState::default();
+        state.challenges.current_reincarnation_challenge = 6;
+        // req(c6, 0) = 10^125 (base 125); c6-8 goal is transcendShards.
+        state.reset_counters.transcend_shards = Decimal::from_finite(1e130);
+        let gains = ResetCurrencyResult {
+            prestige_point_gain: Decimal::zero(),
+            transcend_point_gain: Decimal::zero(),
+            reincarnation_point_gain: Decimal::zero(),
+        };
+        let mut output = TickOutput::default();
+        phase_challenge_completion(&mut state, &gains, &mut output);
+        assert_eq!(state.challenges.challenge_completions[6], 1.0);
+        assert_eq!(state.challenges.highest_challenge_completions[6], 1.0);
+        assert_eq!(state.challenges.current_reincarnation_challenge, 0);
+        assert!(output
+            .events
+            .iter()
+            .any(|e| matches!(e, CoreEvent::ChallengeCompleted { challenge: 6, .. })));
     }
 
     #[test]
