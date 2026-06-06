@@ -45,6 +45,7 @@ use crate::mechanics::global_multipliers::{
 use crate::mechanics::multipliers::{buy_multiplier, BuyMultiplierInput};
 use crate::mechanics::particle_buildings::{buy_particle_building, BuyParticleBuildingInput};
 use crate::mechanics::producers::{buy_max, buy_producer, BuyMaxInput, BuyProducerInput};
+use crate::mechanics::researches::{buy_research, BuyResearchInput};
 use crate::mechanics::resource_gain::{resource_gain, ResourceGainPre};
 use crate::mechanics::tesseract_buildings::{buy_tesseract_building, BuyTesseractBuildingInput};
 use crate::mechanics::update_all_multiplier::{
@@ -263,6 +264,8 @@ pub enum PlayerAction {
 pub enum BuyRequest {
     /// Routes to [`buy_upgrades`].
     Upgrade(BuyUpgradeInput),
+    /// Routes to [`buy_research`].
+    Research(BuyResearchInput),
     /// Routes to [`buy_multiplier`].
     Multiplier(BuyMultiplierInput),
     /// Routes to [`buy_accelerator`].
@@ -4135,6 +4138,7 @@ fn dispatch_buy(state: &mut GameState, req: &BuyRequest) -> SmallVec<[CoreEvent;
     // and prevent the second `&mut` for the currency.)
     match req {
         BuyRequest::Upgrade(inp) => buy_upgrades(&mut state.upgrades, *inp),
+        BuyRequest::Research(inp) => buy_research(&mut state.researches, *inp),
         BuyRequest::Multiplier(inp) => {
             buy_multiplier(&mut state.multiplier, &mut state.upgrades.coins, *inp)
         }
@@ -4975,6 +4979,38 @@ mod tests {
             output.events
         );
         assert_eq!(state.upgrades.upgrades[5], 1);
+    }
+
+    #[test]
+    fn tack_dispatches_buy_research_action() {
+        use synergismforkd_bignum::Decimal;
+
+        let mut state = GameState::default();
+        state.researches.obtainium = Decimal::from_finite(5.0);
+
+        let mut input = TackInput {
+            dt: 0.025,
+            ..TackInput::default()
+        };
+        input
+            .player_actions
+            .push(PlayerAction::Buy(BuyRequest::Research(BuyResearchInput {
+                index: 6,
+                buy_max: true,
+            })));
+
+        let output = tack(&mut state, &input);
+
+        assert!(
+            output
+                .events
+                .iter()
+                .any(|e| matches!(e, CoreEvent::ResearchPurchased { .. })),
+            "expected ResearchPurchased in events, got {:?}",
+            output.events
+        );
+        // Research 6 (base_cost 1, max_level 10): budget 5 ⇒ buy to level 5.
+        assert_eq!(state.researches.researches[6], 5.0);
     }
 
     #[test]

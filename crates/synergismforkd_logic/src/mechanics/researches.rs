@@ -12,7 +12,11 @@
 //! `RESEARCH_BASE_COSTS[0] == f64::INFINITY` and
 //! `RESEARCH_MAX_LEVELS[0] == 0`.
 
+use smallvec::SmallVec;
 use synergismforkd_bignum::Decimal;
+
+use crate::events::CoreEvent;
+use crate::state::ResearchesState;
 
 /// Per-research base cost. Index 0 is `f64::INFINITY` (1-based
 /// convention).
@@ -175,6 +179,69 @@ pub fn research_polynomial_degree(index: u32) -> f64 {
     }
 }
 
+// ─── Purchase ──────────────────────────────────────────────────────────────
+
+/// Inputs to [`buy_research`].
+#[derive(Debug, Clone, Copy)]
+pub struct BuyResearchInput {
+    /// 1-based research index (`1..=200`). Out-of-range indices are a no-op.
+    pub index: u32,
+    /// `player.researchBuyMaxToggle || auto || hover` — buy up to the max
+    /// affordable level when `true`, otherwise a single level.
+    pub buy_max: bool,
+}
+
+/// Buy research `index` with the player's obtainium, advancing its level
+/// toward the max. Port of `buyResearch` (`Research.ts:218`) built on the
+/// already-ported [`poly_buy_to_level`] / [`poly_cost_for_levels`] solvers
+/// (the legacy `getBuyableResearchLevel` / `getCostForResearchLevels`).
+///
+/// The legacy `isResearchUnlocked` gate is **UI-tier** (it closes over
+/// `player.*` / `runes.*`), so — like the other `buy_*` helpers and the
+/// resets — this is ungated on unlock: the caller dispatches only unlocked
+/// researches. The `isResearchMaxed` and affordability gates ARE applied; a
+/// cumulative cost of `0` (next level unaffordable) is a no-op, matching the
+/// legacy `canBuy = researchCost.gt(0)`.
+#[must_use]
+pub fn buy_research(
+    state: &mut ResearchesState,
+    input: BuyResearchInput,
+) -> SmallVec<[CoreEvent; 4]> {
+    let mut events = SmallVec::new();
+    let index = input.index as usize;
+    if index == 0 || index >= RESEARCH_MAX_LEVELS.len() {
+        return events;
+    }
+
+    let max_level = RESEARCH_MAX_LEVELS[index];
+    let before = state.researches[index];
+    // isResearchMaxed gate.
+    if before >= max_level {
+        return events;
+    }
+
+    let degree = research_polynomial_degree(input.index);
+    let base_cost = Decimal::from_finite(RESEARCH_BASE_COSTS[index]);
+
+    // levelToBuy = min(maxLevel, buyableLevel, currentLevel + buyAmount).
+    let buyable = poly_buy_to_level(degree, state.obtainium, base_cost, before, max_level);
+    let buy_amount = if input.buy_max { f64::INFINITY } else { 1.0 };
+    let after = max_level.min(buyable).min(before + buy_amount);
+
+    let cost = poly_cost_for_levels(degree, base_cost, before, after);
+    if cost > Decimal::zero() {
+        state.researches[index] = after;
+        state.obtainium -= cost;
+        events.push(CoreEvent::ResearchPurchased {
+            index: input.index,
+            before,
+            after,
+            spent: cost,
+        });
+    }
+    events
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -255,5 +322,126 @@ mod tests {
     fn poly_cost_for_levels_at_curr_returns_zero() {
         let result = poly_cost_for_levels(1.0, Decimal::from_finite(100.0), 5.0, 5.0);
         assert_eq!(result, Decimal::zero());
+    }
+
+    // ─── buy_research ────────────────────────────────────────────────────
+    // Research 6: base_cost 1, max_level 10, degree 1.
+    // Research 7: base_cost 1e2, max_level 10. Research 1: max_level 1.
+
+    fn obtainium_state(obtainium: f64) -> ResearchesState {
+        ResearchesState {
+            obtainium: Decimal::from_finite(obtainium),
+            ..ResearchesState::default()
+        }
+    }
+
+    #[test]
+    fn buy_research_single_level_spends_base_cost() {
+        let mut state = obtainium_state(5.0);
+        let events = buy_research(
+            &mut state,
+            BuyResearchInput {
+                index: 6,
+                buy_max: false,
+            },
+        );
+        assert_eq!(state.researches[6], 1.0);
+        assert_eq!(state.obtainium.to_number(), 4.0); // spent 1
+        assert_eq!(events.len(), 1);
+        match &events[0] {
+            CoreEvent::ResearchPurchased {
+                index,
+                before,
+                after,
+                spent,
+            } => {
+                assert_eq!(*index, 6);
+                assert_eq!(*before, 0.0);
+                assert_eq!(*after, 1.0);
+                assert_eq!(spent.to_number(), 1.0);
+            }
+            other => panic!("expected ResearchPurchased, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn buy_research_max_buys_to_affordable_level() {
+        let mut state = obtainium_state(5.0);
+        // Budget 5 at base_cost 1 ⇒ reach level 5 for a cumulative cost of 5.
+        let _ = buy_research(
+            &mut state,
+            BuyResearchInput {
+                index: 6,
+                buy_max: true,
+            },
+        );
+        assert_eq!(state.researches[6], 5.0);
+        assert_eq!(state.obtainium.to_number(), 0.0);
+    }
+
+    #[test]
+    fn buy_research_caps_at_max_level() {
+        let mut state = obtainium_state(1e9);
+        let _ = buy_research(
+            &mut state,
+            BuyResearchInput {
+                index: 6,
+                buy_max: true,
+            },
+        );
+        assert_eq!(state.researches[6], 10.0); // max_level, not 1e9
+    }
+
+    #[test]
+    fn buy_research_maxed_is_noop() {
+        let mut state = obtainium_state(1e9);
+        state.researches[1] = 1.0; // research 1 max_level is 1 → already maxed
+        let events = buy_research(
+            &mut state,
+            BuyResearchInput {
+                index: 1,
+                buy_max: true,
+            },
+        );
+        assert_eq!(state.researches[1], 1.0);
+        assert_eq!(state.obtainium.to_number(), 1e9); // untouched
+        assert!(events.is_empty());
+    }
+
+    #[test]
+    fn buy_research_unaffordable_next_level_is_noop() {
+        // Research 7 base_cost 1e2; budget 50 < 100 ⇒ cumulative cost 0.
+        let mut state = obtainium_state(50.0);
+        let events = buy_research(
+            &mut state,
+            BuyResearchInput {
+                index: 7,
+                buy_max: false,
+            },
+        );
+        assert_eq!(state.researches[7], 0.0);
+        assert_eq!(state.obtainium.to_number(), 50.0);
+        assert!(events.is_empty());
+    }
+
+    #[test]
+    fn buy_research_out_of_range_is_noop() {
+        let mut state = obtainium_state(1e9);
+        assert!(buy_research(
+            &mut state,
+            BuyResearchInput {
+                index: 0,
+                buy_max: true
+            }
+        )
+        .is_empty());
+        assert!(buy_research(
+            &mut state,
+            BuyResearchInput {
+                index: 250,
+                buy_max: true
+            }
+        )
+        .is_empty());
     }
 }

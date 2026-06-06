@@ -220,6 +220,18 @@ pub enum CoreEvent {
         /// Prestige shards removed from the player's balance.
         spent: Decimal,
     },
+    /// One research slot was leveled up (zero-or-more levels at once via
+    /// the closed-form max-affordable solve). `spent` is in obtainium.
+    ResearchPurchased {
+        /// 1-based research index.
+        index: u32,
+        /// Level before the purchase.
+        before: f64,
+        /// Level after the purchase.
+        after: f64,
+        /// Obtainium removed from the player's balance.
+        spent: Decimal,
+    },
     /// A single-bit upgrade was purchased. The `spent` value is the cost
     /// in the tier's currency.
     UpgradePurchased {
