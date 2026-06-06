@@ -336,6 +336,53 @@ pub fn calculate_corruption_raw_multiplier(input: &CorruptionRawMultiplierInput)
     }
 }
 
+// ─── Total ascension-score multiplier ──────────────────────────────────────
+
+/// Inputs to [`calculate_total_corruption_score_mult`].
+#[derive(Debug, Clone, Copy)]
+pub struct TotalCorruptionScoreMultInput<'a> {
+    /// The active corruption levels (the first 8 entries are the real
+    /// corruptions; viscosity is index 0).
+    pub levels: &'a [u32],
+    /// `bonusLevels` — added to every corruption's level before lookup
+    /// (`corruptionFifteen` + `oneChallengeCap` + `cookieGrandma` +
+    /// finiteDescent rune free levels).
+    pub bonus_levels: f64,
+    /// `bonusVal` — additive score increase inside the power base
+    /// (`advancedPack` + `oneChallengeCap` + `0.3·cubeUpgrades[74]`).
+    pub bonus_val: f64,
+    /// `player.platonicUpgrades[17]` — the viscosity-only P4x2 exponent
+    /// buff (applies when viscosity level `>= 10`).
+    pub viscosity_platonic_17: f64,
+}
+
+/// `player.corruptions.used.totalCorruptionAscensionMultiplier`
+/// (`Corruptions.ts` `#calcTotalScoreMult`) — the product of each
+/// corruption's [`calculate_corruption_raw_multiplier`]. Viscosity
+/// (index 0) gets the `3 + 0.04·platonicUpgrades[17]` exponent when its
+/// level is `>= 10` and the platonic upgrade is owned; all other
+/// corruptions use exponent `1`.
+#[must_use]
+pub fn calculate_total_corruption_score_mult(input: &TotalCorruptionScoreMultInput<'_>) -> f64 {
+    let mut product = 1.0_f64;
+    for (index, &level) in input.levels.iter().take(8).enumerate() {
+        let viscosity_power = if index == crate::state::VISCOSITY_INDEX
+            && input.viscosity_platonic_17 > 0.0
+            && level >= 10
+        {
+            3.0 + 0.04 * input.viscosity_platonic_17
+        } else {
+            1.0
+        };
+        product *= calculate_corruption_raw_multiplier(&CorruptionRawMultiplierInput {
+            total_level: f64::from(level) + input.bonus_levels,
+            bonus_val: input.bonus_val,
+            viscosity_power,
+        });
+    }
+    product
+}
+
 // ─── Difficulty score ──────────────────────────────────────────────────────
 
 /// Total corruption difficulty score. Starts at 400 and adds
@@ -607,6 +654,31 @@ mod tests {
             viscosity_power: 1.0,
         });
         assert!((result - 42.0).abs() < 1e-9);
+    }
+
+    #[test]
+    fn total_corruption_score_mult_is_product_of_raw() {
+        let single = calculate_corruption_raw_multiplier(&CorruptionRawMultiplierInput {
+            total_level: 0.0,
+            bonus_val: 0.0,
+            viscosity_power: 1.0,
+        });
+        let total = calculate_total_corruption_score_mult(&TotalCorruptionScoreMultInput {
+            levels: &[0u32; 8],
+            bonus_levels: 0.0,
+            bonus_val: 0.0,
+            viscosity_platonic_17: 0.0,
+        });
+        // Product of the 8 zero-level corruptions.
+        assert!((total - single.powi(8)).abs() < 1e-9);
+        // Higher levels strictly increase the product.
+        let leveled = calculate_total_corruption_score_mult(&TotalCorruptionScoreMultInput {
+            levels: &[5u32; 8],
+            bonus_levels: 0.0,
+            bonus_val: 0.0,
+            viscosity_platonic_17: 0.0,
+        });
+        assert!(leveled > total);
     }
 
     #[test]

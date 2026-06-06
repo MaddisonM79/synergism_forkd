@@ -572,6 +572,15 @@ pub enum CoreEvent {
     ///
     /// Emitted by `tackMiddle` (tick-side, not yet ported).
     ObtainiumMultiplierRecomputeRequested,
+    /// A corruption's *next-ascension* loadout level was set (legacy
+    /// `CorruptionLoadout.setLevel`). `index` is the corruption slot
+    /// (viscosity = 0), `level` the clamped new level.
+    CorruptionLevelSet {
+        /// Corruption slot index (`0..8`; viscosity = 0).
+        index: usize,
+        /// The clamped new level written to `corruptions.next`.
+        level: u32,
+    },
 }
 
 #[cfg(test)]

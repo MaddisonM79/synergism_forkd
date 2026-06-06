@@ -30,7 +30,7 @@
 //! Modal dispatch, audio cues, save serialization, and i18n live in the
 //! UI tier and consume `output.events`.
 
-use smallvec::SmallVec;
+use smallvec::{smallvec, SmallVec};
 
 use synergismforkd_bignum::Decimal;
 
@@ -268,6 +268,16 @@ pub enum PlayerAction {
     /// A manual reset (prestige / transcension / …). Routes to the
     /// reset executor based on the [`ResetRequest`] variant.
     Reset(ResetRequest),
+    /// Set a single corruption's *next-ascension* loadout level
+    /// (legacy `CorruptionLoadout.setLevel`). `index` is the corruption
+    /// slot (viscosity = 0); `level` is clamped to `[0, maxCorruptionLevel]`.
+    /// Recomputes `corruptions.next.total_corruption_ascension_multiplier`.
+    SetCorruptionLevel {
+        /// Corruption slot index (`0..8`; viscosity = 0).
+        index: usize,
+        /// Requested level (clamped to `[0, maxCorruptionLevel]`).
+        level: u32,
+    },
 }
 
 /// Per-mechanic dispatcher for the eight `buy_*` purchase loops. The
@@ -4210,8 +4220,93 @@ fn phase_player_input(
                     .events
                     .extend(reset::perform_reset(state, *req, reset_gains));
             }
+            PlayerAction::SetCorruptionLevel { index, level } => {
+                output
+                    .events
+                    .extend(set_corruption_level(state, *index, *level));
+            }
         }
     }
+}
+
+/// `CorruptionLoadout.setLevel` — set a single corruption's *next-ascension*
+/// level (clamped to `[0, maxCorruptionLevel]`) and recompute
+/// `corruptions.next.total_corruption_ascension_multiplier`
+/// (`updateCorruptionScoreMult`). Out-of-range slots (`>= 8`) are ignored.
+///
+/// Neutral-defaulted bonus contributions (faithful — unported / paused):
+/// `cookieGrandma` talisman free-corruption-levels (not among the 7 ported
+/// talismans), `corruptionFifteen` GQ + `oneChallengeCap` SC free levels and
+/// score-increase, and `advancedPack` GQ score-increase — all singularity-era
+/// and `0` at the current scope. finiteDescent rune free levels, `cubeUpgrades[74]`,
+/// and `platonicUpgrades[17]` are applied faithfully.
+fn set_corruption_level(
+    state: &mut GameState,
+    index: usize,
+    level: u32,
+) -> SmallVec<[CoreEvent; 1]> {
+    use crate::mechanics::corruptions::{
+        calculate_total_corruption_score_mult, max_corruption_level, MaxCorruptionLevelInput,
+        TotalCorruptionScoreMultInput,
+    };
+    use crate::mechanics::golden_quark_upgrades::{
+        platonic_tau_effect, PlatonicTauKey, PlatonicTauValue,
+    };
+    use crate::mechanics::rune_effects::{finite_descent_rune_effects, FiniteDescentRuneKey};
+    use crate::state::golden_quarks::GQ_PLATONIC_TAU;
+    use crate::state::RUNE_FINITE_DESCENT;
+
+    const CUBE_UPGRADE_74: usize = 74;
+    const PLATONIC_UPGRADE_17: usize = 17;
+
+    // Only the 8 real corruptions (viscosity..recession) are settable.
+    if index >= 8 {
+        return smallvec![];
+    }
+
+    let cc = &state.challenges.challenge_completions;
+    let platonic = &state.cube_upgrade_levels.platonic_upgrades;
+    let platonic_tau_unlocked = matches!(
+        platonic_tau_effect(
+            state.golden_quarks.upgrades[GQ_PLATONIC_TAU].level
+                + state.golden_quarks.upgrades[GQ_PLATONIC_TAU].free_level,
+            PlatonicTauKey::Unlocked,
+        ),
+        PlatonicTauValue::Unlock(true)
+    );
+    let max = max_corruption_level(&MaxCorruptionLevelInput {
+        challenge_11_completions: cc[11],
+        challenge_12_completions: cc[12],
+        challenge_13_completions: cc[13],
+        challenge_14_completions: cc[14],
+        platonic_upgrade_5: platonic[5],
+        platonic_upgrade_10: platonic[10],
+        platonic_tau_unlocked,
+        corruption_fourteen_unlocked: false, // GQ corruptionFourteen (singularity) → neutral
+        octeract_corruption_cap_increase: 0.0, // octeractCorruption (singularity) → neutral
+    });
+
+    let clamped = level.min(max as u32);
+    state.corruptions.next.levels[index] = clamped;
+
+    // Recompute total_corruption_ascension_multiplier from the updated loadout.
+    let bonus_levels = finite_descent_rune_effects(
+        state.runes.rune_levels[RUNE_FINITE_DESCENT],
+        FiniteDescentRuneKey::CorruptionFreeLevels,
+    );
+    let bonus_val = 0.3 * state.cube_upgrade_levels.cube_upgrades[CUBE_UPGRADE_74];
+    state.corruptions.next.total_corruption_ascension_multiplier =
+        calculate_total_corruption_score_mult(&TotalCorruptionScoreMultInput {
+            levels: &state.corruptions.next.levels,
+            bonus_levels,
+            bonus_val,
+            viscosity_platonic_17: state.cube_upgrade_levels.platonic_upgrades[PLATONIC_UPGRADE_17],
+        });
+
+    smallvec![CoreEvent::CorruptionLevelSet {
+        index,
+        level: clamped,
+    }]
 }
 
 /// **Phase 4** — Resource generation + challenge auto-completion.
@@ -5746,6 +5841,51 @@ mod tests {
             output.events
         );
         assert_eq!(state.octeract_upgrades.upgrades[0].level, 1.0);
+    }
+
+    #[test]
+    fn set_corruption_level_clamps_and_recomputes_mult() {
+        use crate::state::VISCOSITY_INDEX;
+        let mut state = GameState::default();
+        state.challenges.challenge_completions[11] = 1.0; // +5 max corruption level
+        let events = set_corruption_level(&mut state, VISCOSITY_INDEX, 3);
+        assert_eq!(state.corruptions.next.levels[VISCOSITY_INDEX], 3);
+        // Recomputed from the loadout; corruption levels raise the score mult.
+        assert!(state.corruptions.next.total_corruption_ascension_multiplier > 1.0);
+        assert!(matches!(
+            events[0],
+            CoreEvent::CorruptionLevelSet { index, level } if index == VISCOSITY_INDEX && level == 3
+        ));
+    }
+
+    #[test]
+    fn set_corruption_level_clamps_to_max_zero_at_default() {
+        use crate::state::DROUGHT_INDEX;
+        let mut state = GameState::default();
+        // No challenge/platonic unlocks → maxCorruptionLevel = 0, so any request clamps to 0.
+        let _ = set_corruption_level(&mut state, DROUGHT_INDEX, 99);
+        assert_eq!(state.corruptions.next.levels[DROUGHT_INDEX], 0);
+    }
+
+    #[test]
+    fn tack_dispatches_set_corruption_level_action() {
+        use crate::state::VISCOSITY_INDEX;
+        let mut state = GameState::default();
+        state.challenges.challenge_completions[11] = 1.0;
+        let mut input = TackInput {
+            dt: 0.0,
+            ..TackInput::default()
+        };
+        input.player_actions.push(PlayerAction::SetCorruptionLevel {
+            index: VISCOSITY_INDEX,
+            level: 2,
+        });
+        let output = tack(&mut state, &input);
+        assert_eq!(state.corruptions.next.levels[VISCOSITY_INDEX], 2);
+        assert!(output
+            .events
+            .iter()
+            .any(|e| matches!(e, CoreEvent::CorruptionLevelSet { .. })));
     }
 
     #[test]
