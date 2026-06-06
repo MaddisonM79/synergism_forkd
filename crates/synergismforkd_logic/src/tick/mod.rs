@@ -579,6 +579,68 @@ pub fn tack(state: &mut GameState, input: &TackInput) -> TickOutput {
     output
 }
 
+/// Effective ant-upgrade level (legacy `calculateTrueAntLevel`): purchased
+/// level + capped free levels (`min(level, free)`), divided by the
+/// extinction-corruption divisor — except for the four `exemptFromCorruption`
+/// upgrades (Mortuus 11, WowCubes 13, AscensionScore 14, Mortuus2 15), where
+/// the divisor is ignored. While ascension challenge 11 is active the level
+/// collapses to `min(level, free)` without the additive purchased term.
+///
+/// Free levels are a single global pool shared by every upgrade. Two
+/// contributing terms stay neutral pending unported subsystems (audit H2):
+/// the `freeAntUpgrades` achievement reward (→ 0) and the challenge-15
+/// `bonusAntLevel` multiplier (→ 1.0). Identity at the default state (no free
+/// levels, extinction divisor 1.0), so existing default-state tests are
+/// unaffected; the effect only diverges from the raw level once free levels
+/// or extinction corruption are present.
+fn true_ant_level(state: &GameState, upgrade_index: usize) -> f64 {
+    use crate::mechanics::ant_upgrade_levels::{
+        calculate_true_ant_level, compute_free_ant_upgrade_levels, CalculateTrueAntLevelInput,
+        ComputeFreeAntUpgradeLevelsInput,
+    };
+    use crate::mechanics::challenges::{calc_ecc, ChallengeType};
+    use crate::mechanics::corruptions::extinction_divisor_at_level;
+    use crate::state::EXTINCTION_INDEX;
+
+    // The four `exemptFromCorruption` ant upgrades (legacy antUpgradeData):
+    // Mortuus (11), WowCubes (13), AscensionScore (14), Mortuus2 (15).
+    const EXEMPT_FROM_CORRUPTION: [usize; 4] = [11, 13, 14, 15];
+
+    let cc = &state.challenges.challenge_completions;
+    let research = &state.researches.researches;
+    let c11_active = state.challenges.current_ascension_challenge == 11;
+
+    let free_levels = compute_free_ant_upgrade_levels(&ComputeFreeAntUpgradeLevelsInput {
+        c9_reincarnation_ecc: calc_ecc(ChallengeType::Reincarnation, cc[9]),
+        constant_upgrade_6: state.campaigns.constant_upgrades[6],
+        c11_ascension_ecc: calc_ecc(ChallengeType::Ascension, cc[11]),
+        research_97: research[97],
+        research_98: research[98],
+        research_102: research[102],
+        research_132: research[132],
+        research_200: research[200],
+        // getAchievementReward('freeAntUpgrades') unported → neutral 0.
+        free_ant_upgrades_achievement_reward: 0.0,
+        // challenge15Rewards.bonusAntLevel baseValue → neutral 1.0.
+        challenge_15_bonus_ant_level_value: 1.0,
+        c11_active,
+        c8_completions: cc[8],
+        c9_completions: cc[9],
+    });
+
+    // `calculate_true_ant_level` ignores the divisor for exempt upgrades, so it
+    // is always safe to pass the real value.
+    calculate_true_ant_level(&CalculateTrueAntLevelInput {
+        current_level: state.ants.upgrades[upgrade_index],
+        free_levels,
+        exempt_from_corruption: EXEMPT_FROM_CORRUPTION.contains(&upgrade_index),
+        corruption_extinction_divisor: extinction_divisor_at_level(
+            state.corruptions.used.levels[EXTINCTION_INDEX],
+        ),
+        c11_active,
+    })
+}
+
 /// Build the shared achievement-reward input from `&GameState` — the
 /// earned-flag array plus the cross-state values the reward formulas
 /// read (coin-producer owned counts, prestige points).
@@ -685,9 +747,10 @@ fn compute_total_accelerator_boost(state: &GameState) -> f64 {
         research_16: research(16),
         research_17: research(17),
         research_88: research(88),
-        ant_building_accelerator_boost_mult: accelerator_boosts_ant_upgrade_effect(
-            state.ants.upgrades[ANT_UPGRADE_ACCELERATOR_BOOSTS],
-        ),
+        ant_building_accelerator_boost_mult: accelerator_boosts_ant_upgrade_effect(true_ant_level(
+            state,
+            ANT_UPGRADE_ACCELERATOR_BOOSTS,
+        )),
         research_127: research(127),
         research_142: research(142),
         research_157: research(157),
@@ -728,9 +791,10 @@ fn compute_building_power(state: &GameState) -> f64 {
         research_37: state.researches.researches[37],
         research_38: state.researches.researches[38],
         building_cost_scale_ant_upgrade_building_power_mult:
-            building_cost_scale_ant_upgrade_effect(
-                state.ants.upgrades[ANT_UPGRADE_BUILDING_COST_SCALE],
-            )
+            building_cost_scale_ant_upgrade_effect(true_ant_level(
+                state,
+                ANT_UPGRADE_BUILDING_COST_SCALE,
+            ))
             .building_power_mult,
         cube_upgrade_12: state.cube_upgrade_levels.cube_upgrades[12],
         cube_upgrade_36: state.cube_upgrade_levels.cube_upgrades[36],
@@ -795,7 +859,7 @@ fn compute_global_multipliers_pre(state: &GameState) -> GlobalMultipliersPreEval
         fifth_owned_coin: coin_tiers[4].owned,
     });
     let ant_effect = coins_ant_upgrade_effect(&CoinsAntUpgradeInput {
-        level: state.ants.upgrades[ANT_UPGRADE_COINS],
+        level: true_ant_level(state, ANT_UPGRADE_COINS),
         ascension_challenge: state.challenges.current_ascension_challenge,
         crumbs: state.ants.crumbs,
     });
@@ -972,9 +1036,10 @@ fn compute_update_all_multiplier_pre(
             duplication_blessing_level,
         )
         .multiplier_boosts,
-        ant_multiplier_mult: multipliers_ant_upgrade_effect(
-            state.ants.upgrades[ANT_UPGRADE_MULTIPLIERS],
-        ),
+        ant_multiplier_mult: multipliers_ant_upgrade_effect(true_ant_level(
+            state,
+            ANT_UPGRADE_MULTIPLIERS,
+        )),
         hepteract_multiplier: hept_mult.multiplier,
         hepteract_multiplier_mult: hept_mult.multiplier_multiplier,
         viscosity_power: viscosity_power_at_level(viscosity_level),
@@ -1200,7 +1265,7 @@ fn phase_tax(state: &mut GameState, agg: &AggregatorOutputs) -> TaxOutputs {
         fifth_owned_coin: coin[4].owned,
     });
     let coins_ant = coins_ant_upgrade_effect(&CoinsAntUpgradeInput {
-        level: state.ants.upgrades[ANT_UPGRADE_COINS],
+        level: true_ant_level(state, ANT_UPGRADE_COINS),
         ascension_challenge: challenges.current_ascension_challenge,
         crumbs: state.ants.crumbs,
     });
@@ -1251,7 +1316,7 @@ fn phase_tax(state: &mut GameState, agg: &AggregatorOutputs) -> TaxOutputs {
             state.runes.rune_levels[RUNE_THRIFT],
             ThriftRuneKey::TaxReduction,
         ),
-        ant_tax_reduction: taxes_ant_upgrade_effect(state.ants.upgrades[ANT_UPGRADE_TAXES]),
+        ant_tax_reduction: taxes_ant_upgrade_effect(true_ant_level(state, ANT_UPGRADE_TAXES)),
         exemption_talisman_tax_reduction: exemption_talisman_effects(
             state.talismans.talisman_rarity[TALISMAN_EXEMPTION] as i32,
         )
@@ -1375,7 +1440,7 @@ fn compute_global_speed_mult_pre(state: &GameState) -> f64 {
         1.0, // speed spirit: effective spirit power unported → 1.0
         chronos_cube,
         1.0 + cube_upgrades[CUBE_UPGRADE_2X8] / 5.0,
-        mortuus_ant_upgrade_effect(state.ants.upgrades[ANT_UPGRADE_MORTUUS]).global_speed,
+        mortuus_ant_upgrade_effect(true_ant_level(state, ANT_UPGRADE_MORTUUS)).global_speed,
         chronos_talisman_effects(state.talismans.talisman_rarity[TALISMAN_CHRONOS] as i32)
             .global_speed,
         challenge_15_rewards::global_speed(state.challenges.challenge15_exponent),
@@ -1528,7 +1593,7 @@ fn compute_ascension_speed_mult_raw(state: &GameState) -> f64 {
 
     // Base StatLine product — legacy `allAscensionSpeedStats`.
     let base = product_f64(&[
-        mortuus_2_ant_upgrade_effect(state.ants.upgrades[ANT_UPGRADE_MORTUUS_2]).ascension_speed,
+        mortuus_2_ant_upgrade_effect(true_ant_level(state, ANT_UPGRADE_MORTUUS_2)).ascension_speed,
         polymath_talisman_effects(state.talismans.talisman_rarity[TALISMAN_POLYMATH] as i32)
             .ascension_speed_bonus,
         chronometer_effect(shop[SHOP_CHRONOMETER]),
@@ -1657,9 +1722,10 @@ fn compute_ascension_score_result(
         platonic_upgrade_5: platonic[PLATONIC_UPGRADE_ALPHA],
         platonic_upgrade_10: platonic[PLATONIC_UPGRADE_BETA],
         corruption_multiplier: state.corruptions.used.total_corruption_ascension_multiplier,
-        ant_upgrade_ascension_score_base: ascension_score_ant_upgrade_effect(
-            state.ants.upgrades[ANT_UPGRADE_ASCENSION_SCORE],
-        )
+        ant_upgrade_ascension_score_base: ascension_score_ant_upgrade_effect(true_ant_level(
+            state,
+            ANT_UPGRADE_ASCENSION_SCORE,
+        ))
         .ascension_score_base,
         expert_pack_ascension_score_mult: expert_pack_effect(
             gq(GQ_EXPERT_PACK),
@@ -2152,7 +2218,7 @@ fn compute_cube_multiplier(
         cube_bank += if offset + 1 >= 6 { 2.0 } else { 1.0 } * completions;
     }
     cube_bank +=
-        ascension_score_ant_upgrade_effect(state.ants.upgrades[ANT_UPGRADE_ASCENSION_SCORE])
+        ascension_score_ant_upgrade_effect(true_ant_level(state, ANT_UPGRADE_ASCENSION_SCORE))
             .cubes_banked;
 
     // AscensionScore band.
@@ -2240,7 +2306,7 @@ fn compute_cube_multiplier(
         1.0, // WowSquare — wowSquare talisman not among the 7 ported
         researches,
         1.0 + (0.004 / 100.0) * research[200], // Research8x25
-        wow_cubes_ant_upgrade_effect(state.ants.upgrades[ANT_UPGRADE_WOW_CUBES]),
+        wow_cubes_ant_upgrade_effect(true_ant_level(state, ANT_UPGRADE_WOW_CUBES)),
         (1.0 + cube[1] / 6.0) * (1.0 + cube[11] / 11.0) * (1.0 + 0.4 * cube[30]), // CubeUpgrades
         constant_upgrade_10,
         duplication_rune_spirit_effects(state.runes.rune_spirit_levels[RUNE_DUPLICATION]).wow_cubes,
@@ -2828,7 +2894,7 @@ fn compute_obtainium(
             state.runes.rune_levels[RUNE_SUPERIOR_INTELLECT],
             SuperiorIntellectRuneKey::ObtainiumMult,
         ), // Rune5
-        obtainium_ant_upgrade_effect(state.ants.upgrades[ANT_UPGRADE_OBTAINIUM]), // Ant10
+        obtainium_ant_upgrade_effect(true_ant_level(state, ANT_UPGRADE_OBTAINIUM)), // Ant10
         obtainium_cube_blessing, // CubeBonus
         1.0 + 0.04 * state.campaigns.constant_upgrades[4], // ConstantUpgrade4
         1.0 + 0.1 * cube[3], // CubeUpgrade1x3
@@ -3115,7 +3181,7 @@ fn compute_ant_speed_mult(state: &GameState) -> Decimal {
         // ImmortalELO — calculateAntSpeedMultFromELO = 1.02 ^ rebornELO.
         Decimal::from_finite(1.02).pow(Decimal::from_finite(state.ants.reborn_elo)),
         ant_speed_ant_upgrade_effect(&AntSpeedAntUpgradeInput {
-            level: state.ants.upgrades[ANT_UPGRADE_ANT_SPEED],
+            level: true_ant_level(state, ANT_UPGRADE_ANT_SPEED),
             research_101: researches[101],
             research_162: researches[162],
         }), // AntUpgrade1
@@ -3492,9 +3558,9 @@ fn compute_immortal_elo_gain(state: &GameState) -> f64 {
         50.0 * researches[123],
         0.02 * researches[169],
         666.0 * researches[178],
-        ant_sacrifice_ant_upgrade_effect(state.ants.upgrades[ANT_UPGRADE_ANT_SACRIFICE]).elo,
+        ant_sacrifice_ant_upgrade_effect(true_ant_level(state, ANT_UPGRADE_ANT_SACRIFICE)).elo,
         ant_elo_ant_upgrade_effect(&AntELOAntUpgradeInput {
-            level: state.ants.upgrades[ANT_UPGRADE_ANT_ELO],
+            level: true_ant_level(state, ANT_UPGRADE_ANT_ELO),
             ant_sacrifice_count: sac_count,
             ant_speed_2_upgrade_improver: ant_speed_2_upgrade_improver(ach, ach_level),
         })
@@ -7532,6 +7598,36 @@ mod tests {
         let _ = tack(&mut state, &input);
         // Second tick adds another 50 on top (was still 50 before the fix).
         assert!((state.crystal_upgrades.prestige_shards.to_number() - 100.0).abs() < 1e-9);
+    }
+
+    #[test]
+    fn true_ant_level_routes_free_levels_and_extinction() {
+        use crate::mechanics::corruptions::extinction_divisor_at_level;
+        use crate::state::EXTINCTION_INDEX;
+        // Audit H2: ant-upgrade effects must read the true level (purchased +
+        // capped free levels, / extinction divisor), not the raw purchased
+        // level. Coins (1) is corruption-eligible; Mortuus (11) is exempt.
+        const COINS: usize = 1;
+        const MORTUUS: usize = 11;
+
+        let mut state = GameState::default();
+        state.ants.upgrades[COINS] = 100.0;
+        // Identity at default state (no free levels, extinction divisor 1.0).
+        assert!((true_ant_level(&state, COINS) - 100.0).abs() < 1e-9);
+
+        // research[97] grants 2x = 20 free levels, capped by min(100, 20) = 20.
+        state.researches.researches[97] = 10.0;
+        assert!((true_ant_level(&state, COINS) - 120.0).abs() < 1e-9);
+
+        // Extinction corruption level 4 → divisor 3.0 on the non-exempt upgrade.
+        state.corruptions.used.levels[EXTINCTION_INDEX] = 4;
+        let div = extinction_divisor_at_level(4);
+        assert!((div - 3.0).abs() < 1e-12);
+        assert!((true_ant_level(&state, COINS) - 120.0 / div).abs() < 1e-9);
+
+        // The exempt upgrade (Mortuus) ignores the divisor but still gets free levels.
+        state.ants.upgrades[MORTUUS] = 100.0;
+        assert!((true_ant_level(&state, MORTUUS) - 120.0).abs() < 1e-9);
     }
 
     #[test]
