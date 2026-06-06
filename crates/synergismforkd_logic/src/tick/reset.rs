@@ -67,6 +67,23 @@ const RESET_RESEARCHES_PRE_SING25: &[usize] = &[138, 153, 168, 183, 198];
 /// `highestSingularityCount` threshold below which the pre-sing-25 extras
 /// are wiped too.
 const RESET_RESEARCHES_SING_THRESHOLD: f64 = 25.0;
+
+/// Reset-count increment (legacy `updatePrestigeCount` / `updateTranscensionCount`
+/// / `updateReincarnationCount`): `floor(count * multiplier)` with `count = 1` per
+/// reset and `multiplier = achievementCountMultiplier * (1 + coeff * CalcECC(tier,
+/// completions))`. The achievement count-multiplier reward is unported → neutral
+/// `1.0`; the `CalcECC` term raises the increment once the gating challenge has
+/// completions (transcend c5 → prestige, reincarnation c7 → transcension,
+/// ascension c12 → reincarnation). Identity at the default state. (audit P1.6)
+fn reset_count_increment(
+    ecc_type: crate::mechanics::challenges::ChallengeType,
+    completions: f64,
+    ecc_coeff: f64,
+) -> f64 {
+    use crate::mechanics::challenges::calc_ecc;
+    let achievement_count_multiplier = 1.0; // getAchievementReward(*CountMultiplier) unported
+    (achievement_count_multiplier * (1.0 + ecc_coeff * calc_ecc(ecc_type, completions))).floor()
+}
 /// The Mortuus2 ant upgrade (index 15) — the one ant upgrade an ascension's
 /// `resetAnts` leaves untouched, since it is singularity-tier while every
 /// lower index is sacrifice- or ascension-tier (`AntUpgrades` data table).
@@ -146,7 +163,11 @@ fn apply_base_reset(state: &mut GameState, prestige_point_gain: Decimal) {
     reset_upgrade_slots(state, 106..=110);
     reset_upgrade_slots(state, 121..=125);
 
-    state.reset_counters.prestige_count += 1.0;
+    state.reset_counters.prestige_count += reset_count_increment(
+        crate::mechanics::challenges::ChallengeType::Transcend,
+        state.challenges.challenge_completions[5],
+        0.05,
+    );
     state.upgrades.prestige_points += prestige_point_gain;
     // `player.prestigeShards = 0`. The current-shards value lives in
     // `crystal_upgrades`; `reset_counters.prestige_shards` is a (currently
@@ -226,9 +247,13 @@ fn apply_transcension_layer(state: &mut GameState, transcend_point_gain: Decimal
     }
     state.accelerator.accelerator_boost_bought = 0.0;
 
-    // updateTranscensionCount(1) — multiplier is `1` at default, so +1.
+    // updateTranscensionCount(1) — floor(multiplier); multiplier = 1 at default.
     if transcension_check {
-        state.reset_counters.transcend_count += 1.0;
+        state.reset_counters.transcend_count += reset_count_increment(
+            crate::mechanics::challenges::ChallengeType::Reincarnation,
+            state.challenges.challenge_completions[7],
+            0.15,
+        );
     }
     state.upgrades.prestige_points = Decimal::zero();
     state.upgrades.transcend_points += transcend_point_gain;
@@ -318,8 +343,12 @@ fn apply_reincarnation_layer(
         // Obtainium award (Reset.ts:568-569) — `obtainium_to_gain` was
         // computed pre-reset by `perform_reincarnation_reset`.
         state.researches.obtainium += obtainium_to_gain;
-        // updateReincarnationCount(1) — multiplier is `1` at default, so +1.
-        state.reset_counters.reincarnation_count += 1.0;
+        // updateReincarnationCount(1) — floor(multiplier); multiplier = 1 at default.
+        state.reset_counters.reincarnation_count += reset_count_increment(
+            crate::mechanics::challenges::ChallengeType::Ascension,
+            state.challenges.challenge_completions[12],
+            0.2,
+        );
     }
 
     state.challenges.current_transcension_challenge = 0;
@@ -1111,6 +1140,28 @@ mod tests {
             with.cube_balances.wow_cubes.to_number() > without.cube_balances.wow_cubes.to_number(),
             "pre-reset research[192]/Mortuus must increase the cube award (lost when computed post-reset)"
         );
+    }
+
+    #[test]
+    fn prestige_count_uses_ecc_multiplier() {
+        use crate::mechanics::challenges::ChallengeType;
+        // Audit P1.6: count increments are floor(multiplier) where multiplier rises
+        // with the gating challenge's CalcECC, not a flat +1. Identity at default.
+        assert_eq!(
+            reset_count_increment(ChallengeType::Transcend, 0.0, 0.05),
+            1.0
+        );
+
+        // c5 = 1000 → CalcECC(Transcend) = 145 → floor(1 + 0.05*145) = 8 (not 1).
+        let expected_inc = reset_count_increment(ChallengeType::Transcend, 1000.0, 0.05);
+        assert_eq!(expected_inc, 8.0);
+
+        // End-to-end: a prestige reset increments by exactly that (was flat +1).
+        let mut state = GameState::default();
+        state.challenges.challenge_completions[5] = 1000.0;
+        let before = state.reset_counters.prestige_count;
+        let _ = perform_prestige_reset(&mut state, Decimal::zero());
+        assert_eq!(state.reset_counters.prestige_count, before + expected_inc);
     }
 
     #[test]
