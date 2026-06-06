@@ -422,10 +422,10 @@ pub(crate) fn perform_ascension_reset(
         // Deflation quirk excluded for ascension inputs (Reset.ts:549 guard).
         false,
     );
-    apply_ascension_layer(state);
+    let wow_cubes_gained = apply_ascension_layer(state);
     smallvec![CoreEvent::ResetPerformed {
         tier: AutoResetTier::Ascension,
-        points_gained: Decimal::zero(),
+        points_gained: wow_cubes_gained,
     }]
 }
 
@@ -446,7 +446,10 @@ pub(crate) fn perform_ascension_reset(
 /// - the C15 corruption override (needs the `c15Corruptions` constant) and
 ///   every `highestSingularityCount`-gated convenience (campaigns, hepteract
 ///   auto-craft, tesseract auto-buyer, auto-open) — inert at default.
-fn apply_ascension_layer(state: &mut GameState) {
+fn apply_ascension_layer(state: &mut GameState) -> Decimal {
+    use crate::mechanics::calculate::{calc_corruption_stuff, CalcCorruptionStuffInput};
+    use crate::mechanics::challenge_15_rewards;
+
     // Clear the lower auto-challenge gates (Reset.ts:633-634). The ascension
     // challenge gate itself is intentionally left untouched.
     state.challenges.current_transcension_challenge = 0;
@@ -525,12 +528,62 @@ fn apply_ascension_layer(state: &mut GameState) {
         }
     }
 
-    // c10-gated reward block (Reset.ts:687-694): DEFERRED no-op. At
-    // `challengecompletions[10] == 0` (default) the whole block — both the
-    // `ascensionCount` gain AND the `wow*` cube awards — does not run, so
-    // neutral-defaulting it is exactly faithful here. When `CalcCorruptionStuff`
-    // and the `ascensionCountMultStats` StatLine port, this gains a body:
-    //   if challenge_completions[10] > 0 { ascension_count += …; wow* += … }
+    // c10-gated reward block (Reset.ts:687-694): the ascension cube award +
+    // ascensionCount. Reads pre-reset `highestChallengeCompletions` and the
+    // ascensionCounter (both zeroed just below), so it runs here. Inert at
+    // `challengecompletions[10] == 0` (default) — the block is skipped. Returns
+    // the wow-cube gain for the `ResetPerformed` event.
+    let wow_cubes_gained = if state.challenges.challenge_completions[10] > 0.0 {
+        let score = super::compute_ascension_score_result(state);
+        let effective_score = score.effective_score;
+        let all_cube = super::compute_all_cube_multiplier(state);
+        let count_gain = super::compute_ascension_count(state, effective_score);
+        let rewards = calc_corruption_stuff(&CalcCorruptionStuffInput {
+            scores: score,
+            cube_multiplier: super::compute_cube_multiplier(state, effective_score, all_cube),
+            tesseract_multiplier: super::compute_tesseract_multiplier(
+                state,
+                effective_score,
+                all_cube,
+            ),
+            hypercube_multiplier: super::compute_hypercube_multiplier(
+                state,
+                effective_score,
+                all_cube,
+            ),
+            platonic_multiplier: super::compute_platonic_multiplier(
+                state,
+                effective_score,
+                all_cube,
+            ),
+            hepteract_multiplier: super::compute_hepteract_multiplier(
+                state,
+                effective_score,
+                all_cube,
+            ),
+            hepteracts_unlocked: challenge_15_rewards::hepteracts_unlocked(
+                state.challenges.challenge15_exponent,
+            ),
+            singularity_count: state.singularity.singularity_count,
+        });
+        // All `&state` reads are done; now apply the awards.
+        state.reset_counters.ascension_count += count_gain;
+        let cap = Decimal::from_finite(1e300);
+        let cb = &mut state.cube_balances;
+        // `player.wow*.add()` = `min(1e300, balance + gain)`; hepteracts fold into
+        // `wowAbyssals` (Reset.ts:693).
+        cb.wow_cubes = (cb.wow_cubes + Decimal::from_finite(rewards.wow_cubes)).min(cap);
+        cb.wow_tesseracts =
+            (cb.wow_tesseracts + Decimal::from_finite(rewards.wow_tesseracts)).min(cap);
+        cb.wow_hypercubes =
+            (cb.wow_hypercubes + Decimal::from_finite(rewards.wow_hypercubes)).min(cap);
+        cb.wow_platonic_cubes =
+            (cb.wow_platonic_cubes + Decimal::from_finite(rewards.wow_platonic_cubes)).min(cap);
+        cb.wow_abyssals = 1e300_f64.min(cb.wow_abyssals + rewards.wow_hepteracts);
+        Decimal::from_finite(rewards.wow_cubes)
+    } else {
+        Decimal::zero()
+    };
 
     // Challenge completions 1..=10 and their highs (Reset.ts:696-699).
     for completion in &mut state.challenges.challenge_completions[1..=10] {
@@ -570,6 +623,8 @@ fn apply_ascension_layer(state: &mut GameState) {
     // deferred (needs `c15Corruptions`; inert unless inside ascension
     // challenge 15).
     state.corruptions.used = state.corruptions.next;
+
+    wow_cubes_gained
 }
 
 /// `resetAnts(AntSacrificeTiers.ascension)`
@@ -940,12 +995,40 @@ mod tests {
         assert_eq!(state.corruptions.used.levels[0], 9); // swapped from next
 
         assert_eq!(events.len(), 1);
+        // c10 = 7 > 0, so the award block fired: ascensionCount gained
+        // `calculateAscensionCount()` (= 1 at default mults) and `points_gained`
+        // reports the credited wow-cube gain (added to a fresh 0 balance).
+        assert_eq!(state.reset_counters.ascension_count, 1.0);
         assert!(matches!(
             events[0],
             CoreEvent::ResetPerformed {
                 tier: AutoResetTier::Ascension,
                 points_gained,
-            } if points_gained.to_number() == 0.0
+            } if points_gained == state.cube_balances.wow_cubes
+        ));
+    }
+
+    #[test]
+    fn ascension_reset_credits_cube_award_at_c10() {
+        let mut state = GameState::default();
+        // c10 cleared, with strong challenge history and a long ascension so the
+        // AscensionTime cube line saturates to 1 (frac ≫ 1).
+        state.challenges.challenge_completions[10] = 10.0;
+        for i in 1..=10 {
+            state.challenges.highest_challenge_completions[i] = 100.0;
+            state.challenges.challenge_completions[i] = 50.0;
+        }
+        state.reset_counters.ascension_counter = 1e12;
+
+        let events = perform_ascension_reset(&mut state, &gains(0.0, 0.0, 0.0));
+
+        // The c10 award credited wow-cubes (CalcCorruptionStuff) and the count.
+        assert!(state.cube_balances.wow_cubes.to_number() > 0.0);
+        assert!(state.reset_counters.ascension_count >= 1.0);
+        assert!(matches!(
+            events[0],
+            CoreEvent::ResetPerformed { points_gained, .. }
+                if points_gained.to_number() > 0.0
         ));
     }
 

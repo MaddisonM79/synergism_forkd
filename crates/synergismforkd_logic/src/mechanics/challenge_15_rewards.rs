@@ -12,10 +12,11 @@
 //! speed rewards (`globalSpeed`, `ascensionSpeed`) that feed the
 //! global / ascension speed StatLine products, the ascension-score
 //! reward (`score`), the obtainium reward (`obtainium`) feeding the
-//! obtainium DR-ignore StatLine product, and the `antSpeed` reward
-//! feeding the ant-speed StatLine product. Other c15 rewards
-//! (`runeExp`, `blessingBonus`, …) land with the chunks that consume
-//! them.
+//! obtainium DR-ignore StatLine product, the `antSpeed` reward
+//! feeding the ant-speed StatLine product, and the cube rewards
+//! (`cube1`–`cube5`) feeding the global cube StatLine product
+//! (`allCubeStats`). Other c15 rewards (`runeExp`, `blessingBonus`, …)
+//! land with the chunks that consume them.
 
 use crate::math::sigmoid::calculate_sigmoid;
 
@@ -151,6 +152,85 @@ pub fn ant_speed(exponent: f64) -> f64 {
     }
 }
 
+/// `challenge15Rewards.cube1.value` — one of five cube rewards multiplied
+/// together into the `allCubeStats` Challenge15 line. Requirement `750`,
+/// `baseValue` `1`. Legacy formula `1 + (1/50)·log2(e/175)`.
+#[must_use]
+pub fn cube1(exponent: f64) -> f64 {
+    if exponent >= 750.0 {
+        1.0 + (1.0 / 50.0) * (exponent / 175.0).log2()
+    } else {
+        1.0
+    }
+}
+
+/// `challenge15Rewards.cube2.value`. Requirement `60000`. Legacy formula
+/// `1 + (1/100)·log2(e/1.5e4)`.
+#[must_use]
+pub fn cube2(exponent: f64) -> f64 {
+    if exponent >= 60_000.0 {
+        1.0 + (1.0 / 100.0) * (exponent / 1.5e4).log2()
+    } else {
+        1.0
+    }
+}
+
+/// `challenge15Rewards.cube3.value`. Requirement `1e6`. Legacy formula
+/// `1 + (1/150)·log2(e/2.5e5)`.
+#[must_use]
+pub fn cube3(exponent: f64) -> f64 {
+    if exponent >= 1e6 {
+        1.0 + (1.0 / 150.0) * (exponent / 2.5e5).log2()
+    } else {
+        1.0
+    }
+}
+
+/// `challenge15Rewards.cube4.value`. Requirement `5e8`. Legacy formula
+/// `1 + (1/200)·log2(e/1.25e8)`.
+#[must_use]
+pub fn cube4(exponent: f64) -> f64 {
+    if exponent >= 5e8 {
+        1.0 + (1.0 / 200.0) * (exponent / 1.25e8).log2()
+    } else {
+        1.0
+    }
+}
+
+/// `challenge15Rewards.cube5.value`. Requirement `4e15`. Legacy formula
+/// `1 + (1/300)·log2(e / (4e15 / 1024))`.
+#[must_use]
+pub fn cube5(exponent: f64) -> f64 {
+    if exponent >= 4e15 {
+        1.0 + (1.0 / 300.0) * (exponent / (4e15 / 1024.0)).log2()
+    } else {
+        1.0
+    }
+}
+
+/// `challenge15Rewards.ascensions.value` — multiplied into the ascension-count
+/// StatLine product (`ascensionCountMultStats`). Requirement `1500`. Legacy
+/// formula `1 + (1/20)·log2(e/375)`.
+#[must_use]
+pub fn ascensions(exponent: f64) -> f64 {
+    if exponent >= 1_500.0 {
+        1.0 + (1.0 / 20.0) * (exponent / 375.0).log2()
+    } else {
+        1.0
+    }
+}
+
+/// `challenge15Rewards.hepteractsUnlocked.value` — `1` once `exponent >= 1e15`,
+/// else `0`. Gates the hepteract branch of `CalcCorruptionStuff`.
+#[must_use]
+pub fn hepteracts_unlocked(exponent: f64) -> f64 {
+    if exponent >= 1e15 {
+        1.0
+    } else {
+        0.0
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -247,5 +327,42 @@ mod tests {
         assert!((ascension_speed(1.5e18) - 1.05).abs() < 1e-12);
         // ascension: e = 3e18 → 1.05 + 0.02*log2(2) = 1.07
         assert!((ascension_speed(3e18) - 1.07).abs() < 1e-12);
+    }
+
+    #[test]
+    fn cube_rewards_identity_below_requirement() {
+        assert_eq!(cube1(0.0), 1.0);
+        assert_eq!(cube2(0.0), 1.0);
+        assert_eq!(cube3(0.0), 1.0);
+        assert_eq!(cube4(0.0), 1.0);
+        assert_eq!(cube5(0.0), 1.0);
+        // Just under each requirement → still identity.
+        assert_eq!(cube1(749.0), 1.0);
+        assert_eq!(cube2(59_999.0), 1.0);
+        assert_eq!(cube3(999_999.0), 1.0);
+        assert_eq!(cube4(4.99e8), 1.0);
+        assert_eq!(cube5(3.99e15), 1.0);
+    }
+
+    #[test]
+    fn cube_rewards_scale_above_requirement() {
+        // cube1 at e = 1400 (= 8·175) → 1 + (1/50)·log2(8) = 1 + 3/50.
+        assert!((cube1(1_400.0) - (1.0 + 3.0 / 50.0)).abs() < 1e-12);
+        // cube5 at e = 4e15 (= 1024·(4e15/1024)) → 1 + (1/300)·log2(1024) = 1 + 10/300.
+        assert!((cube5(4e15) - (1.0 + 10.0 / 300.0)).abs() < 1e-12);
+        // Monotonic increasing above the requirement.
+        assert!(cube2(1.2e5) > cube2(60_000.0));
+        assert!(cube5(8e15) > cube5(4e15));
+    }
+
+    #[test]
+    fn ascensions_and_hepteracts_unlocked_gates() {
+        assert_eq!(ascensions(0.0), 1.0);
+        assert_eq!(ascensions(1_499.0), 1.0);
+        // e = 1500 (= 4·375) → 1 + (1/20)·log2(4) = 1 + 2/20 = 1.1.
+        assert!((ascensions(1_500.0) - 1.1).abs() < 1e-12);
+        assert_eq!(hepteracts_unlocked(0.0), 0.0);
+        assert_eq!(hepteracts_unlocked(9.9e14), 0.0);
+        assert_eq!(hepteracts_unlocked(1e15), 1.0);
     }
 }

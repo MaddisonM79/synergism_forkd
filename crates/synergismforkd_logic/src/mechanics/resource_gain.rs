@@ -136,7 +136,7 @@ impl Default for ResourceGainPre {
             fourth_produce_particles: 0.0,
             fifth_produce_particles: 0.0,
             global_constant_mult: Decimal::one(),
-            challenge_base_requirements: [10.0, 100.0, 1000.0, 10000.0, 100000.0],
+            challenge_base_requirements: [10.0, 20.0, 60.0, 100.0, 200.0],
         }
     }
 }

@@ -8,6 +8,14 @@
 
 use synergismforkd_bignum::Decimal;
 
+/// `G.challengeBaseRequirements` (`Variables.ts:121`) — per-challenge base
+/// log10-coin requirement exponent, indexed `challenge - 1` (c1-10). Feeds
+/// [`challenge_requirement`] (the completion goal) and the in-tick
+/// auto-recompleter thresholds.
+pub const CHALLENGE_BASE_REQUIREMENTS: [f64; 10] = [
+    10.0, 20.0, 60.0, 100.0, 200.0, 125.0, 500.0, 7_500.0, 2.0e8, 2.5e9,
+];
+
 /// Which challenge tier the effective-completion curve applies to.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ChallengeType {

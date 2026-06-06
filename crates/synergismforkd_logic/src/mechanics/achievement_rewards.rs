@@ -157,6 +157,52 @@ const ABYSS_TIMES_CAP_EXTENDED: f64 = 0.0;
 /// `1 + 0.02 · max(1, 1 + floor(log10(reincarnationCount)))`.
 const OBTAINIUM_BONUS_INDEX: usize = 468;
 
+/// Legacy index of the lone `ascensionRewardScaling` achievement (#204):
+/// first challenge-12 completion, group `challenge12`. A single earned-flag
+/// bool reward gating the `allCubeStats` AscensionTime overflow term.
+const ASCENSION_REWARD_SCALING_INDEX: usize = 204;
+
+/// `wowCubeGain` reward achievement indices (multiplicative product, feeds the
+/// AchievementBonus line of `allWowCubeStats`):
+/// #189 `1 + 2·min(1, ascensionCount/5e8)`, #193 `1 + log10(ascendShards+1)/400`,
+/// #195 `1 + 249·min(1, log10(ascendShards+1)/1e5)` (the same achievement also
+/// grants `wowTesseractGain`), #254 flat `1.1`.
+const WOW_CUBE_GAIN_ASC_COUNT_INDEX: usize = 189;
+const WOW_CUBE_GAIN_SHARDS_400_INDEX: usize = 193;
+const WOW_GAIN_SHARDS_249_INDEX: usize = 195;
+const WOW_CUBE_GAIN_FLAT_INDEX: usize = 254;
+
+/// `wowTesseractGain`: #195 (shared with `wowCubeGain`) + #255 flat `1.1`.
+const WOW_TESSERACT_GAIN_FLAT_INDEX: usize = 255;
+
+/// `wowHypercubeGain`: #253 flat `1.1`.
+const WOW_HYPERCUBE_GAIN_FLAT_INDEX: usize = 253;
+
+/// `wowPlatonicGain`: #196 `1 + 19·min(1, log10(ascendShards+1)/1e5)`,
+/// #223 `1 + 2·min(1, ascensionCount/2.674e9)`, #256 flat `1.1`.
+const WOW_PLATONIC_GAIN_SHARDS_INDEX: usize = 196;
+const WOW_PLATONIC_GAIN_ASC_COUNT_INDEX: usize = 223;
+const WOW_PLATONIC_GAIN_FLAT_INDEX: usize = 256;
+
+/// `wowHepteractGain`: #258 flat `1.1`, #270 `1 + min(log10(ascendShards+1)/1e6, 1)`.
+const WOW_HEPTERACT_GAIN_FLAT_INDEX: usize = 258;
+const WOW_HEPTERACT_GAIN_SHARDS_INDEX: usize = 270;
+
+/// `ascensionCountAdditive` reward indices (additive sum; feeds the `Base` line
+/// of `ascensionCountMultStats` as `1 + Σ`): #188 `ascensionCounter>10 ? 100 : 0`,
+/// #189 `ascensionCounter>10 ? 2·ascensionCounterReal : 0` (also grants
+/// `wowCubeGain`), #202/#209/#216/#223 `2·ascensionCounter`.
+const ASCENSION_COUNT_ADDITIVE_100_INDEX: usize = 188;
+const ASCENSION_COUNT_ADDITIVE_REAL_INDEX: usize = 189;
+const ASCENSION_COUNT_ADDITIVE_2X_INDICES: [usize; 4] = [202, 209, 216, 223];
+
+/// `ascensionCountMultiplier` reward indices (multiplicative product):
+/// #187 `log10(effectiveScore + 100) - 1`, #260/#261 flat `1.1`,
+/// #474 `min(1.25, 1 + 0.25·ascensionCounter/1e6)`.
+const ASCENSION_COUNT_MULT_SCORE_INDEX: usize = 187;
+const ASCENSION_COUNT_MULT_FLAT_INDICES: [usize; 2] = [260, 261];
+const ASCENSION_COUNT_MULT_COUNTER_INDEX: usize = 474;
+
 #[inline]
 fn earned(achievements: &[u8; ACHIEVEMENTS_LEN], index: usize) -> bool {
     achievements[index] != 0
@@ -273,6 +319,14 @@ pub fn ant_sacrifice_unlocked(achievements: &[u8; ACHIEVEMENTS_LEN]) -> bool {
     earned(achievements, ANT_SACRIFICE_UNLOCK_INDEX)
 }
 
+/// `getAchievementReward('ascensionRewardScaling')` — `true` once achievement
+/// #204 is earned. Gates the `allCubeStats` AscensionTime line's overflow term
+/// `(1 + max(0, ascensionCounter / threshold - 1))`. A single earned flag.
+#[must_use]
+pub fn ascension_reward_scaling(achievements: &[u8; ACHIEVEMENTS_LEN]) -> bool {
+    earned(achievements, ASCENSION_REWARD_SCALING_INDEX)
+}
+
 /// `getAchievementReward('antELOAdditive')` — `25` once achievement #485 is
 /// earned, else `0`. An additive line in the base ant-ELO sum.
 #[must_use]
@@ -381,6 +435,149 @@ pub fn obtainium_bonus(achievements: &[u8; ACHIEVEMENTS_LEN], reincarnation_coun
     }
 }
 
+/// `log10(ascendShards + 1)` — the `Decimal.log(player.ascendShards.add(1), 10)`
+/// shared by the cube-gain achievement rewards below.
+#[inline]
+fn ascend_shards_log10(ascend_shards: Decimal) -> f64 {
+    (ascend_shards + Decimal::one()).log10().to_number()
+}
+
+/// `getAchievementReward('wowCubeGain')` — multiplicative (base 1). Feeds the
+/// AchievementBonus line of `allWowCubeStats`. Identity `1.0` at default.
+#[must_use]
+pub fn wow_cube_gain(
+    achievements: &[u8; ACHIEVEMENTS_LEN],
+    ascension_count: f64,
+    ascend_shards: Decimal,
+) -> f64 {
+    let log10 = ascend_shards_log10(ascend_shards);
+    let mut prod = 1.0;
+    if earned(achievements, WOW_CUBE_GAIN_ASC_COUNT_INDEX) {
+        prod *= 1.0 + 2.0 * (ascension_count / 5e8).min(1.0);
+    }
+    if earned(achievements, WOW_CUBE_GAIN_SHARDS_400_INDEX) {
+        prod *= 1.0 + log10 / 400.0;
+    }
+    if earned(achievements, WOW_GAIN_SHARDS_249_INDEX) {
+        prod *= 1.0 + 249.0 * (log10 / 1e5).min(1.0);
+    }
+    if earned(achievements, WOW_CUBE_GAIN_FLAT_INDEX) {
+        prod *= 1.1;
+    }
+    prod
+}
+
+/// `getAchievementReward('wowTesseractGain')` — multiplicative (base 1). Feeds
+/// the AchievementBonus line of `allTesseractStats`. Identity `1.0` at default.
+#[must_use]
+pub fn wow_tesseract_gain(achievements: &[u8; ACHIEVEMENTS_LEN], ascend_shards: Decimal) -> f64 {
+    let mut prod = 1.0;
+    if earned(achievements, WOW_GAIN_SHARDS_249_INDEX) {
+        prod *= 1.0 + 249.0 * (ascend_shards_log10(ascend_shards) / 1e5).min(1.0);
+    }
+    if earned(achievements, WOW_TESSERACT_GAIN_FLAT_INDEX) {
+        prod *= 1.1;
+    }
+    prod
+}
+
+/// `getAchievementReward('wowHypercubeGain')` — multiplicative (base 1). Feeds
+/// the AchievementBonus line of `allHypercubeStats`. Identity `1.0` at default.
+#[must_use]
+pub fn wow_hypercube_gain(achievements: &[u8; ACHIEVEMENTS_LEN]) -> f64 {
+    if earned(achievements, WOW_HYPERCUBE_GAIN_FLAT_INDEX) {
+        1.1
+    } else {
+        1.0
+    }
+}
+
+/// `getAchievementReward('wowPlatonicGain')` — multiplicative (base 1). Feeds
+/// the AchievementBonus line of `allPlatonicCubeStats`. Identity `1.0` at default.
+#[must_use]
+pub fn wow_platonic_gain(
+    achievements: &[u8; ACHIEVEMENTS_LEN],
+    ascension_count: f64,
+    ascend_shards: Decimal,
+) -> f64 {
+    let mut prod = 1.0;
+    if earned(achievements, WOW_PLATONIC_GAIN_SHARDS_INDEX) {
+        prod *= 1.0 + 19.0 * (ascend_shards_log10(ascend_shards) / 1e5).min(1.0);
+    }
+    if earned(achievements, WOW_PLATONIC_GAIN_ASC_COUNT_INDEX) {
+        prod *= 1.0 + 2.0 * (ascension_count / 2.674e9).min(1.0);
+    }
+    if earned(achievements, WOW_PLATONIC_GAIN_FLAT_INDEX) {
+        prod *= 1.1;
+    }
+    prod
+}
+
+/// `getAchievementReward('wowHepteractGain')` — multiplicative (base 1). Feeds
+/// the AchievementBonus line of `allHepteractCubeStats`. Identity `1.0` at default.
+#[must_use]
+pub fn wow_hepteract_gain(achievements: &[u8; ACHIEVEMENTS_LEN], ascend_shards: Decimal) -> f64 {
+    let mut prod = 1.0;
+    if earned(achievements, WOW_HEPTERACT_GAIN_FLAT_INDEX) {
+        prod *= 1.1;
+    }
+    if earned(achievements, WOW_HEPTERACT_GAIN_SHARDS_INDEX) {
+        prod *= 1.0 + (ascend_shards_log10(ascend_shards) / 1e6).min(1.0);
+    }
+    prod
+}
+
+/// `getAchievementReward('ascensionCountAdditive')` — additive (base 0). Feeds
+/// the `Base` line of `ascensionCountMultStats` as `1 + this`. Reads the
+/// within-ascension `ascensionCounter` (+ `ascensionCounterReal`), so the award
+/// must run before the ascension reset zeroes them.
+#[must_use]
+pub fn ascension_count_additive(
+    achievements: &[u8; ACHIEVEMENTS_LEN],
+    ascension_counter: f64,
+    ascension_counter_real: f64,
+) -> f64 {
+    let mut sum = 0.0;
+    if ascension_counter > 10.0 {
+        if earned(achievements, ASCENSION_COUNT_ADDITIVE_100_INDEX) {
+            sum += 100.0;
+        }
+        if earned(achievements, ASCENSION_COUNT_ADDITIVE_REAL_INDEX) {
+            sum += ascension_counter_real * 2.0;
+        }
+    }
+    for &index in &ASCENSION_COUNT_ADDITIVE_2X_INDICES {
+        if earned(achievements, index) {
+            sum += ascension_counter * 2.0;
+        }
+    }
+    sum
+}
+
+/// `getAchievementReward('ascensionCountMultiplier')` — multiplicative (base 1).
+/// Feeds the `AchievementMultiplier` line of `ascensionCountMultStats`.
+/// `effective_score` is `calculateAscensionScore().effectiveScore`.
+#[must_use]
+pub fn ascension_count_multiplier(
+    achievements: &[u8; ACHIEVEMENTS_LEN],
+    ascension_counter: f64,
+    effective_score: f64,
+) -> f64 {
+    let mut prod = 1.0;
+    if earned(achievements, ASCENSION_COUNT_MULT_SCORE_INDEX) {
+        prod *= (effective_score + 100.0).log10() - 1.0;
+    }
+    for &index in &ASCENSION_COUNT_MULT_FLAT_INDICES {
+        if earned(achievements, index) {
+            prod *= 1.1;
+        }
+    }
+    if earned(achievements, ASCENSION_COUNT_MULT_COUNTER_INDEX) {
+        prod *= 1.25_f64.min(1.0 + 0.25 * ascension_counter / 1e6);
+    }
+    prod
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -408,6 +605,66 @@ mod tests {
     fn ant_sacrifice_unlock_tracks_achievement_173() {
         assert!(!ant_sacrifice_unlocked(&earned_array(&[])));
         assert!(ant_sacrifice_unlocked(&earned_array(&[173])));
+    }
+
+    #[test]
+    fn ascension_reward_scaling_tracks_achievement_204() {
+        assert!(!ascension_reward_scaling(&earned_array(&[])));
+        assert!(ascension_reward_scaling(&earned_array(&[204])));
+    }
+
+    #[test]
+    fn wow_gain_rewards_identity_at_default() {
+        let none = earned_array(&[]);
+        assert_eq!(wow_cube_gain(&none, 0.0, Decimal::zero()), 1.0);
+        assert_eq!(wow_tesseract_gain(&none, Decimal::zero()), 1.0);
+        assert_eq!(wow_hypercube_gain(&none), 1.0);
+        assert_eq!(wow_platonic_gain(&none, 0.0, Decimal::zero()), 1.0);
+        assert_eq!(wow_hepteract_gain(&none, Decimal::zero()), 1.0);
+    }
+
+    #[test]
+    fn wow_gain_rewards_apply_earned_factors() {
+        // #254 flat 1.1 on wowCubeGain.
+        assert!((wow_cube_gain(&earned_array(&[254]), 0.0, Decimal::zero()) - 1.1).abs() < 1e-12);
+        // #189: ascensionCount at the 5e8 cap → 1 + 2·min(1, 1) = 3.
+        assert!((wow_cube_gain(&earned_array(&[189]), 5e8, Decimal::zero()) - 3.0).abs() < 1e-9);
+        // #195 grants both wowCubeGain and wowTesseractGain (same value).
+        let shards = Decimal::from_finite(1e10); // log10(1e10 + 1) ≈ 10
+        let c = wow_cube_gain(&earned_array(&[195]), 0.0, shards);
+        let t = wow_tesseract_gain(&earned_array(&[195]), shards);
+        assert!((c - t).abs() < 1e-9 && c > 1.0);
+        // Flat 1.1 rewards.
+        assert!((wow_hypercube_gain(&earned_array(&[253])) - 1.1).abs() < 1e-12);
+        assert!(
+            (wow_platonic_gain(&earned_array(&[256]), 0.0, Decimal::zero()) - 1.1).abs() < 1e-12
+        );
+        assert!((wow_hepteract_gain(&earned_array(&[258]), Decimal::zero()) - 1.1).abs() < 1e-12);
+    }
+
+    #[test]
+    fn ascension_count_rewards() {
+        let none = earned_array(&[]);
+        assert_eq!(ascension_count_additive(&none, 100.0, 50.0), 0.0);
+        assert_eq!(ascension_count_multiplier(&none, 100.0, 0.0), 1.0);
+        // #188 grants 100 when ascensionCounter > 10, else 0.
+        assert_eq!(
+            ascension_count_additive(&earned_array(&[188]), 11.0, 0.0),
+            100.0
+        );
+        assert_eq!(
+            ascension_count_additive(&earned_array(&[188]), 10.0, 0.0),
+            0.0
+        );
+        // #202 grants 2·ascensionCounter regardless of the >10 gate.
+        assert_eq!(
+            ascension_count_additive(&earned_array(&[202]), 5.0, 0.0),
+            10.0
+        );
+        // #187 multiplier log10(effScore + 100) - 1; at effScore 0 → log10(100) - 1 = 1.
+        assert!((ascension_count_multiplier(&earned_array(&[187]), 0.0, 0.0) - 1.0).abs() < 1e-12);
+        // #260 flat 1.1.
+        assert!((ascension_count_multiplier(&earned_array(&[260]), 0.0, 0.0) - 1.1).abs() < 1e-12);
     }
 
     #[test]

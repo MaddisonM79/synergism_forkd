@@ -572,6 +572,34 @@ pub enum CoreEvent {
     ///
     /// Emitted by `tackMiddle` (tick-side, not yet ported).
     ObtainiumMultiplierRecomputeRequested,
+    /// A corruption's *next-ascension* loadout level was set (legacy
+    /// `CorruptionLoadout.setLevel`). `index` is the corruption slot
+    /// (viscosity = 0), `level` the clamped new level.
+    CorruptionLevelSet {
+        /// Corruption slot index (`0..8`; viscosity = 0).
+        index: usize,
+        /// The clamped new level written to `corruptions.next`.
+        level: u32,
+    },
+    /// A challenge was entered (legacy `toggleChallenges`): the
+    /// `current_*_challenge` slot was set and the tier reset ran. `challenge`
+    /// is `0..=15` (`0` exits the transcension slot). The accompanying
+    /// `ResetPerformed` carries the tier-reset detail.
+    ChallengeEntered {
+        /// Challenge index (`1..=5` transcension, `6..=10` reincarnation;
+        /// `0` exits the transcension slot).
+        challenge: u32,
+    },
+    /// A challenge auto-completed in the tick (legacy `resetCheck` completion):
+    /// the goal was met, completions were awarded, and the challenge exited.
+    /// An accompanying `ResetPerformed` carries the reset-out (unless
+    /// `instantChallenge` is unlocked).
+    ChallengeCompleted {
+        /// Challenge index that completed (`1..=5` transcension).
+        challenge: u32,
+        /// New `challenge_completions[challenge]` after the award.
+        completions: f64,
+    },
 }
 
 #[cfg(test)]
