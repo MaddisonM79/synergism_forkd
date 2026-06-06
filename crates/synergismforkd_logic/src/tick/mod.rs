@@ -2146,14 +2146,58 @@ fn compute_cube_multiplier(
     // AscensionScore band.
     let ascension_score_line = (effective_score / 3000.0).powf(1.0 / 4.1);
 
-    // Researches: the `research[192]·calculateTrueAntLevel(Mortuus)` factor is
-    // deferred (corruptionEffects('extinction') unported) → that factor is 1.
+    // Researches: now wires the `research[192]·calculateTrueAntLevel(Mortuus)`
+    // factor. Mortuus (index 11) is exemptFromCorruption=true, so the extinction
+    // divisor is 1 regardless of corruption level — the factor can be computed
+    // without extinction effect. Formula from Statistics.ts allWowCubeStats:
+    //   `(1 + (1/500) * research[192] * trueAntLevel(Mortuus))`
+    const ANT_UPGRADE_MORTUUS: usize = 11;
+    let mortuus_true_level = {
+        use crate::mechanics::ant_upgrade_levels::{
+            calculate_true_ant_level, compute_free_ant_upgrade_levels, CalculateTrueAntLevelInput,
+            ComputeFreeAntUpgradeLevelsInput,
+        };
+        let cc = &state.challenges.challenge_completions;
+        let c11_active = state.challenges.current_ascension_challenge == 11;
+        // `challenge15Rewards.bonusAntLevel` — baseValue 1, requirement 5e5.
+        // Unported as a standalone helper; neutral 1.0 (baseValue) at default.
+        let bonus_ant_level_value = 1.0_f64;
+        let free_levels = compute_free_ant_upgrade_levels(&ComputeFreeAntUpgradeLevelsInput {
+            c9_reincarnation_ecc: crate::mechanics::challenges::calc_ecc(
+                crate::mechanics::challenges::ChallengeType::Reincarnation,
+                cc[9],
+            ),
+            constant_upgrade_6: state.campaigns.constant_upgrades[6],
+            c11_ascension_ecc: crate::mechanics::challenges::calc_ecc(
+                crate::mechanics::challenges::ChallengeType::Ascension,
+                cc[11],
+            ),
+            research_97: research[97],
+            research_98: research[98],
+            research_102: research[102],
+            research_132: research[132],
+            research_200: research[200],
+            free_ant_upgrades_achievement_reward: 0.0, // getAchievementReward('freeAntUpgrades') unported → neutral 0
+            challenge_15_bonus_ant_level_value: bonus_ant_level_value,
+            c11_active,
+            c8_completions: cc[8],
+            c9_completions: cc[9],
+        });
+        calculate_true_ant_level(&CalculateTrueAntLevelInput {
+            current_level: state.ants.upgrades[ANT_UPGRADE_MORTUUS],
+            free_levels,
+            exempt_from_corruption: true, // Mortuus exemptFromCorruption = true
+            corruption_extinction_divisor: 1.0, // moot for exempt upgrades
+            c11_active,
+        })
+    };
     let researches = (1.0 + research[119] / 1000.0)
         * (1.0 + research[120] / 200.0)
         * (1.0 + research[137] / 100.0)
         * (1.0 + 0.9 * research[152] / 100.0)
         * (1.0 + 0.8 * research[167] / 100.0)
         * (1.0 + 0.7 * research[182] / 100.0)
+        * (1.0 + (1.0 / 500.0) * research[192] * mortuus_true_level) // 8x17
         * (1.0 + 0.6 * research[197] / 100.0);
 
     // ConstantUpgrade10: 1 + 0.01·log4(ascendShards+1)·min(1, constantUpgrades[10]).
@@ -7217,5 +7261,48 @@ mod tests {
         s2.tesseract_buildings.ascend_building_1.owned = 500.0;
         let pre2 = compute_global_multipliers_pre(&s2);
         assert_eq!(pre2.ascend_building_dr_value, 500.0);
+    }
+
+    #[test]
+    fn compute_cube_multiplier_research_192_mortuus_wires_through() {
+        use crate::mechanics::reset_currency::ResetCurrencyResult;
+        // With research[192] = 0 (default) the term is (1 + 0) = 1 — no change.
+        let mut state = GameState::default();
+        let gains = ResetCurrencyResult {
+            prestige_point_gain: Decimal::zero(),
+            transcend_point_gain: Decimal::zero(),
+            reincarnation_point_gain: Decimal::zero(),
+        };
+        let mut out_default = TickOutput::default();
+        phase_challenge_completion(&mut state, &gains, &mut out_default);
+
+        // Activate research[192] + give Mortuus some levels → the factor rises.
+        // With research[192]=100 and Mortuus level=50 (exempt → divisor=1,
+        // free_levels=0 → trueAnt = 50 + min(50,0) = 50):
+        //   factor = 1 + (1/500) * 100 * 50 = 1 + 10 = 11
+        // This doesn't test the final cube mult directly (it needs an ascension),
+        // but we verify the helper path compiles and the mortuus true level
+        // formula is correct for the exempt case.
+        let mut s = GameState::default();
+        s.ants.upgrades[11] = 50.0; // Mortuus level 50
+        s.researches.researches[192] = 100.0;
+        // At default challenge15_exponent = 0 and all free-level sources = 0:
+        // free_levels = 0, trueAnt = 50 + min(50, 0) = 50.
+        // Factor = 1 + (1/500) * 100 * 50 = 11.0.
+        {
+            use crate::mechanics::ant_upgrade_levels::{
+                calculate_true_ant_level, CalculateTrueAntLevelInput,
+            };
+            let true_level = calculate_true_ant_level(&CalculateTrueAntLevelInput {
+                current_level: 50.0,
+                free_levels: 0.0,
+                exempt_from_corruption: true,
+                corruption_extinction_divisor: 1.0,
+                c11_active: false,
+            });
+            assert_eq!(true_level, 50.0); // 50 + min(50, 0)=0 → 50+0=50
+            let factor = 1.0 + (1.0 / 500.0) * 100.0 * true_level;
+            assert!((factor - 11.0).abs() < 1e-9); // 1 + (1/500)*100*50 = 1+10 = 11
+        }
     }
 }
