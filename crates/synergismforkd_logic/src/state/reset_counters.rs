@@ -51,6 +51,18 @@ pub struct ResetCountersState {
     pub ascension_unlocked: bool,
     /// `player.achievementsUnlocked` (UI-gated by an achievement).
     pub achievements_unlocked: bool,
+    /// `player.unlocks.tesseracts` — set when `highest[11] > 0`
+    /// (first c11 completion). Gates tesseract buildings + related UI.
+    pub tesseracts_unlocked: bool,
+    /// `player.unlocks.spirits` — set when `highest[12] > 0`.
+    /// Gates spirit-rune content.
+    pub spirits_unlocked: bool,
+    /// `player.unlocks.hypercubes` — set when `highest[13] > 0`.
+    /// Gates hypercube content.
+    pub hypercubes_unlocked: bool,
+    /// `player.unlocks.platonics` — set when `highest[14] > 0`.
+    /// Gates platonic-cube content.
+    pub platonics_unlocked: bool,
 }
 
 impl Default for ResetCountersState {
@@ -74,6 +86,10 @@ impl Default for ResetCountersState {
             reincarnate_unlocked: false,
             ascension_unlocked: false,
             achievements_unlocked: false,
+            tesseracts_unlocked: false,
+            spirits_unlocked: false,
+            hypercubes_unlocked: false,
+            platonics_unlocked: false,
         }
     }
 }
