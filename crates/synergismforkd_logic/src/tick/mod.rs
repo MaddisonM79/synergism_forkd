@@ -46,6 +46,7 @@ use crate::mechanics::global_multipliers::{
 use crate::mechanics::gq_upgrade_cost::{buy_gq_upgrade, BuyGQUpgradeInput};
 use crate::mechanics::multipliers::{buy_multiplier, BuyMultiplierInput};
 use crate::mechanics::particle_buildings::{buy_particle_building, BuyParticleBuildingInput};
+use crate::mechanics::platonic_upgrade_costs::{buy_platonic_upgrade, BuyPlatonicUpgradeInput};
 use crate::mechanics::producers::{buy_max, buy_producer, BuyMaxInput, BuyProducerInput};
 use crate::mechanics::researches::{buy_research, BuyResearchInput};
 use crate::mechanics::resource_gain::{resource_gain, ResourceGainPre};
@@ -278,6 +279,8 @@ pub enum BuyRequest {
     CrystalUpgrade(BuyCrystalUpgradesInput),
     /// Routes to [`buy_cube_upgrade`].
     CubeUpgrade(BuyCubeUpgradeInput),
+    /// Routes to [`buy_platonic_upgrade`].
+    PlatonicUpgrade(BuyPlatonicUpgradeInput),
     /// Routes to [`buy_particle_building`].
     ParticleBuilding(BuyParticleBuildingInput),
     /// Routes to [`buy_tesseract_building`].
@@ -4158,6 +4161,13 @@ fn dispatch_buy(state: &mut GameState, req: &BuyRequest) -> SmallVec<[CoreEvent;
             &mut state.cube_balances.wow_cubes,
             *inp,
         ),
+        BuyRequest::PlatonicUpgrade(inp) => buy_platonic_upgrade(
+            &mut state.cube_upgrade_levels,
+            &mut state.researches.obtainium,
+            &mut state.automation.offerings,
+            &mut state.cube_balances,
+            *inp,
+        ),
         BuyRequest::ParticleBuilding(inp) => buy_particle_building(
             &mut state.particle_buildings,
             &mut state.upgrades.reincarnation_points,
@@ -5097,6 +5107,44 @@ mod tests {
             output.events
         );
         assert_eq!(state.golden_quarks.upgrades[0].level, 1.0);
+    }
+
+    #[test]
+    fn tack_dispatches_buy_platonic_upgrade_action() {
+        use synergismforkd_bignum::Decimal;
+
+        let mut state = GameState::default();
+        state.researches.obtainium = Decimal::from_finite(1e50);
+        state.automation.offerings = Decimal::from_finite(1e50);
+        state.cube_balances.wow_cubes = Decimal::from_finite(1e50);
+        state.cube_balances.wow_tesseracts = Decimal::from_finite(1e50);
+        state.cube_balances.wow_hypercubes = Decimal::from_finite(1e50);
+        state.cube_balances.wow_platonic_cubes = Decimal::from_finite(1e50);
+
+        let mut input = TackInput {
+            dt: 0.025,
+            ..TackInput::default()
+        };
+        input
+            .player_actions
+            .push(PlayerAction::Buy(BuyRequest::PlatonicUpgrade(
+                BuyPlatonicUpgradeInput {
+                    index: 1,
+                    singularity_debuff: 1.0,
+                },
+            )));
+
+        let output = tack(&mut state, &input);
+
+        assert!(
+            output
+                .events
+                .iter()
+                .any(|e| matches!(e, CoreEvent::PlatonicUpgradePurchased { .. })),
+            "expected PlatonicUpgradePurchased in events, got {:?}",
+            output.events
+        );
+        assert_eq!(state.cube_upgrade_levels.platonic_upgrades[1], 1.0);
     }
 
     #[test]

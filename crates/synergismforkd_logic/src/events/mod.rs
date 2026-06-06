@@ -233,6 +233,17 @@ pub enum CoreEvent {
         /// Wow cubes removed from the player's balance.
         spent: f64,
     },
+    /// One platonic upgrade gained a level. The spend spans seven resources
+    /// (obtainium / offerings / cubes / tesseracts / hypercubes / platonics /
+    /// abyssals), so no single `spent` value is carried.
+    PlatonicUpgradePurchased {
+        /// 1-based platonic-upgrade index (1..=20).
+        index: u8,
+        /// Level before the purchase.
+        before: f64,
+        /// Level after the purchase.
+        after: f64,
+    },
     /// One golden-quark (singularity) upgrade gained a level. `spent` is in
     /// golden quarks — an `f64` mirroring the legacy `Number(goldenQuarks)`
     /// cost comparison.

@@ -21,6 +21,12 @@
 //! auto-mode flag exempts obtainium / offerings from the check
 //! (auto-buy doesn't actually consume those for platonic upgrades).
 
+use smallvec::SmallVec;
+use synergismforkd_bignum::Decimal;
+
+use crate::events::CoreEvent;
+use crate::state::{CubeBalancesState, CubeUpgradeLevelsState};
+
 /// Per-platonic-upgrade base costs across all 7 resources, plus the
 /// `max_level` cap and the optional `price_mult` for level-scaling
 /// upgrades.
@@ -464,6 +470,91 @@ pub fn check_platonic_upgrade_affordability(
     checks
 }
 
+// ─── buy_platonic_upgrade ────────────────────────────────────────────────────
+
+/// Inputs to [`buy_platonic_upgrade`].
+#[derive(Debug, Clone, Copy)]
+pub struct BuyPlatonicUpgradeInput {
+    /// Platonic-upgrade index (`1..=20`). Out-of-range is a no-op.
+    pub index: u8,
+    /// `calculateSingularityDebuff('Platonic Costs')` — caller pre-evaluates
+    /// (UI-tier); `1.0` with no singularity penalty.
+    pub singularity_debuff: f64,
+}
+
+/// Buy one level of platonic upgrade `index`, spending across all seven
+/// resources (obtainium / offerings / cubes / tesseracts / hypercubes /
+/// platonics / abyssals). Port of the per-level body of `buyPlatonicUpgrades`
+/// (`Platonic.ts:163`) in **manual** mode (`auto = false`), assembled from the
+/// logic-side [`platonic_upgrade_base_cost`] /
+/// [`platonic_upgrade_price_multiplier`] /
+/// [`check_platonic_upgrade_affordability`]. Per-resource cost is
+/// `floor(base * priceMultiplier)`; emits [`CoreEvent::PlatonicUpgradePurchased`].
+///
+/// Faithful-at-current-state deferrals:
+/// - **buy-max**: the legacy loops while `singularityCount > 0 && maxPlatToggle`;
+///   at `singularityCount == 0` (reachable state) it always buys a single level,
+///   which is what this does;
+/// - the `index == 20` first-purchase alert (UI).
+#[must_use]
+pub fn buy_platonic_upgrade(
+    levels: &mut CubeUpgradeLevelsState,
+    obtainium: &mut Decimal,
+    offerings: &mut Decimal,
+    balances: &mut CubeBalancesState,
+    input: BuyPlatonicUpgradeInput,
+) -> SmallVec<[CoreEvent; 4]> {
+    let mut events = SmallVec::new();
+    if !matches!(input.index, 1..=20) {
+        return events;
+    }
+    let idx = usize::from(input.index);
+    let before = levels.platonic_upgrades[idx];
+    let base = platonic_upgrade_base_cost(input.index);
+    let price_multiplier =
+        platonic_upgrade_price_multiplier(&PlatonicUpgradePriceMultiplierInput {
+            price_mult: base.price_mult,
+            current_level: before,
+            max_level: base.max_level,
+            singularity_debuff: input.singularity_debuff,
+        });
+
+    let affordability = check_platonic_upgrade_affordability(&CheckPlatonicUpgradeInput {
+        index: input.index,
+        current_level: before,
+        price_multiplier,
+        auto_mode: false,
+        current_resources: PlatonicResourceBalances {
+            obtainium: obtainium.to_number(),
+            offerings: offerings.to_number(),
+            cubes: balances.wow_cubes.to_number(),
+            tesseracts: balances.wow_tesseracts.to_number(),
+            hypercubes: balances.wow_hypercubes.to_number(),
+            platonics: balances.wow_platonic_cubes.to_number(),
+        },
+        abyssal_balance: balances.wow_abyssals,
+    });
+
+    if affordability.can_buy {
+        let cost = |base_resource: f64| -> f64 { (base_resource * price_multiplier).floor() };
+        levels.platonic_upgrades[idx] = before + 1.0;
+        // Manual mode (`auto = false`) consumes obtainium + offerings too.
+        *obtainium -= Decimal::from_finite(cost(base.obtainium));
+        *offerings -= Decimal::from_finite(cost(base.offerings));
+        balances.wow_cubes -= Decimal::from_finite(cost(base.cubes));
+        balances.wow_tesseracts -= Decimal::from_finite(cost(base.tesseracts));
+        balances.wow_hypercubes -= Decimal::from_finite(cost(base.hypercubes));
+        balances.wow_platonic_cubes -= Decimal::from_finite(cost(base.platonics));
+        balances.wow_abyssals -= cost(base.abyssals);
+        events.push(CoreEvent::PlatonicUpgradePurchased {
+            index: input.index,
+            before,
+            after: levels.platonic_upgrades[idx],
+        });
+    }
+    events
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -632,5 +723,118 @@ mod tests {
         assert!(!result_no_abyssal.can_buy);
         assert!(result_with_abyssal.abyssals);
         assert!(result_with_abyssal.can_buy);
+    }
+
+    // ─── buy_platonic_upgrade ────────────────────────────────────────────
+    // Upgrade 1 at level 0 (priceMult = 2^0 × 1 = 1) ⇒ costs = base:
+    // obtainium 1, offerings 1e45, cubes 1e13, tesseracts 1e6, hypercubes
+    // 1e5, platonics 1e4, abyssals 0; max_level 300.
+
+    fn rich_balances() -> CubeBalancesState {
+        CubeBalancesState {
+            wow_cubes: Decimal::from_finite(1e50),
+            wow_tesseracts: Decimal::from_finite(1e50),
+            wow_hypercubes: Decimal::from_finite(1e50),
+            wow_platonic_cubes: Decimal::from_finite(2e4),
+            wow_abyssals: 0.0,
+            ..CubeBalancesState::default()
+        }
+    }
+
+    #[test]
+    fn buy_platonic_upgrade_spends_all_resources_and_levels_up() {
+        let mut levels = CubeUpgradeLevelsState::default();
+        let mut obtainium = Decimal::from_finite(10.0);
+        let mut offerings = Decimal::from_finite(1e50);
+        let mut balances = rich_balances();
+
+        let events = buy_platonic_upgrade(
+            &mut levels,
+            &mut obtainium,
+            &mut offerings,
+            &mut balances,
+            BuyPlatonicUpgradeInput {
+                index: 1,
+                singularity_debuff: 1.0,
+            },
+        );
+
+        assert_eq!(levels.platonic_upgrades[1], 1.0);
+        assert_eq!(obtainium.to_number(), 9.0); // 10 − cost 1
+        assert_eq!(balances.wow_platonic_cubes.to_number(), 1e4); // 2e4 − cost 1e4
+        assert_eq!(events.len(), 1);
+        assert!(matches!(
+            events[0],
+            CoreEvent::PlatonicUpgradePurchased { index: 1, before, after }
+                if before == 0.0 && after == 1.0
+        ));
+    }
+
+    #[test]
+    fn buy_platonic_upgrade_blocked_when_one_resource_short() {
+        let mut levels = CubeUpgradeLevelsState::default();
+        let mut obtainium = Decimal::from_finite(10.0);
+        let mut offerings = Decimal::zero(); // 0 < offerings cost 1e45
+        let mut balances = rich_balances();
+
+        let events = buy_platonic_upgrade(
+            &mut levels,
+            &mut obtainium,
+            &mut offerings,
+            &mut balances,
+            BuyPlatonicUpgradeInput {
+                index: 1,
+                singularity_debuff: 1.0,
+            },
+        );
+
+        assert_eq!(levels.platonic_upgrades[1], 0.0);
+        assert_eq!(obtainium.to_number(), 10.0); // untouched
+        assert!(events.is_empty());
+    }
+
+    #[test]
+    fn buy_platonic_upgrade_maxed_is_noop() {
+        let mut levels = CubeUpgradeLevelsState::default();
+        levels.platonic_upgrades[1] = 300.0; // max_level
+        let mut obtainium = Decimal::from_finite(1e60);
+        let mut offerings = Decimal::from_finite(1e60);
+        let mut balances = rich_balances();
+        balances.wow_platonic_cubes = Decimal::from_finite(1e60); // resources all pass; only the cap blocks
+
+        let events = buy_platonic_upgrade(
+            &mut levels,
+            &mut obtainium,
+            &mut offerings,
+            &mut balances,
+            BuyPlatonicUpgradeInput {
+                index: 1,
+                singularity_debuff: 1.0,
+            },
+        );
+
+        assert_eq!(levels.platonic_upgrades[1], 300.0);
+        assert!(events.is_empty());
+    }
+
+    #[test]
+    fn buy_platonic_upgrade_out_of_range_is_noop() {
+        let mut levels = CubeUpgradeLevelsState::default();
+        let mut obtainium = Decimal::from_finite(1e50);
+        let mut offerings = Decimal::from_finite(1e50);
+        let mut balances = rich_balances();
+        for index in [0, 21] {
+            assert!(buy_platonic_upgrade(
+                &mut levels,
+                &mut obtainium,
+                &mut offerings,
+                &mut balances,
+                BuyPlatonicUpgradeInput {
+                    index,
+                    singularity_debuff: 1.0,
+                },
+            )
+            .is_empty());
+        }
     }
 }
