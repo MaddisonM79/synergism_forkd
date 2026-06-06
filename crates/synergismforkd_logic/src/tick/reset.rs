@@ -84,6 +84,7 @@ pub(crate) fn perform_reset(
         ResetRequest::Transcension => perform_transcension_reset(state, gains),
         ResetRequest::Reincarnation => perform_reincarnation_reset(state, gains),
         ResetRequest::Ascension => perform_ascension_reset(state, gains),
+        ResetRequest::AscensionChallenge => perform_ascension_challenge_reset(state, gains),
     }
 }
 
@@ -420,6 +421,45 @@ pub(crate) fn perform_ascension_reset(
         reincarnation_check,
         obtainium_to_gain,
         // Deflation quirk excluded for ascension inputs (Reset.ts:549 guard).
+        false,
+    );
+    let wow_cubes_gained = apply_ascension_layer(state);
+    smallvec![CoreEvent::ResetPerformed {
+        tier: AutoResetTier::Ascension,
+        points_gained: wow_cubes_gained,
+    }]
+}
+
+/// `reset('ascensionChallenge')` — identical ascension sub-resets to
+/// [`perform_ascension_reset`] but fired on entering or leaving an ascension
+/// challenge. The TS code runs the exact same cascade (Reset.ts:628 block
+/// applies for both `'ascension'` and `'ascensionChallenge'`); the only
+/// difference is that c10-gated cube/count awards are neutral-defaulted in
+/// both paths at current state.
+///
+/// Emits [`CoreEvent::ResetPerformed`] with `tier = Ascension` (same reset
+/// tier; the challenge context is already captured in
+/// `current_ascension_challenge` before this runs).
+pub(crate) fn perform_ascension_challenge_reset(
+    state: &mut GameState,
+    gains: &ResetCurrencyResult,
+) -> SmallVec<[CoreEvent; 2]> {
+    let reincarnation_check = state.reset_counters.transcend_shards
+        >= Decimal::from_finite(REINCARNATION_COUNT_THRESHOLD);
+    let obtainium_to_gain = if reincarnation_check {
+        let base = super::compute_base_obtainium(state);
+        let time_mult = super::compute_obtainium_time_multiplier(state);
+        super::compute_obtainium(state, base, gains.reincarnation_point_gain, time_mult)
+    } else {
+        Decimal::zero()
+    };
+    apply_base_reset(state, gains.prestige_point_gain);
+    apply_transcension_layer(state, gains.transcend_point_gain);
+    apply_reincarnation_layer(
+        state,
+        gains.reincarnation_point_gain,
+        reincarnation_check,
+        obtainium_to_gain,
         false,
     );
     let wow_cubes_gained = apply_ascension_layer(state);
