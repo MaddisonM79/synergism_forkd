@@ -4061,6 +4061,13 @@ fn phase_automation(
         ascension_challenge: state.challenges.current_ascension_challenge,
         transcension_challenge: state.challenges.current_transcension_challenge,
         reincarnation_challenge: state.challenges.current_reincarnation_challenge,
+        auto_ascend: state.automation.auto_ascend,
+        auto_ascend_mode: state.automation.auto_ascend_mode,
+        auto_ascend_threshold: state.automation.auto_ascend_threshold,
+        challenge_completions_10: state.challenges.challenge_completions[10],
+        challenge_completions_11: state.challenges.challenge_completions[11],
+        cube_upgrade_10: state.cube_upgrade_levels.cube_upgrades[10],
+        ascension_counter_real_real: state.reset_counters.ascension_counter_real_real,
     });
     state.automation.auto_reset_timer_prestige = resets.auto_reset_timer_prestige;
     state.automation.auto_reset_timer_transcension = resets.auto_reset_timer_transcension;
