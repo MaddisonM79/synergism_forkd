@@ -188,6 +188,21 @@ const WOW_PLATONIC_GAIN_FLAT_INDEX: usize = 256;
 const WOW_HEPTERACT_GAIN_FLAT_INDEX: usize = 258;
 const WOW_HEPTERACT_GAIN_SHARDS_INDEX: usize = 270;
 
+/// `ascensionCountAdditive` reward indices (additive sum; feeds the `Base` line
+/// of `ascensionCountMultStats` as `1 + Σ`): #188 `ascensionCounter>10 ? 100 : 0`,
+/// #189 `ascensionCounter>10 ? 2·ascensionCounterReal : 0` (also grants
+/// `wowCubeGain`), #202/#209/#216/#223 `2·ascensionCounter`.
+const ASCENSION_COUNT_ADDITIVE_100_INDEX: usize = 188;
+const ASCENSION_COUNT_ADDITIVE_REAL_INDEX: usize = 189;
+const ASCENSION_COUNT_ADDITIVE_2X_INDICES: [usize; 4] = [202, 209, 216, 223];
+
+/// `ascensionCountMultiplier` reward indices (multiplicative product):
+/// #187 `log10(effectiveScore + 100) - 1`, #260/#261 flat `1.1`,
+/// #474 `min(1.25, 1 + 0.25·ascensionCounter/1e6)`.
+const ASCENSION_COUNT_MULT_SCORE_INDEX: usize = 187;
+const ASCENSION_COUNT_MULT_FLAT_INDICES: [usize; 2] = [260, 261];
+const ASCENSION_COUNT_MULT_COUNTER_INDEX: usize = 474;
+
 #[inline]
 fn earned(achievements: &[u8; ACHIEVEMENTS_LEN], index: usize) -> bool {
     achievements[index] != 0
@@ -512,6 +527,57 @@ pub fn wow_hepteract_gain(achievements: &[u8; ACHIEVEMENTS_LEN], ascend_shards: 
     prod
 }
 
+/// `getAchievementReward('ascensionCountAdditive')` — additive (base 0). Feeds
+/// the `Base` line of `ascensionCountMultStats` as `1 + this`. Reads the
+/// within-ascension `ascensionCounter` (+ `ascensionCounterReal`), so the award
+/// must run before the ascension reset zeroes them.
+#[must_use]
+pub fn ascension_count_additive(
+    achievements: &[u8; ACHIEVEMENTS_LEN],
+    ascension_counter: f64,
+    ascension_counter_real: f64,
+) -> f64 {
+    let mut sum = 0.0;
+    if ascension_counter > 10.0 {
+        if earned(achievements, ASCENSION_COUNT_ADDITIVE_100_INDEX) {
+            sum += 100.0;
+        }
+        if earned(achievements, ASCENSION_COUNT_ADDITIVE_REAL_INDEX) {
+            sum += ascension_counter_real * 2.0;
+        }
+    }
+    for &index in &ASCENSION_COUNT_ADDITIVE_2X_INDICES {
+        if earned(achievements, index) {
+            sum += ascension_counter * 2.0;
+        }
+    }
+    sum
+}
+
+/// `getAchievementReward('ascensionCountMultiplier')` — multiplicative (base 1).
+/// Feeds the `AchievementMultiplier` line of `ascensionCountMultStats`.
+/// `effective_score` is `calculateAscensionScore().effectiveScore`.
+#[must_use]
+pub fn ascension_count_multiplier(
+    achievements: &[u8; ACHIEVEMENTS_LEN],
+    ascension_counter: f64,
+    effective_score: f64,
+) -> f64 {
+    let mut prod = 1.0;
+    if earned(achievements, ASCENSION_COUNT_MULT_SCORE_INDEX) {
+        prod *= (effective_score + 100.0).log10() - 1.0;
+    }
+    for &index in &ASCENSION_COUNT_MULT_FLAT_INDICES {
+        if earned(achievements, index) {
+            prod *= 1.1;
+        }
+    }
+    if earned(achievements, ASCENSION_COUNT_MULT_COUNTER_INDEX) {
+        prod *= 1.25_f64.min(1.0 + 0.25 * ascension_counter / 1e6);
+    }
+    prod
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -574,6 +640,31 @@ mod tests {
             (wow_platonic_gain(&earned_array(&[256]), 0.0, Decimal::zero()) - 1.1).abs() < 1e-12
         );
         assert!((wow_hepteract_gain(&earned_array(&[258]), Decimal::zero()) - 1.1).abs() < 1e-12);
+    }
+
+    #[test]
+    fn ascension_count_rewards() {
+        let none = earned_array(&[]);
+        assert_eq!(ascension_count_additive(&none, 100.0, 50.0), 0.0);
+        assert_eq!(ascension_count_multiplier(&none, 100.0, 0.0), 1.0);
+        // #188 grants 100 when ascensionCounter > 10, else 0.
+        assert_eq!(
+            ascension_count_additive(&earned_array(&[188]), 11.0, 0.0),
+            100.0
+        );
+        assert_eq!(
+            ascension_count_additive(&earned_array(&[188]), 10.0, 0.0),
+            0.0
+        );
+        // #202 grants 2·ascensionCounter regardless of the >10 gate.
+        assert_eq!(
+            ascension_count_additive(&earned_array(&[202]), 5.0, 0.0),
+            10.0
+        );
+        // #187 multiplier log10(effScore + 100) - 1; at effScore 0 → log10(100) - 1 = 1.
+        assert!((ascension_count_multiplier(&earned_array(&[187]), 0.0, 0.0) - 1.0).abs() < 1e-12);
+        // #260 flat 1.1.
+        assert!((ascension_count_multiplier(&earned_array(&[260]), 0.0, 0.0) - 1.1).abs() < 1e-12);
     }
 
     #[test]

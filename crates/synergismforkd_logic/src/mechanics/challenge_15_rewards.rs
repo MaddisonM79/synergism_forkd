@@ -208,6 +208,29 @@ pub fn cube5(exponent: f64) -> f64 {
     }
 }
 
+/// `challenge15Rewards.ascensions.value` — multiplied into the ascension-count
+/// StatLine product (`ascensionCountMultStats`). Requirement `1500`. Legacy
+/// formula `1 + (1/20)·log2(e/375)`.
+#[must_use]
+pub fn ascensions(exponent: f64) -> f64 {
+    if exponent >= 1_500.0 {
+        1.0 + (1.0 / 20.0) * (exponent / 375.0).log2()
+    } else {
+        1.0
+    }
+}
+
+/// `challenge15Rewards.hepteractsUnlocked.value` — `1` once `exponent >= 1e15`,
+/// else `0`. Gates the hepteract branch of `CalcCorruptionStuff`.
+#[must_use]
+pub fn hepteracts_unlocked(exponent: f64) -> f64 {
+    if exponent >= 1e15 {
+        1.0
+    } else {
+        0.0
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -330,5 +353,16 @@ mod tests {
         // Monotonic increasing above the requirement.
         assert!(cube2(1.2e5) > cube2(60_000.0));
         assert!(cube5(8e15) > cube5(4e15));
+    }
+
+    #[test]
+    fn ascensions_and_hepteracts_unlocked_gates() {
+        assert_eq!(ascensions(0.0), 1.0);
+        assert_eq!(ascensions(1_499.0), 1.0);
+        // e = 1500 (= 4·375) → 1 + (1/20)·log2(4) = 1 + 2/20 = 1.1.
+        assert!((ascensions(1_500.0) - 1.1).abs() < 1e-12);
+        assert_eq!(hepteracts_unlocked(0.0), 0.0);
+        assert_eq!(hepteracts_unlocked(9.9e14), 0.0);
+        assert_eq!(hepteracts_unlocked(1e15), 1.0);
     }
 }
