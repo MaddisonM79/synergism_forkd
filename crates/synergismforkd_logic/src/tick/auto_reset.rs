@@ -1,18 +1,23 @@
-//! Per-tick auto-reset state machine. Direct port of
-//! `legacy/core_split/packages/logic/src/tick/autoReset.ts`.
+//! Per-tick auto-reset state machine. The prestige / transcend /
+//! reincarnation blocks are a direct port of
+//! `legacy/core_split/packages/logic/src/tick/autoReset.ts`; the
+//! **auto-ascension** block ports the web_ui-tier decision at
+//! `legacy/core_split/packages/web_ui/src/Synergism.ts:3867-3909` (the logic
+//! `autoReset.ts` has no ascension block), lifted here so the tick can decide
+//! it without the UI tier.
 //!
-//! Decides whether prestige / transcend / reincarnation auto-resets fire
-//! this tick, accumulates the time-mode counters, and emits
-//! `AutoResetTriggered` intents. Execution now lives in the tick tier:
-//! `phase_automation` performs the **prestige** reset
-//! (`perform_prestige_reset`) when a prestige intent fires. Transcension /
-//! reincarnation remain intent-only until those tiers port.
+//! Decides whether prestige / transcend / reincarnation / ascension
+//! auto-resets fire this tick, accumulates the time-mode counters, and emits
+//! `AutoResetTriggered` intents. Execution lives in the tick tier:
+//! `phase_automation` performs the matching reset (`perform_*_reset`) for
+//! every fired intent — all four tiers are wired today.
 
 use smallvec::SmallVec;
 
 use synergismforkd_bignum::Decimal;
 
 use crate::events::{AutoResetMode, AutoResetTier, CoreEvent};
+use crate::state::AutoAscendMode;
 
 /// `coinsThisPrestige` floor for a prestige auto-reset.
 const PRESTIGE_COINS_THRESHOLD: f64 = 1e16;
@@ -24,6 +29,15 @@ const REINCARNATION_SHARDS_THRESHOLD: f64 = 1e300;
 const RESET_TIME_FLOOR: f64 = 0.01;
 /// Ascension challenge that fully suppresses the reincarnation block.
 const ASCENSION_CHALLENGE_NO_REINCARNATION: u32 = 12;
+/// Reincarnation challenge that suppresses the auto-ascension block
+/// (`currentChallenge.reincarnation !== 10`, Synergism.ts:3871).
+const REINCARNATION_CHALLENGE_NO_ASCENSION: u32 = 10;
+/// Lower bound on the auto-ascension threshold in `c10Completions` mode
+/// (`max(1, autoAscendThreshold)`, Synergism.ts:3876).
+const AUTO_ASCEND_C10_FLOOR: f64 = 1.0;
+/// Lower bound on the auto-ascension threshold in `realAscensionTime` mode
+/// (`max(0.1, autoAscendThreshold)`, Synergism.ts:3883).
+const AUTO_ASCEND_TIME_FLOOR: f64 = 0.1;
 
 /// Inputs to [`apply_auto_resets`]. Mirrors the legacy
 /// `ApplyAutoResetsInput` field-for-field.
@@ -87,13 +101,33 @@ pub(crate) struct ApplyAutoResetsInput {
     pub auto_reset_timer_reincarnation: f64,
 
     // ─── Shared challenge gates ──────────────────────────────────────
-    /// `player.currentChallenge.ascension` — `12` suppresses reincarnation.
+    /// `player.currentChallenge.ascension` — `12` suppresses reincarnation;
+    /// the auto-ascension block also requires it to be `0` (plain ascension).
     pub ascension_challenge: u32,
     /// `player.currentChallenge.transcension` — must be `0` for transcend
     /// or reincarnation.
     pub transcension_challenge: u32,
-    /// `player.currentChallenge.reincarnation` — must be `0` for reincarnation.
+    /// `player.currentChallenge.reincarnation` — must be `0` for reincarnation
+    /// and `!= 10` for auto-ascension.
     pub reincarnation_challenge: u32,
+
+    // ─── Auto-ascension (Synergism.ts:3867-3909) ─────────────────────
+    /// `player.autoAscend`.
+    pub auto_ascend: bool,
+    /// `player.autoAscendMode` — completions vs real-ascension-time.
+    pub auto_ascend_mode: AutoAscendMode,
+    /// `player.autoAscendThreshold`.
+    pub auto_ascend_threshold: f64,
+    /// `player.challengecompletions[10]` — the ascension unlock gate (must
+    /// be `> 0`) and the `c10Completions`-mode comparand.
+    pub challenge_completions_10: f64,
+    /// `player.challengecompletions[11]` — outer guard, must be `> 0`.
+    pub challenge_completions_11: f64,
+    /// `player.cubeUpgrades[10]` — outer guard, must be `> 0`.
+    pub cube_upgrade_10: f64,
+    /// `player.ascensionCounterRealReal` — the `realAscensionTime`-mode
+    /// comparand (advanced by the timer phase; no accumulation here).
+    pub ascension_counter_real_real: f64,
 }
 
 /// Result of [`apply_auto_resets`].
@@ -108,10 +142,11 @@ pub(crate) struct ApplyAutoResetsResult {
     pub events: SmallVec<[CoreEvent; 3]>,
 }
 
-/// Check all three reset tiers for auto-fire conditions, in legacy order:
+/// Check the reset tiers for auto-fire conditions, in legacy order:
 /// prestige (amount/time) → transcend (amount/time) → reincarnation
-/// (gated by `ascension_challenge != 12`, time then amount). The
-/// reincarnation amount mode uses the unique `(points + 1)` shift.
+/// (gated by `ascension_challenge != 12`, time then amount) → ascension
+/// (Synergism.ts, gated by the challenge-11 / cube-upgrade-10 outer guard).
+/// The reincarnation amount mode uses the unique `(points + 1)` shift.
 pub(crate) fn apply_auto_resets(input: &ApplyAutoResetsInput) -> ApplyAutoResetsResult {
     let mut events = SmallVec::new();
     let mut auto_reset_timer_prestige = input.auto_reset_timer_prestige;
@@ -222,6 +257,47 @@ pub(crate) fn apply_auto_resets(input: &ApplyAutoResetsInput) -> ApplyAutoResets
         }
     }
 
+    // ─── Auto-ascension (Synergism.ts:3867-3909) ────────────────────
+    // Inert at default — the outer guard needs `challengecompletions[11] > 0`
+    // and `cubeUpgrades[10] > 0`. Only the plain `reset('ascension')` path is
+    // ported (`currentChallenge.ascension == 0`); with an ascension challenge
+    // active the legacy rotates / `reset('ascensionChallenge')` through helpers
+    // that aren't ported, so we emit nothing there (deferred). No timer
+    // accumulates — `realAscensionTime` reads the timer-phase counter directly.
+    if input.auto_ascend
+        && input.challenge_completions_11 > 0.0
+        && input.cube_upgrade_10 > 0.0
+        && input.reincarnation_challenge != REINCARNATION_CHALLENGE_NO_ASCENSION
+        && input.ascension_challenge == 0
+    {
+        let fires = match input.auto_ascend_mode {
+            AutoAscendMode::C10Completions => {
+                input.challenge_completions_10
+                    >= AUTO_ASCEND_C10_FLOOR.max(input.auto_ascend_threshold)
+            }
+            AutoAscendMode::RealAscensionTime => {
+                input.ascension_counter_real_real
+                    >= AUTO_ASCEND_TIME_FLOOR.max(input.auto_ascend_threshold)
+            }
+        };
+        // The `&& c10 > 0` gate mirrors the legacy `if (ascension && c10 > 0)`
+        // — redundant in `C10Completions` mode (`c10 >= max(1, …) ⇒ c10 > 0`)
+        // but load-bearing in `RealAscensionTime` mode.
+        if fires && input.challenge_completions_10 > 0.0 {
+            events.push(CoreEvent::AutoResetTriggered {
+                tier: AutoResetTier::Ascension,
+                // Ascension's native modes (`C10Completions` /
+                // `RealAscensionTime`) don't map onto `AutoResetMode`; the
+                // dispatch ignores `mode`, so we record the closest analogue
+                // for the UI (`Amount` ≈ completions, `Time` ≈ real time).
+                mode: match input.auto_ascend_mode {
+                    AutoAscendMode::C10Completions => AutoResetMode::Amount,
+                    AutoAscendMode::RealAscensionTime => AutoResetMode::Time,
+                },
+            });
+        }
+    }
+
     ApplyAutoResetsResult {
         auto_reset_timer_prestige,
         auto_reset_timer_transcension,
@@ -266,6 +342,13 @@ mod tests {
             ascension_challenge: 0,
             transcension_challenge: 0,
             reincarnation_challenge: 0,
+            auto_ascend: false,
+            auto_ascend_mode: AutoAscendMode::C10Completions,
+            auto_ascend_threshold: 1.0,
+            challenge_completions_10: 0.0,
+            challenge_completions_11: 0.0,
+            cube_upgrade_10: 0.0,
+            ascension_counter_real_real: 0.0,
         }
     }
 
@@ -363,5 +446,110 @@ mod tests {
         )));
         // Timer is NOT accumulated in c12.
         assert_eq!(r.auto_reset_timer_reincarnation, 0.0);
+    }
+
+    // ─── Auto-ascension ──────────────────────────────────────────────
+
+    /// Outer guard satisfied + a met mode threshold. `auto_prestige_enabled`
+    /// is cleared so only the ascension intent can fire.
+    fn ascend_base() -> ApplyAutoResetsInput {
+        ApplyAutoResetsInput {
+            auto_prestige_enabled: false,
+            auto_ascend: true,
+            challenge_completions_11: 1.0,
+            cube_upgrade_10: 1.0,
+            ..base()
+        }
+    }
+
+    fn fired_ascension(r: &ApplyAutoResetsResult) -> bool {
+        r.events.iter().any(|e| {
+            matches!(
+                e,
+                CoreEvent::AutoResetTriggered {
+                    tier: AutoResetTier::Ascension,
+                    ..
+                }
+            )
+        })
+    }
+
+    #[test]
+    fn auto_ascend_c10_mode_fires_when_completions_meet_threshold() {
+        let r = apply_auto_resets(&ApplyAutoResetsInput {
+            auto_ascend_mode: AutoAscendMode::C10Completions,
+            auto_ascend_threshold: 3.0,
+            challenge_completions_10: 3.0, // >= max(1, 3) = 3
+            ..ascend_base()
+        });
+        assert!(r.events.iter().any(|e| is_reset(
+            e,
+            AutoResetTier::Ascension,
+            AutoResetMode::Amount
+        )));
+    }
+
+    #[test]
+    fn auto_ascend_realtime_mode_fires_when_time_meets_threshold() {
+        let r = apply_auto_resets(&ApplyAutoResetsInput {
+            auto_ascend_mode: AutoAscendMode::RealAscensionTime,
+            auto_ascend_threshold: 5.0,
+            ascension_counter_real_real: 5.0, // >= max(0.1, 5) = 5
+            challenge_completions_10: 1.0,    // unlock gate
+            ..ascend_base()
+        });
+        assert!(r.events.iter().any(|e| is_reset(
+            e,
+            AutoResetTier::Ascension,
+            AutoResetMode::Time
+        )));
+    }
+
+    #[test]
+    fn auto_ascend_blocked_without_challenge_11_or_cube_10() {
+        // Mode threshold met, but the outer guard fails.
+        let r = apply_auto_resets(&ApplyAutoResetsInput {
+            challenge_completions_10: 5.0,
+            challenge_completions_11: 0.0, // outer guard fails
+            ..ascend_base()
+        });
+        assert!(!fired_ascension(&r));
+    }
+
+    #[test]
+    fn auto_ascend_deferred_inside_ascension_challenge() {
+        // With an ascension challenge active, the legacy takes the
+        // `reset('ascensionChallenge')` / sweep-rotation branch we don't port.
+        let r = apply_auto_resets(&ApplyAutoResetsInput {
+            challenge_completions_10: 5.0,
+            ascension_challenge: 11,
+            ..ascend_base()
+        });
+        assert!(!fired_ascension(&r));
+    }
+
+    #[test]
+    fn auto_ascend_realtime_still_requires_c10_unlock() {
+        // Real-time threshold met, but challenge 10 is not yet completed, so
+        // ascension is not unlocked.
+        let r = apply_auto_resets(&ApplyAutoResetsInput {
+            auto_ascend_mode: AutoAscendMode::RealAscensionTime,
+            auto_ascend_threshold: 5.0,
+            ascension_counter_real_real: 100.0,
+            challenge_completions_10: 0.0, // not unlocked
+            ..ascend_base()
+        });
+        assert!(!fired_ascension(&r));
+    }
+
+    #[test]
+    fn auto_ascend_suppressed_in_reincarnation_challenge_10() {
+        let r = apply_auto_resets(&ApplyAutoResetsInput {
+            auto_ascend_mode: AutoAscendMode::C10Completions,
+            challenge_completions_10: 5.0,
+            reincarnation_challenge: 10, // outer guard: reincarnation !== 10
+            ..ascend_base()
+        });
+        assert!(!fired_ascension(&r));
     }
 }

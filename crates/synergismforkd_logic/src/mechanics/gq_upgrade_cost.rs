@@ -22,6 +22,12 @@
 //!
 //! Returns `0` when `level == computed_max_level` (fully maxed).
 
+use smallvec::SmallVec;
+use synergismforkd_bignum::Decimal;
+
+use crate::events::CoreEvent;
+use crate::state::{GoldenQuarksState, StoredSpecialCostForm};
+
 /// Cost-form selector for a GQ upgrade.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum GQUpgradeSpecialCostForm {
@@ -92,6 +98,82 @@ pub fn gq_upgrade_cost_tnl(input: &GQUpgradeCostTNLInput) -> f64 {
             (input.cost_per_level * (1.0 + input.level) * cost_multiplier).ceil()
         }
     }
+}
+
+// ─── buy_gq_upgrade ─────────────────────────────────────────────────────────
+
+impl From<StoredSpecialCostForm> for GQUpgradeSpecialCostForm {
+    fn from(form: StoredSpecialCostForm) -> Self {
+        match form {
+            StoredSpecialCostForm::Exponential2 => Self::Exponential2,
+            StoredSpecialCostForm::Cubic => Self::Cubic,
+            StoredSpecialCostForm::Quadratic => Self::Quadratic,
+            StoredSpecialCostForm::None => Self::None,
+        }
+    }
+}
+
+/// Inputs to [`buy_gq_upgrade`].
+#[derive(Debug, Clone, Copy)]
+pub struct BuyGQUpgradeInput {
+    /// GQ-upgrade index (`0..80`, via the `GQ_*` constants). Out-of-range
+    /// is a no-op.
+    pub index: usize,
+    /// `computeGQUpgradeMaxLevel(k)` — base cap + overclock perks + octeract
+    /// cap bonus. Caller pre-evaluates (UI-tier); with no bonuses this equals
+    /// the upgrade's `max_level`. Used for the maxed check and the cost
+    /// overcap.
+    pub computed_max_level: f64,
+}
+
+/// Buy one level of golden-quark upgrade `index` with golden quarks — the
+/// per-level step of the legacy `singularity.ts` buy loop (the
+/// `getGQUpgradeCostTNL` → spend → `level += 1` body). Every cost input is
+/// read from the upgrade's own [`GoldenQuarkUpgrade`] state; only
+/// `computed_max_level` is caller-provided. Emits
+/// [`CoreEvent::GoldenQuarkUpgradePurchased`].
+///
+/// Faithful-at-current-state deferrals:
+/// - **buy-max**: the legacy loops `maxPurchasable` levels (a buy-amount
+///   toggle + budget cap); this buys a single level (the buy-amount-1 case);
+/// - the `minimumSingularity` prerequisite is UI-tier (not in logic state),
+///   so — like the other `buy_*` helpers — this is ungated on it;
+/// - per-upgrade buy-time special effects (e.g. `oneMind` zeroing the
+///   ascension counters) and `goldenQuarksInvested` respec tracking (no logic
+///   field) are not applied — both unreachable at low singularity.
+#[must_use]
+pub fn buy_gq_upgrade(
+    state: &mut GoldenQuarksState,
+    input: BuyGQUpgradeInput,
+) -> SmallVec<[CoreEvent; 4]> {
+    let mut events = SmallVec::new();
+    if input.index >= state.upgrades.len() {
+        return events;
+    }
+    let upgrade = state.upgrades[input.index];
+    let cost = gq_upgrade_cost_tnl(&GQUpgradeCostTNLInput {
+        level: upgrade.level,
+        max_level: upgrade.max_level,
+        computed_max_level: input.computed_max_level,
+        cost_per_level: upgrade.cost_per_level,
+        special_cost_form: upgrade.special_cost_form.into(),
+    });
+
+    // Legacy gate: not maxed AND affordable. The cap only applies to bounded
+    // upgrades (`maxLevel > 0`); `maxLevel <= 0` is the unlimited sentinel.
+    let not_maxed = upgrade.max_level <= 0.0 || upgrade.level < input.computed_max_level;
+    if not_maxed && state.golden_quarks.to_number() >= cost {
+        let before = upgrade.level;
+        state.golden_quarks -= Decimal::from_finite(cost);
+        state.upgrades[input.index].level += 1.0;
+        events.push(CoreEvent::GoldenQuarkUpgradePurchased {
+            index: input.index as u32,
+            before,
+            after: state.upgrades[input.index].level,
+            spent: cost,
+        });
+    }
+    events
 }
 
 #[cfg(test)]
@@ -189,5 +271,111 @@ mod tests {
             special_cost_form: GQUpgradeSpecialCostForm::None,
         });
         assert_eq!(result, 12_832.0);
+    }
+
+    // ─── buy_gq_upgrade ──────────────────────────────────────────────────
+
+    use crate::state::GoldenQuarkUpgrade;
+
+    fn gq_state(golden_quarks: f64, cost_per_level: f64, max_level: f64) -> GoldenQuarksState {
+        let mut state = GoldenQuarksState {
+            golden_quarks: Decimal::from_finite(golden_quarks),
+            ..GoldenQuarksState::default()
+        };
+        state.upgrades[0] = GoldenQuarkUpgrade {
+            cost_per_level,
+            max_level,
+            ..GoldenQuarkUpgrade::default()
+        };
+        state
+    }
+
+    #[test]
+    fn buy_gq_upgrade_levels_up_and_spends() {
+        let mut state = gq_state(500.0, 100.0, 10.0);
+        let events = buy_gq_upgrade(
+            &mut state,
+            BuyGQUpgradeInput {
+                index: 0,
+                computed_max_level: 10.0,
+            },
+        );
+        // None-form at level 0: cost = ceil(100 * 1 * 1) = 100.
+        assert_eq!(state.upgrades[0].level, 1.0);
+        assert_eq!(state.golden_quarks.to_number(), 400.0);
+        assert_eq!(events.len(), 1);
+        match &events[0] {
+            CoreEvent::GoldenQuarkUpgradePurchased {
+                index,
+                before,
+                after,
+                spent,
+            } => {
+                assert_eq!(*index, 0);
+                assert_eq!(*before, 0.0);
+                assert_eq!(*after, 1.0);
+                assert_eq!(*spent, 100.0);
+            }
+            other => panic!("expected GoldenQuarkUpgradePurchased, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn buy_gq_upgrade_unaffordable_is_noop() {
+        let mut state = gq_state(50.0, 100.0, 10.0); // 50 < cost 100
+        let events = buy_gq_upgrade(
+            &mut state,
+            BuyGQUpgradeInput {
+                index: 0,
+                computed_max_level: 10.0,
+            },
+        );
+        assert_eq!(state.upgrades[0].level, 0.0);
+        assert_eq!(state.golden_quarks.to_number(), 50.0);
+        assert!(events.is_empty());
+    }
+
+    #[test]
+    fn buy_gq_upgrade_maxed_is_noop() {
+        let mut state = gq_state(1e9, 100.0, 10.0);
+        state.upgrades[0].level = 10.0; // at the cap
+        let events = buy_gq_upgrade(
+            &mut state,
+            BuyGQUpgradeInput {
+                index: 0,
+                computed_max_level: 10.0,
+            },
+        );
+        assert_eq!(state.upgrades[0].level, 10.0);
+        assert_eq!(state.golden_quarks.to_number(), 1e9);
+        assert!(events.is_empty());
+    }
+
+    #[test]
+    fn buy_gq_upgrade_unlimited_ignores_cap() {
+        // max_level == -1 (unlimited sentinel): the cap gate is skipped.
+        let mut state = gq_state(1000.0, 1.0, -1.0);
+        let events = buy_gq_upgrade(
+            &mut state,
+            BuyGQUpgradeInput {
+                index: 0,
+                computed_max_level: -1.0,
+            },
+        );
+        assert_eq!(state.upgrades[0].level, 1.0);
+        assert!(!events.is_empty());
+    }
+
+    #[test]
+    fn buy_gq_upgrade_out_of_range_is_noop() {
+        let mut state = gq_state(1e9, 100.0, 10.0);
+        assert!(buy_gq_upgrade(
+            &mut state,
+            BuyGQUpgradeInput {
+                index: 80,
+                computed_max_level: 10.0,
+            }
+        )
+        .is_empty());
     }
 }

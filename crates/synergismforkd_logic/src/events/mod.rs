@@ -220,6 +220,68 @@ pub enum CoreEvent {
         /// Prestige shards removed from the player's balance.
         spent: Decimal,
     },
+    /// One cube upgrade was leveled up (zero-or-more levels at once via the
+    /// summation cost solver). `spent` is in wow cubes — an `f64` mirroring
+    /// the legacy `Number(player.wowCubes)` cost comparison.
+    CubeUpgradePurchased {
+        /// 1-based cube-upgrade index (1..=80).
+        index: u8,
+        /// Level before the purchase.
+        before: f64,
+        /// Level after the purchase.
+        after: f64,
+        /// Wow cubes removed from the player's balance.
+        spent: f64,
+    },
+    /// One platonic upgrade gained a level. The spend spans seven resources
+    /// (obtainium / offerings / cubes / tesseracts / hypercubes / platonics /
+    /// abyssals), so no single `spent` value is carried.
+    PlatonicUpgradePurchased {
+        /// 1-based platonic-upgrade index (1..=20).
+        index: u8,
+        /// Level before the purchase.
+        before: f64,
+        /// Level after the purchase.
+        after: f64,
+    },
+    /// One golden-quark (singularity) upgrade gained a level. `spent` is in
+    /// golden quarks — an `f64` mirroring the legacy `Number(goldenQuarks)`
+    /// cost comparison.
+    GoldenQuarkUpgradePurchased {
+        /// GQ-upgrade index (0..80, via the `GQ_*` constants).
+        index: u32,
+        /// Level before the purchase.
+        before: f64,
+        /// Level after the purchase.
+        after: f64,
+        /// Golden quarks removed from the player's balance.
+        spent: f64,
+    },
+    /// One shop upgrade gained a level (or a consumable a unit of stock —
+    /// the buy is uniform). `spent` is in quarks — an `f64` mirroring the
+    /// legacy `Number(player.worlds)` cost comparison.
+    ShopUpgradePurchased {
+        /// Shop-upgrade index (0..83, via the `SHOP_*` constants).
+        index: u32,
+        /// Level / stock before the purchase.
+        before: f64,
+        /// Level / stock after the purchase.
+        after: f64,
+        /// Quarks removed from the player's balance.
+        spent: f64,
+    },
+    /// One research slot was leveled up (zero-or-more levels at once via
+    /// the closed-form max-affordable solve). `spent` is in obtainium.
+    ResearchPurchased {
+        /// 1-based research index.
+        index: u32,
+        /// Level before the purchase.
+        before: f64,
+        /// Level after the purchase.
+        after: f64,
+        /// Obtainium removed from the player's balance.
+        spent: Decimal,
+    },
     /// A single-bit upgrade was purchased. The `spent` value is the cost
     /// in the tier's currency.
     UpgradePurchased {

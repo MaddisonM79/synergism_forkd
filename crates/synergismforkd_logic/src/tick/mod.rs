@@ -39,13 +39,18 @@ use crate::mechanics::accelerators::{buy_accelerator, BuyAcceleratorInput};
 use crate::mechanics::achievement_rewards;
 use crate::mechanics::challenge_15_rewards;
 use crate::mechanics::crystal_upgrades::{buy_crystal_upgrades, BuyCrystalUpgradesInput};
+use crate::mechanics::cube_upgrades::{buy_cube_upgrade, BuyCubeUpgradeInput};
 use crate::mechanics::global_multipliers::{
     compute_global_multipliers, GlobalMultipliersPreEvaluated, GlobalMultipliersResult,
 };
+use crate::mechanics::gq_upgrade_cost::{buy_gq_upgrade, BuyGQUpgradeInput};
 use crate::mechanics::multipliers::{buy_multiplier, BuyMultiplierInput};
 use crate::mechanics::particle_buildings::{buy_particle_building, BuyParticleBuildingInput};
+use crate::mechanics::platonic_upgrade_costs::{buy_platonic_upgrade, BuyPlatonicUpgradeInput};
 use crate::mechanics::producers::{buy_max, buy_producer, BuyMaxInput, BuyProducerInput};
+use crate::mechanics::researches::{buy_research, BuyResearchInput};
 use crate::mechanics::resource_gain::{resource_gain, ResourceGainPre};
+use crate::mechanics::shop_costs::{buy_shop, BuyShopInput};
 use crate::mechanics::tesseract_buildings::{buy_tesseract_building, BuyTesseractBuildingInput};
 use crate::mechanics::update_all_multiplier::{
     update_all_multiplier, UpdateAllMultiplierPre, UpdateAllMultiplierResult,
@@ -263,12 +268,22 @@ pub enum PlayerAction {
 pub enum BuyRequest {
     /// Routes to [`buy_upgrades`].
     Upgrade(BuyUpgradeInput),
+    /// Routes to [`buy_research`].
+    Research(BuyResearchInput),
+    /// Routes to [`buy_gq_upgrade`].
+    GoldenQuarkUpgrade(BuyGQUpgradeInput),
+    /// Routes to [`buy_shop`].
+    Shop(BuyShopInput),
     /// Routes to [`buy_multiplier`].
     Multiplier(BuyMultiplierInput),
     /// Routes to [`buy_accelerator`].
     Accelerator(BuyAcceleratorInput),
     /// Routes to [`buy_crystal_upgrades`].
     CrystalUpgrade(BuyCrystalUpgradesInput),
+    /// Routes to [`buy_cube_upgrade`].
+    CubeUpgrade(BuyCubeUpgradeInput),
+    /// Routes to [`buy_platonic_upgrade`].
+    PlatonicUpgrade(BuyPlatonicUpgradeInput),
     /// Routes to [`buy_particle_building`].
     ParticleBuilding(BuyParticleBuildingInput),
     /// Routes to [`buy_tesseract_building`].
@@ -281,10 +296,10 @@ pub enum BuyRequest {
     Producer(BuyProducerInput),
 }
 
-/// Per-tier dispatcher for a manual reset, mirroring [`BuyRequest`]. Only
-/// [`Self::Prestige`] / [`Self::Transcension`] / [`Self::Reincarnation`]
-/// are wired today; the ascension / singularity tiers cascade on top and
-/// port later.
+/// Per-tier dispatcher for a manual reset, mirroring [`BuyRequest`].
+/// [`Self::Prestige`] / [`Self::Transcension`] / [`Self::Reincarnation`] /
+/// [`Self::Ascension`] are wired today; the singularity tier cascades on
+/// top and ports later.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum ResetRequest {
@@ -297,6 +312,11 @@ pub enum ResetRequest {
     /// Manual reincarnation reset — base + transcension + reincarnation
     /// layers (`reset('reincarnation')`).
     Reincarnation,
+    /// Manual ascension reset — base + transcension + reincarnation +
+    /// ascension layers (`reset('ascension')`). The c10-gated cube /
+    /// hepteract awards and the auto-ascend *decision* remain deferred (see
+    /// [`reset::perform_ascension_reset`]).
+    Ascension,
 }
 
 /// Result of [`tack`]. The accumulated event stream is the only output
@@ -4056,18 +4076,25 @@ fn phase_automation(
         ascension_challenge: state.challenges.current_ascension_challenge,
         transcension_challenge: state.challenges.current_transcension_challenge,
         reincarnation_challenge: state.challenges.current_reincarnation_challenge,
+        auto_ascend: state.automation.auto_ascend,
+        auto_ascend_mode: state.automation.auto_ascend_mode,
+        auto_ascend_threshold: state.automation.auto_ascend_threshold,
+        challenge_completions_10: state.challenges.challenge_completions[10],
+        challenge_completions_11: state.challenges.challenge_completions[11],
+        cube_upgrade_10: state.cube_upgrade_levels.cube_upgrades[10],
+        ascension_counter_real_real: state.reset_counters.ascension_counter_real_real,
     });
     state.automation.auto_reset_timer_prestige = resets.auto_reset_timer_prestige;
     state.automation.auto_reset_timer_transcension = resets.auto_reset_timer_transcension;
     state.automation.auto_reset_timer_reincarnation = resets.auto_reset_timer_reincarnation;
 
-    // Execute the fired resets. Only the prestige tier is ported, so a
-    // transcension / reincarnation intent still resolves to emit-only —
-    // mirroring the manual dispatch in Phase 3. At default state
-    // `auto_prestige_enabled` is false, so this never fires and the sim
-    // stays unshifted. `pre.prestige_point_gain` is the same gain the
-    // amount-mode gate compared against (and equals the manual path's
-    // `reset_gains.prestige_point_gain`).
+    // Execute the fired resets. Prestige / transcension / reincarnation /
+    // ascension execution are all ported, so a fired intent dispatches to
+    // `perform_reset` — mirroring the manual dispatch in Phase 3. At default
+    // state the auto toggles are off, so this never fires and the sim stays
+    // unshifted. The `pre.*_point_gain` values are the same gains the
+    // amount-mode gates compared against (and equal the manual path's
+    // `reset_gains`).
     use crate::events::AutoResetTier;
     use crate::mechanics::reset_currency::ResetCurrencyResult;
     let auto_gains = ResetCurrencyResult {
@@ -4082,9 +4109,11 @@ fn phase_automation(
                 AutoResetTier::Prestige => Some(ResetRequest::Prestige),
                 AutoResetTier::Transcension => Some(ResetRequest::Transcension),
                 AutoResetTier::Reincarnation => Some(ResetRequest::Reincarnation),
-                // Ascension execution is not ported (cubes / hepteracts /
-                // corruptions); the intent still flows to the UI below.
-                AutoResetTier::Ascension => None,
+                // Ascension *execution* is ported; the auto-ascend *decision*
+                // that would emit this intent lives in the web_ui tier in
+                // legacy and is not yet ported, so no Ascension intent reaches
+                // here in practice. The arm readies the bridge for when it is.
+                AutoResetTier::Ascension => Some(ResetRequest::Ascension),
             };
             if let Some(request) = request {
                 performed.extend(reset::perform_reset(state, request, &auto_gains));
@@ -4121,6 +4150,9 @@ fn dispatch_buy(state: &mut GameState, req: &BuyRequest) -> SmallVec<[CoreEvent;
     // and prevent the second `&mut` for the currency.)
     match req {
         BuyRequest::Upgrade(inp) => buy_upgrades(&mut state.upgrades, *inp),
+        BuyRequest::Research(inp) => buy_research(&mut state.researches, *inp),
+        BuyRequest::GoldenQuarkUpgrade(inp) => buy_gq_upgrade(&mut state.golden_quarks, *inp),
+        BuyRequest::Shop(inp) => buy_shop(&mut state.shop, &mut state.quarks.worlds, *inp),
         BuyRequest::Multiplier(inp) => {
             buy_multiplier(&mut state.multiplier, &mut state.upgrades.coins, *inp)
         }
@@ -4128,6 +4160,18 @@ fn dispatch_buy(state: &mut GameState, req: &BuyRequest) -> SmallVec<[CoreEvent;
             buy_accelerator(&mut state.accelerator, &mut state.upgrades.coins, *inp)
         }
         BuyRequest::CrystalUpgrade(inp) => buy_crystal_upgrades(&mut state.crystal_upgrades, *inp),
+        BuyRequest::CubeUpgrade(inp) => buy_cube_upgrade(
+            &mut state.cube_upgrade_levels,
+            &mut state.cube_balances.wow_cubes,
+            *inp,
+        ),
+        BuyRequest::PlatonicUpgrade(inp) => buy_platonic_upgrade(
+            &mut state.cube_upgrade_levels,
+            &mut state.researches.obtainium,
+            &mut state.automation.offerings,
+            &mut state.cube_balances,
+            *inp,
+        ),
         BuyRequest::ParticleBuilding(inp) => buy_particle_building(
             &mut state.particle_buildings,
             &mut state.upgrades.reincarnation_points,
@@ -4961,6 +5005,184 @@ mod tests {
             output.events
         );
         assert_eq!(state.upgrades.upgrades[5], 1);
+    }
+
+    #[test]
+    fn tack_dispatches_buy_research_action() {
+        use synergismforkd_bignum::Decimal;
+
+        let mut state = GameState::default();
+        state.researches.obtainium = Decimal::from_finite(5.0);
+
+        let mut input = TackInput {
+            dt: 0.025,
+            ..TackInput::default()
+        };
+        input
+            .player_actions
+            .push(PlayerAction::Buy(BuyRequest::Research(BuyResearchInput {
+                index: 6,
+                buy_max: true,
+            })));
+
+        let output = tack(&mut state, &input);
+
+        assert!(
+            output
+                .events
+                .iter()
+                .any(|e| matches!(e, CoreEvent::ResearchPurchased { .. })),
+            "expected ResearchPurchased in events, got {:?}",
+            output.events
+        );
+        // Research 6 (base_cost 1, max_level 10): budget 5 ⇒ buy to level 5.
+        assert_eq!(state.researches.researches[6], 5.0);
+    }
+
+    #[test]
+    fn tack_dispatches_buy_cube_upgrade_action() {
+        use synergismforkd_bignum::Decimal;
+
+        let mut state = GameState::default();
+        state.cube_balances.wow_cubes = Decimal::from_finite(1e12);
+
+        let mut input = TackInput {
+            dt: 0.025,
+            ..TackInput::default()
+        };
+        input
+            .player_actions
+            .push(PlayerAction::Buy(BuyRequest::CubeUpgrade(
+                BuyCubeUpgradeInput {
+                    index: 1,
+                    buy_max: false,
+                    singularity_debuff: 1.0,
+                },
+            )));
+
+        let output = tack(&mut state, &input);
+
+        assert!(
+            output
+                .events
+                .iter()
+                .any(|e| matches!(e, CoreEvent::CubeUpgradePurchased { .. })),
+            "expected CubeUpgradePurchased in events, got {:?}",
+            output.events
+        );
+        assert_eq!(state.cube_upgrade_levels.cube_upgrades[1], 1.0);
+    }
+
+    #[test]
+    fn tack_dispatches_buy_gq_upgrade_action() {
+        use synergismforkd_bignum::Decimal;
+
+        use crate::state::GoldenQuarkUpgrade;
+
+        let mut state = GameState::default();
+        state.golden_quarks.golden_quarks = Decimal::from_finite(500.0);
+        state.golden_quarks.upgrades[0] = GoldenQuarkUpgrade {
+            cost_per_level: 100.0,
+            max_level: 10.0,
+            ..GoldenQuarkUpgrade::default()
+        };
+
+        let mut input = TackInput {
+            dt: 0.025,
+            ..TackInput::default()
+        };
+        input
+            .player_actions
+            .push(PlayerAction::Buy(BuyRequest::GoldenQuarkUpgrade(
+                BuyGQUpgradeInput {
+                    index: 0,
+                    computed_max_level: 10.0,
+                },
+            )));
+
+        let output = tack(&mut state, &input);
+
+        assert!(
+            output
+                .events
+                .iter()
+                .any(|e| matches!(e, CoreEvent::GoldenQuarkUpgradePurchased { .. })),
+            "expected GoldenQuarkUpgradePurchased in events, got {:?}",
+            output.events
+        );
+        assert_eq!(state.golden_quarks.upgrades[0].level, 1.0);
+    }
+
+    #[test]
+    fn tack_dispatches_buy_platonic_upgrade_action() {
+        use synergismforkd_bignum::Decimal;
+
+        let mut state = GameState::default();
+        state.researches.obtainium = Decimal::from_finite(1e50);
+        state.automation.offerings = Decimal::from_finite(1e50);
+        state.cube_balances.wow_cubes = Decimal::from_finite(1e50);
+        state.cube_balances.wow_tesseracts = Decimal::from_finite(1e50);
+        state.cube_balances.wow_hypercubes = Decimal::from_finite(1e50);
+        state.cube_balances.wow_platonic_cubes = Decimal::from_finite(1e50);
+
+        let mut input = TackInput {
+            dt: 0.025,
+            ..TackInput::default()
+        };
+        input
+            .player_actions
+            .push(PlayerAction::Buy(BuyRequest::PlatonicUpgrade(
+                BuyPlatonicUpgradeInput {
+                    index: 1,
+                    singularity_debuff: 1.0,
+                },
+            )));
+
+        let output = tack(&mut state, &input);
+
+        assert!(
+            output
+                .events
+                .iter()
+                .any(|e| matches!(e, CoreEvent::PlatonicUpgradePurchased { .. })),
+            "expected PlatonicUpgradePurchased in events, got {:?}",
+            output.events
+        );
+        assert_eq!(state.cube_upgrade_levels.platonic_upgrades[1], 1.0);
+    }
+
+    #[test]
+    fn tack_dispatches_buy_shop_action() {
+        use synergismforkd_bignum::Decimal;
+
+        let mut state = GameState::default();
+        state.quarks.worlds = Decimal::from_finite(500.0);
+
+        let mut input = TackInput {
+            dt: 0.025,
+            ..TackInput::default()
+        };
+        input
+            .player_actions
+            .push(PlayerAction::Buy(BuyRequest::Shop(BuyShopInput {
+                index: 8,
+                is_consumable: false,
+                max_level: 10.0,
+                price: 100.0,
+                price_increase: 25.0,
+            })));
+
+        let output = tack(&mut state, &input);
+
+        assert!(
+            output
+                .events
+                .iter()
+                .any(|e| matches!(e, CoreEvent::ShopUpgradePurchased { .. })),
+            "expected ShopUpgradePurchased in events, got {:?}",
+            output.events
+        );
+        assert_eq!(state.shop.upgrades[8], 1.0);
     }
 
     #[test]
