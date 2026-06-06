@@ -12,10 +12,10 @@
 //! [`apply_reincarnation_layer`] → [`apply_ascension_layer`]), each
 //! composed by a public `perform_*_reset`. Tiers wired today: **prestige,
 //! transcension, reincarnation, ascension** (the ascension tier ports the
-//! structural reset + `resetResearches` / `resetChallengeSweep` /
-//! `resetRunes`; its c10-gated cube/hepteract awards and the heavier
-//! `resetTalismanData` / `resetAnts` sub-resets are neutral-defaulted and
-//! deferred; see [`apply_ascension_layer`]). The singularity layer is paused.
+//! structural reset + `resetResearches` / `resetChallengeSweep` / `resetRunes`
+//! / `resetAnts`; its c10-gated cube/hepteract awards and the (inert)
+//! `resetTalismanData` are neutral-defaulted and deferred; see
+//! [`apply_ascension_layer`]). The singularity layer is paused.
 
 use smallvec::{smallvec, SmallVec};
 
@@ -23,7 +23,7 @@ use synergismforkd_bignum::Decimal;
 
 use crate::events::{AutoResetTier, CoreEvent, SweepState};
 use crate::mechanics::reset_currency::ResetCurrencyResult;
-use crate::state::{GameState, DEFLATION_INDEX, RUNE_ANTIQUITIES, RUNE_COUNT};
+use crate::state::{AntsState, GameState, DEFLATION_INDEX, RUNE_ANTIQUITIES, RUNE_COUNT};
 use crate::tick::ResetRequest;
 
 /// Per-tier coin-producer base cost the prestige reset restores. Mirrors
@@ -64,6 +64,10 @@ const RESET_RESEARCHES_PRE_SING25: &[usize] = &[138, 153, 168, 183, 198];
 /// `highestSingularityCount` threshold below which the pre-sing-25 extras
 /// are wiped too.
 const RESET_RESEARCHES_SING_THRESHOLD: f64 = 25.0;
+/// The Mortuus2 ant upgrade (index 15) — the one ant upgrade an ascension's
+/// `resetAnts` leaves untouched, since it is singularity-tier while every
+/// lower index is sacrifice- or ascension-tier (`AntUpgrades` data table).
+const ANT_UPGRADE_MORTUUS2: usize = 15;
 
 /// Execute a manual reset. The dispatch mirrors
 /// [`dispatch_buy`](super::dispatch_buy).
@@ -434,9 +438,9 @@ pub(crate) fn perform_ascension_reset(
 /// - the `challengecompletions[10] > 0` reward block (`ascensionCount` +=
 ///   `calculateAscensionCount`, the `wow*` cube awards via
 ///   `CalcCorruptionStuff`) — gated off at default;
-/// - `resetTalismanData('ascension')` / `resetAnts(ascension)` — per-entity
-///   reset-tier metadata + sub-helpers (`setTalismanRarity`, the seven ant
-///   sub-resets), follow-up PR (`resetRunes('ascension')` IS ported below);
+/// - `resetTalismanData('ascension')` — `setTalismanRarity` needs the UI-tier
+///   `isUnlocked` predicate and talismans can't be leveled in the port yet, so
+///   it is inert at reachable state (`resetRunes` and `resetAnts` ARE ported);
 /// - the `autoChallengeIndex` / `roombaResearchIndex` / `autoResearch` UI
 ///   cursors (no logic field / UI-tier);
 /// - the C15 corruption override (needs the `c15Corruptions` constant) and
@@ -467,9 +471,12 @@ fn apply_ascension_layer(state: &mut GameState) {
         }
     }
 
-    // resetAnts(ascension) (650) + resetTalismanData('ascension') (651):
-    // DEFERRED — per-entity reset-tier metadata, follow-up PR. Inert at
-    // default (ant / talisman state already zero).
+    // resetAnts(AntSacrificeTiers.ascension) (Reset.ts:650).
+    reset_ants_ascension(&mut state.ants);
+
+    // resetTalismanData('ascension') (651): DEFERRED — `setTalismanRarity`
+    // needs the UI-tier `isUnlocked` predicate, and talismans can't be leveled
+    // in the port yet (no buy path), so this is inert at reachable state.
 
     // Reincarnation-tier currencies (Reset.ts:652-653).
     state.upgrades.reincarnation_points = Decimal::zero();
@@ -564,6 +571,56 @@ fn apply_ascension_layer(state: &mut GameState) {
     // deferred (needs `c15Corruptions`; inert unless inside ascension
     // challenge 15).
     state.corruptions.used = state.corruptions.next;
+}
+
+/// `resetAnts(AntSacrificeTiers.ascension)`
+/// (`Features/Ants/player/reset.ts`) — the ant sub-reset an ascension runs.
+/// Tier ordering is `sacrifice=0 < ascension=1 < singularity=2 < never=3`;
+/// each ant feature resets when `ascension >= its minimum reset tier`.
+///
+/// Deferred (inert at default): the `highestSingularityCount >= 10/15/20`
+/// crumb / producer / upgrade regrants, and the `preserveAnthillCount`
+/// achievement that would keep `ant_sacrifice_count` (no achievement is held
+/// at default, so the count resets — faithful).
+fn reset_ants_ascension(ants: &mut AntsState) {
+    // Crumbs reset to their default `1`; `crumbs_ever_made` is never-tier and
+    // survives (Crumbs/reset.ts).
+    ants.crumbs = Decimal::from_finite(1.0);
+    ants.crumbs_this_sacrifice = Decimal::from_finite(1.0);
+
+    // Every producer empties; every mastery *level* resets, but
+    // `highest_mastery` survives (AntProducers / AntMasteries reset.ts).
+    for producer in &mut ants.producers {
+        producer.purchased = 0.0;
+        producer.generated = Decimal::zero();
+    }
+    for mastery in &mut ants.masteries {
+        mastery.mastery = 0;
+    }
+
+    // Ant upgrades: every slot resets at ascension EXCEPT Mortuus2 (index 15,
+    // singularity-tier). Salvage(7) / Mortuus(11) / WowCubes(13) /
+    // AscensionScore(14) are ascension-tier; the rest sacrifice-tier
+    // (AntUpgrades reset.ts + data table).
+    for level in &mut ants.upgrades[..ANT_UPGRADE_MORTUUS2] {
+        *level = 0.0;
+    }
+
+    // Reborn ELO resets; the daily / ever leaderboards and the quark total are
+    // singularity-tier and survive. Immortal ELO is ascension-tier
+    // (RebornELO / ImmortalELO reset.ts).
+    ants.reborn_elo = 0.0;
+    ants.immortal_elo = 0.0;
+
+    // The sacrifice ID always advances (it backs the permanent leaderboard);
+    // the count resets, since no `preserveAnthillCount` achievement is held at
+    // default (AntSacrifice reset.ts).
+    ants.current_sacrifice_id += 1;
+    ants.ant_sacrifice_count = 0.0;
+
+    // Sacrifice timers (the `resetAnts` wrapper, reset.ts).
+    ants.ant_sacrifice_timer = 0.0;
+    ants.ant_sacrifice_timer_real = 0.0;
 }
 
 /// Zero a contiguous run of `player.upgrades` slots (the `resetUpgrades`
@@ -1028,5 +1085,69 @@ mod tests {
         assert_eq!(state.runes.rune_exp[0], 0.0);
         // Antiquities (singularity-tier) is untouched by the regrant.
         assert_eq!(state.runes.rune_levels[RUNE_ANTIQUITIES], 100.0);
+    }
+
+    #[test]
+    fn ascension_reset_wipes_ant_state_keeping_singularity_tier() {
+        let mut state = GameState::default();
+        for p in &mut state.ants.producers {
+            p.purchased = 50.0;
+            p.generated = Decimal::from_finite(9.0);
+        }
+        for m in &mut state.ants.masteries {
+            m.mastery = 8;
+            m.highest_mastery = 12; // survives (highest mastery never resets here)
+        }
+        for u in &mut state.ants.upgrades {
+            *u = 5.0;
+        }
+        state.ants.crumbs = Decimal::from_finite(1e30);
+        state.ants.crumbs_this_sacrifice = Decimal::from_finite(1e20);
+        state.ants.crumbs_ever_made = Decimal::from_finite(999.0); // never-tier, survives
+        state.ants.reborn_elo = 7777.0;
+        state.ants.immortal_elo = 8888.0;
+        state.ants.quarks_gained_from_ants = 42.0; // singularity-tier, survives
+        state
+            .ants
+            .highest_reborn_elo_daily
+            .push(crate::state::RebornELOEntry {
+                elo: 100.0,
+                sacrifice_id: 1,
+            }); // singularity-tier, survives
+        state.ants.ant_sacrifice_count = 33.0;
+        state.ants.current_sacrifice_id = 5;
+        state.ants.ant_sacrifice_timer = 4.0;
+        state.ants.ant_sacrifice_timer_real = 6.0;
+
+        perform_ascension_reset(&mut state, &gains(0.0, 0.0, 0.0));
+
+        // Crumbs back to default 1; ever-made survives.
+        assert_eq!(state.ants.crumbs.to_number(), 1.0);
+        assert_eq!(state.ants.crumbs_this_sacrifice.to_number(), 1.0);
+        assert_eq!(state.ants.crumbs_ever_made.to_number(), 999.0);
+        // Producers empty; mastery levels reset, highest survives.
+        for p in &state.ants.producers {
+            assert_eq!(p.purchased, 0.0);
+            assert_eq!(p.generated.to_number(), 0.0);
+        }
+        for m in &state.ants.masteries {
+            assert_eq!(m.mastery, 0);
+            assert_eq!(m.highest_mastery, 12);
+        }
+        // Upgrades 0..=14 cleared; Mortuus2 (15, singularity) survives.
+        for i in 0..ANT_UPGRADE_MORTUUS2 {
+            assert_eq!(state.ants.upgrades[i], 0.0, "upgrade {i}");
+        }
+        assert_eq!(state.ants.upgrades[ANT_UPGRADE_MORTUUS2], 5.0);
+        // Reborn + immortal ELO reset; quark total and daily board survive.
+        assert_eq!(state.ants.reborn_elo, 0.0);
+        assert_eq!(state.ants.immortal_elo, 0.0);
+        assert_eq!(state.ants.quarks_gained_from_ants, 42.0);
+        assert_eq!(state.ants.highest_reborn_elo_daily.len(), 1);
+        // Sacrifice count reset; the ID advances; timers cleared.
+        assert_eq!(state.ants.ant_sacrifice_count, 0.0);
+        assert_eq!(state.ants.current_sacrifice_id, 6);
+        assert_eq!(state.ants.ant_sacrifice_timer, 0.0);
+        assert_eq!(state.ants.ant_sacrifice_timer_real, 0.0);
     }
 }
