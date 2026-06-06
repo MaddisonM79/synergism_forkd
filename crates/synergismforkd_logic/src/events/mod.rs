@@ -257,6 +257,20 @@ pub enum CoreEvent {
         /// Golden quarks removed from the player's balance.
         spent: f64,
     },
+    /// One octeract upgrade gained a level — the single-level step of the
+    /// legacy `buyOcteractUpgradeLevel` loop. `spent` is in `wow_octeracts`,
+    /// an `f64` mirroring the legacy `player.wowOcteracts < cost` number
+    /// comparison.
+    OcteractUpgradePurchased {
+        /// Octeract-upgrade index (0..47, via the `OCTERACT_*` constants).
+        index: u32,
+        /// Level before the purchase.
+        before: f64,
+        /// Level after the purchase.
+        after: f64,
+        /// Octeracts removed from the player's balance.
+        spent: f64,
+    },
     /// One shop upgrade gained a level (or a consumable a unit of stock —
     /// the buy is uniform). `spent` is in quarks — an `f64` mirroring the
     /// legacy `Number(player.worlds)` cost comparison.

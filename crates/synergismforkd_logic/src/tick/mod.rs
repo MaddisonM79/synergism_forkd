@@ -45,6 +45,7 @@ use crate::mechanics::global_multipliers::{
 };
 use crate::mechanics::gq_upgrade_cost::{buy_gq_upgrade, BuyGQUpgradeInput};
 use crate::mechanics::multipliers::{buy_multiplier, BuyMultiplierInput};
+use crate::mechanics::octeracts::{buy_octeract_upgrade, BuyOcteractUpgradeInput};
 use crate::mechanics::particle_buildings::{buy_particle_building, BuyParticleBuildingInput};
 use crate::mechanics::platonic_upgrade_costs::{buy_platonic_upgrade, BuyPlatonicUpgradeInput};
 use crate::mechanics::producers::{buy_max, buy_producer, BuyMaxInput, BuyProducerInput};
@@ -272,6 +273,8 @@ pub enum BuyRequest {
     Research(BuyResearchInput),
     /// Routes to [`buy_gq_upgrade`].
     GoldenQuarkUpgrade(BuyGQUpgradeInput),
+    /// Routes to [`buy_octeract_upgrade`].
+    OcteractUpgrade(BuyOcteractUpgradeInput),
     /// Routes to [`buy_shop`].
     Shop(BuyShopInput),
     /// Routes to [`buy_multiplier`].
@@ -4152,6 +4155,11 @@ fn dispatch_buy(state: &mut GameState, req: &BuyRequest) -> SmallVec<[CoreEvent;
         BuyRequest::Upgrade(inp) => buy_upgrades(&mut state.upgrades, *inp),
         BuyRequest::Research(inp) => buy_research(&mut state.researches, *inp),
         BuyRequest::GoldenQuarkUpgrade(inp) => buy_gq_upgrade(&mut state.golden_quarks, *inp),
+        BuyRequest::OcteractUpgrade(inp) => buy_octeract_upgrade(
+            &mut state.octeract_upgrades,
+            &mut state.cube_balances.wow_octeracts,
+            *inp,
+        ),
         BuyRequest::Shop(inp) => buy_shop(&mut state.shop, &mut state.quarks.worlds, *inp),
         BuyRequest::Multiplier(inp) => {
             buy_multiplier(&mut state.multiplier, &mut state.upgrades.coins, *inp)
@@ -5111,6 +5119,40 @@ mod tests {
             output.events
         );
         assert_eq!(state.golden_quarks.upgrades[0].level, 1.0);
+    }
+
+    #[test]
+    fn tack_dispatches_buy_octeract_upgrade_action() {
+        use synergismforkd_bignum::Decimal;
+
+        let mut state = GameState::default();
+        state.cube_balances.wow_octeracts = Decimal::from_finite(500.0);
+
+        let mut input = TackInput {
+            dt: 0.025,
+            ..TackInput::default()
+        };
+        input
+            .player_actions
+            .push(PlayerAction::Buy(BuyRequest::OcteractUpgrade(
+                BuyOcteractUpgradeInput {
+                    index: 0,
+                    cost_per_level: 100.0,
+                    max_level: 10.0,
+                },
+            )));
+
+        let output = tack(&mut state, &input);
+
+        assert!(
+            output
+                .events
+                .iter()
+                .any(|e| matches!(e, CoreEvent::OcteractUpgradePurchased { .. })),
+            "expected OcteractUpgradePurchased in events, got {:?}",
+            output.events
+        );
+        assert_eq!(state.octeract_upgrades.upgrades[0].level, 1.0);
     }
 
     #[test]

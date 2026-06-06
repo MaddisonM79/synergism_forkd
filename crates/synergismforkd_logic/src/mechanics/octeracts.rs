@@ -8,6 +8,18 @@
 //!
 //! Five effects read mutable state outside the logic tier — those
 //! take the extra value as a parameter.
+//!
+//! Beyond the formulas, this module owns the per-index cost dispatch
+//! table ([`octeract_upgrade_cost`]) and the manual buy
+//! ([`buy_octeract_upgrade`]) — the UI tier supplies only the static
+//! `costPerLevel` / `maxLevel` data-table values.
+
+use smallvec::SmallVec;
+use synergismforkd_bignum::Decimal;
+
+use crate::events::CoreEvent;
+use crate::state::octeract_upgrades::OCTERACT_UPGRADES_LEN;
+use crate::state::OcteractUpgradesState;
 
 // Cost-lookup table for octeractBlueberries — fixed sequence of
 // costs per level. Mirrors the legacy `octeractBlueberryCostArr`.
@@ -352,6 +364,133 @@ pub fn octeract_talisman_level_cap_3_cost_formula(level: f64, base_cost: f64) ->
 #[must_use]
 pub fn octeract_talisman_level_cap_4_cost_formula(level: f64, base_cost: f64) -> f64 {
     base_cost * 10.0_f64.powf(level)
+}
+
+// ─── Cost dispatch + manual buy ───────────────────────────────────────────
+
+/// Per-index `costFormula` dispatch table. Slot `i` is the cost formula for
+/// octeract upgrade `i` — the array order IS the `OCTERACT_*` index
+/// convention (legacy `octeractUpgrades` key order), so the positions here
+/// must stay in lockstep with `state::octeract_upgrades`.
+const OCTERACT_COST_FORMULAS: [fn(f64, f64) -> f64; OCTERACT_UPGRADES_LEN] = [
+    octeract_starter_cost_formula,                    // 0  octeractStarter
+    octeract_gain_cost_formula,                       // 1  octeractGain
+    octeract_gain_2_cost_formula,                     // 2  octeractGain2
+    octeract_quark_gain_cost_formula,                 // 3  octeractQuarkGain
+    octeract_quark_gain_2_cost_formula,               // 4  octeractQuarkGain2
+    octeract_corruption_cost_formula,                 // 5  octeractCorruption
+    octeract_gq_cost_reduce_cost_formula,             // 6  octeractGQCostReduce
+    octeract_export_quarks_cost_formula,              // 7  octeractExportQuarks
+    octeract_improved_daily_cost_formula,             // 8  octeractImprovedDaily
+    octeract_improved_daily_2_cost_formula,           // 9  octeractImprovedDaily2
+    octeract_improved_daily_3_cost_formula,           // 10 octeractImprovedDaily3
+    octeract_improved_quark_hept_cost_formula,        // 11 octeractImprovedQuarkHept
+    octeract_improved_global_speed_cost_formula,      // 12 octeractImprovedGlobalSpeed
+    octeract_improved_ascension_speed_cost_formula,   // 13 octeractImprovedAscensionSpeed
+    octeract_improved_ascension_speed_2_cost_formula, // 14 octeractImprovedAscensionSpeed2
+    octeract_improved_free_cost_formula,              // 15 octeractImprovedFree
+    octeract_improved_free_2_cost_formula,            // 16 octeractImprovedFree2
+    octeract_improved_free_3_cost_formula,            // 17 octeractImprovedFree3
+    octeract_improved_free_4_cost_formula,            // 18 octeractImprovedFree4
+    octeract_sing_upgrade_cap_cost_formula,           // 19 octeractSingUpgradeCap
+    octeract_offerings_1_cost_formula,                // 20 octeractOfferings1
+    octeract_obtainium_1_cost_formula,                // 21 octeractObtainium1
+    octeract_ascensions_cost_formula,                 // 22 octeractAscensions
+    octeract_ascensions_2_cost_formula,               // 23 octeractAscensions2
+    octeract_ascensions_octeract_gain_cost_formula,   // 24 octeractAscensionsOcteractGain
+    octeract_fast_forward_cost_formula,               // 25 octeractFastForward
+    octeract_auto_potion_speed_cost_formula,          // 26 octeractAutoPotionSpeed
+    octeract_auto_potion_efficiency_cost_formula,     // 27 octeractAutoPotionEfficiency
+    octeract_one_mind_improver_cost_formula,          // 28 octeractOneMindImprover
+    octeract_ambrosia_luck_cost_formula,              // 29 octeractAmbrosiaLuck
+    octeract_ambrosia_luck_2_cost_formula,            // 30 octeractAmbrosiaLuck2
+    octeract_ambrosia_luck_3_cost_formula,            // 31 octeractAmbrosiaLuck3
+    octeract_ambrosia_luck_4_cost_formula,            // 32 octeractAmbrosiaLuck4
+    octeract_ambrosia_generation_cost_formula,        // 33 octeractAmbrosiaGeneration
+    octeract_ambrosia_generation_2_cost_formula,      // 34 octeractAmbrosiaGeneration2
+    octeract_ambrosia_generation_3_cost_formula,      // 35 octeractAmbrosiaGeneration3
+    octeract_ambrosia_generation_4_cost_formula,      // 36 octeractAmbrosiaGeneration4
+    octeract_bonus_tokens_1_cost_formula,             // 37 octeractBonusTokens1
+    octeract_bonus_tokens_2_cost_formula,             // 38 octeractBonusTokens2
+    octeract_bonus_tokens_3_cost_formula,             // 39 octeractBonusTokens3
+    octeract_bonus_tokens_4_cost_formula,             // 40 octeractBonusTokens4
+    octeract_blueberries_cost_formula,                // 41 octeractBlueberries
+    octeract_infinite_shop_upgrades_cost_formula,     // 42 octeractInfiniteShopUpgrades
+    octeract_talisman_level_cap_1_cost_formula,       // 43 octeractTalismanLevelCap1
+    octeract_talisman_level_cap_2_cost_formula,       // 44 octeractTalismanLevelCap2
+    octeract_talisman_level_cap_3_cost_formula,       // 45 octeractTalismanLevelCap3
+    octeract_talisman_level_cap_4_cost_formula,       // 46 octeractTalismanLevelCap4
+];
+
+/// Cost of the next level of octeract upgrade `index`, via the upgrade's own
+/// `costFormula(level, costPerLevel)`. The UI tier owns the `costPerLevel`
+/// data table; the formula and the index→formula binding live here. `index`
+/// out of range returns `0.0`.
+#[must_use]
+pub fn octeract_upgrade_cost(index: usize, level: f64, cost_per_level: f64) -> f64 {
+    OCTERACT_COST_FORMULAS
+        .get(index)
+        .map_or(0.0, |formula| formula(level, cost_per_level))
+}
+
+/// Inputs to [`buy_octeract_upgrade`].
+#[derive(Debug, Clone, Copy)]
+pub struct BuyOcteractUpgradeInput {
+    /// Octeract-upgrade index (`0..47`, via the `OCTERACT_*` constants).
+    /// Out-of-range is a no-op.
+    pub index: usize,
+    /// `octeractUpgrades[key].costPerLevel` — the per-upgrade base cost
+    /// (UI-tier data-table value). Fed to the index-dispatched cost formula.
+    pub cost_per_level: f64,
+    /// `octeractUpgrades[key].maxLevel` — the purchase cap (UI-tier). The
+    /// `maxLevel <= 0` sentinel means unlimited; otherwise the buy stops once
+    /// `level == max_level`.
+    pub max_level: f64,
+}
+
+/// Buy one level of octeract upgrade `index` with octeracts — the
+/// single-level step of the legacy `buyOcteractUpgradeLevel` loop (the
+/// `costFormula` → spend → `level += 1` body, buy-amount 1). The cost is
+/// computed logic-side via [`octeract_upgrade_cost`]; only the static
+/// `cost_per_level` / `max_level` data-table values are caller-provided
+/// (UI-tier). Emits [`CoreEvent::OcteractUpgradePurchased`].
+///
+/// Faithful-at-current-state deferrals:
+/// - **buy-max**: the legacy loops `maxPurchasable` levels (a shift-click /
+///   buy-amount prompt); this buys a single level (the buy-amount-1 case);
+/// - `octeractsInvested` respec tracking has no logic-state field (like the
+///   GQ buy's `goldenQuarksInvested`), so it is not accumulated.
+#[must_use]
+pub fn buy_octeract_upgrade(
+    upgrades: &mut OcteractUpgradesState,
+    wow_octeracts: &mut Decimal,
+    input: BuyOcteractUpgradeInput,
+) -> SmallVec<[CoreEvent; 4]> {
+    let mut events = SmallVec::new();
+    if input.index >= upgrades.upgrades.len() {
+        return events;
+    }
+    let before = upgrades.upgrades[input.index].level;
+
+    // Legacy gate: bounded upgrades stop at `maxLevel`; `maxLevel <= 0` is the
+    // unlimited sentinel.
+    let not_maxed = input.max_level <= 0.0 || before < input.max_level;
+    if !not_maxed {
+        return events;
+    }
+
+    let cost = octeract_upgrade_cost(input.index, before, input.cost_per_level);
+    if wow_octeracts.to_number() >= cost {
+        *wow_octeracts -= Decimal::from_finite(cost);
+        upgrades.upgrades[input.index].level += 1.0;
+        events.push(CoreEvent::OcteractUpgradePurchased {
+            index: input.index as u32,
+            before,
+            after: upgrades.upgrades[input.index].level,
+            spent: cost,
+        });
+    }
+    events
 }
 
 // ─── Per-upgrade effect functions ─────────────────────────────────────────
@@ -806,5 +945,118 @@ mod tests {
         // → 1 + (1/10000) * 2 * 111 * 2 = 1 + 0.0444 = 1.0444
         let result = octeract_quark_gain_2_effect(111.0, 222.0, 10.0);
         assert!((result - 1.044_4).abs() < 1e-9);
+    }
+
+    // ─── Cost dispatch + buy ──────────────────────────────────────────────
+
+    #[test]
+    fn octeract_upgrade_cost_dispatches_by_index() {
+        // Slot 0 = octeractStarter: base × (level + 1) = 10 × 4 = 40.
+        assert_eq!(octeract_upgrade_cost(0, 3.0, 10.0), 40.0);
+        // Last slot = octeractTalismanLevelCap4: base × 10^level = 5 × 100 = 500.
+        assert_eq!(
+            octeract_upgrade_cost(OCTERACT_UPGRADES_LEN - 1, 2.0, 5.0),
+            500.0
+        );
+        // Out of range → 0.
+        assert_eq!(octeract_upgrade_cost(OCTERACT_UPGRADES_LEN, 1.0, 1.0), 0.0);
+    }
+
+    fn oct_state(starter_level: f64) -> OcteractUpgradesState {
+        let mut s = OcteractUpgradesState::default();
+        s.upgrades[0].level = starter_level;
+        s
+    }
+
+    #[test]
+    fn buy_octeract_upgrade_levels_up_and_spends() {
+        // octeractStarter at level 0, costPerLevel 100 → cost 100 × (0+1) = 100.
+        let mut upgrades = oct_state(0.0);
+        let mut oct = Decimal::from_finite(250.0);
+        let events = buy_octeract_upgrade(
+            &mut upgrades,
+            &mut oct,
+            BuyOcteractUpgradeInput {
+                index: 0,
+                cost_per_level: 100.0,
+                max_level: 10.0,
+            },
+        );
+        assert_eq!(upgrades.upgrades[0].level, 1.0);
+        assert!((oct.to_number() - 150.0).abs() < 1e-9);
+        assert!(matches!(
+            events.as_slice(),
+            [CoreEvent::OcteractUpgradePurchased { index: 0, .. }]
+        ));
+    }
+
+    #[test]
+    fn buy_octeract_upgrade_unaffordable_is_noop() {
+        let mut upgrades = oct_state(0.0);
+        let mut oct = Decimal::from_finite(50.0);
+        let events = buy_octeract_upgrade(
+            &mut upgrades,
+            &mut oct,
+            BuyOcteractUpgradeInput {
+                index: 0,
+                cost_per_level: 100.0,
+                max_level: 10.0,
+            },
+        );
+        assert_eq!(upgrades.upgrades[0].level, 0.0);
+        assert!((oct.to_number() - 50.0).abs() < 1e-9);
+        assert!(events.is_empty());
+    }
+
+    #[test]
+    fn buy_octeract_upgrade_maxed_is_noop() {
+        let mut upgrades = oct_state(10.0);
+        let mut oct = Decimal::from_finite(1e30);
+        let events = buy_octeract_upgrade(
+            &mut upgrades,
+            &mut oct,
+            BuyOcteractUpgradeInput {
+                index: 0,
+                cost_per_level: 100.0,
+                max_level: 10.0,
+            },
+        );
+        assert_eq!(upgrades.upgrades[0].level, 10.0);
+        assert!(events.is_empty());
+    }
+
+    #[test]
+    fn buy_octeract_upgrade_unlimited_ignores_cap() {
+        // maxLevel <= 0 is the unlimited sentinel: buys past any level.
+        // octeractStarter at level 999, costPerLevel 1 → cost 1 × 1000 = 1000.
+        let mut upgrades = oct_state(999.0);
+        let mut oct = Decimal::from_finite(1e30);
+        let events = buy_octeract_upgrade(
+            &mut upgrades,
+            &mut oct,
+            BuyOcteractUpgradeInput {
+                index: 0,
+                cost_per_level: 1.0,
+                max_level: 0.0,
+            },
+        );
+        assert_eq!(upgrades.upgrades[0].level, 1000.0);
+        assert_eq!(events.len(), 1);
+    }
+
+    #[test]
+    fn buy_octeract_upgrade_out_of_range_is_noop() {
+        let mut upgrades = oct_state(0.0);
+        let mut oct = Decimal::from_finite(1e30);
+        let events = buy_octeract_upgrade(
+            &mut upgrades,
+            &mut oct,
+            BuyOcteractUpgradeInput {
+                index: OCTERACT_UPGRADES_LEN,
+                cost_per_level: 100.0,
+                max_level: 10.0,
+            },
+        );
+        assert!(events.is_empty());
     }
 }
