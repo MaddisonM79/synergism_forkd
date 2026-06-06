@@ -12,10 +12,10 @@
 //! [`apply_reincarnation_layer`] → [`apply_ascension_layer`]), each
 //! composed by a public `perform_*_reset`. Tiers wired today: **prestige,
 //! transcension, reincarnation, ascension** (the ascension tier ports the
-//! *structural* reset only — its c10-gated cube/hepteract awards and the
-//! heavier per-feature sub-resets for runes / talismans / ants are
-//! neutral-defaulted and deferred; see [`apply_ascension_layer`]). The
-//! singularity layer is paused.
+//! structural reset + `resetResearches` / `resetChallengeSweep` /
+//! `resetRunes`; its c10-gated cube/hepteract awards and the heavier
+//! `resetTalismanData` / `resetAnts` sub-resets are neutral-defaulted and
+//! deferred; see [`apply_ascension_layer`]). The singularity layer is paused.
 
 use smallvec::{smallvec, SmallVec};
 
@@ -23,7 +23,7 @@ use synergismforkd_bignum::Decimal;
 
 use crate::events::{AutoResetTier, CoreEvent, SweepState};
 use crate::mechanics::reset_currency::ResetCurrencyResult;
-use crate::state::{GameState, DEFLATION_INDEX};
+use crate::state::{GameState, DEFLATION_INDEX, RUNE_ANTIQUITIES, RUNE_COUNT};
 use crate::tick::ResetRequest;
 
 /// Per-tier coin-producer base cost the prestige reset restores. Mirrors
@@ -434,8 +434,9 @@ pub(crate) fn perform_ascension_reset(
 /// - the `challengecompletions[10] > 0` reward block (`ascensionCount` +=
 ///   `calculateAscensionCount`, the `wow*` cube awards via
 ///   `CalcCorruptionStuff`) — gated off at default;
-/// - `resetRunes('ascension')` / `resetTalismanData('ascension')` /
-///   `resetAnts(ascension)` — per-entity reset-tier metadata, follow-up PR;
+/// - `resetTalismanData('ascension')` / `resetAnts(ascension)` — per-entity
+///   reset-tier metadata + sub-helpers (`setTalismanRarity`, the seven ant
+///   sub-resets), follow-up PR (`resetRunes('ascension')` IS ported below);
 /// - the `autoChallengeIndex` / `roombaResearchIndex` / `autoResearch` UI
 ///   cursors (no logic field / UI-tier);
 /// - the C15 corruption override (needs the `c15Corruptions` constant) and
@@ -494,8 +495,21 @@ fn apply_ascension_layer(state: &mut GameState) {
     state.automation.offerings = Decimal::zero(); // Reset.ts:671
     state.crystal_upgrades.crystal_upgrades = [0.0; 8]; // Reset.ts:672
 
-    // resetRunes('ascension') (674): DEFERRED — per-rune reset-tier metadata
-    // + the `cubeUpgrades[26]` regrant, follow-up PR. Inert at default.
+    // resetRunes('ascension') (Runes.ts:917-932): the ascension-tier runes
+    // reset to level + EXP 0, then regrant level = 3 * cubeUpgrades[26]. That
+    // is every classic rune EXCEPT antiquities, which is singularity-tier
+    // (`resetTiers.ascension=4 < singularity=5`) and so survives. Blessings /
+    // spirits / free-levels are not touched (the legacy loop only zeroes
+    // level + EXP). The `setRuneLevel` EXP-sync for a regranted level > 0 is
+    // deferred — inert while `cubeUpgrades[26] == 0` at default.
+    let rune_regrant = 3.0 * state.cube_upgrade_levels.cube_upgrades[26];
+    for rune in 0..RUNE_COUNT {
+        if rune == RUNE_ANTIQUITIES {
+            continue;
+        }
+        state.runes.rune_levels[rune] = rune_regrant;
+        state.runes.rune_exp[rune] = 0.0;
+    }
 
     // cubeUpgrades[27] regrants one of each particle producer (676-682) —
     // `0` at default, so inert; ported faithfully.
@@ -969,5 +983,50 @@ mod tests {
                 ..
             }
         ));
+    }
+
+    #[test]
+    fn ascension_reset_wipes_ascension_tier_runes_but_keeps_antiquities() {
+        let mut state = GameState::default();
+        for i in 0..RUNE_COUNT {
+            state.runes.rune_levels[i] = 100.0;
+            state.runes.rune_exp[i] = 500.0;
+            state.runes.rune_blessing_levels[i] = 7.0;
+        }
+
+        perform_ascension_reset(&mut state, &gains(0.0, 0.0, 0.0));
+
+        for i in 0..RUNE_COUNT {
+            if i == RUNE_ANTIQUITIES {
+                // Singularity-tier ⇒ survives an ascension.
+                assert_eq!(state.runes.rune_levels[i], 100.0);
+                assert_eq!(state.runes.rune_exp[i], 500.0);
+            } else {
+                assert_eq!(state.runes.rune_levels[i], 0.0, "rune {i} level");
+                assert_eq!(state.runes.rune_exp[i], 0.0, "rune {i} exp");
+            }
+            // Blessings are outside the rune reset's scope.
+            assert_eq!(
+                state.runes.rune_blessing_levels[i], 7.0,
+                "rune {i} blessing"
+            );
+        }
+    }
+
+    #[test]
+    fn ascension_reset_rune_regrant_scales_with_cube_upgrade_26() {
+        let mut state = GameState::default();
+        state.cube_upgrade_levels.cube_upgrades[26] = 2.0; // regrant = 3 * 2 = 6
+        for i in 0..RUNE_COUNT {
+            state.runes.rune_levels[i] = 100.0;
+        }
+
+        perform_ascension_reset(&mut state, &gains(0.0, 0.0, 0.0));
+
+        // Ascension-tier runes (index 0 = speed) regrant to 6; EXP stays 0.
+        assert_eq!(state.runes.rune_levels[0], 6.0);
+        assert_eq!(state.runes.rune_exp[0], 0.0);
+        // Antiquities (singularity-tier) is untouched by the regrant.
+        assert_eq!(state.runes.rune_levels[RUNE_ANTIQUITIES], 100.0);
     }
 }
