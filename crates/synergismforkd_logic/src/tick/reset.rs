@@ -12,10 +12,10 @@
 //! [`apply_reincarnation_layer`] → [`apply_ascension_layer`]), each
 //! composed by a public `perform_*_reset`. Tiers wired today: **prestige,
 //! transcension, reincarnation, ascension** (the ascension tier ports the
-//! structural reset + `resetResearches` / `resetChallengeSweep` / `resetRunes`
-//! / `resetAnts`; its c10-gated cube/hepteract awards and the (inert)
-//! `resetTalismanData` are neutral-defaulted and deferred; see
-//! [`apply_ascension_layer`]). The singularity layer is paused.
+//! structural reset + every per-feature sub-reset — `resetResearches` /
+//! `resetChallengeSweep` / `resetRunes` / `resetAnts` / `resetTalismanData`;
+//! only its c10-gated cube/hepteract awards are neutral-defaulted and deferred;
+//! see [`apply_ascension_layer`]). The singularity layer is paused.
 
 use smallvec::{smallvec, SmallVec};
 
@@ -23,7 +23,10 @@ use synergismforkd_bignum::Decimal;
 
 use crate::events::{AutoResetTier, CoreEvent, SweepState};
 use crate::mechanics::reset_currency::ResetCurrencyResult;
-use crate::state::{AntsState, GameState, DEFLATION_INDEX, RUNE_ANTIQUITIES, RUNE_COUNT};
+use crate::state::{
+    AntsState, GameState, TalismansState, DEFLATION_INDEX, RUNE_ANTIQUITIES, RUNE_COUNT,
+    TALISMAN_COUNT,
+};
 use crate::tick::ResetRequest;
 
 /// Per-tier coin-producer base cost the prestige reset restores. Mirrors
@@ -438,9 +441,6 @@ pub(crate) fn perform_ascension_reset(
 /// - the `challengecompletions[10] > 0` reward block (`ascensionCount` +=
 ///   `calculateAscensionCount`, the `wow*` cube awards via
 ///   `CalcCorruptionStuff`) — gated off at default;
-/// - `resetTalismanData('ascension')` — `setTalismanRarity` needs the UI-tier
-///   `isUnlocked` predicate and talismans can't be leveled in the port yet, so
-///   it is inert at reachable state (`resetRunes` and `resetAnts` ARE ported);
 /// - the `autoChallengeIndex` / `roombaResearchIndex` / `autoResearch` UI
 ///   cursors (no logic field / UI-tier);
 /// - the C15 corruption override (needs the `c15Corruptions` constant) and
@@ -474,9 +474,8 @@ fn apply_ascension_layer(state: &mut GameState) {
     // resetAnts(AntSacrificeTiers.ascension) (Reset.ts:650).
     reset_ants_ascension(&mut state.ants);
 
-    // resetTalismanData('ascension') (651): DEFERRED — `setTalismanRarity`
-    // needs the UI-tier `isUnlocked` predicate, and talismans can't be leveled
-    // in the port yet (no buy path), so this is inert at reachable state.
+    // resetTalismanData('ascension') (Reset.ts:651).
+    reset_talismans_ascension(&mut state.talismans);
 
     // Reincarnation-tier currencies (Reset.ts:652-653).
     state.upgrades.reincarnation_points = Decimal::zero();
@@ -621,6 +620,27 @@ fn reset_ants_ascension(ants: &mut AntsState) {
     // Sacrifice timers (the `resetAnts` wrapper, reset.ts).
     ants.ant_sacrifice_timer = 0.0;
     ants.ant_sacrifice_timer_real = 0.0;
+}
+
+/// `resetTalismanData('ascension')` (`Talismans.ts:1067-1086`). All seven Rust
+/// talismans are ascension-tier, so each `resetSingleTalisman` runs: level → 0
+/// and a rarity recompute (`setTalismanRarity`). The recompute needs the
+/// UI-tier `isUnlocked()` predicate, which is `false` at reachable state
+/// (talismans have no unlock / level path in the port yet) ⇒ rarity 0 —
+/// faithful here; the unlocked-talisman rarity (`compute_talisman_rarity`
+/// returns 1 at level 0) is deferred. The shard balance and the six fragment
+/// pools zero; the rune-buff assignments (legacy `talismanOne..Seven`) are
+/// **not** touched, matching `resetSingleTalisman`.
+fn reset_talismans_ascension(talismans: &mut TalismansState) {
+    talismans.talisman_levels = [0.0; TALISMAN_COUNT];
+    talismans.talisman_rarity = [0.0; TALISMAN_COUNT];
+    talismans.talisman_shards = 0.0;
+    talismans.common_fragments = 0.0;
+    talismans.uncommon_fragments = 0.0;
+    talismans.rare_fragments = 0.0;
+    talismans.epic_fragments = 0.0;
+    talismans.legendary_fragments = 0.0;
+    talismans.mythical_fragments = 0.0;
 }
 
 /// Zero a contiguous run of `player.upgrades` slots (the `resetUpgrades`
@@ -1149,5 +1169,29 @@ mod tests {
         assert_eq!(state.ants.current_sacrifice_id, 6);
         assert_eq!(state.ants.ant_sacrifice_timer, 0.0);
         assert_eq!(state.ants.ant_sacrifice_timer_real, 0.0);
+    }
+
+    #[test]
+    fn ascension_reset_wipes_talisman_levels_and_fragments() {
+        let mut state = GameState::default();
+        state.talismans.talisman_levels = [50.0; TALISMAN_COUNT];
+        state.talismans.talisman_rarity = [4.0; TALISMAN_COUNT];
+        state.talismans.talisman_shards = 1e9;
+        state.talismans.common_fragments = 100.0;
+        state.talismans.mythical_fragments = 7.0;
+        // Rune-buff assignments survive — resetSingleTalisman leaves them.
+        state.talismans.rune_assignments[0][0].allocated = true;
+        state.talismans.rune_assignments[0][0].rune_id = 3;
+
+        perform_ascension_reset(&mut state, &gains(0.0, 0.0, 0.0));
+
+        assert_eq!(state.talismans.talisman_levels, [0.0; TALISMAN_COUNT]);
+        assert_eq!(state.talismans.talisman_rarity, [0.0; TALISMAN_COUNT]);
+        assert_eq!(state.talismans.talisman_shards, 0.0);
+        assert_eq!(state.talismans.common_fragments, 0.0);
+        assert_eq!(state.talismans.mythical_fragments, 0.0);
+        // Rune-buff assignments untouched.
+        assert!(state.talismans.rune_assignments[0][0].allocated);
+        assert_eq!(state.talismans.rune_assignments[0][0].rune_id, 3);
     }
 }
