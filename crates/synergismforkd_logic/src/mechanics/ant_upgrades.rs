@@ -19,8 +19,12 @@
 //! AntELO read additional player state; those are parameterized
 //! through input objects.
 
-use crate::math::calculate_sigmoid_exponential;
+use smallvec::SmallVec;
 use synergismforkd_bignum::Decimal;
+
+use crate::events::CoreEvent;
+use crate::math::calculate_sigmoid_exponential;
+use crate::state::AntsState;
 
 // ─── Cost data (function-keyed because 1e37777 > f64::MAX) ────────────────
 
@@ -171,6 +175,84 @@ pub fn get_cost_max_ant_upgrades(input: &AntUpgradeMaxCostInput) -> Decimal {
         input.cost_increase_exponent * (input.max_buyable - 1.0),
     )) * input.base_cost;
     max_cost - spent
+}
+
+// ─── Manual buy ───────────────────────────────────────────────────────────
+
+/// Inputs to [`buy_ant_upgrade`].
+#[derive(Debug, Clone, Copy)]
+pub struct BuyAntUpgradeInput {
+    /// Ant-upgrade index (`0..16`, AntSpeed..Mortuus2). Out-of-range is a
+    /// no-op.
+    pub index: u8,
+    /// `true` = buy-max (shift-click): buy as many levels as the crumb budget
+    /// affords; `false` = a single level.
+    pub max: bool,
+}
+
+/// Buy level(s) of ant upgrade `index` with galactic crumbs — a port of the
+/// legacy `buyAntUpgrade`. All cost data is logic-side (`ant_upgrade_base_cost`,
+/// `ant_upgrade_cost_increase_exponent`, and the cost solvers), so the buy
+/// self-computes from the index and state. Spends `ants.crumbs`; emits
+/// [`CoreEvent::AntUpgradePurchased`].
+#[must_use]
+pub fn buy_ant_upgrade(
+    ants: &mut AntsState,
+    input: BuyAntUpgradeInput,
+) -> SmallVec<[CoreEvent; 4]> {
+    let mut events = SmallVec::new();
+    let idx = input.index as usize;
+    if idx >= ants.upgrades.len() {
+        return events;
+    }
+    let base_cost = ant_upgrade_base_cost(input.index);
+    let exponent = ant_upgrade_cost_increase_exponent(input.index);
+    let before = ants.upgrades[idx];
+
+    if input.max {
+        let buy_to = get_max_purchasable_ant_upgrades(&AntUpgradeMaxPurchasableInput {
+            base_cost,
+            cost_increase_exponent: exponent,
+            current_level: before,
+            budget: ants.crumbs,
+        });
+        if buy_to <= before {
+            return events;
+        }
+        let cost = get_cost_max_ant_upgrades(&AntUpgradeMaxCostInput {
+            base_cost,
+            cost_increase_exponent: exponent,
+            current_level: before,
+            max_buyable: buy_to,
+        });
+        if ants.crumbs >= cost {
+            ants.crumbs -= cost;
+            ants.upgrades[idx] = buy_to;
+            events.push(CoreEvent::AntUpgradePurchased {
+                index: input.index.into(),
+                before,
+                after: buy_to,
+                spent: cost,
+            });
+        }
+    } else {
+        let cost = get_cost_next_ant_upgrade(&AntUpgradeCostInput {
+            base_cost,
+            cost_increase_exponent: exponent,
+            current_level: before,
+        });
+        if ants.crumbs >= cost {
+            ants.crumbs -= cost;
+            ants.upgrades[idx] += 1.0;
+            events.push(CoreEvent::AntUpgradePurchased {
+                index: input.index.into(),
+                before,
+                after: ants.upgrades[idx],
+                spent: cost,
+            });
+        }
+    }
+    events
 }
 
 // ─── Pure effect functions (per upgrade) ──────────────────────────────────
@@ -588,5 +670,76 @@ mod tests {
         let result = wow_cubes_ant_upgrade_effect(1e6);
         // 2 - 0.999^1e6 ≈ 2 - 0 = 2 (within f64 tolerance)
         assert!((result - 2.0).abs() < 1e-9);
+    }
+
+    // ─── Manual buy ───────────────────────────────────────────────────────
+
+    fn ants_with_crumbs(crumbs: f64) -> AntsState {
+        AntsState {
+            crumbs: Decimal::from_finite(crumbs),
+            ..AntsState::default()
+        }
+    }
+
+    #[test]
+    fn buy_ant_upgrade_single_spends_crumbs() {
+        // AntSpeed (0): base_cost 100 → the first level costs 100 crumbs.
+        let mut ants = ants_with_crumbs(1000.0);
+        let events = buy_ant_upgrade(
+            &mut ants,
+            BuyAntUpgradeInput {
+                index: 0,
+                max: false,
+            },
+        );
+        assert_eq!(ants.upgrades[0], 1.0);
+        assert!((ants.crumbs.to_number() - 900.0).abs() < 1e-9);
+        assert!(matches!(
+            events.as_slice(),
+            [CoreEvent::AntUpgradePurchased { index: 0, .. }]
+        ));
+    }
+
+    #[test]
+    fn buy_ant_upgrade_unaffordable_is_noop() {
+        let mut ants = ants_with_crumbs(50.0);
+        let events = buy_ant_upgrade(
+            &mut ants,
+            BuyAntUpgradeInput {
+                index: 0,
+                max: false,
+            },
+        );
+        assert_eq!(ants.upgrades[0], 0.0);
+        assert!(events.is_empty());
+    }
+
+    #[test]
+    fn buy_ant_upgrade_max_buys_multiple() {
+        // AntSpeed: base 100, exp 1. Budget 1e6 → level 5 (cost 100 * 1e4 = 1e6).
+        let mut ants = ants_with_crumbs(1e6);
+        let events = buy_ant_upgrade(
+            &mut ants,
+            BuyAntUpgradeInput {
+                index: 0,
+                max: true,
+            },
+        );
+        assert_eq!(ants.upgrades[0], 5.0);
+        assert!(ants.crumbs.to_number().abs() < 1e-3);
+        assert_eq!(events.len(), 1);
+    }
+
+    #[test]
+    fn buy_ant_upgrade_out_of_range_is_noop() {
+        let mut ants = ants_with_crumbs(1e9);
+        let events = buy_ant_upgrade(
+            &mut ants,
+            BuyAntUpgradeInput {
+                index: 16,
+                max: false,
+            },
+        );
+        assert!(events.is_empty());
     }
 }

@@ -12,6 +12,12 @@
 //! player-derived value as an extra parameter; the UI data-table
 //! closure forwards.
 
+use smallvec::SmallVec;
+
+use crate::events::CoreEvent;
+use crate::state::ambrosia::AMBROSIA_UPGRADES_LEN;
+use crate::state::AmbrosiaState;
+
 // ─── Shape helpers ────────────────────────────────────────────────────────
 
 #[inline]
@@ -248,6 +254,146 @@ pub fn ambrosia_free_red_luck_upgrades_cost_formula(level: u32, base_cost: f64) 
 #[must_use]
 pub fn ambrosia_free_quark_upgrades_cost_formula(level: u32, base_cost: f64) -> f64 {
     cubic_difference(level, base_cost)
+}
+
+// ─── Cost dispatch + manual buy ───────────────────────────────────────────
+
+/// Per-index `costFormula` dispatch table. Slot `i` is the cost formula for
+/// ambrosia upgrade `i` — the array order IS the `AMBROSIA_*` index
+/// convention (legacy `ambrosiaUpgrades` key order), so positions here must
+/// stay in lockstep with `state::ambrosia`.
+const AMBROSIA_COST_FORMULAS: [fn(u32, f64) -> f64; AMBROSIA_UPGRADES_LEN] = [
+    ambrosia_tutorial_cost_formula,                  // 0  tutorial
+    ambrosia_quarks_1_cost_formula,                  // 1  quarks1
+    ambrosia_cubes_1_cost_formula,                   // 2  cubes1
+    ambrosia_luck_1_cost_formula,                    // 3  luck1
+    ambrosia_quark_cube_1_cost_formula,              // 4  quarkCube1
+    ambrosia_luck_cube_1_cost_formula,               // 5  luckCube1
+    ambrosia_cube_quark_1_cost_formula,              // 6  cubeQuark1
+    ambrosia_luck_quark_1_cost_formula,              // 7  luckQuark1
+    ambrosia_cube_luck_1_cost_formula,               // 8  cubeLuck1
+    ambrosia_quark_luck_1_cost_formula,              // 9  quarkLuck1
+    ambrosia_quarks_2_cost_formula,                  // 10 quarks2
+    ambrosia_cubes_2_cost_formula,                   // 11 cubes2
+    ambrosia_luck_2_cost_formula,                    // 12 luck2
+    ambrosia_quarks_3_cost_formula,                  // 13 quarks3
+    ambrosia_cubes_3_cost_formula,                   // 14 cubes3
+    ambrosia_luck_3_cost_formula,                    // 15 luck3
+    ambrosia_luck_4_cost_formula,                    // 16 luck4
+    ambrosia_patreon_cost_formula,                   // 17 patreon
+    ambrosia_obtainium_1_cost_formula,               // 18 obtainium1
+    ambrosia_offering_1_cost_formula,                // 19 offering1
+    ambrosia_hyperflux_cost_formula,                 // 20 hyperflux
+    ambrosia_base_offering_1_cost_formula,           // 21 baseOffering1
+    ambrosia_base_obtainium_1_cost_formula,          // 22 baseObtainium1
+    ambrosia_base_offering_2_cost_formula,           // 23 baseOffering2
+    ambrosia_base_obtainium_2_cost_formula,          // 24 baseObtainium2
+    ambrosia_sing_reduction_1_cost_formula,          // 25 singReduction1
+    ambrosia_infinite_shop_upgrades_1_cost_formula,  // 26 infiniteShopUpgrades1
+    ambrosia_infinite_shop_upgrades_2_cost_formula,  // 27 infiniteShopUpgrades2
+    ambrosia_sing_reduction_2_cost_formula,          // 28 singReduction2
+    ambrosia_talisman_bonus_rune_level_cost_formula, // 29 talismanBonusRuneLevel
+    ambrosia_rune_oom_bonus_cost_formula,            // 30 runeOOMBonus
+    ambrosia_brick_of_lead_cost_formula,             // 31 brickOfLead
+    ambrosia_free_luck_upgrades_cost_formula,        // 32 freeLuckUpgrades
+    ambrosia_free_generation_upgrades_cost_formula,  // 33 freeGenerationUpgrades
+    ambrosia_free_red_luck_upgrades_cost_formula,    // 34 freeRedLuckUpgrades
+    ambrosia_free_quark_upgrades_cost_formula,       // 35 freeQuarkUpgrades
+];
+
+/// Cost of the next level of ambrosia upgrade `index`, via the upgrade's own
+/// `costFormula(level, costPerLevel)`. The UI tier owns the `costPerLevel`
+/// data table; the formula and the index→formula binding live here. `index`
+/// out of range returns `0.0`.
+#[must_use]
+pub fn ambrosia_upgrade_cost(index: usize, level: u32, cost_per_level: f64) -> f64 {
+    AMBROSIA_COST_FORMULAS
+        .get(index)
+        .map_or(0.0, |formula| formula(level, cost_per_level))
+}
+
+/// Inputs to [`buy_ambrosia_upgrade`].
+#[derive(Debug, Clone, Copy)]
+pub struct BuyAmbrosiaUpgradeInput {
+    /// Ambrosia-upgrade index (`0..36`, via the `AMBROSIA_*` constants).
+    /// Out-of-range is a no-op.
+    pub index: usize,
+    /// `ambrosiaUpgrades[key].costPerLevel` — per-upgrade base cost (UI-tier
+    /// data-table value). Fed to the index-dispatched cost formula.
+    pub cost_per_level: f64,
+    /// `ambrosiaUpgrades[key].maxLevel` — the purchase cap (UI-tier). The
+    /// `maxLevel <= 0` sentinel means unlimited; otherwise the buy stops once
+    /// `level == max_level`.
+    pub max_level: f64,
+    /// `ambrosiaUpgrades[key].blueberryCost` — blueberry slots the upgrade
+    /// occupies (UI-tier). Paid once, when the upgrade leaves level 0.
+    pub blueberry_cost: f64,
+    /// `calculateBlueberryInventory()` — total blueberries available (the
+    /// reducer is UI-tier / unported, like `ambrosia_luck_3_effect`'s
+    /// `blueberry_inventory`). Gates the first-level slot payment together
+    /// with the already-spent count in state.
+    pub blueberry_inventory: f64,
+}
+
+/// Buy one level of ambrosia upgrade `index` with ambrosia — the single-level
+/// step of the legacy `buyAmbrosiaUpgradeLevel` loop. The cost is computed
+/// logic-side via [`ambrosia_upgrade_cost`]; the caller supplies the static
+/// `cost_per_level` / `max_level` / `blueberry_cost` data-table values and the
+/// `blueberry_inventory` total (UI-tier). Spends `ambrosia.ambrosia`; the
+/// first level out of level 0 also debits `blueberry_cost` to
+/// `ambrosia.spent_blueberries`. Emits [`CoreEvent::AmbrosiaUpgradePurchased`].
+///
+/// Faithful-at-current-state deferrals:
+/// - **prerequisites**: `checkAmbrosiaUpgradePrerequisites` walks the UI data
+///   table, so — like the octeract/GQ unlock gates — the caller checks them
+///   before dispatching; this buy is ungated on prerequisites;
+/// - **buy-max**: the legacy loops `maxPurchasable` levels (a shift-click /
+///   buy-amount prompt); this buys a single level (the buy-amount-1 case);
+/// - `ambrosiaInvested` / `blueberriesInvested` respec tracking have no
+///   logic-state fields (like the GQ buy's `goldenQuarksInvested`), so they
+///   are not accumulated.
+#[must_use]
+pub fn buy_ambrosia_upgrade(
+    ambrosia: &mut AmbrosiaState,
+    input: BuyAmbrosiaUpgradeInput,
+) -> SmallVec<[CoreEvent; 4]> {
+    let mut events = SmallVec::new();
+    if input.index >= ambrosia.upgrades.len() {
+        return events;
+    }
+    let before = ambrosia.upgrades[input.index].level;
+
+    // Legacy gate: bounded upgrades stop at `maxLevel`; `maxLevel <= 0` is the
+    // unlimited sentinel.
+    let not_maxed = input.max_level <= 0.0 || before < input.max_level;
+    if !not_maxed {
+        return events;
+    }
+
+    let cost = ambrosia_upgrade_cost(input.index, before as u32, input.cost_per_level);
+    if ambrosia.ambrosia < cost {
+        return events;
+    }
+
+    // The blueberry-slot cost is paid once, when the upgrade leaves level 0.
+    // Gated by the blueberries still free (inventory minus already-spent).
+    if before == 0.0 {
+        let available = input.blueberry_inventory - ambrosia.spent_blueberries;
+        if available < input.blueberry_cost {
+            return events;
+        }
+        ambrosia.spent_blueberries += input.blueberry_cost;
+    }
+
+    ambrosia.ambrosia -= cost;
+    ambrosia.upgrades[input.index].level += 1.0;
+    events.push(CoreEvent::AmbrosiaUpgradePurchased {
+        index: input.index as u32,
+        before,
+        after: ambrosia.upgrades[input.index].level,
+        spent: cost,
+    });
+    events
 }
 
 // ─── Multi-key effect dispatchers ─────────────────────────────────────────
@@ -673,5 +819,158 @@ mod tests {
         let result = ambrosia_luck_quark_1_effect(1.0, 100_000.0);
         // 1 + 0.0001 * 10000 = 2
         assert!((result - 2.0).abs() < 1e-12);
+    }
+
+    // ─── Cost dispatch + buy ──────────────────────────────────────────────
+
+    #[test]
+    fn ambrosia_upgrade_cost_dispatches_by_index() {
+        // Slot 0 = tutorial (quadratic diff), base 1: level 0 → 1, level 1 → 3.
+        assert_eq!(ambrosia_upgrade_cost(0, 0, 1.0), 1.0);
+        assert_eq!(ambrosia_upgrade_cost(0, 1, 1.0), 3.0);
+        // Slot 1 = quarks1 (cubic diff), base 1: level 1 → (2^3 - 1^3) = 7.
+        assert_eq!(ambrosia_upgrade_cost(1, 1, 1.0), 7.0);
+        // Out of range → 0.
+        assert_eq!(ambrosia_upgrade_cost(AMBROSIA_UPGRADES_LEN, 0, 1.0), 0.0);
+    }
+
+    fn amb_state(level: f64, ambrosia: f64) -> AmbrosiaState {
+        let mut s = AmbrosiaState {
+            ambrosia,
+            ..AmbrosiaState::default()
+        };
+        s.upgrades[0].level = level;
+        s
+    }
+
+    #[test]
+    fn buy_ambrosia_upgrade_levels_up_and_spends() {
+        // tutorial at level 0, costPerLevel 1 → cost 1; blueberryCost 0.
+        let mut ambrosia = amb_state(0.0, 10.0);
+        let events = buy_ambrosia_upgrade(
+            &mut ambrosia,
+            BuyAmbrosiaUpgradeInput {
+                index: 0,
+                cost_per_level: 1.0,
+                max_level: 10.0,
+                blueberry_cost: 0.0,
+                blueberry_inventory: 0.0,
+            },
+        );
+        assert_eq!(ambrosia.upgrades[0].level, 1.0);
+        assert!((ambrosia.ambrosia - 9.0).abs() < 1e-9);
+        assert!(matches!(
+            events.as_slice(),
+            [CoreEvent::AmbrosiaUpgradePurchased { index: 0, .. }]
+        ));
+    }
+
+    #[test]
+    fn buy_ambrosia_upgrade_unaffordable_is_noop() {
+        let mut ambrosia = amb_state(0.0, 0.5);
+        let events = buy_ambrosia_upgrade(
+            &mut ambrosia,
+            BuyAmbrosiaUpgradeInput {
+                index: 0,
+                cost_per_level: 1.0,
+                max_level: 10.0,
+                blueberry_cost: 0.0,
+                blueberry_inventory: 0.0,
+            },
+        );
+        assert_eq!(ambrosia.upgrades[0].level, 0.0);
+        assert!(events.is_empty());
+    }
+
+    #[test]
+    fn buy_ambrosia_upgrade_maxed_is_noop() {
+        let mut ambrosia = amb_state(10.0, 1e9);
+        let events = buy_ambrosia_upgrade(
+            &mut ambrosia,
+            BuyAmbrosiaUpgradeInput {
+                index: 0,
+                cost_per_level: 1.0,
+                max_level: 10.0,
+                blueberry_cost: 0.0,
+                blueberry_inventory: 0.0,
+            },
+        );
+        assert_eq!(ambrosia.upgrades[0].level, 10.0);
+        assert!(events.is_empty());
+    }
+
+    #[test]
+    fn buy_ambrosia_upgrade_first_level_pays_blueberry_slot() {
+        // Leaving level 0 with blueberryCost 2 and 3 free blueberries: pays 2.
+        let mut ambrosia = amb_state(0.0, 10.0);
+        let events = buy_ambrosia_upgrade(
+            &mut ambrosia,
+            BuyAmbrosiaUpgradeInput {
+                index: 0,
+                cost_per_level: 1.0,
+                max_level: 10.0,
+                blueberry_cost: 2.0,
+                blueberry_inventory: 3.0,
+            },
+        );
+        assert_eq!(ambrosia.upgrades[0].level, 1.0);
+        assert!((ambrosia.spent_blueberries - 2.0).abs() < 1e-9);
+        assert_eq!(events.len(), 1);
+    }
+
+    #[test]
+    fn buy_ambrosia_upgrade_blocked_when_no_free_blueberries() {
+        // blueberryCost 2 but only 1 free blueberry: no purchase, no spend.
+        let mut ambrosia = amb_state(0.0, 10.0);
+        let events = buy_ambrosia_upgrade(
+            &mut ambrosia,
+            BuyAmbrosiaUpgradeInput {
+                index: 0,
+                cost_per_level: 1.0,
+                max_level: 10.0,
+                blueberry_cost: 2.0,
+                blueberry_inventory: 1.0,
+            },
+        );
+        assert_eq!(ambrosia.upgrades[0].level, 0.0);
+        assert_eq!(ambrosia.spent_blueberries, 0.0);
+        assert!((ambrosia.ambrosia - 10.0).abs() < 1e-9);
+        assert!(events.is_empty());
+    }
+
+    #[test]
+    fn buy_ambrosia_upgrade_above_level_0_skips_blueberry_slot() {
+        // Already past level 0: the slot cost is not re-paid even with no free
+        // blueberries. cost = quadratic_difference(5, 1) = 36 - 25 = 11.
+        let mut ambrosia = amb_state(5.0, 100.0);
+        let events = buy_ambrosia_upgrade(
+            &mut ambrosia,
+            BuyAmbrosiaUpgradeInput {
+                index: 0,
+                cost_per_level: 1.0,
+                max_level: 10.0,
+                blueberry_cost: 99.0,
+                blueberry_inventory: 0.0,
+            },
+        );
+        assert_eq!(ambrosia.upgrades[0].level, 6.0);
+        assert_eq!(ambrosia.spent_blueberries, 0.0);
+        assert_eq!(events.len(), 1);
+    }
+
+    #[test]
+    fn buy_ambrosia_upgrade_out_of_range_is_noop() {
+        let mut ambrosia = amb_state(0.0, 1e9);
+        let events = buy_ambrosia_upgrade(
+            &mut ambrosia,
+            BuyAmbrosiaUpgradeInput {
+                index: AMBROSIA_UPGRADES_LEN,
+                cost_per_level: 1.0,
+                max_level: 10.0,
+                blueberry_cost: 0.0,
+                blueberry_inventory: 0.0,
+            },
+        );
+        assert!(events.is_empty());
     }
 }

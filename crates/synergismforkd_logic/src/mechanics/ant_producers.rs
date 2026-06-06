@@ -13,7 +13,11 @@
 //! Breeders, etc.), not a log-10 exp. Formula:
 //! `cost_to_buy_nth = base_cost × cost_increase^(N - 1)`.
 
+use smallvec::SmallVec;
 use synergismforkd_bignum::Decimal;
+
+use crate::events::CoreEvent;
+use crate::state::AntsState;
 
 /// Pure data fields for one ant producer.
 #[derive(Debug, Clone, Copy)]
@@ -208,6 +212,86 @@ pub fn get_cost_max_ant_producers(input: &AntProducerMaxCostInput) -> Decimal {
     max_cost - spent
 }
 
+// ─── Manual buy ───────────────────────────────────────────────────────────
+
+/// Inputs to [`buy_ant_producer`].
+#[derive(Debug, Clone, Copy)]
+pub struct BuyAntProducerInput {
+    /// Ant-producer index (`0..9`, Workers..HolySpirit). Out-of-range is a
+    /// no-op.
+    pub index: u8,
+    /// `true` = buy-max (shift-click): buy as many as the crumb budget
+    /// affords; `false` = a single producer.
+    pub max: bool,
+}
+
+/// Buy ant-producer tier `index` with galactic crumbs — a port of the legacy
+/// `buyAntProducers`. All cost data is logic-side (`ant_producer_data` and the
+/// cost solvers), so the buy self-computes from the index and state. Spends
+/// `ants.crumbs`; emits [`CoreEvent::AntProducersPurchased`].
+///
+/// Faithful-at-current-state deferral: the legacy fires
+/// `awardAchievementGroup('sacMult')` on the first producer bought — like the
+/// other buys, achievement side-effects are not applied here.
+#[must_use]
+pub fn buy_ant_producer(
+    ants: &mut AntsState,
+    input: BuyAntProducerInput,
+) -> SmallVec<[CoreEvent; 4]> {
+    let mut events = SmallVec::new();
+    let idx = input.index as usize;
+    if idx >= ants.producers.len() {
+        return events;
+    }
+    let data = ant_producer_data(input.index);
+    let before = ants.producers[idx].purchased;
+
+    if input.max {
+        let buy_to = get_max_purchasable_ant_producers(&AntProducerMaxPurchasableInput {
+            base_cost: data.base_cost,
+            cost_increase: data.cost_increase,
+            purchased: before,
+            budget: ants.crumbs,
+        });
+        if buy_to <= before {
+            return events;
+        }
+        let cost = get_cost_max_ant_producers(&AntProducerMaxCostInput {
+            base_cost: data.base_cost,
+            cost_increase: data.cost_increase,
+            purchased: before,
+            max_buyable: buy_to,
+        });
+        if ants.crumbs >= cost {
+            ants.crumbs -= cost;
+            ants.producers[idx].purchased = buy_to;
+            events.push(CoreEvent::AntProducersPurchased {
+                index: input.index.into(),
+                before,
+                after: buy_to,
+                spent: cost,
+            });
+        }
+    } else {
+        let cost = get_cost_next_ant_producer(&AntProducerCostInput {
+            base_cost: data.base_cost,
+            cost_increase: data.cost_increase,
+            purchased: before,
+        });
+        if ants.crumbs >= cost {
+            ants.crumbs -= cost;
+            ants.producers[idx].purchased += 1.0;
+            events.push(CoreEvent::AntProducersPurchased {
+                index: input.index.into(),
+                before,
+                after: ants.producers[idx].purchased,
+                spent: cost,
+            });
+        }
+    }
+    events
+}
+
 // ─── Base production rate ─────────────────────────────────────────────────
 
 /// Inputs to [`calculate_base_ants_to_be_generated`].
@@ -317,5 +401,91 @@ mod tests {
         });
         // 10 * 0.01 * 2 * 1 = 0.2
         assert!((result.to_number() - 0.2).abs() < 1e-12);
+    }
+
+    // ─── Manual buy ───────────────────────────────────────────────────────
+
+    fn ants_with_crumbs(crumbs: f64) -> AntsState {
+        AntsState {
+            crumbs: Decimal::from_finite(crumbs),
+            ..AntsState::default()
+        }
+    }
+
+    #[test]
+    fn buy_ant_producer_single_spends_crumbs() {
+        // Workers (0): base_cost 1 → the first producer costs 1 crumb.
+        let mut ants = ants_with_crumbs(10.0);
+        let events = buy_ant_producer(
+            &mut ants,
+            BuyAntProducerInput {
+                index: 0,
+                max: false,
+            },
+        );
+        assert_eq!(ants.producers[0].purchased, 1.0);
+        assert!((ants.crumbs.to_number() - 9.0).abs() < 1e-9);
+        assert!(matches!(
+            events.as_slice(),
+            [CoreEvent::AntProducersPurchased { index: 0, .. }]
+        ));
+    }
+
+    #[test]
+    fn buy_ant_producer_unaffordable_is_noop() {
+        let mut ants = ants_with_crumbs(0.5);
+        let events = buy_ant_producer(
+            &mut ants,
+            BuyAntProducerInput {
+                index: 0,
+                max: false,
+            },
+        );
+        assert_eq!(ants.producers[0].purchased, 0.0);
+        assert!(events.is_empty());
+    }
+
+    #[test]
+    fn buy_ant_producer_max_buys_multiple() {
+        // Workers: base 1, cost_increase 3. Budget 1000 → reach 7 (cost 3^6 = 729).
+        let mut ants = ants_with_crumbs(1000.0);
+        let events = buy_ant_producer(
+            &mut ants,
+            BuyAntProducerInput {
+                index: 0,
+                max: true,
+            },
+        );
+        assert_eq!(ants.producers[0].purchased, 7.0);
+        assert!((ants.crumbs.to_number() - 271.0).abs() < 1e-6);
+        assert_eq!(events.len(), 1);
+    }
+
+    #[test]
+    fn buy_ant_producer_max_zero_budget_is_noop() {
+        // buy_to floors to 0 <= purchased 0 → early return, no event.
+        let mut ants = ants_with_crumbs(0.0);
+        let events = buy_ant_producer(
+            &mut ants,
+            BuyAntProducerInput {
+                index: 0,
+                max: true,
+            },
+        );
+        assert_eq!(ants.producers[0].purchased, 0.0);
+        assert!(events.is_empty());
+    }
+
+    #[test]
+    fn buy_ant_producer_out_of_range_is_noop() {
+        let mut ants = ants_with_crumbs(1e9);
+        let events = buy_ant_producer(
+            &mut ants,
+            BuyAntProducerInput {
+                index: 9,
+                max: false,
+            },
+        );
+        assert!(events.is_empty());
     }
 }

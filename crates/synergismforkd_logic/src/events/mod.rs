@@ -257,6 +257,35 @@ pub enum CoreEvent {
         /// Golden quarks removed from the player's balance.
         spent: f64,
     },
+    /// One octeract upgrade gained a level — the single-level step of the
+    /// legacy `buyOcteractUpgradeLevel` loop. `spent` is in `wow_octeracts`,
+    /// an `f64` mirroring the legacy `player.wowOcteracts < cost` number
+    /// comparison.
+    OcteractUpgradePurchased {
+        /// Octeract-upgrade index (0..47, via the `OCTERACT_*` constants).
+        index: u32,
+        /// Level before the purchase.
+        before: f64,
+        /// Level after the purchase.
+        after: f64,
+        /// Octeracts removed from the player's balance.
+        spent: f64,
+    },
+    /// One ambrosia (blueberry) upgrade gained a level — the single-level
+    /// step of the legacy `buyAmbrosiaUpgradeLevel` loop. `spent` is in
+    /// ambrosia (`f64`); the first level out of level 0 also debits the
+    /// upgrade's blueberry-slot cost to `spent_blueberries` (reflected in
+    /// state, not on this event).
+    AmbrosiaUpgradePurchased {
+        /// Ambrosia-upgrade index (0..36, via the `AMBROSIA_*` constants).
+        index: u32,
+        /// Level before the purchase.
+        before: f64,
+        /// Level after the purchase.
+        after: f64,
+        /// Ambrosia removed from the player's balance.
+        spent: f64,
+    },
     /// One shop upgrade gained a level (or a consumable a unit of stock —
     /// the buy is uniform). `spent` is in quarks — an `f64` mirroring the
     /// legacy `Number(player.worlds)` cost comparison.
@@ -281,6 +310,79 @@ pub enum CoreEvent {
         after: f64,
         /// Obtainium removed from the player's balance.
         spent: Decimal,
+    },
+    /// Rune `index` gained levels by spending offerings — the legacy
+    /// `sacrificeOfferings` flow. `before`/`after` are purchased levels (which
+    /// may be equal if the budget only banked partial EXP); `spent` is the
+    /// offerings consumed.
+    RuneLevelsPurchased {
+        /// Rune index (0..7, via the `RUNE_*` constants).
+        index: u32,
+        /// Purchased level before the spend.
+        before: f64,
+        /// Purchased level after the spend (re-derived from EXP).
+        after: f64,
+        /// Offerings removed from the player's balance.
+        spent: Decimal,
+    },
+    /// One ant-producer tier was bought (single click or buy-max) — the
+    /// legacy `buyAntProducers`. `before`/`after` are the `purchased` count;
+    /// `spent` is in galactic crumbs.
+    AntProducersPurchased {
+        /// Ant-producer index (0..9, Workers..HolySpirit).
+        index: u32,
+        /// `purchased` count before the buy.
+        before: f64,
+        /// `purchased` count after the buy.
+        after: f64,
+        /// Crumbs removed from the player's balance.
+        spent: Decimal,
+    },
+    /// One ant upgrade gained level(s) (single click or buy-max) — the legacy
+    /// `buyAntUpgrade`. `spent` is in galactic crumbs.
+    AntUpgradePurchased {
+        /// Ant-upgrade index (0..16, AntSpeed..Mortuus2).
+        index: u32,
+        /// Level before the buy.
+        before: f64,
+        /// Level after the buy.
+        after: f64,
+        /// Crumbs removed from the player's balance.
+        spent: Decimal,
+    },
+    /// Hepteract `index` was crafted toward its cap — the legacy
+    /// `craftHepteracts`. `before`/`after` are the craft's balance; `amount`
+    /// is the units crafted (the multi-resource spend lands on state).
+    HepteractCrafted {
+        /// Hepteract index (0..8, chronos..multiplier).
+        index: u32,
+        /// Balance before the craft.
+        before: f64,
+        /// Balance after the craft.
+        after: f64,
+        /// Units crafted this action.
+        amount: f64,
+    },
+    /// Hepteract `index` had its cap doubled, a full bar spent — the legacy
+    /// `expandHepteracts`.
+    HepteractCapExpanded {
+        /// Hepteract index (0..8, chronos..multiplier).
+        index: u32,
+        /// Balance left after spending one cap's worth.
+        bal_after: f64,
+        /// The new (doubled) cap.
+        cap_after: f64,
+    },
+    /// Talisman `index` gained a level — the legacy `buyTalismanLevel`. The
+    /// spend lands on the seven talisman resources (shards + six fragment
+    /// tiers) in state.
+    TalismanLevelPurchased {
+        /// Talisman index (0..7, via the `TALISMAN_*` constants).
+        index: u32,
+        /// Level before the buy.
+        before: f64,
+        /// Level after the buy.
+        after: f64,
     },
     /// A single-bit upgrade was purchased. The `spent` value is the cost
     /// in the tier's currency.

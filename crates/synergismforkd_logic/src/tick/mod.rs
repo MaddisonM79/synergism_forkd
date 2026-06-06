@@ -37,6 +37,9 @@ use synergismforkd_bignum::Decimal;
 use crate::events::{CoreEvent, ProducerType};
 use crate::mechanics::accelerators::{buy_accelerator, BuyAcceleratorInput};
 use crate::mechanics::achievement_rewards;
+use crate::mechanics::ant_producers::{buy_ant_producer, BuyAntProducerInput};
+use crate::mechanics::ant_upgrades::{buy_ant_upgrade, BuyAntUpgradeInput};
+use crate::mechanics::blueberry_upgrades::{buy_ambrosia_upgrade, BuyAmbrosiaUpgradeInput};
 use crate::mechanics::challenge_15_rewards;
 use crate::mechanics::crystal_upgrades::{buy_crystal_upgrades, BuyCrystalUpgradesInput};
 use crate::mechanics::cube_upgrades::{buy_cube_upgrade, BuyCubeUpgradeInput};
@@ -44,13 +47,19 @@ use crate::mechanics::global_multipliers::{
     compute_global_multipliers, GlobalMultipliersPreEvaluated, GlobalMultipliersResult,
 };
 use crate::mechanics::gq_upgrade_cost::{buy_gq_upgrade, BuyGQUpgradeInput};
+use crate::mechanics::hepteract_values::{
+    buy_hepteract_craft, buy_hepteract_expand, BuyHepteractCraftInput, BuyHepteractExpandInput,
+};
 use crate::mechanics::multipliers::{buy_multiplier, BuyMultiplierInput};
+use crate::mechanics::octeracts::{buy_octeract_upgrade, BuyOcteractUpgradeInput};
 use crate::mechanics::particle_buildings::{buy_particle_building, BuyParticleBuildingInput};
 use crate::mechanics::platonic_upgrade_costs::{buy_platonic_upgrade, BuyPlatonicUpgradeInput};
 use crate::mechanics::producers::{buy_max, buy_producer, BuyMaxInput, BuyProducerInput};
 use crate::mechanics::researches::{buy_research, BuyResearchInput};
 use crate::mechanics::resource_gain::{resource_gain, ResourceGainPre};
+use crate::mechanics::rune_levels::{buy_rune_levels, BuyRuneLevelsInput};
 use crate::mechanics::shop_costs::{buy_shop, BuyShopInput};
+use crate::mechanics::talisman_levels::{buy_talisman_level, BuyTalismanLevelInput};
 use crate::mechanics::tesseract_buildings::{buy_tesseract_building, BuyTesseractBuildingInput};
 use crate::mechanics::update_all_multiplier::{
     update_all_multiplier, UpdateAllMultiplierPre, UpdateAllMultiplierResult,
@@ -272,6 +281,22 @@ pub enum BuyRequest {
     Research(BuyResearchInput),
     /// Routes to [`buy_gq_upgrade`].
     GoldenQuarkUpgrade(BuyGQUpgradeInput),
+    /// Routes to [`buy_octeract_upgrade`].
+    OcteractUpgrade(BuyOcteractUpgradeInput),
+    /// Routes to [`buy_ambrosia_upgrade`].
+    AmbrosiaUpgrade(BuyAmbrosiaUpgradeInput),
+    /// Routes to [`buy_rune_levels`].
+    RuneLevels(BuyRuneLevelsInput),
+    /// Routes to [`buy_ant_producer`].
+    AntProducer(BuyAntProducerInput),
+    /// Routes to [`buy_ant_upgrade`].
+    AntUpgrade(BuyAntUpgradeInput),
+    /// Routes to [`buy_hepteract_craft`].
+    HepteractCraft(BuyHepteractCraftInput),
+    /// Routes to [`buy_hepteract_expand`].
+    HepteractExpand(BuyHepteractExpandInput),
+    /// Routes to [`buy_talisman_level`].
+    TalismanLevel(BuyTalismanLevelInput),
     /// Routes to [`buy_shop`].
     Shop(BuyShopInput),
     /// Routes to [`buy_multiplier`].
@@ -4152,6 +4177,27 @@ fn dispatch_buy(state: &mut GameState, req: &BuyRequest) -> SmallVec<[CoreEvent;
         BuyRequest::Upgrade(inp) => buy_upgrades(&mut state.upgrades, *inp),
         BuyRequest::Research(inp) => buy_research(&mut state.researches, *inp),
         BuyRequest::GoldenQuarkUpgrade(inp) => buy_gq_upgrade(&mut state.golden_quarks, *inp),
+        BuyRequest::OcteractUpgrade(inp) => buy_octeract_upgrade(
+            &mut state.octeract_upgrades,
+            &mut state.cube_balances.wow_octeracts,
+            *inp,
+        ),
+        BuyRequest::AmbrosiaUpgrade(inp) => buy_ambrosia_upgrade(&mut state.ambrosia, *inp),
+        BuyRequest::RuneLevels(inp) => {
+            buy_rune_levels(&mut state.runes, &mut state.automation.offerings, *inp)
+        }
+        BuyRequest::AntProducer(inp) => buy_ant_producer(&mut state.ants, *inp),
+        BuyRequest::AntUpgrade(inp) => buy_ant_upgrade(&mut state.ants, *inp),
+        BuyRequest::HepteractCraft(inp) => buy_hepteract_craft(
+            &mut state.hepteracts,
+            &mut state.cube_balances,
+            &mut state.researches.obtainium,
+            &mut state.automation.offerings,
+            &mut state.quarks.worlds,
+            *inp,
+        ),
+        BuyRequest::HepteractExpand(inp) => buy_hepteract_expand(&mut state.hepteracts, *inp),
+        BuyRequest::TalismanLevel(inp) => buy_talisman_level(&mut state.talismans, *inp),
         BuyRequest::Shop(inp) => buy_shop(&mut state.shop, &mut state.quarks.worlds, *inp),
         BuyRequest::Multiplier(inp) => {
             buy_multiplier(&mut state.multiplier, &mut state.upgrades.coins, *inp)
@@ -5111,6 +5157,284 @@ mod tests {
             output.events
         );
         assert_eq!(state.golden_quarks.upgrades[0].level, 1.0);
+    }
+
+    #[test]
+    fn tack_dispatches_buy_octeract_upgrade_action() {
+        use synergismforkd_bignum::Decimal;
+
+        let mut state = GameState::default();
+        state.cube_balances.wow_octeracts = Decimal::from_finite(500.0);
+
+        let mut input = TackInput {
+            dt: 0.025,
+            ..TackInput::default()
+        };
+        input
+            .player_actions
+            .push(PlayerAction::Buy(BuyRequest::OcteractUpgrade(
+                BuyOcteractUpgradeInput {
+                    index: 0,
+                    cost_per_level: 100.0,
+                    max_level: 10.0,
+                },
+            )));
+
+        let output = tack(&mut state, &input);
+
+        assert!(
+            output
+                .events
+                .iter()
+                .any(|e| matches!(e, CoreEvent::OcteractUpgradePurchased { .. })),
+            "expected OcteractUpgradePurchased in events, got {:?}",
+            output.events
+        );
+        assert_eq!(state.octeract_upgrades.upgrades[0].level, 1.0);
+    }
+
+    #[test]
+    fn tack_dispatches_buy_ambrosia_upgrade_action() {
+        let mut state = GameState::default();
+        state.ambrosia.ambrosia = 10.0;
+
+        let mut input = TackInput {
+            dt: 0.025,
+            ..TackInput::default()
+        };
+        input
+            .player_actions
+            .push(PlayerAction::Buy(BuyRequest::AmbrosiaUpgrade(
+                BuyAmbrosiaUpgradeInput {
+                    index: 0,
+                    cost_per_level: 1.0,
+                    max_level: 10.0,
+                    blueberry_cost: 0.0,
+                    blueberry_inventory: 0.0,
+                },
+            )));
+
+        let output = tack(&mut state, &input);
+
+        assert!(
+            output
+                .events
+                .iter()
+                .any(|e| matches!(e, CoreEvent::AmbrosiaUpgradePurchased { .. })),
+            "expected AmbrosiaUpgradePurchased in events, got {:?}",
+            output.events
+        );
+        assert_eq!(state.ambrosia.upgrades[0].level, 1.0);
+    }
+
+    #[test]
+    fn tack_dispatches_buy_rune_levels_action() {
+        use synergismforkd_bignum::Decimal;
+
+        let mut state = GameState::default();
+        state.automation.offerings = Decimal::from_finite(1000.0);
+
+        let mut input = TackInput {
+            dt: 0.025,
+            ..TackInput::default()
+        };
+        input
+            .player_actions
+            .push(PlayerAction::Buy(BuyRequest::RuneLevels(
+                BuyRuneLevelsInput {
+                    index: 0,
+                    cost_coefficient: Decimal::from_finite(100.0),
+                    levels_per_oom: 5.0,
+                    rune_exp_per_offering: Decimal::from_finite(10.0),
+                    levels_to_add: 5.0,
+                    budget: Decimal::from_finite(1000.0),
+                },
+            )));
+
+        let output = tack(&mut state, &input);
+
+        assert!(
+            output
+                .events
+                .iter()
+                .any(|e| matches!(e, CoreEvent::RuneLevelsPurchased { .. })),
+            "expected RuneLevelsPurchased in events, got {:?}",
+            output.events
+        );
+        assert_eq!(state.runes.rune_levels[0], 5.0);
+    }
+
+    #[test]
+    fn tack_dispatches_buy_ant_actions() {
+        use synergismforkd_bignum::Decimal;
+
+        let mut state = GameState::default();
+        state.ants.crumbs = Decimal::from_finite(1000.0);
+
+        let mut input = TackInput {
+            dt: 0.025,
+            ..TackInput::default()
+        };
+        input
+            .player_actions
+            .push(PlayerAction::Buy(BuyRequest::AntProducer(
+                BuyAntProducerInput {
+                    index: 0,
+                    max: false,
+                },
+            )));
+        input
+            .player_actions
+            .push(PlayerAction::Buy(BuyRequest::AntUpgrade(
+                BuyAntUpgradeInput {
+                    index: 0,
+                    max: false,
+                },
+            )));
+
+        let output = tack(&mut state, &input);
+
+        assert!(
+            output
+                .events
+                .iter()
+                .any(|e| matches!(e, CoreEvent::AntProducersPurchased { .. })),
+            "expected AntProducersPurchased in events, got {:?}",
+            output.events
+        );
+        assert!(
+            output
+                .events
+                .iter()
+                .any(|e| matches!(e, CoreEvent::AntUpgradePurchased { .. })),
+            "expected AntUpgradePurchased in events, got {:?}",
+            output.events
+        );
+        assert_eq!(state.ants.producers[0].purchased, 1.0);
+        assert_eq!(state.ants.upgrades[0], 1.0);
+    }
+
+    #[test]
+    fn tack_dispatches_buy_hepteract_craft_action() {
+        use crate::mechanics::hepteract_values::{HepteractConversions, HepteractKind};
+
+        let mut state = GameState::default();
+        state.hepteracts.chronos.cap = 100.0;
+        state.cube_balances.wow_abyssals = 50.0;
+
+        let mut input = TackInput {
+            dt: 0.025,
+            ..TackInput::default()
+        };
+        input
+            .player_actions
+            .push(PlayerAction::Buy(BuyRequest::HepteractCraft(
+                BuyHepteractCraftInput {
+                    kind: HepteractKind::Chronos,
+                    conversions: HepteractConversions {
+                        hepteract: 1.0,
+                        ..HepteractConversions::default()
+                    },
+                    craft_cost_multi: 1.0,
+                    exalt_3_cap: false,
+                    requested_amount: 10.0,
+                    max: false,
+                },
+            )));
+
+        let output = tack(&mut state, &input);
+
+        assert!(
+            output
+                .events
+                .iter()
+                .any(|e| matches!(e, CoreEvent::HepteractCrafted { .. })),
+            "expected HepteractCrafted in events, got {:?}",
+            output.events
+        );
+        // 10 units crafted at cost 1 abyssal each: bal 0 → 10, abyssals 50 → 40.
+        assert_eq!(state.hepteracts.chronos.bal, 10.0);
+        assert!((state.cube_balances.wow_abyssals - 40.0).abs() < 1e-9);
+    }
+
+    #[test]
+    fn tack_dispatches_buy_hepteract_expand_action() {
+        use crate::mechanics::hepteract_values::{BuyHepteractExpandInput, HepteractKind};
+
+        let mut state = GameState::default();
+        state.hepteracts.chronos.cap = 100.0;
+        state.hepteracts.chronos.bal = 100.0; // full bar — expandable
+
+        let mut input = TackInput {
+            dt: 0.025,
+            ..TackInput::default()
+        };
+        input
+            .player_actions
+            .push(PlayerAction::Buy(BuyRequest::HepteractExpand(
+                BuyHepteractExpandInput {
+                    kind: HepteractKind::Chronos,
+                },
+            )));
+
+        let output = tack(&mut state, &input);
+
+        assert!(
+            output
+                .events
+                .iter()
+                .any(|e| matches!(e, CoreEvent::HepteractCapExpanded { .. })),
+            "expected HepteractCapExpanded in events, got {:?}",
+            output.events
+        );
+        // Spent one cap (100) and doubled it: bal 0, cap 200.
+        assert_eq!(state.hepteracts.chronos.bal, 0.0);
+        assert_eq!(state.hepteracts.chronos.cap, 200.0);
+    }
+
+    #[test]
+    fn tack_dispatches_buy_talisman_level_action() {
+        use crate::mechanics::talisman_costs::TalismanCraftCosts;
+        use synergismforkd_bignum::Decimal;
+
+        let mut state = GameState::default();
+        state.talismans.talisman_shards = 100.0;
+
+        let costs = TalismanCraftCosts {
+            shard: Decimal::from_finite(10.0),
+            common_fragment: Decimal::zero(),
+            uncommon_fragment: Decimal::zero(),
+            rare_fragment: Decimal::zero(),
+            epic_fragment: Decimal::zero(),
+            legendary_fragment: Decimal::zero(),
+            mythical_fragment: Decimal::zero(),
+        };
+
+        let mut input = TackInput {
+            dt: 0.025,
+            ..TackInput::default()
+        };
+        input
+            .player_actions
+            .push(PlayerAction::Buy(BuyRequest::TalismanLevel(
+                BuyTalismanLevelInput {
+                    index: 0,
+                    costs,
+                    level_cap: 100.0,
+                },
+            )));
+
+        let output = tack(&mut state, &input);
+
+        assert!(
+            output
+                .events
+                .iter()
+                .any(|e| matches!(e, CoreEvent::TalismanLevelPurchased { .. })),
+            "expected TalismanLevelPurchased in events, got {:?}",
+            output.events
+        );
+        assert_eq!(state.talismans.talisman_levels[0], 1.0);
     }
 
     #[test]

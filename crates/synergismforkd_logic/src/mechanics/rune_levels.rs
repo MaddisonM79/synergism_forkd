@@ -9,7 +9,11 @@
 //! this module owns the closed-form EXP↔level inversion plus the
 //! "given a budget, how many levels can I buy" planner.
 
+use smallvec::SmallVec;
 use synergismforkd_bignum::Decimal;
+
+use crate::events::CoreEvent;
+use crate::state::RunesState;
 
 /// EXP required to **reach** a target rune level, starting from 0 EXP.
 /// Formula: `cost_coefficient * (10^(level / levels_per_oom) - 1)`.
@@ -185,9 +189,123 @@ pub fn max_rune_level_purchase(input: MaxRuneLevelPurchaseInput) -> MaxRuneLevel
     }
 }
 
+// ─── Manual buy ───────────────────────────────────────────────────────────
+
+/// Inputs to [`buy_rune_levels`].
+#[derive(Debug, Clone, Copy)]
+pub struct BuyRuneLevelsInput {
+    /// Rune index (`0..7`, via the `RUNE_*` constants). Out-of-range is a
+    /// no-op.
+    pub index: usize,
+    /// `rune.costCoefficient` (UI-tier rune data table).
+    pub cost_coefficient: Decimal,
+    /// `getLevelsPerOOM(rune)` = `rune.levelsPerOOM + rune.levelsPerOOMIncrease()`
+    /// — the combined slope, pre-evaluated by the caller (UI-tier).
+    pub levels_per_oom: f64,
+    /// `getRuneEXPPerOffering(rune)` = `universalRuneEXPMult(level)` — the
+    /// per-offering EXP rate, pre-evaluated by the caller.
+    pub rune_exp_per_offering: Decimal,
+    /// Target levels to add this purchase — the `offeringbuyamount` toggle
+    /// (1/10/100/…) or [`max_rune_level_purchase`]`.levels` for buy-max (a
+    /// UI-tier decision). The `budget` caps how many actually land.
+    pub levels_to_add: f64,
+    /// Offerings the caller authorizes spending (the legacy `budget`; for a
+    /// plain manual click this is the whole offerings balance — keep it
+    /// `<= offerings`, the legacy quirk is to bank free EXP otherwise).
+    pub budget: Decimal,
+}
+
+/// Buy rune levels for rune `index` by spending offerings — a port of the
+/// legacy `sacrificeOfferings` core (`levelRune` + `updateLevelsFromEXP`).
+/// Adds EXP toward `level + levels_to_add`; if `budget` can't reach that
+/// target it banks partial EXP, and the level is re-derived from EXP (so a
+/// 10-level request on a 3-level budget lands 3 levels). Spends from
+/// `offerings`; emits [`CoreEvent::RuneLevelsPurchased`].
+///
+/// Faithful-at-current-state deferrals:
+/// - **unlock**: `rune.isUnlocked()` reads achievements / researches
+///   (UI-tier), so — like the octeract / GQ / blueberry gates — the caller
+///   checks it; this buy is ungated on unlock;
+/// - the buy-amount toggle and the buy-max planner
+///   ([`max_rune_level_purchase`], already ported) live caller-side and feed
+///   `levels_to_add`;
+/// - rune EXP is held as `f64` in state (`RunesState::rune_exp`), so it is
+///   widened to `Decimal` for the math and narrowed back on store.
+#[must_use]
+pub fn buy_rune_levels(
+    runes: &mut RunesState,
+    offerings: &mut Decimal,
+    input: BuyRuneLevelsInput,
+) -> SmallVec<[CoreEvent; 4]> {
+    let mut events = SmallVec::new();
+    if input.index >= runes.rune_levels.len()
+        || input.budget <= Decimal::zero()
+        || input.levels_to_add < 1.0
+    {
+        return events;
+    }
+
+    let before = runes.rune_levels[input.index];
+    let current_exp = Decimal::from_finite(runes.rune_exp[input.index]);
+    let target_level = before + input.levels_to_add;
+
+    // levelRune: spend toward `target_level`, banking partial EXP when the
+    // budget falls short of the full jump.
+    let exp_left = rune_exp_left_to_level(
+        input.cost_coefficient,
+        target_level,
+        input.levels_per_oom,
+        current_exp,
+    );
+    let offerings_required = (exp_left / input.rune_exp_per_offering)
+        .ceil()
+        .max(Decimal::one());
+
+    let (new_exp, budget_used) = if offerings_required > input.budget {
+        (
+            current_exp + input.budget * input.rune_exp_per_offering,
+            input.budget,
+        )
+    } else {
+        (
+            rune_exp_to_level(input.cost_coefficient, target_level, input.levels_per_oom),
+            offerings_required,
+        )
+    };
+    runes.rune_exp[input.index] = new_exp.to_number();
+    *offerings -= budget_used;
+
+    // updateLevelsFromEXP: re-derive the integer level, with the legacy
+    // off-by-one fix-up when EXP sits exactly on a level boundary.
+    let levels = rune_level_from_exp(new_exp, input.cost_coefficient, input.levels_per_oom);
+    let exp_left_next = rune_exp_left_to_level(
+        input.cost_coefficient,
+        levels + 1.0,
+        input.levels_per_oom,
+        new_exp,
+    );
+    runes.rune_levels[input.index] = if exp_left_next == Decimal::zero() {
+        levels + 1.0
+    } else {
+        levels
+    };
+
+    // Legacy clamp: never let offerings go negative.
+    *offerings = (*offerings).max(Decimal::zero());
+
+    events.push(CoreEvent::RuneLevelsPurchased {
+        index: input.index as u32,
+        before,
+        after: runes.rune_levels[input.index],
+        spent: budget_used,
+    });
+    events
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::state::{RUNE_COUNT, RUNE_SPEED};
 
     #[test]
     fn rune_exp_to_level_zero_at_zero() {
@@ -312,5 +430,75 @@ mod tests {
         let result = max_rune_level_purchase(input);
         assert_eq!(result.levels, 1.0);
         assert!(result.exp_required > Decimal::one());
+    }
+
+    // ─── Manual buy ───────────────────────────────────────────────────────
+
+    fn speed_buy_input(levels_to_add: f64, budget: f64) -> BuyRuneLevelsInput {
+        BuyRuneLevelsInput {
+            index: RUNE_SPEED,
+            cost_coefficient: Decimal::from_finite(100.0),
+            levels_per_oom: 5.0,
+            rune_exp_per_offering: Decimal::from_finite(10.0),
+            levels_to_add,
+            budget: Decimal::from_finite(budget),
+        }
+    }
+
+    #[test]
+    fn buy_rune_levels_adds_levels_and_spends() {
+        // coeff 100, lpo 5, perOffering 10: reaching level 5 needs 900 EXP =
+        // 90 offerings; budget 1000 affords it in full.
+        let mut runes = RunesState::default();
+        let mut offerings = Decimal::from_finite(1000.0);
+        let events = buy_rune_levels(&mut runes, &mut offerings, speed_buy_input(5.0, 1000.0));
+        assert_eq!(runes.rune_levels[RUNE_SPEED], 5.0);
+        assert!((runes.rune_exp[RUNE_SPEED] - 900.0).abs() < 1e-6);
+        assert!((offerings.to_number() - 910.0).abs() < 1e-9);
+        assert!(matches!(
+            events.as_slice(),
+            [CoreEvent::RuneLevelsPurchased { index: 0, .. }]
+        ));
+    }
+
+    #[test]
+    fn buy_rune_levels_partial_when_budget_short() {
+        // Budget 30 (< 90 needed for level 5): banks 300 EXP → lands level 3,
+        // spends the whole 30.
+        let mut runes = RunesState::default();
+        let mut offerings = Decimal::from_finite(30.0);
+        let events = buy_rune_levels(&mut runes, &mut offerings, speed_buy_input(5.0, 30.0));
+        assert_eq!(runes.rune_levels[RUNE_SPEED], 3.0);
+        assert!((runes.rune_exp[RUNE_SPEED] - 300.0).abs() < 1e-6);
+        assert_eq!(offerings.to_number(), 0.0);
+        assert_eq!(events.len(), 1);
+    }
+
+    #[test]
+    fn buy_rune_levels_out_of_range_is_noop() {
+        let mut runes = RunesState::default();
+        let mut offerings = Decimal::from_finite(1000.0);
+        let mut input = speed_buy_input(5.0, 1000.0);
+        input.index = RUNE_COUNT;
+        let events = buy_rune_levels(&mut runes, &mut offerings, input);
+        assert!(events.is_empty());
+        assert_eq!(offerings.to_number(), 1000.0);
+    }
+
+    #[test]
+    fn buy_rune_levels_zero_budget_is_noop() {
+        let mut runes = RunesState::default();
+        let mut offerings = Decimal::from_finite(1000.0);
+        let events = buy_rune_levels(&mut runes, &mut offerings, speed_buy_input(5.0, 0.0));
+        assert!(events.is_empty());
+        assert_eq!(runes.rune_levels[RUNE_SPEED], 0.0);
+    }
+
+    #[test]
+    fn buy_rune_levels_below_one_level_is_noop() {
+        let mut runes = RunesState::default();
+        let mut offerings = Decimal::from_finite(1000.0);
+        let events = buy_rune_levels(&mut runes, &mut offerings, speed_buy_input(0.0, 1000.0));
+        assert!(events.is_empty());
     }
 }
