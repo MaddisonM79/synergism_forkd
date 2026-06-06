@@ -278,6 +278,40 @@ pub enum PlayerAction {
         /// Requested level (clamped to `[0, maxCorruptionLevel]`).
         level: u32,
     },
+    /// Set an automation toggle on/off (legacy auto-* toggle buttons).
+    /// Sets the target flag to `enabled` directly (the UI computes the
+    /// flip); `phase_automation` reads these flags.
+    ToggleAuto {
+        /// Which automation flag to set.
+        target: AutoToggle,
+        /// Desired enabled state.
+        enabled: bool,
+    },
+}
+
+/// Selects the automation flag a [`PlayerAction::ToggleAuto`] sets.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum AutoToggle {
+    /// `auto_prestige_enabled`.
+    AutoPrestige,
+    /// `auto_transcend_enabled`.
+    AutoTranscend,
+    /// `auto_reincarnate_enabled`.
+    AutoReincarnate,
+    /// `auto_ascend`.
+    AutoAscend,
+    /// `rune_sacrifice_auto_enabled`.
+    RuneSacrifice,
+    /// `auto_potion_toggle_offering`.
+    OfferingPotion,
+    /// `auto_potion_toggle_obtainium`.
+    ObtainiumPotion,
+    /// `auto_challenge_running` — the challenge-sweep master switch.
+    AutoChallengeRunning,
+    /// `auto_challenge_toggles[slot]` — per-challenge sweep enable
+    /// (`slot` in `0..16`; out-of-range is ignored).
+    AutoChallengeSlot(usize),
 }
 
 /// Per-mechanic dispatcher for the eight `buy_*` purchase loops. The
@@ -4225,6 +4259,31 @@ fn phase_player_input(
                     .events
                     .extend(set_corruption_level(state, *index, *level));
             }
+            PlayerAction::ToggleAuto { target, enabled } => {
+                set_automation_toggle(state, *target, *enabled);
+            }
+        }
+    }
+}
+
+/// `PlayerAction::ToggleAuto` handler — set the selected automation flag to
+/// `enabled`. A pure config change (no event); `phase_automation` reads the
+/// flag. Out-of-range challenge slots are ignored.
+fn set_automation_toggle(state: &mut GameState, target: AutoToggle, enabled: bool) {
+    let auto = &mut state.automation;
+    match target {
+        AutoToggle::AutoPrestige => auto.auto_prestige_enabled = enabled,
+        AutoToggle::AutoTranscend => auto.auto_transcend_enabled = enabled,
+        AutoToggle::AutoReincarnate => auto.auto_reincarnate_enabled = enabled,
+        AutoToggle::AutoAscend => auto.auto_ascend = enabled,
+        AutoToggle::RuneSacrifice => auto.rune_sacrifice_auto_enabled = enabled,
+        AutoToggle::OfferingPotion => auto.auto_potion_toggle_offering = enabled,
+        AutoToggle::ObtainiumPotion => auto.auto_potion_toggle_obtainium = enabled,
+        AutoToggle::AutoChallengeRunning => auto.auto_challenge_running = enabled,
+        AutoToggle::AutoChallengeSlot(slot) => {
+            if let Some(flag) = auto.auto_challenge_toggles.get_mut(slot) {
+                *flag = enabled;
+            }
         }
     }
 }
@@ -5886,6 +5945,36 @@ mod tests {
             .events
             .iter()
             .any(|e| matches!(e, CoreEvent::CorruptionLevelSet { .. })));
+    }
+
+    #[test]
+    fn toggle_auto_sets_flags() {
+        let mut state = GameState::default();
+        assert!(!state.automation.auto_prestige_enabled);
+        set_automation_toggle(&mut state, AutoToggle::AutoPrestige, true);
+        assert!(state.automation.auto_prestige_enabled);
+        set_automation_toggle(&mut state, AutoToggle::AutoPrestige, false);
+        assert!(!state.automation.auto_prestige_enabled);
+        // Per-challenge slot toggle writes the right entry.
+        set_automation_toggle(&mut state, AutoToggle::AutoChallengeSlot(3), true);
+        assert!(state.automation.auto_challenge_toggles[3]);
+        // Out-of-range slot is ignored (no panic, no write).
+        set_automation_toggle(&mut state, AutoToggle::AutoChallengeSlot(99), true);
+    }
+
+    #[test]
+    fn tack_dispatches_toggle_auto_action() {
+        let mut state = GameState::default();
+        let mut input = TackInput {
+            dt: 0.0,
+            ..TackInput::default()
+        };
+        input.player_actions.push(PlayerAction::ToggleAuto {
+            target: AutoToggle::AutoAscend,
+            enabled: true,
+        });
+        let _ = tack(&mut state, &input);
+        assert!(state.automation.auto_ascend);
     }
 
     #[test]
