@@ -581,6 +581,15 @@ pub enum CoreEvent {
         /// The clamped new level written to `corruptions.next`.
         level: u32,
     },
+    /// A challenge was entered (legacy `toggleChallenges`): the
+    /// `current_*_challenge` slot was set and the tier reset ran. `challenge`
+    /// is `0..=15` (`0` exits the transcension slot). The accompanying
+    /// `ResetPerformed` carries the tier-reset detail.
+    ChallengeEntered {
+        /// Challenge index (`1..=5` transcension, `6..=10` reincarnation;
+        /// `0` exits the transcension slot).
+        challenge: u32,
+    },
 }
 
 #[cfg(test)]

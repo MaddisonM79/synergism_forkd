@@ -287,6 +287,16 @@ pub enum PlayerAction {
         /// Desired enabled state.
         enabled: bool,
     },
+    /// Enter a challenge (legacy `toggleChallenges`): set the
+    /// `current_*_challenge` slot and run the matching tier reset. `challenge`
+    /// is `1..=5` (transcension) or `6..=10` (reincarnation); `0` exits the
+    /// transcension slot. Ascension challenges (`11..=15`) are not yet wired.
+    /// Exit a reincarnation/ascension challenge with the corresponding
+    /// [`Self::Reset`].
+    EnterChallenge {
+        /// Challenge index (`0..=10`; `0` exits the transcension slot).
+        challenge: u32,
+    },
 }
 
 /// Selects the automation flag a [`PlayerAction::ToggleAuto`] sets.
@@ -4262,8 +4272,40 @@ fn phase_player_input(
             PlayerAction::ToggleAuto { target, enabled } => {
                 set_automation_toggle(state, *target, *enabled);
             }
+            PlayerAction::EnterChallenge { challenge } => {
+                output
+                    .events
+                    .extend(enter_challenge(state, *challenge, reset_gains));
+            }
         }
     }
+}
+
+/// `toggleChallenges` — enter a challenge: set the `current_*_challenge` slot,
+/// then run the matching tier reset (the challenge-reset variants share the
+/// tier-reset branch in the legacy `reset()`). The transcension / reincarnation
+/// resets do not clear their own current-challenge slot, so the set sticks; a
+/// higher-tier reset clears lower slots (faithful). Ascension challenges
+/// (`11..=15`) are gated + run the heavy ascension reset and are deferred to a
+/// later chunk (ignored here). Returns a `ChallengeEntered` event followed by
+/// the tier reset's events.
+fn enter_challenge(
+    state: &mut GameState,
+    challenge: u32,
+    gains: &crate::mechanics::reset_currency::ResetCurrencyResult,
+) -> SmallVec<[CoreEvent; 2]> {
+    let request = if challenge <= 5 {
+        state.challenges.current_transcension_challenge = challenge;
+        ResetRequest::Transcension
+    } else if challenge <= 10 {
+        state.challenges.current_reincarnation_challenge = challenge;
+        ResetRequest::Reincarnation
+    } else {
+        return smallvec![];
+    };
+    let mut events: SmallVec<[CoreEvent; 2]> = smallvec![CoreEvent::ChallengeEntered { challenge }];
+    events.extend(reset::perform_reset(state, request, gains));
+    events
 }
 
 /// `PlayerAction::ToggleAuto` handler — set the selected automation flag to
@@ -5975,6 +6017,59 @@ mod tests {
         });
         let _ = tack(&mut state, &input);
         assert!(state.automation.auto_ascend);
+    }
+
+    #[test]
+    fn tack_dispatches_enter_transcension_challenge() {
+        let mut state = GameState::default();
+        state.coin_producers.tiers[0].owned = 25.0; // base-reset witness
+        let mut input = TackInput {
+            dt: 0.0,
+            ..TackInput::default()
+        };
+        input
+            .player_actions
+            .push(PlayerAction::EnterChallenge { challenge: 2 });
+        let output = tack(&mut state, &input);
+        // Slot set, and the tier reset ran (base reset zeroed the producer).
+        assert_eq!(state.challenges.current_transcension_challenge, 2);
+        assert_eq!(state.coin_producers.tiers[0].owned, 0.0);
+        assert!(output
+            .events
+            .iter()
+            .any(|e| matches!(e, CoreEvent::ChallengeEntered { challenge: 2 })));
+    }
+
+    #[test]
+    fn tack_dispatches_enter_reincarnation_challenge() {
+        let mut state = GameState::default();
+        let mut input = TackInput {
+            dt: 0.0,
+            ..TackInput::default()
+        };
+        input
+            .player_actions
+            .push(PlayerAction::EnterChallenge { challenge: 8 });
+        let _ = tack(&mut state, &input);
+        assert_eq!(state.challenges.current_reincarnation_challenge, 8);
+    }
+
+    #[test]
+    fn enter_ascension_challenge_range_is_deferred_noop() {
+        let mut state = GameState::default();
+        let mut input = TackInput {
+            dt: 0.0,
+            ..TackInput::default()
+        };
+        input
+            .player_actions
+            .push(PlayerAction::EnterChallenge { challenge: 12 });
+        let output = tack(&mut state, &input);
+        assert_eq!(state.challenges.current_ascension_challenge, 0);
+        assert!(!output
+            .events
+            .iter()
+            .any(|e| matches!(e, CoreEvent::ChallengeEntered { .. })));
     }
 
     #[test]
