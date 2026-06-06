@@ -377,7 +377,12 @@ pub fn resource_gain(state: &GameState, pre: &ResourceGainPre, dt: f64) -> Resou
         diamonds.tiers[0].generated + produce_second_diamonds * dt_scaled_dec;
     let produce_diamonds = produce_first_diamonds;
 
-    let mut prestige_shards = state.reset_counters.prestige_shards;
+    // Seed from the canonical current-shards slice — the same slice the
+    // writeback (tick `phase_generation`), the crystal coin multiplier, and
+    // crystal-upgrade buys all use. `reset_counters.prestige_shards` is
+    // vestigial (only ever zeroed on reset), so seeding from it dropped every
+    // cross-tick accumulation: diamonds/crystals never grew (audit H1).
+    let mut prestige_shards = state.crystal_upgrades.prestige_shards;
     if state.challenges.current_transcension_challenge != 3
         && state.challenges.current_reincarnation_challenge != 10
     {

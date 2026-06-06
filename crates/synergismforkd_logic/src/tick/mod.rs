@@ -7471,6 +7471,26 @@ mod tests {
     }
 
     #[test]
+    fn prestige_shards_accumulate_across_ticks() {
+        // Regression (audit H1): the seed slice (reset_counters.prestige_shards)
+        // differed from the writeback slice (crystal_upgrades.prestige_shards),
+        // so each tick overwrote the balance with one tick's production and
+        // diamonds/crystals never grew. With the seed fixed, two ticks of
+        // 50 shards/tick must accumulate to 100.
+        let mut state = GameState::default();
+        state.diamond_producers.tiers[0].owned = 1000.0;
+        let input = TackInput {
+            dt: 0.025,
+            ..TackInput::default()
+        };
+        let _ = tack(&mut state, &input);
+        assert!((state.crystal_upgrades.prestige_shards.to_number() - 50.0).abs() < 1e-9);
+        let _ = tack(&mut state, &input);
+        // Second tick adds another 50 on top (was still 50 before the fix).
+        assert!((state.crystal_upgrades.prestige_shards.to_number() - 100.0).abs() < 1e-9);
+    }
+
+    #[test]
     fn reset_currency_gains_feed_resource_gain_pre() {
         // reset_currency is now self-derived: with coins-this-prestige set,
         // the prestige point gain is `floor((coins/1e12) ^ prestige_pow)`
