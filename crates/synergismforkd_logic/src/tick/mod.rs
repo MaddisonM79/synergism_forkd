@@ -1822,12 +1822,6 @@ fn compute_octeract_per_second(state: &GameState) -> f64 {
 /// i.e. all pre-singularity play), Jack (`shopPanthema` `bonusLevels()` builder
 /// unported; `= 1` at panthema level 0), CookieUpgrade8 + Event (UI-tier
 /// `isEvent` calendar → `0`).
-#[expect(
-    dead_code,
-    reason = "shared base for the five cube-family multiplier wrappers; the lint \
-              flips off in the next commit when compute_cube_multiplier et al. \
-              (allWowCubeStats / allTesseractStats / …) consume it"
-)]
 fn compute_all_cube_multiplier(state: &GameState) -> f64 {
     use crate::mechanics::achievement_rewards::ascension_reward_scaling;
     use crate::mechanics::ambrosia::{calculate_ambrosia_cube_mult, AmbrosiaMultInput};
@@ -2026,6 +2020,317 @@ fn compute_all_cube_multiplier(state: &GameState) -> f64 {
         one_mind,
         1.0, // Event — UI-tier event calendar → 1 + 0
     ])
+}
+
+/// `calculateCubeMultiplierWithTau()` = `product(allWowCubeStats) ^ platonicTau.tauPower`
+/// (original Statistics.ts:379 + Calculate.ts:173) — the WOW-cube gain multiplier
+/// feeding `CalcCorruptionStuff.cubeGain`. `all_cube_multiplier` is the shared
+/// [`compute_all_cube_multiplier`] (the GlobalCube line); `effective_score` is the
+/// shared [`compute_ascension_score_result`]`.effective_score`.
+///
+/// Neutral-defaulted lines (faithful): WowSquare (wowSquare talisman not among the
+/// 7 ported talismans), and the `research[192]·calculateTrueAntLevel(Mortuus)`
+/// sub-term of the Researches line — `calculate_true_ant_level` needs the
+/// `corruptionEffects('extinction')` divisor, and the corruption-effects system is
+/// unported, so that one factor is `1` (every other research factor is exact). The
+/// `CubeBank` line is a count (0 at default), so the whole product is `0` until a
+/// challenge is completed — faithful (an ascension with no completions grants 0
+/// cubes; the award is c10-gated anyway).
+fn compute_cube_multiplier(
+    state: &GameState,
+    effective_score: f64,
+    all_cube_multiplier: f64,
+) -> f64 {
+    use crate::mechanics::achievement_levels::achievement_level_from_points;
+    use crate::mechanics::achievement_rewards::wow_cube_gain;
+    use crate::mechanics::ant_upgrades::{
+        ascension_score_ant_upgrade_effect, wow_cubes_ant_upgrade_effect,
+    };
+    use crate::mechanics::calculate::{calculate_cube_multiplier_with_tau, product_f64};
+    use crate::mechanics::golden_quark_upgrades::{
+        platonic_tau_effect, PlatonicTauKey, PlatonicTauValue,
+    };
+    use crate::mechanics::level_rewards::{get_level_reward, LevelRewardKey};
+    use crate::mechanics::platonic_blessings::calculate_cube_multiplier_platonic_blessing;
+    use crate::mechanics::rune_effects::{
+        antiquities_rune_effects, AntiquitiesRuneInput, AntiquitiesRuneKey,
+    };
+    use crate::mechanics::rune_spirit_effects::duplication_rune_spirit_effects;
+    use crate::mechanics::shop_upgrades::season_pass_effect;
+    use crate::state::golden_quarks::GQ_PLATONIC_TAU;
+    use crate::state::shop::SHOP_SEASON_PASS;
+    use crate::state::{RUNE_ANTIQUITIES, RUNE_DUPLICATION};
+
+    const ANT_UPGRADE_ASCENSION_SCORE: usize = 14;
+    const ANT_UPGRADE_WOW_CUBES: usize = 13;
+
+    let cube = &state.cube_upgrade_levels.cube_upgrades;
+    let platonic = &state.cube_upgrade_levels.platonic_upgrades;
+    let research = &state.researches.researches;
+    let cc = &state.challenges.challenge_completions;
+    let achievement_level = achievement_level_from_points(state.achievements.achievement_points);
+    let ascend_shards = state.campaigns.ascend_shards;
+    let total_corruption_levels: u32 = state.corruptions.used.levels.iter().sum();
+
+    // CubeBank: cube-completion sum (c6-10 worth ×2) + ant AscensionScore cubesBanked.
+    let mut cube_bank = 0.0_f64;
+    for (offset, &completions) in cc[1..=10].iter().enumerate() {
+        // `offset + 1` is the challenge index; c6-10 are worth ×2.
+        cube_bank += if offset + 1 >= 6 { 2.0 } else { 1.0 } * completions;
+    }
+    cube_bank +=
+        ascension_score_ant_upgrade_effect(state.ants.upgrades[ANT_UPGRADE_ASCENSION_SCORE])
+            .cubes_banked;
+
+    // AscensionScore band.
+    let ascension_score_line = (effective_score / 3000.0).powf(1.0 / 4.1);
+
+    // Researches: the `research[192]·calculateTrueAntLevel(Mortuus)` factor is
+    // deferred (corruptionEffects('extinction') unported) → that factor is 1.
+    let researches = (1.0 + research[119] / 1000.0)
+        * (1.0 + research[120] / 200.0)
+        * (1.0 + research[137] / 100.0)
+        * (1.0 + 0.9 * research[152] / 100.0)
+        * (1.0 + 0.8 * research[167] / 100.0)
+        * (1.0 + 0.7 * research[182] / 100.0)
+        * (1.0 + 0.6 * research[197] / 100.0);
+
+    // ConstantUpgrade10: 1 + 0.01·log4(ascendShards+1)·min(1, constantUpgrades[10]).
+    let log4_shards = (ascend_shards + Decimal::one()).log10().to_number() / 4.0_f64.log10();
+    let constant_upgrade_10 =
+        1.0 + 0.01 * log4_shards * state.campaigns.constant_upgrades[10].min(1.0);
+
+    let tau_power = match platonic_tau_effect(
+        state.golden_quarks.upgrades[GQ_PLATONIC_TAU].level
+            + state.golden_quarks.upgrades[GQ_PLATONIC_TAU].free_level,
+        PlatonicTauKey::TauPower,
+    ) {
+        PlatonicTauValue::Scalar(s) => s,
+        PlatonicTauValue::Unlock(_) => 1.0,
+    };
+
+    let base = product_f64(&[
+        cube_bank,
+        ascension_score_line,
+        all_cube_multiplier,
+        get_level_reward(LevelRewardKey::WowCubes, achievement_level),
+        wow_cube_gain(
+            &state.achievements.achievements,
+            state.reset_counters.ascension_count,
+            ascend_shards,
+        ),
+        season_pass_effect(state.shop.upgrades[SHOP_SEASON_PASS]),
+        1.0, // WowSquare — wowSquare talisman not among the 7 ported
+        researches,
+        1.0 + (0.004 / 100.0) * research[200], // Research8x25
+        wow_cubes_ant_upgrade_effect(state.ants.upgrades[ANT_UPGRADE_WOW_CUBES]),
+        (1.0 + cube[1] / 6.0) * (1.0 + cube[11] / 11.0) * (1.0 + 0.4 * cube[30]), // CubeUpgrades
+        constant_upgrade_10,
+        duplication_rune_spirit_effects(state.runes.rune_spirit_levels[RUNE_DUPLICATION]).wow_cubes,
+        calculate_cube_multiplier_platonic_blessing(&state.platonic_blessings),
+        1.0 + 0.00009 * f64::from(total_corruption_levels) * platonic[1], // Platonic1x1
+        antiquities_rune_effects(
+            state.runes.rune_levels[RUNE_ANTIQUITIES],
+            AntiquitiesRuneKey::CubeBonus,
+            AntiquitiesRuneInput {
+                singularity_count: state.singularity.singularity_count,
+            },
+        ),
+        // CookieUpgrade13: 1 + 1.03^log10(max(1, wowAbyssals))·cube[63] - cube[63]
+        1.0 + 1.03_f64.powf(state.cube_balances.wow_abyssals.max(1.0).log10()) * cube[63]
+            - cube[63],
+    ]);
+    calculate_cube_multiplier_with_tau(base, tau_power)
+}
+
+/// `calculateTesseractMultiplier()` = `product(allTesseractStats)` (Statistics.ts:491)
+/// — feeds `CalcCorruptionStuff.tesseractGain`. WowSquare neutral-defaulted.
+fn compute_tesseract_multiplier(
+    state: &GameState,
+    effective_score: f64,
+    all_cube_multiplier: f64,
+) -> f64 {
+    use crate::mechanics::achievement_levels::achievement_level_from_points;
+    use crate::mechanics::achievement_rewards::wow_tesseract_gain;
+    use crate::mechanics::calculate::product_f64;
+    use crate::mechanics::level_rewards::{get_level_reward, LevelRewardKey};
+    use crate::mechanics::platonic_blessings::calculate_tesseract_multiplier_platonic_blessing;
+    use crate::mechanics::shop_upgrades::season_pass_effect;
+    use crate::state::shop::SHOP_SEASON_PASS;
+
+    let cube = &state.cube_upgrade_levels.cube_upgrades;
+    let platonic = &state.cube_upgrade_levels.platonic_upgrades;
+    let achievement_level = achievement_level_from_points(state.achievements.achievement_points);
+    let ascend_shards = state.campaigns.ascend_shards;
+    let total_corruption_levels = f64::from(state.corruptions.used.levels.iter().sum::<u32>());
+    let log4_shards = (ascend_shards + Decimal::one()).log10().to_number() / 4.0_f64.log10();
+
+    product_f64(&[
+        (1.0 + (effective_score - 1e5).max(0.0) / 1e4).powf(0.35), // AscensionScore
+        all_cube_multiplier,
+        get_level_reward(LevelRewardKey::WowTesseracts, achievement_level),
+        wow_tesseract_gain(&state.achievements.achievements, ascend_shards),
+        season_pass_effect(state.shop.upgrades[SHOP_SEASON_PASS]),
+        1.0,                                                                       // WowSquare
+        1.0 + 0.01 * log4_shards * state.campaigns.constant_upgrades[10].min(1.0), // ConstantUpgrade10
+        1.0 + 0.4 * cube[30], // CubeUpgrade3x10
+        1.0 + (1.0 / 200.0) * cube[38] * total_corruption_levels, // CubeUpgrade4x8
+        calculate_tesseract_multiplier_platonic_blessing(&state.platonic_blessings),
+        1.0 + 0.00018 * total_corruption_levels * platonic[2], // Platonic1x2
+    ])
+}
+
+/// `calculateHypercubeMultiplier()` = `product(allHypercubeStats)` (Statistics.ts:539)
+/// — feeds `CalcCorruptionStuff.hypercubeGain`. WowSquare neutral-defaulted.
+fn compute_hypercube_multiplier(
+    state: &GameState,
+    effective_score: f64,
+    all_cube_multiplier: f64,
+) -> f64 {
+    use crate::mechanics::achievement_levels::achievement_level_from_points;
+    use crate::mechanics::achievement_rewards::wow_hypercube_gain;
+    use crate::mechanics::calculate::product_f64;
+    use crate::mechanics::hepteract_effects::hyperrealism_hepteract_effects;
+    use crate::mechanics::level_rewards::{get_level_reward, LevelRewardKey};
+    use crate::mechanics::platonic_blessings::calculate_hypercube_multiplier_platonic_blessing;
+    use crate::mechanics::shop_upgrades::season_pass_2_effect;
+    use crate::state::shop::SHOP_SEASON_PASS_2;
+
+    let platonic = &state.cube_upgrade_levels.platonic_upgrades;
+    let achievement_level = achievement_level_from_points(state.achievements.achievement_points);
+    let total_corruption_levels = f64::from(state.corruptions.used.levels.iter().sum::<u32>());
+
+    product_f64(&[
+        (1.0 + (effective_score - 1e9).max(0.0) / 1e8).powf(0.5), // AscensionScore
+        all_cube_multiplier,
+        get_level_reward(LevelRewardKey::WowHyperCubes, achievement_level),
+        wow_hypercube_gain(&state.achievements.achievements),
+        season_pass_2_effect(state.shop.upgrades[SHOP_SEASON_PASS_2]),
+        1.0, // WowSquare
+        calculate_hypercube_multiplier_platonic_blessing(&state.platonic_blessings),
+        1.0 + 0.00054 * total_corruption_levels * platonic[3], // Platonic1x3
+        hyperrealism_hepteract_effects(state.hepteracts.hyperrealism.bal).hypercube_multiplier,
+    ])
+}
+
+/// `calculatePlatonicMultiplier()` = `product(allPlatonicCubeStats)` (Statistics.ts:579)
+/// — feeds `CalcCorruptionStuff.platonicGain`. WowSquare neutral-defaulted.
+fn compute_platonic_multiplier(
+    state: &GameState,
+    effective_score: f64,
+    all_cube_multiplier: f64,
+) -> f64 {
+    use crate::mechanics::achievement_levels::achievement_level_from_points;
+    use crate::mechanics::achievement_rewards::wow_platonic_gain;
+    use crate::mechanics::calculate::product_f64;
+    use crate::mechanics::level_rewards::{get_level_reward, LevelRewardKey};
+    use crate::mechanics::platonic_blessings::calculate_platonic_multiplier_platonic_blessing;
+    use crate::mechanics::shop_upgrades::season_pass_2_effect;
+    use crate::state::shop::SHOP_SEASON_PASS_2;
+
+    let platonic = &state.cube_upgrade_levels.platonic_upgrades;
+    let achievement_level = achievement_level_from_points(state.achievements.achievement_points);
+
+    product_f64(&[
+        (1.0 + (effective_score - 2.666e12).max(0.0) / 2.666e11).powf(0.75), // AscensionScore
+        all_cube_multiplier,
+        get_level_reward(LevelRewardKey::WowPlatonicCubes, achievement_level),
+        wow_platonic_gain(
+            &state.achievements.achievements,
+            state.reset_counters.ascension_count,
+            state.campaigns.ascend_shards,
+        ),
+        season_pass_2_effect(state.shop.upgrades[SHOP_SEASON_PASS_2]),
+        1.0, // WowSquare
+        calculate_platonic_multiplier_platonic_blessing(&state.platonic_blessings),
+        1.0 + 1.2 * platonic[4] / 50.0, // Platonic1x4
+    ])
+}
+
+/// `calculateHepteractMultiplier()` = `product(allHepteractCubeStats)` (Statistics.ts:615)
+/// — feeds `CalcCorruptionStuff.hepteractGain`. WowSquare neutral-defaulted.
+fn compute_hepteract_multiplier(
+    state: &GameState,
+    effective_score: f64,
+    all_cube_multiplier: f64,
+) -> f64 {
+    use crate::mechanics::achievement_levels::achievement_level_from_points;
+    use crate::mechanics::achievement_rewards::wow_hepteract_gain;
+    use crate::mechanics::calculate::product_f64;
+    use crate::mechanics::level_rewards::{get_level_reward, LevelRewardKey};
+    use crate::mechanics::shop_upgrades::season_pass_3_effect;
+    use crate::state::shop::SHOP_SEASON_PASS_3;
+
+    let achievement_level = achievement_level_from_points(state.achievements.achievement_points);
+
+    product_f64(&[
+        (1.0 + (effective_score - 1.666e16).max(0.0) / 3.33e16).powf(0.85), // AscensionScore
+        all_cube_multiplier,
+        get_level_reward(LevelRewardKey::WowHepteractCubes, achievement_level),
+        wow_hepteract_gain(
+            &state.achievements.achievements,
+            state.campaigns.ascend_shards,
+        ),
+        season_pass_3_effect(state.shop.upgrades[SHOP_SEASON_PASS_3]),
+        1.0, // WowSquare
+    ])
+}
+
+/// `calculateAscensionCount()` — the per-ascension count gain
+/// (`ascensionCountMultStats` product, floored; original Statistics.ts:3349 +
+/// Calculate.ts:1296), self-derived from `&GameState`. `effective_score` is the
+/// shared [`compute_ascension_score_result`]`.effective_score` (the
+/// `AchievementMultiplier` line reads it). Reads the within-ascension
+/// `ascensionCounter`, so the award must run before the ascension reset zeroes it.
+///
+/// Neutral-defaulted lines (faithful — singularity layer paused, all `1` at
+/// `singularityCount 0`): SingularityUpgrade (`getGQUpgradeEffect('ascensions')`),
+/// OcteractUpgrade1/2 (`octeractAscensions`/`octeractAscensions2`).
+fn compute_ascension_count(state: &GameState, effective_score: f64) -> f64 {
+    use crate::mechanics::achievement_rewards::{
+        ascension_count_additive, ascension_count_multiplier,
+    };
+    use crate::mechanics::ascensions::{calculate_ascension_count, CalculateAscensionCountInput};
+    use crate::mechanics::challenge_15_rewards;
+    use crate::mechanics::golden_quark_upgrades::one_mind_effect;
+    use crate::state::golden_quarks::GQ_ONE_MIND;
+
+    const PLATONIC_UPGRADE_OMEGA: usize = 15;
+    const PLATONIC_UPGRADE_16: usize = 16;
+
+    let platonic = &state.cube_upgrade_levels.platonic_upgrades;
+    let ach = &state.achievements.achievements;
+    let counter = state.reset_counters.ascension_counter;
+
+    let one_mind = if one_mind_effect(state.golden_quarks.upgrades[GQ_ONE_MIND].level) {
+        compute_ascension_speed_mult_pre(state) / 10.0
+    } else {
+        1.0
+    };
+
+    let mults = [
+        1.0 + ascension_count_additive(ach, counter, state.reset_counters.ascension_counter_real),
+        ascension_count_multiplier(ach, counter, effective_score),
+        challenge_15_rewards::ascensions(state.challenges.challenge15_exponent),
+        if platonic[PLATONIC_UPGRADE_OMEGA] > 0.0 {
+            2.0
+        } else {
+            1.0
+        },
+        1.0 + platonic[PLATONIC_UPGRADE_16]
+            * 0.02
+            * (1.0 + (state.hepteracts.overflux_powder / 100_000.0).min(1.0)),
+        1.0 + state.singularity.singularity_count / 10.0,
+        1.0, // SingularityUpgrade — GQ 'ascensions' (singularity paused → 1 at sing 0)
+        1.0, // OcteractUpgrade1 — octeractAscensions (singularity paused → 1)
+        1.0, // OcteractUpgrade2 — octeractAscensions2 (singularity paused → 1)
+        one_mind,
+    ];
+
+    calculate_ascension_count(&CalculateAscensionCountInput {
+        limited_ascensions_enabled: state.singularity.limited_ascensions.enabled,
+        ascension_count_mults: &mults,
+    })
 }
 
 /// `golden_quarks_multiplier_excluding_base` — self-derived from `&GameState`.
