@@ -55,6 +55,19 @@ pub fn obtainium(exponent: f64) -> f64 {
     }
 }
 
+/// `challenge15Rewards.offering.value` — multiplied into the offering
+/// StatLine product (`allOfferingStats`). Requirement `7500`, `baseValue`
+/// `1`. Legacy formula `1 + (1/4)·(e / 7.5e3)^0.8` (Variables.ts:276) — the
+/// obtainium sibling but with a `0.8` (not `0.6`) exponent.
+#[must_use]
+pub fn offering(exponent: f64) -> f64 {
+    if exponent >= 7_500.0 {
+        1.0 + (1.0 / 4.0) * (exponent / 7.5e3).powf(0.8)
+    } else {
+        1.0
+    }
+}
+
 /// `challenge15Rewards.accelerator.value`. Requirement `10000`.
 #[must_use]
 pub fn accelerator(exponent: f64) -> f64 {

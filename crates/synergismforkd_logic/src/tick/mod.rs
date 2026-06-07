@@ -3130,17 +3130,18 @@ fn compute_obtainium(
     })
 }
 
-/// `offeringObtainiumTimeModifiers(reincarnationcounter, reincarnationCount >= 5)`
-/// reduced to a product (Statistics.ts:1727) — the `timeMultUsed = true`
-/// obtainium time multiplier used by the reincarnation-reset award.
+/// `offeringObtainiumTimeModifiers(time, timeMultCheck)` reduced to a product
+/// (Statistics.ts:1727) — the shared `timeMultUsed = true` reset-award time
+/// multiplier. Called with the prestige timer (offerings, Calculate.ts:211)
+/// and the reincarnation timer (obtainium, Calculate.ts:269).
 ///
 /// Three lines: `ThresholdPenalty` (`min(1, (t/threshold)^2)`, ≤1, penalises
 /// resets faster than the threshold), `TimeMultiplier` (`max(1, t/threshold)`
-/// once `reincarnationCount >= 5`, else 1, rewarding longer resets), and
-/// `HalfMind` (`globalSpeedMult / 10` when the half-mind GQ upgrade is
-/// unlocked, else 1). `threshold` uses `campaignTimeThresholdReduction = 0`
-/// (campaign subsystem unported → threshold 10).
-fn compute_obtainium_time_multiplier(state: &GameState) -> f64 {
+/// when `time_mult_check`, else 1, rewarding longer resets), and `HalfMind`
+/// (`globalSpeedMult / 10` when the half-mind GQ upgrade is unlocked, else 1).
+/// `threshold` uses `campaignTimeThresholdReduction = 0` (campaign subsystem
+/// unported → threshold 10).
+fn offering_obtainium_time_multiplier(state: &GameState, time: f64, time_mult_check: bool) -> f64 {
     use crate::mechanics::golden_quark_upgrades::half_mind_effect;
     use crate::mechanics::reset_time_and_auto_obtainium::{
         reset_time_threshold, ResetTimeThresholdInput,
@@ -3150,11 +3151,10 @@ fn compute_obtainium_time_multiplier(state: &GameState) -> f64 {
     let threshold = reset_time_threshold(&ResetTimeThresholdInput {
         campaign_time_threshold_reduction: 0.0,
     });
-    let time = state.reset_counters.reincarnation_counter;
     let ratio = time / threshold;
 
     let threshold_penalty = 1.0_f64.min(ratio.powi(2));
-    let time_multiplier = if state.reset_counters.reincarnation_count >= 5.0 {
+    let time_multiplier = if time_mult_check {
         1.0_f64.max(ratio)
     } else {
         1.0
@@ -3166,6 +3166,348 @@ fn compute_obtainium_time_multiplier(state: &GameState) -> f64 {
     };
 
     threshold_penalty * time_multiplier * half_mind
+}
+
+/// `offeringObtainiumTimeModifiers(reincarnationcounter, reincarnationCount >= 5)`
+/// (Calculate.ts:269) — the obtainium reincarnation-reset time multiplier.
+fn compute_obtainium_time_multiplier(state: &GameState) -> f64 {
+    offering_obtainium_time_multiplier(
+        state,
+        state.reset_counters.reincarnation_counter,
+        state.reset_counters.reincarnation_count >= 5.0,
+    )
+}
+
+/// `offeringObtainiumTimeModifiers(prestigecounter, getLevelMilestone('offeringTimerScaling') === 1)`
+/// (Calculate.ts:211) — the offering reset-award time multiplier. The
+/// `TimeMultiplier` line activates once the synergism-level milestone
+/// `offeringTimerScaling` unlocks (level ≥ 5).
+fn compute_offering_time_multiplier(state: &GameState) -> f64 {
+    use crate::mechanics::achievement_levels::achievement_level_from_points;
+    use crate::mechanics::level_milestones::{get_level_milestone, LevelMilestoneKey};
+
+    let achievement_level = achievement_level_from_points(state.achievements.achievement_points);
+    let time_mult_check =
+        get_level_milestone(LevelMilestoneKey::OfferingTimerScaling, achievement_level) == 1.0;
+    offering_obtainium_time_multiplier(
+        state,
+        state.reset_counters.prestige_counter,
+        time_mult_check,
+    )
+}
+
+/// `calculateBaseOfferings()` — Σ allBaseOfferingStats (Statistics.ts:828).
+/// The additive floor of the offering award's `max(base, mult·timeMult)`.
+///
+/// Neutral-defaulted (faithful — no logic-state source): `PseudoCoins`
+/// (PCoin meta layer unported → additive 0).
+fn compute_base_offerings(state: &GameState) -> f64 {
+    use crate::mechanics::blueberry_upgrades::{
+        ambrosia_base_offering_1_effect, ambrosia_base_offering_2_effect,
+    };
+    use crate::mechanics::calculate::sum_f64;
+    use crate::mechanics::potion_bonuses::calculate_offering_potion_base_offerings;
+    use crate::mechanics::shop_upgrades::{offering_ex_3_effect, OfferingEX3Key};
+    use crate::state::ambrosia::{AMBROSIA_BASE_OFFERING_1, AMBROSIA_BASE_OFFERING_2};
+    use crate::state::shop::SHOP_OFFERING_EX_3;
+
+    let researches = &state.researches.researches;
+    let upgrades = &state.upgrades.upgrades;
+    let shop = &state.shop.upgrades;
+    let total_challenge_completions: f64 = state.challenges.challenge_completions.iter().sum();
+    let amb = |i: usize| state.ambrosia.upgrades[i].level + state.ambrosia.upgrades[i].free_level;
+
+    sum_f64(&[
+        1.0, // Base
+        0.0, // PseudoCoins — PCoin meta layer unported → additive 0
+        if state.reset_counters.prestige_count > 0.0 {
+            1.0
+        } else {
+            0.0
+        }, // Prestige
+        if state.reset_counters.transcend_count > 0.0 {
+            3.0
+        } else {
+            0.0
+        }, // Transcend
+        if state.reset_counters.reincarnation_count > 0.0 {
+            5.0
+        } else {
+            0.0
+        }, // Reincarnate
+        if state.challenges.challenge_completions[2] > 0.0 {
+            2.0
+        } else {
+            0.0
+        }, // Challenge1 (challenge 2x1)
+        calculate_offering_potion_base_offerings(state.shop.shop_potions_consumed).amount, // ShopPotionBonus
+        // ReincarnationUpgrade2 — upgrades[62]: min(12, (1/50)·Σ challengecompletions).
+        if upgrades[62] > 0 {
+            12.0_f64.min((1.0 / 50.0) * total_challenge_completions)
+        } else {
+            0.0
+        },
+        0.4 * researches[24],                          // Research1x24
+        0.6 * researches[25],                          // Research1x25
+        if researches[95] > 0.0 { 15.0 } else { 0.0 }, // Research4x20
+        ambrosia_base_offering_1_effect(amb(AMBROSIA_BASE_OFFERING_1)), // AmbrosiaBaseOffering1
+        ambrosia_base_offering_2_effect(amb(AMBROSIA_BASE_OFFERING_2)), // AmbrosiaBaseOffering2
+        offering_ex_3_effect(shop[SHOP_OFFERING_EX_3], OfferingEX3Key::BaseOfferings), // OfferingEX3
+    ])
+}
+
+/// `calculateOfferingsDecimal()` — Π allOfferingStats (Statistics.ts:888),
+/// the multiplicative side of the offering award. `base_offerings` is the
+/// caller's `calculateBaseOfferings()` (the `Base` line). Reduced in Decimal
+/// space to survive the 1e300 cap.
+///
+/// Neutral-defaulted lines (faithful — no logic-state source / inert at the
+/// current state): `AchievementBonus` (achievement awarding unported, P3.1/H5
+/// → 1.0; the lone contributor is the `prestigeCount ≥ 1000` achievement),
+/// `ParticleUpgrade3x5` (`maxObtainium` untracked → the `min(maxObtainium, …)`
+/// term is 0, so the line is 1.0), `TutorialBonus`/`CampaignBonus` (campaign
+/// subsystem unported → 1.0), `ThriftSpirit` (rune-spirit power chain unported
+/// → 1.0), `Jack`/`shopPanthema` (needs the unported `ShopPanthemaBonusLevels`
+/// → 1.0), `SingularityDebuff` (`1/calculateSingularityDebuff`; singularity
+/// layer paused → 1.0), and `Event` (UI-tier event calendar → 1.0).
+fn compute_offering_mult(state: &GameState, base_offerings: f64) -> Decimal {
+    use crate::mechanics::achievement_levels::achievement_level_from_points;
+    use crate::mechanics::ant_upgrades::offerings_ant_upgrade_effect;
+    use crate::mechanics::blueberry_upgrades::ambrosia_offering_1_effect;
+    use crate::mechanics::calculate::product_decimal;
+    use crate::mechanics::challenge_15_rewards;
+    use crate::mechanics::challenges::{calc_ecc, ChallengeType};
+    use crate::mechanics::cube_blessings::calculate_offering_cube_blessing;
+    use crate::mechanics::exalt_penalties::calculate_exalt_6_penalty;
+    use crate::mechanics::golden_quark_upgrades::{
+        sing_citadel_2_effect, sing_citadel_effect, sing_offerings_1_effect,
+        sing_offerings_2_effect, sing_offerings_3_effect, starter_pack_effect, SingCitadel2Key,
+        StarterPackKey,
+    };
+    use crate::mechanics::hypercube_blessings::calculate_offering_hypercube_blessing;
+    use crate::mechanics::level_rewards::{get_level_reward, LevelRewardKey};
+    use crate::mechanics::octeract_bonuses::{
+        calculate_total_octeract_cube_bonus, calculate_total_octeract_offering_bonus,
+        CalculateTotalOcteractCubeBonusInput, CalculateTotalOcteractOfferingBonusInput,
+    };
+    use crate::mechanics::octeracts::octeract_offerings_1_effect;
+    use crate::mechanics::platonic_blessings::calculate_hypercube_blessing_multiplier_platonic_blessing;
+    use crate::mechanics::red_ambrosia_bonuses::{
+        calculate_red_ambrosia_offering, CalculateRedAmbrosiaResourceInput,
+    };
+    use crate::mechanics::red_ambrosia_upgrades::{
+        red_ambrosia_offering_effect, tutorial_effect as red_tutorial_effect,
+    };
+    use crate::mechanics::rune_effects::{
+        antiquities_rune_effects, superior_intellect_rune_effects, AntiquitiesRuneInput,
+        AntiquitiesRuneKey, SuperiorIntellectRuneKey,
+    };
+    use crate::mechanics::shop_upgrades::{
+        cash_grab_2_effect, cash_grab_effect, offering_ex_2_effect, offering_ex_3_effect,
+        offering_ex_effect, shop_ex_ultra_effect, OfferingEX3Key,
+    };
+    use crate::mechanics::singularity_challenges::{
+        no_octeracts_effect, NoOcteractsKey, SingularityEffectValue,
+    };
+    use crate::mechanics::talisman_levels::sum_of_talisman_rarities;
+    use crate::mechanics::tesseract_blessings::calculate_offering_tesseract_blessing;
+    use crate::state::ambrosia::AMBROSIA_OFFERING_1;
+    use crate::state::golden_quarks::{
+        GQ_SING_CITADEL, GQ_SING_CITADEL_2, GQ_SING_OFFERINGS_1, GQ_SING_OFFERINGS_2,
+        GQ_SING_OFFERINGS_3, GQ_STARTER_PACK,
+    };
+    use crate::state::octeract_upgrades::OCTERACT_OFFERINGS_1;
+    use crate::state::red_ambrosia::{RED_AMBROSIA_RED_AMBROSIA_OFFERING, RED_AMBROSIA_TUTORIAL};
+    use crate::state::shop::{
+        SHOP_CASH_GRAB, SHOP_CASH_GRAB_2, SHOP_EX_ULTRA, SHOP_OFFERING_EX, SHOP_OFFERING_EX_2,
+        SHOP_OFFERING_EX_3,
+    };
+    use crate::state::talismans::TALISMAN_MIDAS;
+    use crate::state::{RUNE_ANTIQUITIES, RUNE_SUPERIOR_INTELLECT};
+
+    // Legacy `AntUpgrades.Offerings` (index 5) and the offering cube-blessing
+    // DR upgrade (`player.cubeUpgrades[24]`).
+    const ANT_UPGRADE_OFFERINGS: usize = 5;
+    const CUBE_UPGRADE_OFFERING_BLESSING: usize = 24;
+
+    let sing = state.singularity.singularity_count;
+    let researches = &state.researches.researches;
+    let upgrades = &state.upgrades.upgrades;
+    let cube = &state.cube_upgrade_levels.cube_upgrades;
+    let platonic = &state.cube_upgrade_levels.platonic_upgrades;
+    let shop = &state.shop.upgrades;
+    let cc = &state.challenges.challenge_completions;
+    let achievement_level = achievement_level_from_points(state.achievements.achievement_points);
+    let lifetime_ambrosia = state.ambrosia.lifetime_ambrosia;
+    let ambrosia_luck = compute_ambrosia_luck_pre(state);
+    let gq = |i: usize| {
+        state.golden_quarks.upgrades[i].level + state.golden_quarks.upgrades[i].free_level
+    };
+    let oct = |i: usize| {
+        state.octeract_upgrades.upgrades[i].level + state.octeract_upgrades.upgrades[i].free_level
+    };
+    let amb = |i: usize| state.ambrosia.upgrades[i].level + state.ambrosia.upgrades[i].free_level;
+    let red = |i: usize| state.red_ambrosia.upgrades[i].level;
+    let total_challenge_completions: f64 = cc.iter().sum();
+    let talisman_rarities = state.talismans.talisman_rarity.map(|r| r as u8);
+    let midas_level = state.talismans.talisman_levels[TALISMAN_MIDAS];
+
+    // Offering cube-blessing chain platonic → hypercube → tesseract → cube,
+    // mirroring `calculateOfferingCubeBlessing` (Cubes.ts:294).
+    let platonic_amplifier =
+        calculate_hypercube_blessing_multiplier_platonic_blessing(&state.platonic_blessings);
+    let hypercube_blessing =
+        calculate_offering_hypercube_blessing(&state.hypercube_blessings, platonic_amplifier);
+    let tesseract_blessing =
+        calculate_offering_tesseract_blessing(&state.tesseract_blessings, hypercube_blessing);
+    let offering_cube_blessing = calculate_offering_cube_blessing(
+        &state.cube_blessings,
+        tesseract_blessing,
+        cube[CUBE_UPGRADE_OFFERING_BLESSING],
+    );
+
+    // OcteractBonus line — the noOcteracts (Exalt 4) offering-bonus gate ×
+    // the precomputed total-octeract cube bonus.
+    let offering_bonus_enabled = matches!(
+        no_octeracts_effect(
+            state.singularity.no_octeracts.completions,
+            NoOcteractsKey::OfferingBonus,
+        ),
+        SingularityEffectValue::Unlock(true)
+    );
+    let octeract_pow = match no_octeracts_effect(
+        state.singularity.no_octeracts.completions,
+        NoOcteractsKey::OcteractPow,
+    ) {
+        SingularityEffectValue::Scalar(s) => s,
+        SingularityEffectValue::Unlock(_) => 0.0,
+    };
+    let octeract_cube_bonus =
+        calculate_total_octeract_cube_bonus(&CalculateTotalOcteractCubeBonusInput {
+            exalt_4_enabled: state.singularity.no_octeracts.enabled,
+            total_wow_octeracts: state.cube_balances.total_wow_octeracts.to_number(),
+            octeract_pow,
+        });
+
+    // PrestigeShards — reads the canonical crystal-upgrades slice (H1).
+    let prestige_shards_log10 = (state.crystal_upgrades.prestige_shards + Decimal::one())
+        .log10()
+        .to_number();
+
+    let lines = [
+        base_offerings, // Base = calculateBaseOfferings()
+        // PrestigeShards — 1 + log10(prestigeShards + 1)^0.5 / 5.
+        1.0 + prestige_shards_log10.powf(0.5) / 5.0,
+        1.0, // AchievementBonus — getAchievementReward('offeringBonus'); achievement awarding unported (P3.1/H5) → 1.0
+        get_level_reward(LevelRewardKey::Offerings, achievement_level), // SynergismLevel
+        superior_intellect_rune_effects(
+            first_five_effective_rune_level(state, RUNE_SUPERIOR_INTELLECT),
+            SuperiorIntellectRuneKey::OfferingMult,
+        ), // SuperiorIntellect
+        // ReincarnationChallenge — 1 + (1/50)·ECC(c6) + (1/25)·ECC(c8) + (1/25)·ECC(c10).
+        1.0 + (1.0 / 50.0) * calc_ecc(ChallengeType::Reincarnation, cc[6])
+            + (1.0 / 25.0) * calc_ecc(ChallengeType::Reincarnation, cc[8])
+            + (1.0 / 25.0) * calc_ecc(ChallengeType::Reincarnation, cc[10]),
+        1.0 + 0.2 * f64::from(upgrades[38]), // DiamondUpgrade4x3
+        1.0, // ParticleUpgrade3x5 — maxObtainium untracked → 1.0 (the min(maxObtainium,1e10) term is 0)
+        1.0 + researches[119] / 200.0, // Research5x19
+        offering_ex_effect(shop[SHOP_OFFERING_EX]), // OfferingEXShop
+        cash_grab_effect(shop[SHOP_CASH_GRAB]), // CashGrab
+        1.0 + (1.0 / 10_000.0) * total_challenge_completions * researches[85], // Research4x10
+        offerings_ant_upgrade_effect(true_ant_level(state, ANT_UPGRADE_OFFERINGS)), // AntUpgrade
+        offering_cube_blessing, // Brutus (cube blessing)
+        1.0 + 0.02 * state.campaigns.constant_upgrades[3], // ConstantUpgrade3
+        // ResearchTalismans — 1 + 0.0003·midas·research[149] + 0.0004·midas·research[179].
+        1.0 + 0.0003 * midas_level * researches[149] + 0.0004 * midas_level * researches[179],
+        1.0, // TutorialBonus — campaign subsystem unported → 1.0
+        1.0, // CampaignBonus — campaign subsystem unported → 1.0
+        1.0 + 0.12 * calc_ecc(ChallengeType::Ascension, cc[12]), // Challenge12
+        1.0, // ThriftSpirit — getRuneSpiritEffect('thrift').offerings; spirit-power chain unported → 1.0
+        1.0 + (0.01 / 100.0) * researches[200], // Research8x25
+        1.0 + 0.05 * cube[46], // CubeUpgrade5x6
+        1.0 + (0.02 / 100.0) * cube[50], // CubeUpgrade5x10
+        1.0 + platonic[5], // PlatonicALPHA
+        1.0 + 2.5 * platonic[10], // PlatonicBETA
+        1.0 + 5.0 * platonic[15], // PlatonicOMEGA
+        challenge_15_rewards::offering(state.challenges.challenge15_exponent), // Challenge15
+        10.0_f64.powf(antiquities_rune_effects(
+            state.runes.rune_levels[RUNE_ANTIQUITIES],
+            AntiquitiesRuneKey::OfferingLog10,
+            AntiquitiesRuneInput {
+                singularity_count: sing,
+            },
+        )), // Antiquities
+        1.0, // Jack — shopPanthema needs the unported ShopPanthemaBonusLevels → 1.0
+        1.0, // SingularityDebuff — 1/calculateSingularityDebuff('Offering'); sing layer paused → 1.0
+        starter_pack_effect(gq(GQ_STARTER_PACK), StarterPackKey::OfferingMult), // StarterPack
+        sing_offerings_1_effect(gq(GQ_SING_OFFERINGS_1)), // OfferingCharge
+        sing_offerings_2_effect(gq(GQ_SING_OFFERINGS_2)), // OfferingStorm
+        sing_offerings_3_effect(gq(GQ_SING_OFFERINGS_3)), // OfferingTempest
+        sing_citadel_effect(gq(GQ_SING_CITADEL)), // Citadel
+        sing_citadel_2_effect(gq(GQ_SING_CITADEL_2), SingCitadel2Key::Mult), // Citadel2
+        1.0 + cube[54] / 100.0, // CubeUpgradeCx4
+        if cube[62] > 0.0 && state.challenges.current_ascension_challenge == 15 {
+            8.0
+        } else {
+            1.0
+        }, // CubeUpgradeCx12
+        octeract_offerings_1_effect(oct(OCTERACT_OFFERINGS_1)), // OcteractElectrolosis
+        calculate_total_octeract_offering_bonus(&CalculateTotalOcteractOfferingBonusInput {
+            offering_bonus_enabled,
+            cube_bonus: octeract_cube_bonus,
+        }), // OcteractBonus
+        ambrosia_offering_1_effect(amb(AMBROSIA_OFFERING_1), ambrosia_luck), // Ambrosia
+        red_tutorial_effect(red(RED_AMBROSIA_TUTORIAL)), // RedAmbrosiaTutorial
+        calculate_red_ambrosia_offering(&CalculateRedAmbrosiaResourceInput {
+            unlocked: red_ambrosia_offering_effect(red(RED_AMBROSIA_RED_AMBROSIA_OFFERING)),
+            lifetime_red_ambrosia: state.red_ambrosia.lifetime_red_ambrosia,
+        }), // RedAmbrosia
+        1.04_f64.powf(cube[72] * sum_of_talisman_rarities(&talisman_rarities)), // CubeUpgradeCx22
+        cash_grab_2_effect(shop[SHOP_CASH_GRAB_2]), // CashGrab2
+        offering_ex_2_effect(shop[SHOP_OFFERING_EX_2], sing), // OfferingEX2
+        offering_ex_3_effect(shop[SHOP_OFFERING_EX_3], OfferingEX3Key::OfferingMult), // OfferingINF
+        shop_ex_ultra_effect(shop[SHOP_EX_ULTRA], lifetime_ambrosia), // EXUltra
+        // Exalt6Penalty — singularity speedrun penalty (limitedTime).
+        if state.singularity.limited_time.enabled {
+            calculate_exalt_6_penalty(
+                state.singularity.limited_time.completions,
+                state.singularity.sing_challenge_timer,
+            )
+        } else {
+            1.0
+        },
+        // TaxmanDebuff — 2.5 ^ -min(500, floor(1 + max(0, log10(obtainium)))).
+        if state.singularity.taxman_last_stand.enabled {
+            let obtainium_log10 = state.researches.obtainium.log10().to_number();
+            let obtainium_digits = (1.0 + 0.0_f64.max(obtainium_log10)).floor();
+            2.5_f64.powf(-(500.0_f64.min(obtainium_digits)))
+        } else {
+            1.0
+        },
+        1.0, // Event — UI-tier event calendar → 1 + 0
+    ];
+    product_decimal(&lines.map(Decimal::from_finite))
+}
+
+/// `calculateOfferings()` (Calculate.ts:208) — the offering award credited on
+/// every reset tier (`resetOfferings`, Runes.ts:1046). Assembles the base sum,
+/// the multiplier product, and the prestige-timer multiplier, then applies the
+/// Exalt-8 taxman cap via the ported [`calculate_offerings`] aggregator.
+fn compute_offerings(state: &GameState) -> Decimal {
+    use crate::mechanics::calculate::{calculate_offerings, CalculateOfferingsInput};
+
+    let base_offerings = compute_base_offerings(state);
+    let offering_mult = compute_offering_mult(state, base_offerings);
+    let time_multiplier = compute_offering_time_multiplier(state);
+
+    calculate_offerings(&CalculateOfferingsInput {
+        base_offerings,
+        time_multiplier,
+        offering_mult,
+        taxman_last_stand_enabled: state.singularity.taxman_last_stand.enabled,
+        taxman_last_stand_completions: state.singularity.taxman_last_stand.completions,
+        current_offerings: state.automation.offerings,
+    })
 }
 
 /// `obtainium_gain` — self-derived from `&GameState`.
@@ -5687,6 +6029,76 @@ mod tests {
             output.events[0],
             CoreEvent::ObtainiumMultiplierRecomputeRequested
         ));
+    }
+
+    // ─── Offerings (calculateOfferings) ──────────────────────────────────
+
+    #[test]
+    fn compute_base_offerings_default_is_one() {
+        // Σ allBaseOfferingStats at default — only the absolute Base line (1).
+        assert_eq!(compute_base_offerings(&GameState::default()), 1.0);
+    }
+
+    #[test]
+    fn compute_base_offerings_sums_flat_bonuses() {
+        let mut state = GameState::default();
+        state.reset_counters.prestige_count = 1.0; // Prestige +1
+        state.reset_counters.transcend_count = 1.0; // Transcend +3
+        state.reset_counters.reincarnation_count = 1.0; // Reincarnate +5
+        state.challenges.challenge_completions[2] = 1.0; // Challenge1 (2x1) +2
+        state.researches.researches[24] = 10.0; // Research1x24 = 0.4·10 = +4
+                                                // 1 + 1 + 3 + 5 + 2 + 4 = 16.
+        assert_eq!(compute_base_offerings(&state), 16.0);
+    }
+
+    #[test]
+    fn compute_offering_mult_default_is_one() {
+        // Π allOfferingStats at default — Base line = baseOfferings (1), every
+        // other line is the multiplicative identity.
+        let state = GameState::default();
+        let base = compute_base_offerings(&state);
+        assert!((compute_offering_mult(&state, base).to_number() - 1.0).abs() < 1e-9);
+    }
+
+    #[test]
+    fn compute_offering_mult_picks_up_diamond_upgrade_4x3() {
+        // DiamondUpgrade4x3 = 1 + 0.2·upgrades[38]; isolated from every other
+        // offering line (classic upgrades don't feed the rune-effectiveness
+        // mult). At level 5 → 2.0, so the product is 2.0.
+        let mut state = GameState::default();
+        state.upgrades.upgrades[38] = 5;
+        let base = compute_base_offerings(&state);
+        assert!((compute_offering_mult(&state, base).to_number() - 2.0).abs() < 1e-9);
+    }
+
+    #[test]
+    fn compute_offering_time_multiplier_thresholds() {
+        // offeringObtainiumTimeModifiers(prestigecounter, milestone-off):
+        // ThresholdPenalty = min(1, (t/10)^2); TimeMultiplier = 1 (milestone
+        // needs level ≥ 5); HalfMind = 1.
+        let mut state = GameState::default();
+        assert_eq!(compute_offering_time_multiplier(&state), 0.0); // t = 0
+        state.reset_counters.prestige_counter = 5.0; // (5/10)^2 = 0.25
+        assert!((compute_offering_time_multiplier(&state) - 0.25).abs() < 1e-9);
+        state.reset_counters.prestige_counter = 100.0; // capped at 1
+        assert!((compute_offering_time_multiplier(&state) - 1.0).abs() < 1e-9);
+    }
+
+    #[test]
+    fn compute_offerings_default_is_base_floor() {
+        // prestige_counter = 0 ⇒ time multiplier 0 ⇒ max(base 1, mult·0) = 1.
+        assert_eq!(compute_offerings(&GameState::default()).to_number(), 1.0);
+    }
+
+    #[test]
+    fn compute_offerings_takes_max_of_base_and_scaled_mult() {
+        // A long reset (prestige_counter past the 10s threshold) gives a time
+        // multiplier of 1; with offeringMult = 2 (DiamondUpgrade4x3 at level 5)
+        // the scaled product (2·1) beats the base floor (1) → award 2.
+        let mut state = GameState::default();
+        state.upgrades.upgrades[38] = 5;
+        state.reset_counters.prestige_counter = 100.0;
+        assert!((compute_offerings(&state).to_number() - 2.0).abs() < 1e-9);
     }
 
     #[test]

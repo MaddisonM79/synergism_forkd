@@ -132,8 +132,15 @@ pub(crate) fn perform_prestige_reset(
 /// Faithful to `reset()`, this is **ungated** — too-few coins simply award
 /// `0`; any can-I-reset guard is a UI-tier concern.
 ///
+/// `resetOfferings()` (Runes.ts:1046, called unconditionally at Reset.ts:422)
+/// is awarded here as the first statement — `calculateOfferings()` reads the
+/// pre-reset prestige timer (its time multiplier) and `prestigeShards` (its
+/// `PrestigeShards` line), both of which this fn later zeroes. The award is
+/// ungated: every reset tier earns offerings. The ascension layer re-zeroes
+/// `automation.offerings` afterward (Reset.ts:671), so an ascension cascade
+/// nets to zero — faithful to the legacy award-then-wipe ordering.
+///
 /// Deferred from the legacy (each faithful at current state):
-/// - `resetOfferings()` (Runes.ts:934) — pulls in `calculateOfferings()`.
 /// - the `updatePrestigeCount` multiplier — `1` at default, so the count
 ///   rises by exactly `1`; the `transcendToPrestige` chain is `false`.
 /// - `awardAchievementGroup` — achievement *awarding* is a separate
@@ -141,6 +148,7 @@ pub(crate) fn perform_prestige_reset(
 /// - `G.generatorPower = 1` (recomputed per tick) and `fastestprestige`
 ///   (a record-keeping stat with no state field).
 fn apply_base_reset(state: &mut GameState, prestige_point_gain: Decimal) {
+    state.automation.offerings += super::compute_offerings(state);
     state.upgrades.coins = Decimal::from_finite(102.0);
     state.coin_counters.coins_this_prestige = Decimal::from_finite(100.0);
     for (tier, cost) in state.coin_producers.tiers.iter_mut().zip(COIN_BASE_COSTS) {
@@ -1009,6 +1017,40 @@ mod tests {
             slow.to_number(),
             quick.to_number()
         );
+    }
+
+    // ─── Offerings (resetOfferings) ──────────────────────────────────────
+
+    #[test]
+    fn prestige_reset_credits_offerings_and_accumulates() {
+        let mut state = GameState::default();
+        state.automation.offerings = Decimal::from_finite(50.0);
+        // prestige_counter = 0 ⇒ time multiplier 0 ⇒ award is the base floor:
+        // max(baseOfferings = 1, offeringMult · 0) = 1. Added to the balance.
+        perform_prestige_reset(&mut state, Decimal::zero());
+        assert_eq!(state.automation.offerings.to_number(), 51.0);
+    }
+
+    #[test]
+    fn transcension_and_reincarnation_also_credit_offerings() {
+        // resetOfferings() lives in the always-on base reset (Reset.ts:422),
+        // so every non-ascension tier credits the default award of 1.
+        let mut t = GameState::default();
+        perform_transcension_reset(&mut t, &gains(0.0, 0.0, 0.0));
+        assert_eq!(t.automation.offerings.to_number(), 1.0);
+
+        let mut r = GameState::default();
+        perform_reincarnation_reset(&mut r, &gains(0.0, 0.0, 0.0));
+        assert_eq!(r.automation.offerings.to_number(), 1.0);
+    }
+
+    #[test]
+    fn ascension_reset_nets_offerings_to_zero_after_award() {
+        // The base reset credits offerings, then the ascension layer wipes
+        // them (Reset.ts:671) — so a from-zero ascension nets to zero.
+        let mut state = GameState::default();
+        perform_ascension_reset(&mut state, &gains(0.0, 0.0, 0.0));
+        assert_eq!(state.automation.offerings.to_number(), 0.0);
     }
 
     // ─── Ascension ───────────────────────────────────────────────────────
