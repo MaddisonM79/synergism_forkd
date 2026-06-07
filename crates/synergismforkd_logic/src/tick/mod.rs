@@ -5907,6 +5907,17 @@ fn inside_singularity_challenge(s: &crate::state::SingularityState) -> bool {
 
 // ─── Dispatch helpers ────────────────────────────────────────────────────
 
+/// `buildingAchievementCheck()` — run after a coin-producer buy to award the
+/// `*OwnedCoin` achievement groups from the current owned counts (the legacy
+/// `buyBuilding` calls it on every building purchase).
+fn check_coin_building_achievements(state: &mut GameState) {
+    let coin_owned: [f64; 5] = std::array::from_fn(|i| state.coin_producers.tiers[i].owned);
+    crate::mechanics::achievement_awards::building_achievement_check(
+        &mut state.achievements,
+        &coin_owned,
+    );
+}
+
 fn dispatch_buy(state: &mut GameState, req: &BuyRequest) -> SmallVec<[CoreEvent; 4]> {
     // Each arm borrows disjoint `GameState` fields explicitly so the
     // borrow checker can verify the per-slice mutator and the canonical
@@ -5968,7 +5979,9 @@ fn dispatch_buy(state: &mut GameState, req: &BuyRequest) -> SmallVec<[CoreEvent;
         }
         BuyRequest::ProducerMax(inp) => match inp.producer_type {
             ProducerType::Coin => {
-                buy_max(&mut state.coin_producers, &mut state.upgrades.coins, *inp)
+                let events = buy_max(&mut state.coin_producers, &mut state.upgrades.coins, *inp);
+                check_coin_building_achievements(state);
+                events
             }
             ProducerType::Diamonds => buy_max(
                 &mut state.diamond_producers,
@@ -5988,7 +6001,10 @@ fn dispatch_buy(state: &mut GameState, req: &BuyRequest) -> SmallVec<[CoreEvent;
         },
         BuyRequest::Producer(inp) => match inp.producer_type {
             ProducerType::Coin => {
-                buy_producer(&mut state.coin_producers, &mut state.upgrades.coins, *inp)
+                let events =
+                    buy_producer(&mut state.coin_producers, &mut state.upgrades.coins, *inp);
+                check_coin_building_achievements(state);
+                events
             }
             ProducerType::Diamonds => buy_producer(
                 &mut state.diamond_producers,
@@ -6099,6 +6115,61 @@ mod tests {
         state.upgrades.upgrades[38] = 5;
         state.reset_counters.prestige_counter = 100.0;
         assert!((compute_offerings(&state).to_number() - 2.0).abs() < 1e-9);
+    }
+
+    #[test]
+    fn coin_producer_buy_fires_building_achievement_check() {
+        // dispatch_buy of a coin producer must run buildingAchievementCheck.
+        // Pre-own 99 first-tier coins so one more buy crosses the >=100
+        // threshold, awarding firstOwnedCoin achievements 1/2/3 (pv 5+10+15).
+        let mut state = GameState::default();
+        state.upgrades.coins = Decimal::from_finite(1e12);
+        state.coin_producers.tiers[0].owned = 99.0;
+        let req = BuyRequest::Producer(BuyProducerInput {
+            index: 1,
+            producer_type: ProducerType::Coin,
+            autobuyer: false,
+            buyamount: 1.0,
+            r: 1.0,
+            in_transcension_challenge_4: false,
+            in_reincarnation_challenge_8: false,
+            challengecompletions_4: 0.0,
+            challengecompletions_8: 0.0,
+        });
+        dispatch_buy(&mut state, &req);
+        assert_eq!(state.coin_producers.tiers[0].owned, 100.0);
+        assert_eq!(state.achievements.achievements[1], 1);
+        assert_eq!(state.achievements.achievements[2], 1);
+        assert_eq!(state.achievements.achievements[3], 1);
+        assert_eq!(state.achievements.achievement_points, 30.0);
+    }
+
+    #[test]
+    fn achievement_points_drive_the_mythos_exponent() {
+        // Keystone end-to-end: awarding achievements raises
+        // achievement_points, which is the exponent of the mythos multiplier
+        // `1.01^points·(points/5+1)` (gated by upgrade 47). Before P3.1 this
+        // was frozen at 0 → factor 1.
+        let mut state = GameState::default();
+        state.upgrades.upgrades[47] = 1; // enable the achievementPoints mythos term
+        let pre0 = compute_global_multipliers_pre(&state);
+        let mythos0 = compute_global_multipliers(&state, &pre0).global_mythos_multiplier;
+
+        crate::mechanics::achievement_awards::reset_achievement_check(
+            &mut state.achievements,
+            crate::events::AutoResetTier::Prestige,
+            Decimal::from_finite(1e6),
+        );
+        assert_eq!(state.achievements.achievement_points, 15.0);
+
+        let pre1 = compute_global_multipliers_pre(&state);
+        let mythos1 = compute_global_multipliers(&state, &pre1).global_mythos_multiplier;
+        assert!(
+            mythos1 > mythos0,
+            "mythos multiplier should rise with achievement points: {} vs {}",
+            mythos1,
+            mythos0
+        );
     }
 
     #[test]

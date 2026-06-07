@@ -105,10 +105,12 @@ Rationale for the spine: **P0 fixes are verified-from-source one-liners** that c
 
 > These lived next to the `Currency` class / DOM / `Math.random()` in the monolith and were excluded from the extracted package. Net-new porting; restores whole economies.
 
-### P3.1 — [H5] Achievement awarding + points  *(large)*
-- **Build:** the check functions (`resetAchievementCheck`/`challengeAchievementCheck`/`buildingAchievementCheck` → `awardAchievement`), `updateAchievementPoints`, and the progressive-cache `Math.max` accumulation. The `[u8;509]` bitmap is currently read at ~12 sites, written at zero; `achievement_points` is never recomputed.
-- **Why:** `achievement_points` is the **exponent** of the crystal mult `(1+0.01·crystalUpgrade[0])^points` (`global_multipliers.rs:343`) and the mythos mult `1.01^points·(points/5+1)` (`:382`) — under-credited in **mid-game**. Plus dozens of achievement-gated bonuses stay inert.
-- **Sequencing:** a partial port of the reset/building/challenge group-checks captures most of the value first; the long tail of one-off achievements can follow. **Effort: large.**
+### P3.1 — [H5] Achievement awarding + points  *(large — slice 1 DONE 2026-06-06)*
+- **Why:** `achievement_points` is the **exponent** of the crystal mult `(1+0.01·crystalUpgrade[0])^points` (`global_multipliers.rs:344`) and the mythos mult `1.01^points·(points/5+1)` (`:383`, both read `state.achievements.achievement_points` at `:197`) — under-credited in **mid-game**. Plus dozens of achievement-gated bonuses stay inert.
+- ✅ **Slice 1 (this session):** new `mechanics/achievement_awards.rs` — `award_achievement` (incremental `achievement_points += pointValue`, mirroring `awardAchievement`), `building_achievement_check` (the five `*OwnedCoin` groups, wired into the coin-producer `dispatch_buy` arms), `reset_achievement_check` (the `{prestige,transcend,reincarnation}PointGain` groups, wired into the three top-level `perform_*_reset` **before** the reset body so the offering/obtainium awards see the updated points). Indices/thresholds/pointValues extracted programmatically from the legacy array (brace-matched, not hand-counted). 11 new tests incl. a keystone end-to-end (`achievement_points_drive_the_mythos_exponent`). The bitmap is now **written**, not just read.
+- **Slice 2 (next):** `challengeAchievementCheck` — the 14 challenge groups, wired into the challenge-completion helper (most mid-game point value).
+- **Slice 3 (later):** progressive achievements (the `Math.max` cache, 12 entries) + the ungrouped one-off tail (incl. the no-accelerator/no-mult reset achievements indices 57-74) + the quark-on-award reward + the full-table recompute (`compute_achievement_points`).
+- **Sequencing:** group-checks first captured most of the value; the long tail follows.
 
 ### P3.2 — [H6] Cube `open()` across all four layers  *(medium-large)*
 - **Build:** `WowCubes.open` (`CubeExperimental.ts:177`), `WowTesseracts.open` (256), `WowHypercubes.open` (297), `WowPlatonicCubes.open` (338) — spend balance → add blessing levels via the weighted bulk distribution + per-cube RNG pdf. Reserve new `RngPurpose::Cubes/Tesseracts/Hypercubes/PlatonicCubes`.

@@ -118,6 +118,14 @@ pub(crate) fn perform_prestige_reset(
     state: &mut GameState,
     prestige_point_gain: Decimal,
 ) -> SmallVec<[CoreEvent; 2]> {
+    // resetAchievementCheck('prestige') runs before reset() in the legacy
+    // trigger, so the offering award inside the base reset sees the updated
+    // achievement_points.
+    crate::mechanics::achievement_awards::reset_achievement_check(
+        &mut state.achievements,
+        AutoResetTier::Prestige,
+        prestige_point_gain,
+    );
     apply_base_reset(state, prestige_point_gain);
     smallvec![CoreEvent::ResetPerformed {
         tier: AutoResetTier::Prestige,
@@ -199,6 +207,11 @@ pub(crate) fn perform_transcension_reset(
     state: &mut GameState,
     gains: &ResetCurrencyResult,
 ) -> SmallVec<[CoreEvent; 2]> {
+    crate::mechanics::achievement_awards::reset_achievement_check(
+        &mut state.achievements,
+        AutoResetTier::Transcension,
+        gains.transcend_point_gain,
+    );
     apply_base_reset(state, gains.prestige_point_gain);
     apply_transcension_layer(state, gains.transcend_point_gain);
     smallvec![CoreEvent::ResetPerformed {
@@ -282,6 +295,13 @@ pub(crate) fn perform_reincarnation_reset(
     state: &mut GameState,
     gains: &ResetCurrencyResult,
 ) -> SmallVec<[CoreEvent; 2]> {
+    // resetAchievementCheck('reincarnation') runs first, so the obtainium and
+    // offering awards below read the updated achievement_points.
+    crate::mechanics::achievement_awards::reset_achievement_check(
+        &mut state.achievements,
+        AutoResetTier::Reincarnation,
+        gains.reincarnation_point_gain,
+    );
     // `reincarnationCheck` is the *pre-reset* shard total — capture it
     // before the transcension layer zeroes `transcend_shards`.
     let reincarnation_check = state.reset_counters.transcend_shards
@@ -1051,6 +1071,35 @@ mod tests {
         let mut state = GameState::default();
         perform_ascension_reset(&mut state, &gains(0.0, 0.0, 0.0));
         assert_eq!(state.automation.offerings.to_number(), 0.0);
+    }
+
+    // ─── Achievement awarding (resetAchievementCheck point-gain) ─────────
+
+    #[test]
+    fn reincarnation_reset_awards_point_gain_achievements() {
+        // resetAchievementCheck('reincarnation') fires through the reset and
+        // awards the reincarnationPointGain group from the gain. gain 1e6 →
+        // log10 6 → rows at thresholds 0 and 5 (indices 50,51; pv 5+10 = 15);
+        // the 1e30 row (index 52) stays unmet.
+        let mut state = GameState::default();
+        state.reset_counters.transcend_shards = Decimal::from_finite(1e305);
+        perform_reincarnation_reset(&mut state, &gains(0.0, 0.0, 1e6));
+        assert_eq!(state.achievements.achievements[50], 1);
+        assert_eq!(state.achievements.achievements[51], 1);
+        assert_eq!(state.achievements.achievements[52], 0);
+        assert_eq!(state.achievements.achievement_points, 15.0);
+    }
+
+    #[test]
+    fn prestige_reset_awards_point_gain_achievements() {
+        let mut state = GameState::default();
+        // gain 1e6 → log10 6 → prestigePointGain rows at thresholds 0 and 6
+        // (indices 36,37; pv 5+10 = 15).
+        perform_prestige_reset(&mut state, Decimal::from_finite(1e6));
+        assert_eq!(state.achievements.achievements[36], 1);
+        assert_eq!(state.achievements.achievements[37], 1);
+        assert_eq!(state.achievements.achievements[38], 0);
+        assert_eq!(state.achievements.achievement_points, 15.0);
     }
 
     // ─── Ascension ───────────────────────────────────────────────────────
