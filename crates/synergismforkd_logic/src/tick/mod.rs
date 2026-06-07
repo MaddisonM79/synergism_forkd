@@ -5590,7 +5590,7 @@ fn phase_automation(
         // outcome-identical to the legacy unconditional push (see
         // `ant_sacrifice::activate_elo`).
         if state.ants.immortal_elo > 0.0 {
-            ant_sacrifice::activate_elo(state, dt);
+            output.events.extend(ant_sacrifice::activate_elo(state, dt));
         }
 
         // ── Head: simple counters (no events) ────────────────────────────

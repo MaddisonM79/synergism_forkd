@@ -13,15 +13,14 @@
 //! and applies the results, the way `tick::reset` consumes the reset
 //! calculators (and reaches the private `super::compute_*` resource helpers).
 //!
-//! Two pieces are deliberately deferred:
+//! One piece is deliberately omitted:
 //!
-//! - **Quark award.** `activateELO`'s closing `availableQuarksFromELO()` →
-//!   `player.worlds.applyBonus(...)` award needs the worlds quark-bonus system
-//!   (porting slice 3b). Omitted here; the reborn-ELO leaderboard it reads is
-//!   fully maintained, so wiring it later is purely additive.
 //! - **Lotus shortcut.** The `getLotusTimeExpiresAt()` branch that snaps
 //!   `rebornELO = immortalELO` reads wall-clock time, forbidden in the logic
-//!   crate. Omitted — the gradual activation path is always taken.
+//!   crate. Omitted — the gradual activation path is always taken. (The quark
+//!   award — `activateELO`'s closing `worlds.add(availableQuarksFromELO())` — is
+//!   wired below; the `autoWarpCheck` / `dailyPowderResetUses` warp factor is an
+//!   unported auto-feature and neutral-defaults to 1.)
 
 use smallvec::{smallvec, SmallVec};
 use synergismforkd_bignum::Decimal;
@@ -350,7 +349,7 @@ fn reset_ants_for_sacrifice(state: &mut GameState) {
 /// Called each live tick from `phase_automation` (gated on `immortal_elo > 0`).
 /// The Lotus wall-clock shortcut and the trailing quark award are omitted (see
 /// the module header).
-pub(super) fn activate_elo(state: &mut GameState, dt: f64) {
+pub(super) fn activate_elo(state: &mut GameState, dt: f64) -> SmallVec<[CoreEvent; 1]> {
     use crate::mechanics::ant_reborn_elo::{
         calculate_available_reborn_elo, calculate_reborn_elo_thresholds,
         calculate_to_next_reborn_elo_threshold, AvailableRebornELOInput,
@@ -379,9 +378,55 @@ pub(super) fn activate_elo(state: &mut GameState, dt: f64) {
         state.ants.reborn_elo = state.ants.reborn_elo.min(state.ants.immortal_elo);
     }
     update_ant_leaderboards(state);
-    // TODO(P3.1 slice 3b): availableQuarksFromELO() → player.worlds.applyBonus()
-    // quark award. Needs the worlds quark-bonus system; the leaderboards it
-    // reads are maintained above, so this is purely additive.
+
+    // Quark award — `activateELO`'s closing `worlds.add(availableQuarksFromELO(),
+    // false, true)` (useBonus false: the quark multiplier is already applied
+    // inside `available_quarks_from_elo`; `addToQuarksThisSingularity` true).
+    let quarks = available_quarks_from_elo(state);
+    let mut events: SmallVec<[CoreEvent; 1]> = SmallVec::new();
+    if quarks > 0.0 {
+        state.quarks.worlds += Decimal::from_finite(quarks);
+        state.golden_quarks.quarks_this_singularity += quarks;
+        state.ants.quarks_gained_from_ants += quarks;
+        events.push(CoreEvent::QuarksAwarded { quarks });
+    }
+    events
+}
+
+/// `availableQuarksFromELO` (QuarkCorner/lib/calculate-quarks.ts) — the
+/// incremental quark gift from the reborn-ELO leaderboards. The daily
+/// leaderboard's stages set the base quark count + per-stage multiplier; the
+/// all-time leaderboard scales it (`quarks_from_elo_mult`); `applyBonus` (the
+/// cached quark multiplier) multiplies; and the running
+/// `quarks_gained_from_ants` total is subtracted so each tick only awards the
+/// delta. The `autoWarpCheck ? 1 + dailyPowderResetUses : 1` factor
+/// neutral-defaults to 1 (auto-warp is an unported auto-feature).
+fn available_quarks_from_elo(state: &GameState) -> f64 {
+    use crate::mechanics::ant_reborn_elo::{
+        base_quarks_from_reborn_elo_stages, calculate_leaderboard_value,
+        calculate_reborn_elo_thresholds, quarks_from_elo_mult,
+    };
+
+    let daily: Vec<f64> = state
+        .ants
+        .highest_reborn_elo_daily
+        .iter()
+        .map(|e| e.elo)
+        .collect();
+    let num_stages = calculate_reborn_elo_thresholds(calculate_leaderboard_value(&daily));
+    let bq = base_quarks_from_reborn_elo_stages(num_stages);
+
+    let ever: Vec<f64> = state
+        .ants
+        .highest_reborn_elo_ever
+        .iter()
+        .map(|e| e.elo)
+        .collect();
+    let ant_quark_mult = quarks_from_elo_mult(calculate_leaderboard_value(&ever)) * bq.stage_mult;
+
+    // applyBonus(baseQuarks): the cached quark multiplier (a percent → ×).
+    let applied = bq.base_quarks * (1.0 + state.quarks.quark_bonus / 100.0);
+    (applied * ant_quark_mult - state.ants.quarks_gained_from_ants).max(0.0)
 }
 
 /// `updateAntLeaderboards` (QuarkCorner/lib/leaderboard-update.ts) — record the
@@ -516,6 +561,30 @@ mod tests {
         assert_eq!(state.ants.reborn_elo, 500.0);
         // The leaderboard still records the (maxed) reborn ELO.
         assert_eq!(state.ants.highest_reborn_elo_ever[0].elo, 500.0);
+    }
+
+    #[test]
+    fn activate_elo_awards_quarks_from_the_leaderboard() {
+        let mut state = GameState::default();
+        state.ants.immortal_elo = 200_000.0;
+
+        let events = activate_elo(&mut state, 1e9);
+
+        assert!(
+            state.quarks.worlds.to_number() > 0.0,
+            "the reborn-ELO leaderboard should award quarks"
+        );
+        assert!(state.ants.quarks_gained_from_ants > 0.0);
+        assert!(events
+            .iter()
+            .any(|e| matches!(e, CoreEvent::QuarksAwarded { .. })));
+
+        // The running `quarks_gained_from_ants` total dedups: re-activating at
+        // the same leaderboard (dt 0 → no further climb) awards ~nothing more.
+        let before = state.quarks.worlds.to_number();
+        let _ = activate_elo(&mut state, 0.0);
+        let delta = state.quarks.worlds.to_number() - before;
+        assert!(delta < 1.0, "second activation re-awarded {delta} quarks");
     }
 
     #[test]
