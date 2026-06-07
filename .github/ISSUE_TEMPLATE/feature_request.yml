@@ -29,7 +29,7 @@ body:
     id: save-impact
     attributes:
       label: Save format impact
-      description: Would this require adding or modifying fields on the `player` object?
+      description: Would this require adding or modifying fields on a `synergismforkd_logic::state` slice (i.e. the saved game state)?
       options:
         - "No — UI / display only"
         - "Yes — new fields needed"
