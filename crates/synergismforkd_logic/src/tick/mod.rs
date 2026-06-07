@@ -5217,6 +5217,14 @@ fn complete_active_challenge(
         counter += 1.0;
     }
     state.challenges.challenge_completions[q_idx] = comp;
+    // challengeAchievementCheck(q) — award the challengeN group from the
+    // updated completion count (the legacy resetCheck calls it after the
+    // completion increments).
+    crate::mechanics::achievement_awards::challenge_achievement_check(
+        &mut state.achievements,
+        q_idx,
+        &state.challenges.challenge_completions,
+    );
     while state.challenges.challenge_completions[q_idx]
         > state.challenges.highest_challenge_completions[q_idx]
     {
@@ -7447,6 +7455,27 @@ mod tests {
         assert_eq!(state.challenges.challenge_completions[11], 0.0);
         assert_eq!(state.challenges.current_ascension_challenge, 11); // still in
         assert!(!state.reset_counters.tesseracts_unlocked);
+    }
+
+    #[test]
+    fn challenge_completion_awards_challenge_achievements() {
+        // Completing a challenge through the real path fires
+        // challengeAchievementCheck: c11 completed once awards the challenge11
+        // achievement at the >=1 threshold (index 197, pv 10).
+        use crate::mechanics::reset_currency::ResetCurrencyResult;
+        let mut state = GameState::default();
+        state.challenges.current_ascension_challenge = 11;
+        state.challenges.challenge_completions[10] = 1.0; // meets the c11 requirement
+        let gains = ResetCurrencyResult {
+            prestige_point_gain: Decimal::zero(),
+            transcend_point_gain: Decimal::zero(),
+            reincarnation_point_gain: Decimal::zero(),
+        };
+        let mut output = TickOutput::default();
+        phase_challenge_completion(&mut state, &gains, &mut output);
+        assert_eq!(state.challenges.challenge_completions[11], 1.0);
+        assert_eq!(state.achievements.achievements[197], 1);
+        assert_eq!(state.achievements.achievement_points, 10.0);
     }
 
     #[test]
