@@ -656,6 +656,55 @@ fn hepteract_effective_bal(raw_amount: f64, dr_exponent: f64) -> f64 {
     })
 }
 
+/// `firstFiveEffectiveRuneLevelMult` (Statistics.ts `firstFiveRuneEffectivenessStats`):
+/// the product applied to the first five runes' level. The eight research
+/// factors, `ConstantUpgrade9`, and `Research4x9` are live; the `Challenge15`
+/// rune bonus, the `MidasTribute` cube-blessing chain, and the `AchievementBonus`
+/// quark-gain reward are neutral-defaulted to `1.0` (unported / blessing chain
+/// deferred / achievements unported, H5). Identity at the default state.
+/// TS-anchored against the verbatim Statistics.ts expressions.
+fn first_five_effective_rune_level_mult(state: &GameState) -> f64 {
+    use crate::mechanics::calculate::product_f64;
+    use crate::mechanics::challenges::{calc_ecc, ChallengeType};
+    let research = &state.researches.researches;
+    let cc = &state.challenges.challenge_completions;
+    // ConstantUpgrade9: 1 + 0.01·log4(talismanShards+1)·min(1, constantUpgrades[9]).
+    let const_upgrade_9 = 1.0
+        + 0.01
+            * ((state.talismans.talisman_shards + 1.0).ln() / 4.0_f64.ln())
+            * state.campaigns.constant_upgrades[9].min(1.0);
+    product_f64(&[
+        1.0 + research[4] / 10.0 * (1.0 + calc_ecc(ChallengeType::Ascension, cc[14])),
+        1.0 + research[21] / 100.0,
+        1.0 + research[90] / 100.0,
+        1.0 + research[131] / 200.0,
+        1.0 + (research[146] / 200.0 * 4.0) / 5.0,
+        1.0 + (research[161] / 200.0 * 3.0) / 5.0,
+        1.0 + (research[176] / 200.0 * 2.0) / 5.0,
+        1.0 + (research[191] / 200.0) / 5.0,
+        const_upgrade_9,
+        1.0, // Challenge15 runeBonus -> neutral (unported)
+        1.0, // MidasTribute cube blessing -> neutral (blessing chain deferred)
+        1.0 + research[84] / 200.0,
+        1.0, // AchievementBonus quarkGain -> neutral (achievements unported, H5)
+    ])
+}
+
+/// Effective level of a first-five rune (speed/duplication/prism/thrift/SI),
+/// legacy `getRuneEffectiveLevel`: reincarnation challenge 9 collapses it to 1
+/// (all first-five `ignoreChal9 = false`); otherwise
+/// `level * firstFiveEffectiveRuneLevelMult`. Deferred (neutral, all identity at
+/// default): the achievement-gated `isUnlocked` gates (defaulting them to locked
+/// would wrongly zero the runes while the achievement system is unported, H5),
+/// `freeLevels` (needs the per-rune bonus aggregators — P2.1b), and SI's extra
+/// quark-based mult.
+fn first_five_effective_rune_level(state: &GameState, rune: usize) -> f64 {
+    if state.challenges.current_reincarnation_challenge == 9 {
+        return 1.0;
+    }
+    state.runes.rune_levels[rune] * first_five_effective_rune_level_mult(state)
+}
+
 /// Build the shared achievement-reward input from `&GameState` — the
 /// earned-flag array plus the cross-state values the reward formulas
 /// read (coin-producer owned counts, prestige points).
@@ -864,7 +913,7 @@ fn compute_global_multipliers_pre(state: &GameState) -> GlobalMultipliersPreEval
     /// `AntUpgrades.Coins = 1` enum value.
     const ANT_UPGRADE_COINS: usize = 1;
 
-    let prism_level = state.runes.rune_levels[RUNE_PRISM];
+    let prism_level = first_five_effective_rune_level(state, RUNE_PRISM);
     let coin_tiers = &state.coin_producers.tiers;
     let total_coin_owned = calculate_total_coin_owned(&CalculateTotalCoinOwnedInput {
         first_owned_coin: coin_tiers[0].owned,
@@ -1020,7 +1069,7 @@ fn compute_update_all_multiplier_pre(
     const CUBE_UPGRADE_MULTIPLIER_BLESSING: usize = 35;
 
     let sum_of_rune_levels: f64 = state.runes.rune_levels.iter().sum();
-    let duplication_level = state.runes.rune_levels[RUNE_DUPLICATION];
+    let duplication_level = first_five_effective_rune_level(state, RUNE_DUPLICATION);
     let duplication_blessing_level = state.runes.rune_blessing_levels[RUNE_DUPLICATION];
     let hept_mult = multiplier_hepteract_effects(hepteract_effective_bal(
         state.hepteracts.multiplier.bal,
@@ -1109,7 +1158,7 @@ fn compute_update_all_tick_pre(
     /// diminishing-return increase. Legacy `player.cubeUpgrades[45]`.
     const CUBE_UPGRADE_ACCELERATOR_BLESSING: usize = 45;
 
-    let speed_level = state.runes.rune_levels[RUNE_SPEED];
+    let speed_level = first_five_effective_rune_level(state, RUNE_SPEED);
     let hept_acc = accelerator_hepteract_effects(hepteract_effective_bal(
         state.hepteracts.accelerator.bal,
         1.0 / 5.0,
@@ -1332,11 +1381,11 @@ fn phase_tax(state: &mut GameState, agg: &AggregatorOutputs) -> TaxOutputs {
         highest_c14_completions: challenges.highest_challenge_completions[14],
         tax_reduction_achievement: achievement_rewards::tax_reduction(&ach),
         duplication_rune_tax_reduction: duplication_rune_effects(
-            state.runes.rune_levels[RUNE_DUPLICATION],
+            first_five_effective_rune_level(state, RUNE_DUPLICATION),
             DuplicationRuneKey::TaxReduction,
         ),
         thrift_rune_tax_reduction: thrift_rune_effects(
-            state.runes.rune_levels[RUNE_THRIFT],
+            first_five_effective_rune_level(state, RUNE_THRIFT),
             ThriftRuneKey::TaxReduction,
         ),
         ant_tax_reduction: taxes_ant_upgrade_effect(true_ant_level(state, ANT_UPGRADE_TAXES)),
@@ -1449,7 +1498,7 @@ fn compute_global_speed_mult_pre(state: &GameState) -> f64 {
     // DR-enabled ("normal") leg — legacy `allGlobalSpeedStats`.
     let normal_mult = product_f64(&[
         speed_rune_effects(
-            state.runes.rune_levels[RUNE_SPEED],
+            first_five_effective_rune_level(state, RUNE_SPEED),
             SpeedRuneKey::GlobalSpeed,
         ),
         1.0, // obtainium-log: maxObtainium untracked → 1.0 (upgrades[70] == 0)
@@ -2922,7 +2971,7 @@ fn compute_obtainium(
         cash_grab_effect(shop[SHOP_CASH_GRAB]), // ShopCashGrab
         obtainium_ex_effect(shop[SHOP_OBTAINIUM_EX]), // ShopObtainiumEX
         superior_intellect_rune_effects(
-            state.runes.rune_levels[RUNE_SUPERIOR_INTELLECT],
+            first_five_effective_rune_level(state, RUNE_SUPERIOR_INTELLECT),
             SuperiorIntellectRuneKey::ObtainiumMult,
         ), // Rune5
         obtainium_ant_upgrade_effect(true_ant_level(state, ANT_UPGRADE_OBTAINIUM)), // Ant10
@@ -3233,7 +3282,7 @@ fn compute_ant_speed_mult(state: &GameState) -> Decimal {
         Decimal::from_finite(1.0 + researches[147] * crumbs_log10), // Research6x22
         Decimal::from_finite(1.0 + researches[177] * crumbs_log10), // Research8x2
         Decimal::from_finite(superior_intellect_rune_effects(
-            state.runes.rune_levels[RUNE_SUPERIOR_INTELLECT],
+            first_five_effective_rune_level(state, RUNE_SUPERIOR_INTELLECT),
             SuperiorIntellectRuneKey::AntSpeed,
         )), // SuperiorIntellect
         rune_blessing_bonus,
@@ -7671,6 +7720,54 @@ mod tests {
         // 1000 * (10000/1000)^(1/5) = 1000 * 10^0.2.
         let expected = 1000.0 * 10.0_f64.powf(0.2);
         assert!((hepteract_effective_bal(10000.0, 1.0 / 5.0) - expected).abs() < 1e-6);
+    }
+
+    #[test]
+    fn first_five_effective_rune_level_mult_matches_ts() {
+        // Audit P2.1/H3. TS-anchored against the verbatim Statistics.ts
+        // firstFiveRuneEffectivenessStats expressions (computed in
+        // tmp/rune_anchor.mjs); the neutral factors are 1 at these inputs, so the
+        // full TS product equals this port.
+        let mut s = GameState::default();
+        assert_eq!(first_five_effective_rune_level_mult(&s), 1.0);
+
+        s = GameState::default();
+        s.researches.researches[4] = 50.0;
+        assert!((first_five_effective_rune_level_mult(&s) - 6.0).abs() < 1e-9);
+
+        s = GameState::default();
+        s.researches.researches[21] = 100.0;
+        assert!((first_five_effective_rune_level_mult(&s) - 2.0).abs() < 1e-9);
+
+        s = GameState::default();
+        s.researches.researches[4] = 20.0;
+        s.challenges.challenge_completions[14] = 30.0; // CalcECC(asc,30)=20 -> 1+2*21=43
+        assert!((first_five_effective_rune_level_mult(&s) - 43.0).abs() < 1e-9);
+
+        s = GameState::default();
+        s.researches.researches[4] = 20.0;
+        s.researches.researches[84] = 100.0;
+        s.researches.researches[146] = 1000.0;
+        s.campaigns.constant_upgrades[9] = 1.0;
+        s.talismans.talisman_shards = 15.0;
+        assert!((first_five_effective_rune_level_mult(&s) - 22.95).abs() < 1e-9);
+    }
+
+    #[test]
+    fn first_five_effective_rune_level_clamps_and_scales() {
+        use crate::state::RUNE_SPEED;
+        // Identity at default: effective level == purchased level.
+        let mut s = GameState::default();
+        s.runes.rune_levels[RUNE_SPEED] = 100.0;
+        assert_eq!(first_five_effective_rune_level(&s, RUNE_SPEED), 100.0);
+
+        // researches[21] = 100 -> mult 2 -> effective 200.
+        s.researches.researches[21] = 100.0;
+        assert!((first_five_effective_rune_level(&s, RUNE_SPEED) - 200.0).abs() < 1e-9);
+
+        // Reincarnation challenge 9 collapses the effective level to 1.
+        s.challenges.current_reincarnation_challenge = 9;
+        assert_eq!(first_five_effective_rune_level(&s, RUNE_SPEED), 1.0);
     }
 
     #[test]
