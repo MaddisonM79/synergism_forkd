@@ -415,6 +415,28 @@ struct AscensionSpeedCase {
 }
 
 #[derive(Deserialize)]
+struct AntSpeedCase {
+    base: String,
+    ascension_challenge: u32,
+    platonic_upgrade_10: f64,
+    value: String,
+}
+
+#[derive(Deserialize)]
+struct AmbrosiaLuckCase {
+    raw_luck: f64,
+    multiplier: f64,
+    result: f64,
+}
+
+#[derive(Deserialize)]
+struct AmbrosiaGenSpeedCase {
+    raw_speed: f64,
+    blueberries: f64,
+    result: f64,
+}
+
+#[derive(Deserialize)]
 struct ReductionCase {
     thrift_cost_delay: f64,
     researches_sum: f64,
@@ -452,6 +474,9 @@ struct ObtainiumCase {
 struct AggregatorVectors {
     calculate_global_speed_mult: Vec<GlobalSpeedCase>,
     calculate_ascension_speed_mult: Vec<AscensionSpeedCase>,
+    calculate_actual_ant_speed_mult: Vec<AntSpeedCase>,
+    calculate_ambrosia_luck: Vec<AmbrosiaLuckCase>,
+    calculate_ambrosia_generation_speed: Vec<AmbrosiaGenSpeedCase>,
     get_reduction_value: Vec<ReductionCase>,
     calculate_offerings: Vec<OfferingsCase>,
     calculate_obtainium: Vec<ObtainiumCase>,
@@ -472,9 +497,11 @@ fn assert_aggregator_decimal(label: &str, rust: Decimal, ts: Decimal) {
 #[test]
 fn calculate_aggregators_match_typescript() {
     use synergismforkd_logic::mechanics::calculate::{
-        calculate_ascension_speed_mult, calculate_global_speed_mult, calculate_obtainium,
-        calculate_offerings, get_reduction_value, AscensionSpeedMultInput, CalculateObtainiumInput,
-        CalculateOfferingsInput, GlobalSpeedMultInput, ReductionValueInput,
+        calculate_actual_ant_speed_mult, calculate_ambrosia_generation_speed,
+        calculate_ambrosia_luck, calculate_ascension_speed_mult, calculate_global_speed_mult,
+        calculate_obtainium, calculate_offerings, get_reduction_value, ActualAntSpeedMultInput,
+        AscensionSpeedMultInput, CalculateObtainiumInput, CalculateOfferingsInput,
+        GlobalSpeedMultInput, ReductionValueInput,
     };
 
     let v: AggregatorVectors =
@@ -510,6 +537,39 @@ fn calculate_aggregators_match_typescript() {
                 base: c.base,
                 exponent_spread: c.exponent_spread,
             }),
+            c.result,
+        );
+    }
+    for c in &v.calculate_actual_ant_speed_mult {
+        let rust = calculate_actual_ant_speed_mult(&ActualAntSpeedMultInput {
+            base: Decimal::from_string(&c.base).expect("ant-speed base parses"),
+            ascension_challenge: c.ascension_challenge,
+            platonic_upgrade_10: c.platonic_upgrade_10,
+        });
+        let ts = Decimal::from_string(&c.value).expect("ts decimal parses");
+        assert_aggregator_decimal(
+            &format!(
+                "calculate_actual_ant_speed_mult(asc={})",
+                c.ascension_challenge
+            ),
+            rust,
+            ts,
+        );
+    }
+    for c in &v.calculate_ambrosia_luck {
+        assert_parity(
+            &format!("calculate_ambrosia_luck({}, {})", c.raw_luck, c.multiplier),
+            calculate_ambrosia_luck(c.raw_luck, c.multiplier),
+            c.result,
+        );
+    }
+    for c in &v.calculate_ambrosia_generation_speed {
+        assert_parity(
+            &format!(
+                "calculate_ambrosia_generation_speed({}, {})",
+                c.raw_speed, c.blueberries
+            ),
+            calculate_ambrosia_generation_speed(c.raw_speed, c.blueberries),
             c.result,
         );
     }

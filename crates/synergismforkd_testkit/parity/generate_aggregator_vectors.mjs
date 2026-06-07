@@ -34,6 +34,9 @@ const LOGIC = '../../../legacy/core_split/packages/logic/src'
 const {
   calculateGlobalSpeedMult,
   calculateAscensionSpeedMult,
+  calculateActualAntSpeedMult,
+  calculateAmbrosiaLuck,
+  calculateAmbrosiaGenerationSpeed,
   getReductionValue,
   calculateOfferings,
   calculateObtainium
@@ -70,6 +73,46 @@ const calculate_ascension_speed_mult = [
 ].map((c) => ({
   ...c,
   result: calculateAscensionSpeedMult({ base: c.base, exponentSpread: c.exponent_spread })
+}))
+
+// ── calculateActualAntSpeedMult ── base ^ challenge-exponent (12→0.75,
+// 13→0.23, 14→0.20, 15→0.50, else 1; C15 × 1.25 with platonicUpgrade10).
+const calculate_actual_ant_speed_mult = [
+  { base: '1e6', ascension_challenge: 0, platonic_upgrade_10: 0 }, // exponent 1
+  { base: '1e6', ascension_challenge: 12, platonic_upgrade_10: 0 }, // ^0.75
+  { base: '1e6', ascension_challenge: 13, platonic_upgrade_10: 0 }, // ^0.23
+  { base: '1e6', ascension_challenge: 14, platonic_upgrade_10: 0 }, // ^0.20
+  { base: '1e6', ascension_challenge: 15, platonic_upgrade_10: 0 }, // ^0.50
+  { base: '1e6', ascension_challenge: 15, platonic_upgrade_10: 5 } // ^(0.50·1.25)
+].map((c) => ({
+  ...c,
+  value: calculateActualAntSpeedMult({
+    base: D(c.base),
+    ascensionChallenge: c.ascension_challenge,
+    platonicUpgrade10: c.platonic_upgrade_10
+  }).toString()
+}))
+
+// ── calculateAmbrosiaLuck ──
+const calculate_ambrosia_luck = [
+  { raw_luck: 0, multiplier: 1 },
+  { raw_luck: 100, multiplier: 1 },
+  { raw_luck: 250, multiplier: 1.5 },
+  { raw_luck: 1000, multiplier: 2 }
+].map((c) => ({
+  ...c,
+  result: calculateAmbrosiaLuck({ rawLuck: c.raw_luck, multiplier: c.multiplier })
+}))
+
+// ── calculateAmbrosiaGenerationSpeed ──
+const calculate_ambrosia_generation_speed = [
+  { raw_speed: 0, blueberries: 0 },
+  { raw_speed: 1, blueberries: 1 },
+  { raw_speed: 5, blueberries: 3 },
+  { raw_speed: 2.5, blueberries: 10 }
+].map((c) => ({
+  ...c,
+  result: calculateAmbrosiaGenerationSpeed({ rawSpeed: c.raw_speed, blueberries: c.blueberries })
 }))
 
 // ── getReductionValue ── 1 + thrift + researches/200 + ECC(cc4)/200 + antScale.
@@ -212,6 +255,9 @@ const calculate_obtainium = [
 const data = {
   calculate_global_speed_mult,
   calculate_ascension_speed_mult,
+  calculate_actual_ant_speed_mult,
+  calculate_ambrosia_luck,
+  calculate_ambrosia_generation_speed,
   get_reduction_value,
   calculate_offerings,
   calculate_obtainium

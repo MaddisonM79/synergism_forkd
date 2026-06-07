@@ -64,6 +64,88 @@
       "result": 0.5623413251903491
     }
   ],
+  "calculate_actual_ant_speed_mult": [
+    {
+      "base": "1e6",
+      "ascension_challenge": 0,
+      "platonic_upgrade_10": 0,
+      "value": "1000000"
+    },
+    {
+      "base": "1e6",
+      "ascension_challenge": 12,
+      "platonic_upgrade_10": 0,
+      "value": "31622.776601683796"
+    },
+    {
+      "base": "1e6",
+      "ascension_challenge": 13,
+      "platonic_upgrade_10": 0,
+      "value": "23.98832919019491"
+    },
+    {
+      "base": "1e6",
+      "ascension_challenge": 14,
+      "platonic_upgrade_10": 0,
+      "value": "15.848931924611144"
+    },
+    {
+      "base": "1e6",
+      "ascension_challenge": 15,
+      "platonic_upgrade_10": 0,
+      "value": "1000"
+    },
+    {
+      "base": "1e6",
+      "ascension_challenge": 15,
+      "platonic_upgrade_10": 5,
+      "value": "5623.413251903491"
+    }
+  ],
+  "calculate_ambrosia_luck": [
+    {
+      "raw_luck": 0,
+      "multiplier": 1,
+      "result": 0
+    },
+    {
+      "raw_luck": 100,
+      "multiplier": 1,
+      "result": 100
+    },
+    {
+      "raw_luck": 250,
+      "multiplier": 1.5,
+      "result": 375
+    },
+    {
+      "raw_luck": 1000,
+      "multiplier": 2,
+      "result": 2000
+    }
+  ],
+  "calculate_ambrosia_generation_speed": [
+    {
+      "raw_speed": 0,
+      "blueberries": 0,
+      "result": 0
+    },
+    {
+      "raw_speed": 1,
+      "blueberries": 1,
+      "result": 1
+    },
+    {
+      "raw_speed": 5,
+      "blueberries": 3,
+      "result": 15
+    },
+    {
+      "raw_speed": 2.5,
+      "blueberries": 10,
+      "result": 25
+    }
+  ],
   "get_reduction_value": [
     {
       "thrift_cost_delay": 0,
