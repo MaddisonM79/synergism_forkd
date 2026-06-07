@@ -471,6 +471,30 @@ struct ObtainiumCase {
 }
 
 #[derive(Deserialize)]
+struct AntSacrificeOfferingCase {
+    ant_sac_mult: String,
+    stage_mult: f64,
+    time_multiplier: f64,
+    offering_mult: String,
+    current_offerings: String,
+    taxman_last_stand_enabled: bool,
+    taxman_last_stand_completions: f64,
+    value: String,
+}
+
+#[derive(Deserialize)]
+struct AntSacrificeObtainiumCase {
+    ant_sac_mult: String,
+    stage_mult: f64,
+    time_multiplier: f64,
+    obtainium_mult: String,
+    current_obtainium: String,
+    taxman_last_stand_enabled: bool,
+    taxman_last_stand_completions: f64,
+    value: String,
+}
+
+#[derive(Deserialize)]
 struct AggregatorVectors {
     calculate_global_speed_mult: Vec<GlobalSpeedCase>,
     calculate_ascension_speed_mult: Vec<AscensionSpeedCase>,
@@ -480,6 +504,8 @@ struct AggregatorVectors {
     get_reduction_value: Vec<ReductionCase>,
     calculate_offerings: Vec<OfferingsCase>,
     calculate_obtainium: Vec<ObtainiumCase>,
+    calculate_ant_sacrifice_offering: Vec<AntSacrificeOfferingCase>,
+    calculate_ant_sacrifice_obtainium: Vec<AntSacrificeObtainiumCase>,
 }
 
 /// Like [`assert_decimal_parity`] but tolerant of an exact zero (the c14
@@ -496,6 +522,10 @@ fn assert_aggregator_decimal(label: &str, rust: Decimal, ts: Decimal) {
 
 #[test]
 fn calculate_aggregators_match_typescript() {
+    use synergismforkd_logic::mechanics::ant_sacrifice_reward_calc::{
+        calculate_ant_sacrifice_obtainium, calculate_ant_sacrifice_offering,
+        AntSacrificeObtainiumInput, AntSacrificeOfferingInput,
+    };
     use synergismforkd_logic::mechanics::calculate::{
         calculate_actual_ant_speed_mult, calculate_ambrosia_generation_speed,
         calculate_ambrosia_luck, calculate_ascension_speed_mult, calculate_global_speed_mult,
@@ -509,7 +539,9 @@ fn calculate_aggregators_match_typescript() {
     assert!(
         !v.calculate_global_speed_mult.is_empty()
             && !v.calculate_offerings.is_empty()
-            && !v.calculate_obtainium.is_empty(),
+            && !v.calculate_obtainium.is_empty()
+            && !v.calculate_ant_sacrifice_offering.is_empty()
+            && !v.calculate_ant_sacrifice_obtainium.is_empty(),
         "fixture should carry aggregator vectors"
     );
 
@@ -624,6 +656,42 @@ fn calculate_aggregators_match_typescript() {
         let ts = Decimal::from_string(&c.value).expect("ts decimal parses");
         assert_aggregator_decimal(
             &format!("calculate_obtainium(base={})", c.base_obtainium),
+            rust,
+            ts,
+        );
+    }
+    for c in &v.calculate_ant_sacrifice_offering {
+        let rust = calculate_ant_sacrifice_offering(&AntSacrificeOfferingInput {
+            ant_sac_mult: Decimal::from_string(&c.ant_sac_mult).expect("ant_sac_mult parses"),
+            stage_mult: c.stage_mult,
+            time_multiplier: c.time_multiplier,
+            offering_mult: Decimal::from_string(&c.offering_mult).expect("offering_mult parses"),
+            current_offerings: Decimal::from_string(&c.current_offerings)
+                .expect("current_offerings parses"),
+            taxman_last_stand_enabled: c.taxman_last_stand_enabled,
+            taxman_last_stand_completions: c.taxman_last_stand_completions,
+        });
+        let ts = Decimal::from_string(&c.value).expect("ts decimal parses");
+        assert_aggregator_decimal(
+            &format!("calculate_ant_sacrifice_offering(mult={})", c.ant_sac_mult),
+            rust,
+            ts,
+        );
+    }
+    for c in &v.calculate_ant_sacrifice_obtainium {
+        let rust = calculate_ant_sacrifice_obtainium(&AntSacrificeObtainiumInput {
+            ant_sac_mult: Decimal::from_string(&c.ant_sac_mult).expect("ant_sac_mult parses"),
+            stage_mult: c.stage_mult,
+            time_multiplier: c.time_multiplier,
+            obtainium_mult: Decimal::from_string(&c.obtainium_mult).expect("obtainium_mult parses"),
+            current_obtainium: Decimal::from_string(&c.current_obtainium)
+                .expect("current_obtainium parses"),
+            taxman_last_stand_enabled: c.taxman_last_stand_enabled,
+            taxman_last_stand_completions: c.taxman_last_stand_completions,
+        });
+        let ts = Decimal::from_string(&c.value).expect("ts decimal parses");
+        assert_aggregator_decimal(
+            &format!("calculate_ant_sacrifice_obtainium(mult={})", c.ant_sac_mult),
             rust,
             ts,
         );

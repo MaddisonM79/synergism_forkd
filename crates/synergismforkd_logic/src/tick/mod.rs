@@ -69,6 +69,7 @@ use crate::mechanics::upgrades::{buy_upgrades, BuyUpgradeInput};
 use crate::state::{GameState, RngPurpose};
 
 mod ant_generation;
+mod ant_sacrifice;
 mod auto_research;
 mod auto_reset;
 mod automatic_tools;
@@ -4033,31 +4034,25 @@ fn compute_available_reborn_elo(state: &GameState) -> f64 {
     })
 }
 
-/// Ant-sacrifice `immortalELO` gain (legacy `antSacrificeRewards().immortalELO`),
-/// self-derived from `&GameState`. `max(0, calculateEffectiveAntELO −
-/// immortalELO)`, where `calculateEffectiveAntELO = ⌊Σ antELOStats ×
-/// Σ additiveAntELOMultStats⌋` — the base-ELO sum (15 lines) times the
-/// additive-multiplier sum (10 lines, base 1), both StatLine reductions.
-/// Drives the `ImmortalELOGain` auto-sacrifice mode.
+/// `calculateEffectiveAntELO` (Statistics-backed) — self-derived from
+/// `&GameState`. `⌊Σ antELOStats × Σ additiveAntELOMultStats⌋`: the base-ELO
+/// sum (15 lines) times the additive-multiplier sum (10 lines, base 1), both
+/// StatLine reductions. Feeds [`compute_immortal_elo_gain`], the per-sacrifice
+/// talisman-item thresholds, and the reborn-ELO creation-speed `EffectiveELO`
+/// line.
 ///
 /// Self-derives to `1` at the default state — the `ants` level reward's
-/// `defaultValue` (1) is the sole non-zero base line, × mult 1, floored — vs
-/// the old `AutomationPre` default `0`. Harmless: the ant-sacrifice middle that
-/// reads it is gated by `ant_sacrifice_unlocked` (false at default), so it is
-/// never consumed there, and `1` is in fact the faithful legacy value. The
+/// `defaultValue` (1) is the sole non-zero base line, × mult 1, floored. The
 /// `SingularityDebuff` line neutral-defaults to its Ant-ELO no-penalty value
 /// `0` (additive context; `calculate_singularity_debuff` is banner-flagged
 /// DO NOT extend / paused).
-fn compute_immortal_elo_gain(state: &GameState) -> f64 {
+fn compute_effective_ant_elo(state: &GameState) -> f64 {
     use crate::mechanics::achievement_levels::achievement_level_from_points;
     use crate::mechanics::achievement_rewards::{
         ant_elo_additive, ant_elo_additive_multiplier, ant_speed_2_upgrade_improver,
     };
     use crate::mechanics::ant_reborn_elo::{
         calculate_singularity_perk_elo, singularity_elo_bonus_mult, SingularityPerkELOInput,
-    };
-    use crate::mechanics::ant_sacrifice_reward_calc::{
-        calculate_immortal_elo_gain, CalculateImmortalELOGainInput,
     };
     use crate::mechanics::ant_upgrades::{
         ant_elo_ant_upgrade_effect, ant_sacrifice_ant_upgrade_effect, AntELOAntUpgradeInput,
@@ -4163,10 +4158,23 @@ fn compute_immortal_elo_gain(state: &GameState) -> f64 {
         singularity_elo_bonus_mult(sing_count),
     ]);
 
-    let effective_elo = (base_ant_elo * elo_mult).floor();
+    (base_ant_elo * elo_mult).floor()
+}
+
+/// Ant-sacrifice `immortalELO` gain (legacy `antSacrificeRewards().immortalELO`):
+/// `max(0, calculateEffectiveAntELO − immortalELO)`. Drives the
+/// `ImmortalELOGain` auto-sacrifice mode. Self-derives to `1` at the default
+/// state (effective ELO `1`, immortal ELO `0`); harmless because the
+/// ant-sacrifice middle that reads it is gated by `ant_sacrifice_unlocked`
+/// (false at default), so it is never consumed there, and `1` is the faithful
+/// legacy value.
+fn compute_immortal_elo_gain(state: &GameState) -> f64 {
+    use crate::mechanics::ant_sacrifice_reward_calc::{
+        calculate_immortal_elo_gain, CalculateImmortalELOGainInput,
+    };
     calculate_immortal_elo_gain(&CalculateImmortalELOGainInput {
-        effective_elo,
-        immortal_elo,
+        effective_elo: compute_effective_ant_elo(state),
+        immortal_elo: state.ants.immortal_elo,
     })
 }
 
@@ -5574,6 +5582,17 @@ fn phase_automation(
         state.ants.crumbs_this_sacrifice = ant.crumbs_this_sacrifice;
         state.ants.crumbs_ever_made = ant.crumbs_ever_made;
 
+        // Reborn-ELO activation — the legacy `generateAntsAndCrumbs` tail calls
+        // `activateELO(dt)` each live tick. Gated on `immortal_elo > 0` to keep
+        // the default-state sim unshifted: the only default effect would be an
+        // inert `{elo: 0}` leaderboard push, and any all-zero entry contributes
+        // `weight × 0 = 0` to `calculate_leaderboard_value`, so suppressing it is
+        // outcome-identical to the legacy unconditional push (see
+        // `ant_sacrifice::activate_elo`).
+        if state.ants.immortal_elo > 0.0 {
+            ant_sacrifice::activate_elo(state, dt);
+        }
+
         // ── Head: simple counters (no events) ────────────────────────────
         state.reset_counters.prestige_counter = timers::advance_reset_counter(
             state.reset_counters.prestige_counter,
@@ -5805,7 +5824,21 @@ fn phase_automation(
                     reborn_elo: state.ants.reborn_elo,
                 },
             );
+
+            // Consume the `AntSacrificeTriggered` intent → run the sacrifice
+            // effect, mirroring the `AutoResetTriggered` → `perform_reset` loop
+            // in this phase's tail. Intent first, then the effect event.
+            let mut performed: SmallVec<[CoreEvent; 2]> = SmallVec::new();
+            for event in &events {
+                if matches!(event, CoreEvent::AntSacrificeTriggered) {
+                    performed.extend(ant_sacrifice::perform_ant_sacrifice(
+                        state,
+                        pre.reincarnation_point_gain,
+                    ));
+                }
+            }
             output.events.extend(events);
+            output.events.extend(performed);
         }
 
         // 3. Obtainium — research[61] == 1 credits gain; else (vestigial)

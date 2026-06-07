@@ -121,6 +121,11 @@ const PARTICLE_GAIN_INDEX: usize = 50;
 /// bool reward (`Boolean(player.achievements[173])`), not an aggregator.
 const ANT_SACRIFICE_UNLOCK_INDEX: usize = 173;
 
+/// Legacy index of the lone `sacrificeMult` achievement (#137): challenge 9
+/// completed ≥ 5 times, group `challenge9`, reward `() => 1.25`. The first
+/// (single earned-flag) product line in `antSacrificeRewardStats`.
+const SACRIFICE_MULT_INDEX: usize = 137;
+
 /// Legacy index of the lone `antELOAdditiveMultiplier` achievement (#484):
 /// `() => 0.01`.
 const ANT_ELO_ADDITIVE_MULTIPLIER_INDEX: usize = 484;
@@ -317,6 +322,18 @@ pub fn crystal_multiplier(input: &AchievementRewardInput) -> f64 {
 #[must_use]
 pub fn ant_sacrifice_unlocked(achievements: &[u8; ACHIEVEMENTS_LEN]) -> bool {
     earned(achievements, ANT_SACRIFICE_UNLOCK_INDEX)
+}
+
+/// `getAchievementReward('sacrificeMult')` — `1.25` once achievement #137
+/// (challenge 9 completed ≥ 5 times) is earned, else `1`. The first line of the
+/// `antSacrificeRewardStats` ant-sacrifice multiplier.
+#[must_use]
+pub fn sacrifice_mult(achievements: &[u8; ACHIEVEMENTS_LEN]) -> f64 {
+    if earned(achievements, SACRIFICE_MULT_INDEX) {
+        1.25
+    } else {
+        1.0
+    }
 }
 
 /// `getAchievementReward('ascensionRewardScaling')` — `true` once achievement

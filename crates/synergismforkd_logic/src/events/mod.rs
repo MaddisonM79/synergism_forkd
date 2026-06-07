@@ -540,6 +540,18 @@ pub enum CoreEvent {
     ///
     /// Emitted by `checkAntSacrificeReady` (tick-side, not yet ported).
     AntSacrificeTriggered,
+    /// An ant sacrifice was *executed* this tick — immortal ELO, offerings,
+    /// obtainium, and talisman fragments have been credited and the ants reset
+    /// to crumbs. The effect counterpart to [`Self::AntSacrificeTriggered`]
+    /// (the intent). Emitted by `perform_ant_sacrifice`.
+    AntSacrificePerformed {
+        /// Offerings credited by the sacrifice.
+        offerings_gained: Decimal,
+        /// Obtainium credited (`0` when inside ascension challenge 14).
+        obtainium_gained: Decimal,
+        /// Immortal-ELO gained — the high-water-mark delta.
+        immortal_elo_gained: f64,
+    },
     /// The auto-rune-sacrifice timer crossed `autoSacrificeInterval`
     /// and offerings > 0. Pure intent signal — the UI dispatcher runs
     /// the blessing/spirit/talisman/per-rune-or-all purchase fan-out.
