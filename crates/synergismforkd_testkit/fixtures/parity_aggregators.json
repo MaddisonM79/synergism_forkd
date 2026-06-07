@@ -1,0 +1,178 @@
+{
+  "calculate_global_speed_mult": [
+    {
+      "normal_mult": 1,
+      "immaculate_mult": 1,
+      "dr_power": 1,
+      "result": 1
+    },
+    {
+      "normal_mult": 50,
+      "immaculate_mult": 2,
+      "dr_power": 1,
+      "result": 100
+    },
+    {
+      "normal_mult": 400,
+      "immaculate_mult": 3,
+      "dr_power": 1,
+      "result": 600
+    },
+    {
+      "normal_mult": 0.25,
+      "immaculate_mult": 5,
+      "dr_power": 0.9,
+      "result": 1.4358729437462936
+    },
+    {
+      "normal_mult": 0.5,
+      "immaculate_mult": 1,
+      "dr_power": 0.5,
+      "result": 0.7071067811865476
+    },
+    {
+      "normal_mult": 99.9,
+      "immaculate_mult": 1.5,
+      "dr_power": 1,
+      "result": 149.85000000000002
+    }
+  ],
+  "calculate_ascension_speed_mult": [
+    {
+      "base": 1,
+      "exponent_spread": 0,
+      "result": 1
+    },
+    {
+      "base": 5,
+      "exponent_spread": 0.2,
+      "result": 6.898648307306074
+    },
+    {
+      "base": 0.5,
+      "exponent_spread": 0.2,
+      "result": 0.5743491774985174
+    },
+    {
+      "base": 100,
+      "exponent_spread": 0.5,
+      "result": 1000
+    },
+    {
+      "base": 0.1,
+      "exponent_spread": 0.75,
+      "result": 0.5623413251903491
+    }
+  ],
+  "get_reduction_value": [
+    {
+      "thrift_cost_delay": 0,
+      "researches_sum": 0,
+      "challenge_completions_4": 0,
+      "ant_building_cost_scale": 0,
+      "result": 1
+    },
+    {
+      "thrift_cost_delay": 0.5,
+      "researches_sum": 500,
+      "challenge_completions_4": 10,
+      "ant_building_cost_scale": 0.3,
+      "result": 4.35
+    },
+    {
+      "thrift_cost_delay": 1,
+      "researches_sum": 1000,
+      "challenge_completions_4": 25,
+      "ant_building_cost_scale": 1,
+      "result": 8.125
+    }
+  ],
+  "calculate_offerings": [
+    {
+      "base_offerings": 1,
+      "time_multiplier": 0,
+      "offering_mult": "1",
+      "taxman_last_stand_enabled": false,
+      "taxman_last_stand_completions": 0,
+      "current_offerings": "0",
+      "value": "1"
+    },
+    {
+      "base_offerings": 12,
+      "time_multiplier": 5,
+      "offering_mult": "1000",
+      "taxman_last_stand_enabled": false,
+      "taxman_last_stand_completions": 0,
+      "current_offerings": "0",
+      "value": "5000"
+    },
+    {
+      "base_offerings": 1,
+      "time_multiplier": 2,
+      "offering_mult": "1e50",
+      "taxman_last_stand_enabled": false,
+      "taxman_last_stand_completions": 0,
+      "current_offerings": "0",
+      "value": "2e+50"
+    },
+    {
+      "base_offerings": 1,
+      "time_multiplier": 10,
+      "offering_mult": "1e20",
+      "taxman_last_stand_enabled": true,
+      "taxman_last_stand_completions": 2,
+      "current_offerings": "5",
+      "value": "501"
+    }
+  ],
+  "calculate_obtainium": [
+    {
+      "base_obtainium": 1,
+      "immaculate": 1,
+      "dr": 1,
+      "time_multiplier": 1,
+      "base_mults": "1",
+      "in_ascension_challenge_14": false,
+      "taxman_last_stand_enabled": false,
+      "taxman_last_stand_completions": 0,
+      "current_obtainium": "0",
+      "value": "1"
+    },
+    {
+      "base_obtainium": 5,
+      "immaculate": 2,
+      "dr": 1,
+      "time_multiplier": 3,
+      "base_mults": "1e10",
+      "in_ascension_challenge_14": false,
+      "taxman_last_stand_enabled": false,
+      "taxman_last_stand_completions": 0,
+      "current_obtainium": "0",
+      "value": "60000000000"
+    },
+    {
+      "base_obtainium": 1,
+      "immaculate": 1,
+      "dr": 0.5,
+      "time_multiplier": 1,
+      "base_mults": "1e40",
+      "in_ascension_challenge_14": false,
+      "taxman_last_stand_enabled": false,
+      "taxman_last_stand_completions": 0,
+      "current_obtainium": "0",
+      "value": "100000000000000000000"
+    },
+    {
+      "base_obtainium": 100,
+      "immaculate": 5,
+      "dr": 1,
+      "time_multiplier": 2,
+      "base_mults": "1e20",
+      "in_ascension_challenge_14": true,
+      "taxman_last_stand_enabled": false,
+      "taxman_last_stand_completions": 0,
+      "current_obtainium": "0",
+      "value": "0"
+    }
+  ]
+}
