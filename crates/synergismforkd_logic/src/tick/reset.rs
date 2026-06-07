@@ -118,6 +118,14 @@ pub(crate) fn perform_prestige_reset(
     state: &mut GameState,
     prestige_point_gain: Decimal,
 ) -> SmallVec<[CoreEvent; 2]> {
+    // resetAchievementCheck('prestige') runs before reset() in the legacy
+    // trigger, so the offering award inside the base reset sees the updated
+    // achievement_points.
+    crate::mechanics::achievement_awards::reset_achievement_check(
+        &mut state.achievements,
+        AutoResetTier::Prestige,
+        prestige_point_gain,
+    );
     apply_base_reset(state, prestige_point_gain);
     smallvec![CoreEvent::ResetPerformed {
         tier: AutoResetTier::Prestige,
@@ -132,8 +140,15 @@ pub(crate) fn perform_prestige_reset(
 /// Faithful to `reset()`, this is **ungated** — too-few coins simply award
 /// `0`; any can-I-reset guard is a UI-tier concern.
 ///
+/// `resetOfferings()` (Runes.ts:1046, called unconditionally at Reset.ts:422)
+/// is awarded here as the first statement — `calculateOfferings()` reads the
+/// pre-reset prestige timer (its time multiplier) and `prestigeShards` (its
+/// `PrestigeShards` line), both of which this fn later zeroes. The award is
+/// ungated: every reset tier earns offerings. The ascension layer re-zeroes
+/// `automation.offerings` afterward (Reset.ts:671), so an ascension cascade
+/// nets to zero — faithful to the legacy award-then-wipe ordering.
+///
 /// Deferred from the legacy (each faithful at current state):
-/// - `resetOfferings()` (Runes.ts:934) — pulls in `calculateOfferings()`.
 /// - the `updatePrestigeCount` multiplier — `1` at default, so the count
 ///   rises by exactly `1`; the `transcendToPrestige` chain is `false`.
 /// - `awardAchievementGroup` — achievement *awarding* is a separate
@@ -141,6 +156,7 @@ pub(crate) fn perform_prestige_reset(
 /// - `G.generatorPower = 1` (recomputed per tick) and `fastestprestige`
 ///   (a record-keeping stat with no state field).
 fn apply_base_reset(state: &mut GameState, prestige_point_gain: Decimal) {
+    state.automation.offerings += super::compute_offerings(state);
     state.upgrades.coins = Decimal::from_finite(102.0);
     state.coin_counters.coins_this_prestige = Decimal::from_finite(100.0);
     for (tier, cost) in state.coin_producers.tiers.iter_mut().zip(COIN_BASE_COSTS) {
@@ -191,6 +207,11 @@ pub(crate) fn perform_transcension_reset(
     state: &mut GameState,
     gains: &ResetCurrencyResult,
 ) -> SmallVec<[CoreEvent; 2]> {
+    crate::mechanics::achievement_awards::reset_achievement_check(
+        &mut state.achievements,
+        AutoResetTier::Transcension,
+        gains.transcend_point_gain,
+    );
     apply_base_reset(state, gains.prestige_point_gain);
     apply_transcension_layer(state, gains.transcend_point_gain);
     smallvec![CoreEvent::ResetPerformed {
@@ -274,6 +295,13 @@ pub(crate) fn perform_reincarnation_reset(
     state: &mut GameState,
     gains: &ResetCurrencyResult,
 ) -> SmallVec<[CoreEvent; 2]> {
+    // resetAchievementCheck('reincarnation') runs first, so the obtainium and
+    // offering awards below read the updated achievement_points.
+    crate::mechanics::achievement_awards::reset_achievement_check(
+        &mut state.achievements,
+        AutoResetTier::Reincarnation,
+        gains.reincarnation_point_gain,
+    );
     // `reincarnationCheck` is the *pre-reset* shard total — capture it
     // before the transcension layer zeroes `transcend_shards`.
     let reincarnation_check = state.reset_counters.transcend_shards
@@ -1009,6 +1037,69 @@ mod tests {
             slow.to_number(),
             quick.to_number()
         );
+    }
+
+    // ─── Offerings (resetOfferings) ──────────────────────────────────────
+
+    #[test]
+    fn prestige_reset_credits_offerings_and_accumulates() {
+        let mut state = GameState::default();
+        state.automation.offerings = Decimal::from_finite(50.0);
+        // prestige_counter = 0 ⇒ time multiplier 0 ⇒ award is the base floor:
+        // max(baseOfferings = 1, offeringMult · 0) = 1. Added to the balance.
+        perform_prestige_reset(&mut state, Decimal::zero());
+        assert_eq!(state.automation.offerings.to_number(), 51.0);
+    }
+
+    #[test]
+    fn transcension_and_reincarnation_also_credit_offerings() {
+        // resetOfferings() lives in the always-on base reset (Reset.ts:422),
+        // so every non-ascension tier credits the default award of 1.
+        let mut t = GameState::default();
+        perform_transcension_reset(&mut t, &gains(0.0, 0.0, 0.0));
+        assert_eq!(t.automation.offerings.to_number(), 1.0);
+
+        let mut r = GameState::default();
+        perform_reincarnation_reset(&mut r, &gains(0.0, 0.0, 0.0));
+        assert_eq!(r.automation.offerings.to_number(), 1.0);
+    }
+
+    #[test]
+    fn ascension_reset_nets_offerings_to_zero_after_award() {
+        // The base reset credits offerings, then the ascension layer wipes
+        // them (Reset.ts:671) — so a from-zero ascension nets to zero.
+        let mut state = GameState::default();
+        perform_ascension_reset(&mut state, &gains(0.0, 0.0, 0.0));
+        assert_eq!(state.automation.offerings.to_number(), 0.0);
+    }
+
+    // ─── Achievement awarding (resetAchievementCheck point-gain) ─────────
+
+    #[test]
+    fn reincarnation_reset_awards_point_gain_achievements() {
+        // resetAchievementCheck('reincarnation') fires through the reset and
+        // awards the reincarnationPointGain group from the gain. gain 1e6 →
+        // log10 6 → rows at thresholds 0 and 5 (indices 50,51; pv 5+10 = 15);
+        // the 1e30 row (index 52) stays unmet.
+        let mut state = GameState::default();
+        state.reset_counters.transcend_shards = Decimal::from_finite(1e305);
+        perform_reincarnation_reset(&mut state, &gains(0.0, 0.0, 1e6));
+        assert_eq!(state.achievements.achievements[50], 1);
+        assert_eq!(state.achievements.achievements[51], 1);
+        assert_eq!(state.achievements.achievements[52], 0);
+        assert_eq!(state.achievements.achievement_points, 15.0);
+    }
+
+    #[test]
+    fn prestige_reset_awards_point_gain_achievements() {
+        let mut state = GameState::default();
+        // gain 1e6 → log10 6 → prestigePointGain rows at thresholds 0 and 6
+        // (indices 36,37; pv 5+10 = 15).
+        perform_prestige_reset(&mut state, Decimal::from_finite(1e6));
+        assert_eq!(state.achievements.achievements[36], 1);
+        assert_eq!(state.achievements.achievements[37], 1);
+        assert_eq!(state.achievements.achievements[38], 0);
+        assert_eq!(state.achievements.achievement_points, 15.0);
     }
 
     // ─── Ascension ───────────────────────────────────────────────────────
