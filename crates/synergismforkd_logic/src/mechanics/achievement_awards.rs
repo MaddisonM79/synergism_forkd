@@ -460,6 +460,30 @@ pub fn challenge_achievement_check(
     award_threshold_group(ach, challenge_completions[challenge], table);
 }
 
+/// Apply one progressive-achievement update — a port of `updateProgressiveCache`
+/// and `updateProgressiveAP`. Bumps the cached value via `Math.max(cached,
+/// live_value)`, recomputes its awarded points via `points_of(cached_value)`,
+/// and folds the change into `achievement_points` by the delta (so repeated
+/// calls converge instead of double-counting).
+///
+/// For the legacy `useCachedValue: false` entries — whose `pointsAwarded`
+/// reads live state rather than the cached value — the caller passes a
+/// `points_of` closure that ignores its argument and returns points computed
+/// from live state; the cache is still `Math.max`'d for faithfulness.
+pub(crate) fn update_progressive_slot(
+    ach: &mut AchievementsState,
+    slot: usize,
+    live_value: f64,
+    points_of: impl Fn(f64) -> f64,
+) {
+    let new_value = ach.progressive[slot].cached_value.max(live_value);
+    ach.progressive[slot].cached_value = new_value;
+    let points = points_of(new_value);
+    let delta = points - ach.progressive[slot].cached_points;
+    ach.progressive[slot].cached_points = points;
+    ach.achievement_points += delta;
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -587,5 +611,35 @@ mod tests {
         challenge_achievement_check(&mut ach, 15, &completions);
         challenge_achievement_check(&mut ach, 0, &completions);
         assert_eq!(ach.achievement_points, 0.0);
+    }
+
+    #[test]
+    fn progressive_slot_caches_max_and_folds_point_delta() {
+        use crate::mechanics::achievement_points::rune_level_points;
+        let mut ach = AchievementsState::default();
+        // 1500 → rune_level_points = floor(1500/1000) = 1.
+        update_progressive_slot(&mut ach, 0, 1500.0, rune_level_points);
+        assert_eq!(ach.progressive[0].cached_value, 1500.0);
+        assert_eq!(ach.progressive[0].cached_points, 1.0);
+        assert_eq!(ach.achievement_points, 1.0);
+        // A lower live value cannot decrease the cache (Math.max) → no delta.
+        update_progressive_slot(&mut ach, 0, 500.0, rune_level_points);
+        assert_eq!(ach.progressive[0].cached_value, 1500.0);
+        assert_eq!(ach.achievement_points, 1.0);
+        // A higher value raises both: 2500 → floor(2500/1000) + floor(2500/2500) = 3.
+        update_progressive_slot(&mut ach, 0, 2500.0, rune_level_points);
+        assert_eq!(ach.progressive[0].cached_value, 2500.0);
+        assert_eq!(ach.achievement_points, 3.0);
+    }
+
+    #[test]
+    fn progressive_slot_live_points_ignore_cached_value() {
+        // The `useCachedValue: false` shape: points come from a precomputed
+        // live value, not the cached one. The cache still tracks the max.
+        let mut ach = AchievementsState::default();
+        update_progressive_slot(&mut ach, 4, 7.0, |_| 42.0);
+        assert_eq!(ach.progressive[4].cached_value, 7.0);
+        assert_eq!(ach.progressive[4].cached_points, 42.0);
+        assert_eq!(ach.achievement_points, 42.0);
     }
 }

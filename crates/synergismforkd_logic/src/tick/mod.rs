@@ -1296,7 +1296,63 @@ fn compute_update_all_tick_pre(
 /// `total_accelerator_boost` is a pure function of state read by all three
 /// aggregators; it is computed once here (this phase is its only consumer)
 /// and threaded into each bundle.
+/// Refresh the 12 progressive-achievement caches and fold their points into
+/// `achievement_points` — a per-tick port of the legacy `updateProgressiveCache`
+/// loop. Each slot takes the running `Math.max` of its live value; the
+/// `useCachedValue: true` entries score from the cached max, the others from
+/// live state. Runs first in [`phase_global_state`] so the crystal/mythos
+/// exponents (which read `achievement_points`) see the fresh total.
+///
+/// Neutral-defaulted to `0` (faithful — input not in logic / subsystem inert):
+/// `exalts` (singularity-challenge `rewardAP`, singularity paused) and the
+/// three maxed-upgrade families (`maxLevel` is UI-tier data, `0` in logic, so
+/// "maxed" can't be told apart). They contribute once that data lands.
+fn update_progressive_achievements(state: &mut GameState) {
+    use crate::mechanics::achievement_awards::update_progressive_slot;
+    use crate::mechanics::achievement_points as ap;
+    use crate::mechanics::ant_reborn_elo::calculate_leaderboard_value;
+    use crate::state::runes::RUNE_COUNT;
+
+    // Gather every live value that needs a state read before the `&mut` borrow.
+    let rune_level_sum: f64 = state.runes.rune_levels.iter().sum();
+    let free_rune_sum: f64 = (0..RUNE_COUNT).map(|r| rune_free_levels(state, r)).sum();
+    let masteries: [f64; 9] =
+        std::array::from_fn(|i| f64::from(state.ants.masteries[i].highest_mastery));
+    let mastery_sum: f64 = masteries.iter().sum();
+    let mastery_points = ap::ant_mastery_points(&masteries);
+    let elo_values: Vec<f64> = state
+        .ants
+        .highest_reborn_elo_ever
+        .iter()
+        .map(|e| e.elo)
+        .collect();
+    let leaderboard_elo = calculate_leaderboard_value(&elo_values);
+    let sing = state.singularity.highest_singularity_count;
+    let lifetime_ambrosia = state.ambrosia.lifetime_ambrosia;
+    let lifetime_red = state.red_ambrosia.lifetime_red_ambrosia;
+    let rarity_sum: f64 = state.talismans.talisman_rarity.iter().sum();
+
+    let ach = &mut state.achievements;
+    // useCachedValue: true → score from the cached Math.max value.
+    update_progressive_slot(ach, 0, rune_level_sum, ap::rune_level_points);
+    update_progressive_slot(ach, 1, free_rune_sum, ap::free_rune_level_points);
+    update_progressive_slot(ach, 5, lifetime_ambrosia, ap::ambrosia_count_points);
+    update_progressive_slot(ach, 6, lifetime_red, ap::red_ambrosia_count_points);
+    update_progressive_slot(ach, 7, rarity_sum, ap::talisman_rarity_points);
+    // useCachedValue: false → score from live state (the closure ignores cached).
+    update_progressive_slot(ach, 2, mastery_sum, |_| mastery_points);
+    update_progressive_slot(ach, 3, leaderboard_elo, |_| {
+        ap::reborn_elo_points(leaderboard_elo)
+    });
+    update_progressive_slot(ach, 4, sing, |_| ap::singularity_count_points(sing));
+    update_progressive_slot(ach, 8, 0.0, |_| 0.0); // exalts — rewardAP untracked (sing paused)
+    update_progressive_slot(ach, 9, 0.0, |_| 0.0); // singularityUpgrades — maxLevel UI-tier
+    update_progressive_slot(ach, 10, 0.0, |_| 0.0); // octeractUpgrades — maxLevel UI-tier
+    update_progressive_slot(ach, 11, 0.0, |_| 0.0); // redAmbrosiaUpgrades — maxLevel UI-tier
+}
+
 fn phase_global_state(state: &mut GameState) -> AggregatorOutputs {
+    update_progressive_achievements(state);
     let total_accelerator_boost = compute_total_accelerator_boost(state);
     let update_all_multiplier_pre =
         compute_update_all_multiplier_pre(state, total_accelerator_boost);
@@ -6178,6 +6234,26 @@ mod tests {
             mythos1,
             mythos0
         );
+    }
+
+    #[test]
+    fn progressive_achievements_accrue_through_tack() {
+        // Rune levels feed the runeLevel progressive; a tick folds its points
+        // into achievement_points via phase_global_state's progressive refresh.
+        let mut state = GameState::default();
+        // Σ rune levels = 2500 → rune_level_points = floor(2500/1000) +
+        // floor(2500/2500) = 2 + 1 = 3.
+        state.runes.rune_levels[0] = 2500.0;
+        let input = TackInput {
+            dt: 0.025,
+            ..TackInput::default()
+        };
+        tack(&mut state, &input);
+        assert_eq!(state.achievements.progressive[0].cached_value, 2500.0);
+        assert_eq!(state.achievements.achievement_points, 3.0);
+        // Idempotent: a second identical tick re-takes the max → no double-count.
+        tack(&mut state, &input);
+        assert_eq!(state.achievements.achievement_points, 3.0);
     }
 
     #[test]
