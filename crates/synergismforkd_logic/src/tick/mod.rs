@@ -4663,10 +4663,12 @@ fn phase_challenge_completion(
         GetMaxChallengesInput, CHALLENGE_BASE_REQUIREMENTS,
     };
     use crate::mechanics::shop_upgrades::{
-        instant_challenge_2_effect, instant_challenge_effect, InstantChallengeKey,
-        InstantChallengeValue,
+        challenge_extension_effect, instant_challenge_2_effect, instant_challenge_effect,
+        InstantChallengeKey, InstantChallengeValue,
     };
-    use crate::state::shop::{SHOP_INSTANT_CHALLENGE, SHOP_INSTANT_CHALLENGE_2};
+    use crate::state::shop::{
+        SHOP_CHALLENGE_EXTENSION, SHOP_INSTANT_CHALLENGE, SHOP_INSTANT_CHALLENGE_2,
+    };
 
     const PLATONIC_UPGRADE_8: usize = 8;
     const RESEARCH_INFINITE_TRANSCEND: usize = 105;
@@ -4779,7 +4781,9 @@ fn phase_challenge_completion(
                 infinite_transcend_research: 0.0,
                 transcend_research_for_challenge: 0.0,
                 cube_upgrade_29: state.cube_upgrade_levels.cube_upgrades[CUBE_UPGRADE_29],
-                challenge_extension_cap: 0.0, // shop challengeExtension reinc cap deferred (neutral)
+                challenge_extension_cap: challenge_extension_effect(
+                    state.shop.upgrades[SHOP_CHALLENGE_EXTENSION],
+                ),
                 gq_reincarnation_cap_increase: 0.0,
                 sing_reincarnation_cap_increase: 0.0,
                 gq_ascension_cap_increase: 0.0,
@@ -7029,6 +7033,32 @@ mod tests {
         assert!(
             state.reset_counters.ascension_unlocked,
             "completing reincarnation challenge 10 must unlock ascensions"
+        );
+    }
+
+    #[test]
+    fn reincarnation_completion_uses_shop_challenge_extension() {
+        use crate::mechanics::reset_currency::ResetCurrencyResult;
+        use crate::state::shop::SHOP_CHALLENGE_EXTENSION;
+        // The completion loop must use the same shop challengeExtension cap as the
+        // sweep (challenge_extension_effect = 2n, applied to c6-10). It was zeroed,
+        // so reincarnation completions plateaued at the base cap (40) below the
+        // extended cap. With +20 extension and the goal met, c6 advances past 40.
+        let mut state = GameState::default();
+        state.challenges.current_reincarnation_challenge = 6;
+        state.challenges.challenge_completions[6] = 40.0; // at the base cap
+        state.reset_counters.transcend_shards = Decimal::from_mantissa_exponent(1.0, 1e15);
+        state.shop.upgrades[SHOP_CHALLENGE_EXTENSION] = 10.0; // challengeExtension(10) = +20
+        let gains = ResetCurrencyResult {
+            prestige_point_gain: Decimal::zero(),
+            transcend_point_gain: Decimal::zero(),
+            reincarnation_point_gain: Decimal::zero(),
+        };
+        let mut output = TickOutput::default();
+        phase_challenge_completion(&mut state, &gains, &mut output);
+        assert!(
+            state.challenges.challenge_completions[6] > 40.0,
+            "extended cap must let reincarnation completions pass the base cap"
         );
     }
 
