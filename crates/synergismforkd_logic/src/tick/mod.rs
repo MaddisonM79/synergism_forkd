@@ -562,11 +562,229 @@ pub fn tack(state: &mut GameState, input: &TackInput) -> TickOutput {
     // 1 — ant generation multiplies by this factor so it no-ops at 0 anyway.
     automation_pre.ant_speed_mult = compute_ant_speed_mult(state);
     phase_player_input(state, input, &reset_gains, &mut output);
-    phase_generation(state, &resource_gain_pre, input.dt, &mut output);
+    // Generation runs on dt scaled by the global-speed multiplier (legacy
+    // `resourceGain(dt * timeMult)`, Synergism.ts:4604). `automation_pre`
+    // already holds this tick's `compute_global_speed_mult_pre` (set above) and
+    // the timer phase consumes the same value — this is the single
+    // generation-side application. Ant generation deliberately stays on raw dt.
+    phase_generation(
+        state,
+        &resource_gain_pre,
+        input.dt * automation_pre.global_time_multiplier,
+        &mut output,
+    );
     phase_challenge_completion(state, &reset_gains, &mut output);
     phase_automation(state, &automation_pre, input, &mut output);
 
     output
+}
+
+/// Effective ant-upgrade level (legacy `calculateTrueAntLevel`): purchased
+/// level + capped free levels (`min(level, free)`), divided by the
+/// extinction-corruption divisor — except for the four `exemptFromCorruption`
+/// upgrades (Mortuus 11, WowCubes 13, AscensionScore 14, Mortuus2 15), where
+/// the divisor is ignored. While ascension challenge 11 is active the level
+/// collapses to `min(level, free)` without the additive purchased term.
+///
+/// Free levels are a single global pool shared by every upgrade. Two
+/// contributing terms stay neutral pending unported subsystems (audit H2):
+/// the `freeAntUpgrades` achievement reward (→ 0) and the challenge-15
+/// `bonusAntLevel` multiplier (→ 1.0). Identity at the default state (no free
+/// levels, extinction divisor 1.0), so existing default-state tests are
+/// unaffected; the effect only diverges from the raw level once free levels
+/// or extinction corruption are present.
+fn true_ant_level(state: &GameState, upgrade_index: usize) -> f64 {
+    use crate::mechanics::ant_upgrade_levels::{
+        calculate_true_ant_level, compute_free_ant_upgrade_levels, CalculateTrueAntLevelInput,
+        ComputeFreeAntUpgradeLevelsInput,
+    };
+    use crate::mechanics::challenges::{calc_ecc, ChallengeType};
+    use crate::mechanics::corruptions::extinction_divisor_at_level;
+    use crate::state::EXTINCTION_INDEX;
+
+    // The four `exemptFromCorruption` ant upgrades (legacy antUpgradeData):
+    // Mortuus (11), WowCubes (13), AscensionScore (14), Mortuus2 (15).
+    const EXEMPT_FROM_CORRUPTION: [usize; 4] = [11, 13, 14, 15];
+
+    let cc = &state.challenges.challenge_completions;
+    let research = &state.researches.researches;
+    let c11_active = state.challenges.current_ascension_challenge == 11;
+
+    let free_levels = compute_free_ant_upgrade_levels(&ComputeFreeAntUpgradeLevelsInput {
+        c9_reincarnation_ecc: calc_ecc(ChallengeType::Reincarnation, cc[9]),
+        constant_upgrade_6: state.campaigns.constant_upgrades[6],
+        c11_ascension_ecc: calc_ecc(ChallengeType::Ascension, cc[11]),
+        research_97: research[97],
+        research_98: research[98],
+        research_102: research[102],
+        research_132: research[132],
+        research_200: research[200],
+        // getAchievementReward('freeAntUpgrades') unported → neutral 0.
+        free_ant_upgrades_achievement_reward: 0.0,
+        // challenge15Rewards.bonusAntLevel baseValue → neutral 1.0.
+        challenge_15_bonus_ant_level_value: 1.0,
+        c11_active,
+        c8_completions: cc[8],
+        c9_completions: cc[9],
+    });
+
+    // `calculate_true_ant_level` ignores the divisor for exempt upgrades, so it
+    // is always safe to pass the real value.
+    calculate_true_ant_level(&CalculateTrueAntLevelInput {
+        current_level: state.ants.upgrades[upgrade_index],
+        free_levels,
+        exempt_from_corruption: EXEMPT_FROM_CORRUPTION.contains(&upgrade_index),
+        corruption_extinction_divisor: extinction_divisor_at_level(
+            state.corruptions.used.levels[EXTINCTION_INDEX],
+        ),
+        c11_active,
+    })
+}
+
+/// DR-softened hepteract balance (legacy `hepteractEffective`): linear up to
+/// the per-craft LIMIT (1000 for all non-quark crafts), then
+/// `LIMIT * (raw / LIMIT)^dr_exponent`. The exponent is the craft's fixed DR
+/// plus its `DR_INCREASE` (only chronos has one: `platonicUpgrades[19] / 750`).
+/// Feeding the raw balance skipped this softening past 1000 (audit P1.4).
+fn hepteract_effective_bal(raw_amount: f64, dr_exponent: f64) -> f64 {
+    use crate::mechanics::hepteract_values::{hepteract_effective, HepteractEffectiveInput};
+    hepteract_effective(&HepteractEffectiveInput {
+        raw_amount,
+        limit: 1000.0,
+        dr_exponent,
+        is_quark: false,
+    })
+}
+
+/// `firstFiveEffectiveRuneLevelMult` (Statistics.ts `firstFiveRuneEffectivenessStats`):
+/// the product applied to the first five runes' level. The eight research
+/// factors, `ConstantUpgrade9`, and `Research4x9` are live; the `Challenge15`
+/// rune bonus, the `MidasTribute` cube-blessing chain, and the `AchievementBonus`
+/// quark-gain reward are neutral-defaulted to `1.0` (unported / blessing chain
+/// deferred / achievements unported, H5). Identity at the default state.
+/// TS-anchored against the verbatim Statistics.ts expressions.
+fn first_five_effective_rune_level_mult(state: &GameState) -> f64 {
+    use crate::mechanics::calculate::product_f64;
+    use crate::mechanics::challenges::{calc_ecc, ChallengeType};
+    let research = &state.researches.researches;
+    let cc = &state.challenges.challenge_completions;
+    // ConstantUpgrade9: 1 + 0.01·log4(talismanShards+1)·min(1, constantUpgrades[9]).
+    let const_upgrade_9 = 1.0
+        + 0.01
+            * ((state.talismans.talisman_shards + 1.0).ln() / 4.0_f64.ln())
+            * state.campaigns.constant_upgrades[9].min(1.0);
+    product_f64(&[
+        1.0 + research[4] / 10.0 * (1.0 + calc_ecc(ChallengeType::Ascension, cc[14])),
+        1.0 + research[21] / 100.0,
+        1.0 + research[90] / 100.0,
+        1.0 + research[131] / 200.0,
+        1.0 + (research[146] / 200.0 * 4.0) / 5.0,
+        1.0 + (research[161] / 200.0 * 3.0) / 5.0,
+        1.0 + (research[176] / 200.0 * 2.0) / 5.0,
+        1.0 + (research[191] / 200.0) / 5.0,
+        const_upgrade_9,
+        1.0, // Challenge15 runeBonus -> neutral (unported)
+        1.0, // MidasTribute cube blessing -> neutral (blessing chain deferred)
+        1.0 + research[84] / 200.0,
+        1.0, // AchievementBonus quarkGain -> neutral (achievements unported, H5)
+    ])
+}
+
+/// Free levels for a first-five rune (legacy `runes[rune].freeLevels()`): the
+/// shared `firstFiveFreeLevels` (the FreeRunes ant upgrade at its true level +
+/// `7·min(constantUpgrades[7], 1000)`) plus the per-rune bonus. Speed and
+/// duplication have ported bonus aggregators (coin-log + coin-upgrade driven);
+/// their `getRuneBonusFromAllTalismans` talisman bonus is unported (neutral 0),
+/// and the prism/thrift/SI per-rune bonuses are unported (0). Identity at default.
+fn rune_free_levels(state: &GameState, rune: usize) -> f64 {
+    use crate::mechanics::ant_upgrades::free_runes_ant_upgrade_effect;
+    use crate::mechanics::rune_level_bonuses::{
+        bonus_rune_levels_duplication, bonus_rune_levels_speed, first_five_free_levels,
+        BonusRuneLevelsDuplicationInput, BonusRuneLevelsSpeedInput, FirstFiveFreeLevelsInput,
+    };
+    use crate::state::{RUNE_DUPLICATION, RUNE_SPEED};
+
+    // FreeRunes ant upgrade (index 8), read at its true (free + corruption) level.
+    const ANT_UPGRADE_FREE_RUNES: usize = 8;
+    let shared = first_five_free_levels(&FirstFiveFreeLevelsInput {
+        free_runes_ant_upgrade: free_runes_ant_upgrade_effect(true_ant_level(
+            state,
+            ANT_UPGRADE_FREE_RUNES,
+        )),
+        constant_upgrade_7: state.campaigns.constant_upgrades[7],
+    });
+
+    let upgrade = |i: usize| f64::from(state.upgrades.upgrades[i]);
+    let coin_log10 = (state.upgrades.coins + Decimal::one()).log10().to_number();
+    let total_owned_coins_first_five: f64 = state.coin_producers.tiers[0..5]
+        .iter()
+        .map(|t| t.owned)
+        .sum();
+
+    let bonus = match rune {
+        RUNE_SPEED => bonus_rune_levels_speed(&BonusRuneLevelsSpeedInput {
+            talisman_bonus: 0.0, // getRuneBonusFromAllTalismans unported
+            upgrade_27: upgrade(27),
+            coin_log_1e10_floor: (coin_log10 / 10.0).floor(),
+            coin_log_1e50_floor: (coin_log10 / 50.0).floor(),
+            upgrade_29: upgrade(29),
+            total_owned_coins_first_five,
+        }),
+        RUNE_DUPLICATION => bonus_rune_levels_duplication(&BonusRuneLevelsDuplicationInput {
+            talisman_bonus: 0.0, // getRuneBonusFromAllTalismans unported
+            upgrade_28: upgrade(28),
+            total_owned_coins_first_five,
+            upgrade_30: upgrade(30),
+            coin_log_1e30_floor: (coin_log10 / 30.0).floor(),
+            coin_log_1e300_floor: (coin_log10 / 300.0).floor(),
+        }),
+        _ => 0.0, // prism/thrift/SI per-rune bonus aggregators unported
+    };
+    shared + bonus
+}
+
+/// Effective level of a first-five rune (speed/duplication/prism/thrift/SI),
+/// legacy `getRuneEffectiveLevel`: reincarnation challenge 9 collapses it to 1
+/// (all first-five `ignoreChal9 = false`); otherwise
+/// `(level + freeLevels()) * firstFiveEffectiveRuneLevelMult`. Still deferred
+/// (neutral, identity at default): the achievement-gated `isUnlocked` gates
+/// (defaulting them to locked would wrongly zero the runes while achievements
+/// are unported, H5) and SI's extra quark-based mult.
+fn first_five_effective_rune_level(state: &GameState, rune: usize) -> f64 {
+    if state.challenges.current_reincarnation_challenge == 9 {
+        return 1.0;
+    }
+    (state.runes.rune_levels[rune] + rune_free_levels(state, rune))
+        * first_five_effective_rune_level_mult(state)
+}
+
+/// `otherBlessingMultipliers` (RuneBlessings.ts:42): the shared multiplier on
+/// every rune blessing's power. researches 134/194/160 and the midas talisman
+/// blessingBonus are live; the epicFragments factor (driven by researches[174]
+/// over the unported epicFragments balance) is neutral 1.0 — faithful while
+/// researches[174] == 0 — and the challenge15 blessingBonus is neutral 1.0
+/// (unported). Identity at default. TS-anchored.
+fn other_blessing_multipliers(state: &GameState) -> f64 {
+    use crate::mechanics::talisman_effects::midas_talisman_effects;
+    use crate::state::TALISMAN_MIDAS;
+    let research = &state.researches.researches;
+    (1.0 + 6.9 * research[134] / 100.0)
+        * midas_talisman_effects(state.talismans.talisman_rarity[TALISMAN_MIDAS] as i32)
+            .blessing_bonus
+        * (1.0 + 2.0 * research[194] / 100.0)
+        * (1.0 + 0.25 * research[160])
+}
+
+/// Rune blessing power (legacy `getRuneBlessingPower` × `blessingMultiplier`):
+/// `blessing.level · (rune.level + freeLevels()) · otherBlessingMultipliers()`.
+/// The blessing effect formulas already match — only this power argument was
+/// wrong (raw blessing level, dropping the rune's own level and the shared
+/// mult). `freeLevels` is deferred (P2.1b, neutral 0). Identity at default
+/// (blessing level 0 → power 0).
+fn rune_blessing_power(state: &GameState, rune: usize) -> f64 {
+    state.runes.rune_blessing_levels[rune]
+        * state.runes.rune_levels[rune]
+        * other_blessing_multipliers(state)
 }
 
 /// Build the shared achievement-reward input from `&GameState` — the
@@ -675,9 +893,10 @@ fn compute_total_accelerator_boost(state: &GameState) -> f64 {
         research_16: research(16),
         research_17: research(17),
         research_88: research(88),
-        ant_building_accelerator_boost_mult: accelerator_boosts_ant_upgrade_effect(
-            state.ants.upgrades[ANT_UPGRADE_ACCELERATOR_BOOSTS],
-        ),
+        ant_building_accelerator_boost_mult: accelerator_boosts_ant_upgrade_effect(true_ant_level(
+            state,
+            ANT_UPGRADE_ACCELERATOR_BOOSTS,
+        )),
         research_127: research(127),
         research_142: research(142),
         research_157: research(157),
@@ -718,9 +937,10 @@ fn compute_building_power(state: &GameState) -> f64 {
         research_37: state.researches.researches[37],
         research_38: state.researches.researches[38],
         building_cost_scale_ant_upgrade_building_power_mult:
-            building_cost_scale_ant_upgrade_effect(
-                state.ants.upgrades[ANT_UPGRADE_BUILDING_COST_SCALE],
-            )
+            building_cost_scale_ant_upgrade_effect(true_ant_level(
+                state,
+                ANT_UPGRADE_BUILDING_COST_SCALE,
+            ))
             .building_power_mult,
         cube_upgrade_12: state.cube_upgrade_levels.cube_upgrades[12],
         cube_upgrade_36: state.cube_upgrade_levels.cube_upgrades[36],
@@ -742,8 +962,8 @@ fn compute_building_power(state: &GameState) -> f64 {
 /// - `building_power_mult`              ✓ state-derived (building_power ^ coin owned)
 /// - `crystal_upgrade_3_multiplier`     ✓ state-derived (crystal-upgrade-3 chain)
 /// - `crystal_multiplier_achievement`   ✓ state-derived (achievement_rewards)
-/// - `const_upgrade_1_buff_achievement` ✓ always 0 (no achievement grants it)
-/// - `const_upgrade_2_buff_achievement` ✓ always 0 (no achievement grants it)
+/// - `const_upgrade_1_buff_achievement` ✓ 0 (an ascendShards achievement grants 0.01, but the achievement system is unported — H5)
+/// - `const_upgrade_2_buff_achievement` ✓ 0 (same achievement grants 0.01; neutral until awarding lands)
 /// - `constant_ex_max_percent_increase` ✓ shop subsystem unported → 0 (no logic buy-path)
 /// - `ascend_building_dr_value`         ✓ state-derived (`ascend_building_dr`)
 /// - `multiplier_effect`                ✓ injected by phase_global_state (aggregator output)
@@ -775,7 +995,7 @@ fn compute_global_multipliers_pre(state: &GameState) -> GlobalMultipliersPreEval
     /// `AntUpgrades.Coins = 1` enum value.
     const ANT_UPGRADE_COINS: usize = 1;
 
-    let prism_level = state.runes.rune_levels[RUNE_PRISM];
+    let prism_level = first_five_effective_rune_level(state, RUNE_PRISM);
     let coin_tiers = &state.coin_producers.tiers;
     let total_coin_owned = calculate_total_coin_owned(&CalculateTotalCoinOwnedInput {
         first_owned_coin: coin_tiers[0].owned,
@@ -785,7 +1005,7 @@ fn compute_global_multipliers_pre(state: &GameState) -> GlobalMultipliersPreEval
         fifth_owned_coin: coin_tiers[4].owned,
     });
     let ant_effect = coins_ant_upgrade_effect(&CoinsAntUpgradeInput {
-        level: state.ants.upgrades[ANT_UPGRADE_COINS],
+        level: true_ant_level(state, ANT_UPGRADE_COINS),
         ascension_challenge: state.challenges.current_ascension_challenge,
         crumbs: state.ants.crumbs,
     });
@@ -864,8 +1084,10 @@ fn compute_global_multipliers_pre(state: &GameState) -> GlobalMultipliersPreEval
         building_power_mult,
         crystal_upgrade_3_multiplier,
         crystal_multiplier_achievement: achievement_rewards::crystal_multiplier(&ach),
-        // No achievement grants `constUpgrade1Buff`/`constUpgrade2Buff` in
-        // the legacy table — the additive reward is always 0.
+        // `constUpgrade1Buff`/`constUpgrade2Buff` ARE granted (0.01 each) by an
+        // ascendShards achievement (Achievements.ts:1866-1867), but the
+        // achievement system is unported (audit H5), so the reward is 0 until
+        // achievement awarding lands.
         const_upgrade_1_buff_achievement: 0.0,
         const_upgrade_2_buff_achievement: 0.0,
         // `constantEX` shop upgrade (`getShopUpgradeEffects` = identity):
@@ -929,9 +1151,12 @@ fn compute_update_all_multiplier_pre(
     const CUBE_UPGRADE_MULTIPLIER_BLESSING: usize = 35;
 
     let sum_of_rune_levels: f64 = state.runes.rune_levels.iter().sum();
-    let duplication_level = state.runes.rune_levels[RUNE_DUPLICATION];
-    let duplication_blessing_level = state.runes.rune_blessing_levels[RUNE_DUPLICATION];
-    let hept_mult = multiplier_hepteract_effects(state.hepteracts.multiplier.bal);
+    let duplication_level = first_five_effective_rune_level(state, RUNE_DUPLICATION);
+    let duplication_blessing_level = rune_blessing_power(state, RUNE_DUPLICATION);
+    let hept_mult = multiplier_hepteract_effects(hepteract_effective_bal(
+        state.hepteracts.multiplier.bal,
+        1.0 / 5.0,
+    ));
     let viscosity_level = state.corruptions.used.levels[VISCOSITY_INDEX];
     // Cube-blessing chain: platonic → hypercube → tesseract → cube,
     // mirroring the legacy call chain in `Cubes.ts`.
@@ -962,9 +1187,10 @@ fn compute_update_all_multiplier_pre(
             duplication_blessing_level,
         )
         .multiplier_boosts,
-        ant_multiplier_mult: multipliers_ant_upgrade_effect(
-            state.ants.upgrades[ANT_UPGRADE_MULTIPLIERS],
-        ),
+        ant_multiplier_mult: multipliers_ant_upgrade_effect(true_ant_level(
+            state,
+            ANT_UPGRADE_MULTIPLIERS,
+        )),
         hepteract_multiplier: hept_mult.multiplier,
         hepteract_multiplier_mult: hept_mult.multiplier_multiplier,
         viscosity_power: viscosity_power_at_level(viscosity_level),
@@ -1014,8 +1240,11 @@ fn compute_update_all_tick_pre(
     /// diminishing-return increase. Legacy `player.cubeUpgrades[45]`.
     const CUBE_UPGRADE_ACCELERATOR_BLESSING: usize = 45;
 
-    let speed_level = state.runes.rune_levels[RUNE_SPEED];
-    let hept_acc = accelerator_hepteract_effects(state.hepteracts.accelerator.bal);
+    let speed_level = first_five_effective_rune_level(state, RUNE_SPEED);
+    let hept_acc = accelerator_hepteract_effects(hepteract_effective_bal(
+        state.hepteracts.accelerator.bal,
+        1.0 / 5.0,
+    ));
     let viscosity_level = state.corruptions.used.levels[VISCOSITY_INDEX];
     // Cube-blessing chain (same shape as the multiplier chain in
     // [`compute_update_all_multiplier_pre`]; the platonic amplifier
@@ -1190,7 +1419,7 @@ fn phase_tax(state: &mut GameState, agg: &AggregatorOutputs) -> TaxOutputs {
         fifth_owned_coin: coin[4].owned,
     });
     let coins_ant = coins_ant_upgrade_effect(&CoinsAntUpgradeInput {
-        level: state.ants.upgrades[ANT_UPGRADE_COINS],
+        level: true_ant_level(state, ANT_UPGRADE_COINS),
         ascension_challenge: challenges.current_ascension_challenge,
         crumbs: state.ants.crumbs,
     });
@@ -1234,14 +1463,14 @@ fn phase_tax(state: &mut GameState, agg: &AggregatorOutputs) -> TaxOutputs {
         highest_c14_completions: challenges.highest_challenge_completions[14],
         tax_reduction_achievement: achievement_rewards::tax_reduction(&ach),
         duplication_rune_tax_reduction: duplication_rune_effects(
-            state.runes.rune_levels[RUNE_DUPLICATION],
+            first_five_effective_rune_level(state, RUNE_DUPLICATION),
             DuplicationRuneKey::TaxReduction,
         ),
         thrift_rune_tax_reduction: thrift_rune_effects(
-            state.runes.rune_levels[RUNE_THRIFT],
+            first_five_effective_rune_level(state, RUNE_THRIFT),
             ThriftRuneKey::TaxReduction,
         ),
-        ant_tax_reduction: taxes_ant_upgrade_effect(state.ants.upgrades[ANT_UPGRADE_TAXES]),
+        ant_tax_reduction: taxes_ant_upgrade_effect(true_ant_level(state, ANT_UPGRADE_TAXES)),
         exemption_talisman_tax_reduction: exemption_talisman_effects(
             state.talismans.talisman_rarity[TALISMAN_EXEMPTION] as i32,
         )
@@ -1351,7 +1580,7 @@ fn compute_global_speed_mult_pre(state: &GameState) -> f64 {
     // DR-enabled ("normal") leg — legacy `allGlobalSpeedStats`.
     let normal_mult = product_f64(&[
         speed_rune_effects(
-            state.runes.rune_levels[RUNE_SPEED],
+            first_five_effective_rune_level(state, RUNE_SPEED),
             SpeedRuneKey::GlobalSpeed,
         ),
         1.0, // obtainium-log: maxObtainium untracked → 1.0 (upgrades[70] == 0)
@@ -1361,11 +1590,11 @@ fn compute_global_speed_mult_pre(state: &GameState) -> f64 {
         1.0 + 0.009 * researches[166],
         1.0 + 0.006 * researches[181],
         1.0 + 0.003 * researches[196],
-        speed_rune_blessing_effects(state.runes.rune_blessing_levels[RUNE_SPEED]).global_speed,
+        speed_rune_blessing_effects(rune_blessing_power(state, RUNE_SPEED)).global_speed,
         1.0, // speed spirit: effective spirit power unported → 1.0
         chronos_cube,
         1.0 + cube_upgrades[CUBE_UPGRADE_2X8] / 5.0,
-        mortuus_ant_upgrade_effect(state.ants.upgrades[ANT_UPGRADE_MORTUUS]).global_speed,
+        mortuus_ant_upgrade_effect(true_ant_level(state, ANT_UPGRADE_MORTUUS)).global_speed,
         chronos_talisman_effects(state.talismans.talisman_rarity[TALISMAN_CHRONOS] as i32)
             .global_speed,
         challenge_15_rewards::global_speed(state.challenges.challenge15_exponent),
@@ -1518,13 +1747,17 @@ fn compute_ascension_speed_mult_raw(state: &GameState) -> f64 {
 
     // Base StatLine product — legacy `allAscensionSpeedStats`.
     let base = product_f64(&[
-        mortuus_2_ant_upgrade_effect(state.ants.upgrades[ANT_UPGRADE_MORTUUS_2]).ascension_speed,
+        mortuus_2_ant_upgrade_effect(true_ant_level(state, ANT_UPGRADE_MORTUUS_2)).ascension_speed,
         polymath_talisman_effects(state.talismans.talisman_rarity[TALISMAN_POLYMATH] as i32)
             .ascension_speed_bonus,
         chronometer_effect(shop[SHOP_CHRONOMETER]),
         chronometer_2_effect(shop[SHOP_CHRONOMETER_2]),
         chronometer_3_effect(shop[SHOP_CHRONOMETER_3]),
-        chronos_hepteract_effects(state.hepteracts.chronos.bal).ascension_speed,
+        chronos_hepteract_effects(hepteract_effective_bal(
+            state.hepteracts.chronos.bal,
+            1.0 / 6.0 + state.cube_upgrade_levels.platonic_upgrades[19] / 750.0,
+        ))
+        .ascension_speed,
         platonic_omega,
         challenge_15_rewards::ascension_speed(state.challenges.challenge15_exponent),
         1.0 + (1.0 / 400.0) * state.cube_upgrade_levels.cube_upgrades[CUBE_UPGRADE_COOKIE_9],
@@ -1647,9 +1880,10 @@ fn compute_ascension_score_result(
         platonic_upgrade_5: platonic[PLATONIC_UPGRADE_ALPHA],
         platonic_upgrade_10: platonic[PLATONIC_UPGRADE_BETA],
         corruption_multiplier: state.corruptions.used.total_corruption_ascension_multiplier,
-        ant_upgrade_ascension_score_base: ascension_score_ant_upgrade_effect(
-            state.ants.upgrades[ANT_UPGRADE_ASCENSION_SCORE],
-        )
+        ant_upgrade_ascension_score_base: ascension_score_ant_upgrade_effect(true_ant_level(
+            state,
+            ANT_UPGRADE_ASCENSION_SCORE,
+        ))
         .ascension_score_base,
         expert_pack_ascension_score_mult: expert_pack_effect(
             gq(GQ_EXPERT_PACK),
@@ -2142,7 +2376,7 @@ fn compute_cube_multiplier(
         cube_bank += if offset + 1 >= 6 { 2.0 } else { 1.0 } * completions;
     }
     cube_bank +=
-        ascension_score_ant_upgrade_effect(state.ants.upgrades[ANT_UPGRADE_ASCENSION_SCORE])
+        ascension_score_ant_upgrade_effect(true_ant_level(state, ANT_UPGRADE_ASCENSION_SCORE))
             .cubes_banked;
 
     // AscensionScore band.
@@ -2230,7 +2464,7 @@ fn compute_cube_multiplier(
         1.0, // WowSquare — wowSquare talisman not among the 7 ported
         researches,
         1.0 + (0.004 / 100.0) * research[200], // Research8x25
-        wow_cubes_ant_upgrade_effect(state.ants.upgrades[ANT_UPGRADE_WOW_CUBES]),
+        wow_cubes_ant_upgrade_effect(true_ant_level(state, ANT_UPGRADE_WOW_CUBES)),
         (1.0 + cube[1] / 6.0) * (1.0 + cube[11] / 11.0) * (1.0 + 0.4 * cube[30]), // CubeUpgrades
         constant_upgrade_10,
         duplication_rune_spirit_effects(state.runes.rune_spirit_levels[RUNE_DUPLICATION]).wow_cubes,
@@ -2316,7 +2550,11 @@ fn compute_hypercube_multiplier(
         1.0, // WowSquare
         calculate_hypercube_multiplier_platonic_blessing(&state.platonic_blessings),
         1.0 + 0.00054 * total_corruption_levels * platonic[3], // Platonic1x3
-        hyperrealism_hepteract_effects(state.hepteracts.hyperrealism.bal).hypercube_multiplier,
+        hyperrealism_hepteract_effects(hepteract_effective_bal(
+            state.hepteracts.hyperrealism.bal,
+            1.0 / 3.0,
+        ))
+        .hypercube_multiplier,
     ])
 }
 
@@ -2815,10 +3053,10 @@ fn compute_obtainium(
         cash_grab_effect(shop[SHOP_CASH_GRAB]), // ShopCashGrab
         obtainium_ex_effect(shop[SHOP_OBTAINIUM_EX]), // ShopObtainiumEX
         superior_intellect_rune_effects(
-            state.runes.rune_levels[RUNE_SUPERIOR_INTELLECT],
+            first_five_effective_rune_level(state, RUNE_SUPERIOR_INTELLECT),
             SuperiorIntellectRuneKey::ObtainiumMult,
         ), // Rune5
-        obtainium_ant_upgrade_effect(state.ants.upgrades[ANT_UPGRADE_OBTAINIUM]), // Ant10
+        obtainium_ant_upgrade_effect(true_ant_level(state, ANT_UPGRADE_OBTAINIUM)), // Ant10
         obtainium_cube_blessing, // CubeBonus
         1.0 + 0.04 * state.campaigns.constant_upgrades[4], // ConstantUpgrade4
         1.0 + 0.1 * cube[3], // CubeUpgrade1x3
@@ -3065,9 +3303,10 @@ fn compute_ant_speed_mult(state: &GameState) -> Decimal {
     );
 
     // RuneBlessingBonus: max(1, obtainium) ^ obtToAntExponent.
-    let obt_to_ant_exponent = superior_intellect_rune_blessing_effects(
-        state.runes.rune_blessing_levels[RUNE_SUPERIOR_INTELLECT],
-    )
+    let obt_to_ant_exponent = superior_intellect_rune_blessing_effects(rune_blessing_power(
+        state,
+        RUNE_SUPERIOR_INTELLECT,
+    ))
     .obt_to_ant_exponent;
     let rune_blessing_bonus = obtainium
         .max(Decimal::one())
@@ -3105,7 +3344,7 @@ fn compute_ant_speed_mult(state: &GameState) -> Decimal {
         // ImmortalELO — calculateAntSpeedMultFromELO = 1.02 ^ rebornELO.
         Decimal::from_finite(1.02).pow(Decimal::from_finite(state.ants.reborn_elo)),
         ant_speed_ant_upgrade_effect(&AntSpeedAntUpgradeInput {
-            level: state.ants.upgrades[ANT_UPGRADE_ANT_SPEED],
+            level: true_ant_level(state, ANT_UPGRADE_ANT_SPEED),
             research_101: researches[101],
             research_162: researches[162],
         }), // AntUpgrade1
@@ -3126,7 +3365,7 @@ fn compute_ant_speed_mult(state: &GameState) -> Decimal {
         Decimal::from_finite(1.0 + researches[147] * crumbs_log10), // Research6x22
         Decimal::from_finite(1.0 + researches[177] * crumbs_log10), // Research8x2
         Decimal::from_finite(superior_intellect_rune_effects(
-            state.runes.rune_levels[RUNE_SUPERIOR_INTELLECT],
+            first_five_effective_rune_level(state, RUNE_SUPERIOR_INTELLECT),
             SuperiorIntellectRuneKey::AntSpeed,
         )), // SuperiorIntellect
         rune_blessing_bonus,
@@ -3482,9 +3721,9 @@ fn compute_immortal_elo_gain(state: &GameState) -> f64 {
         50.0 * researches[123],
         0.02 * researches[169],
         666.0 * researches[178],
-        ant_sacrifice_ant_upgrade_effect(state.ants.upgrades[ANT_UPGRADE_ANT_SACRIFICE]).elo,
+        ant_sacrifice_ant_upgrade_effect(true_ant_level(state, ANT_UPGRADE_ANT_SACRIFICE)).elo,
         ant_elo_ant_upgrade_effect(&AntELOAntUpgradeInput {
-            level: state.ants.upgrades[ANT_UPGRADE_ANT_ELO],
+            level: true_ant_level(state, ANT_UPGRADE_ANT_ELO),
             ant_sacrifice_count: sac_count,
             ant_speed_2_upgrade_improver: ant_speed_2_upgrade_improver(ach, ach_level),
         })
@@ -4424,10 +4663,12 @@ fn phase_challenge_completion(
         GetMaxChallengesInput, CHALLENGE_BASE_REQUIREMENTS,
     };
     use crate::mechanics::shop_upgrades::{
-        instant_challenge_2_effect, instant_challenge_effect, InstantChallengeKey,
-        InstantChallengeValue,
+        challenge_extension_effect, instant_challenge_2_effect, instant_challenge_effect,
+        InstantChallengeKey, InstantChallengeValue,
     };
-    use crate::state::shop::{SHOP_INSTANT_CHALLENGE, SHOP_INSTANT_CHALLENGE_2};
+    use crate::state::shop::{
+        SHOP_CHALLENGE_EXTENSION, SHOP_INSTANT_CHALLENGE, SHOP_INSTANT_CHALLENGE_2,
+    };
 
     const PLATONIC_UPGRADE_8: usize = 8;
     const RESEARCH_INFINITE_TRANSCEND: usize = 105;
@@ -4540,7 +4781,9 @@ fn phase_challenge_completion(
                 infinite_transcend_research: 0.0,
                 transcend_research_for_challenge: 0.0,
                 cube_upgrade_29: state.cube_upgrade_levels.cube_upgrades[CUBE_UPGRADE_29],
-                challenge_extension_cap: 0.0, // shop challengeExtension reinc cap deferred (neutral)
+                challenge_extension_cap: challenge_extension_effect(
+                    state.shop.upgrades[SHOP_CHALLENGE_EXTENSION],
+                ),
                 gq_reincarnation_cap_increase: 0.0,
                 sing_reincarnation_cap_increase: 0.0,
                 gq_ascension_cap_increase: 0.0,
@@ -4639,6 +4882,13 @@ fn complete_active_challenge(
         // Ascension-challenge unlock side-effects fired on highest[i] first rise
         // (Synergism.ts:3796-3808 — inside the `resetCheck` ascensionChallenge block).
         match q_idx {
+            // Reincarnation challenge 10 unlocks ascensions (legacy
+            // `player.unlocks.ascensions = true`, Synergism.ts:3700) — the entry
+            // gate for ascension challenge 11. Without it the c11-c15 ladder is
+            // unreachable in normal play. (c8 anthill / c9 talismans+blessings
+            // still need new `unlocks` fields — deferred to the schema-gated
+            // follow-up.)
+            10 => state.reset_counters.ascension_unlocked = true,
             11 => state.reset_counters.tesseracts_unlocked = true,
             12 => state.reset_counters.spirits_unlocked = true,
             13 => state.reset_counters.hypercubes_unlocked = true,
@@ -5499,6 +5749,32 @@ mod tests {
         // the (1, 100] no-DR band, so the mult is exactly 3.0.
         state.researches.researches[121] = 100.0;
         assert!((compute_global_speed_mult_pre(&state) - 3.0).abs() < 1e-12);
+    }
+
+    #[test]
+    fn global_speed_mult_scales_resource_generation() {
+        // Regression (audit C1): the dropped global-speed multiplier meant
+        // `phase_generation` ran on raw dt, so all resource generation was
+        // under-counted. 1000 tier-1 diamond producers yield 50 prestige
+        // shards/tick at mult = 1; research 5x21 = 50 doubles the global-speed
+        // mult to 2.0, which must double the generation to 100.
+        let input = TackInput {
+            dt: 0.025,
+            ..TackInput::default()
+        };
+
+        let mut base = GameState::default();
+        base.diamond_producers.tiers[0].owned = 1000.0;
+        let _ = tack(&mut base, &input);
+        assert!((base.crystal_upgrades.prestige_shards.to_number() - 50.0).abs() < 1e-9);
+
+        let mut fast = GameState::default();
+        fast.diamond_producers.tiers[0].owned = 1000.0;
+        fast.researches.researches[121] = 50.0;
+        assert!((compute_global_speed_mult_pre(&fast) - 2.0).abs() < 1e-12);
+        let _ = tack(&mut fast, &input);
+        // Before the fix this was still 50 (the multiplier never reached generation).
+        assert!((fast.crystal_upgrades.prestige_shards.to_number() - 100.0).abs() < 1e-9);
     }
 
     #[test]
@@ -6723,6 +6999,69 @@ mod tests {
         assert!(state.reset_counters.platonics_unlocked);
     }
 
+    #[test]
+    fn completing_reincarnation_challenge_10_unlocks_ascensions() {
+        // Regression (audit C2): completing reincarnation challenge 10 must set
+        // ascension_unlocked — the entry gate for ascension challenge 11. The
+        // unlock arm only handled c11-14, so the whole c11-c15 ladder was
+        // unreachable (ascension_unlocked was assigned only in #[cfg(test)]).
+        // Drive complete_active_challenge with a trivially-met requirement so
+        // highest[10] rises 0 -> 1; instant_unlocked skips the tier reset to
+        // isolate the unlock from the cascade.
+        let mut state = GameState::default();
+        assert!(!state.reset_counters.ascension_unlocked);
+        state.challenges.current_reincarnation_challenge = 10;
+        let gains = crate::mechanics::reset_currency::ResetCurrencyResult {
+            prestige_point_gain: Decimal::zero(),
+            transcend_point_gain: Decimal::zero(),
+            reincarnation_point_gain: Decimal::zero(),
+        };
+        let mut output = TickOutput::default();
+        let requirement = |_challenge: u32, _comp: f64| Decimal::zero();
+        complete_active_challenge(
+            &mut state,
+            10,
+            Decimal::one(),
+            5.0,
+            1.0,
+            &requirement,
+            true,
+            &gains,
+            &mut output,
+        );
+        assert!(state.challenges.challenge_completions[10] >= 1.0);
+        assert!(
+            state.reset_counters.ascension_unlocked,
+            "completing reincarnation challenge 10 must unlock ascensions"
+        );
+    }
+
+    #[test]
+    fn reincarnation_completion_uses_shop_challenge_extension() {
+        use crate::mechanics::reset_currency::ResetCurrencyResult;
+        use crate::state::shop::SHOP_CHALLENGE_EXTENSION;
+        // The completion loop must use the same shop challengeExtension cap as the
+        // sweep (challenge_extension_effect = 2n, applied to c6-10). It was zeroed,
+        // so reincarnation completions plateaued at the base cap (40) below the
+        // extended cap. With +20 extension and the goal met, c6 advances past 40.
+        let mut state = GameState::default();
+        state.challenges.current_reincarnation_challenge = 6;
+        state.challenges.challenge_completions[6] = 40.0; // at the base cap
+        state.reset_counters.transcend_shards = Decimal::from_mantissa_exponent(1.0, 1e15);
+        state.shop.upgrades[SHOP_CHALLENGE_EXTENSION] = 10.0; // challengeExtension(10) = +20
+        let gains = ResetCurrencyResult {
+            prestige_point_gain: Decimal::zero(),
+            transcend_point_gain: Decimal::zero(),
+            reincarnation_point_gain: Decimal::zero(),
+        };
+        let mut output = TickOutput::default();
+        phase_challenge_completion(&mut state, &gains, &mut output);
+        assert!(
+            state.challenges.challenge_completions[6] > 40.0,
+            "extended cap must let reincarnation completions pass the base cap"
+        );
+    }
+
     // ── retry_challenges tests ────────────────────────────────────────────
 
     #[test]
@@ -7432,6 +7771,186 @@ mod tests {
         };
         let _ = tack(&mut state, &input);
         assert!((state.crystal_upgrades.prestige_shards.to_number() - 50.0).abs() < 1e-9);
+    }
+
+    #[test]
+    fn prestige_shards_accumulate_across_ticks() {
+        // Regression (audit H1): the seed slice (reset_counters.prestige_shards)
+        // differed from the writeback slice (crystal_upgrades.prestige_shards),
+        // so each tick overwrote the balance with one tick's production and
+        // diamonds/crystals never grew. With the seed fixed, two ticks of
+        // 50 shards/tick must accumulate to 100.
+        let mut state = GameState::default();
+        state.diamond_producers.tiers[0].owned = 1000.0;
+        let input = TackInput {
+            dt: 0.025,
+            ..TackInput::default()
+        };
+        let _ = tack(&mut state, &input);
+        assert!((state.crystal_upgrades.prestige_shards.to_number() - 50.0).abs() < 1e-9);
+        let _ = tack(&mut state, &input);
+        // Second tick adds another 50 on top (was still 50 before the fix).
+        assert!((state.crystal_upgrades.prestige_shards.to_number() - 100.0).abs() < 1e-9);
+    }
+
+    #[test]
+    fn true_ant_level_routes_free_levels_and_extinction() {
+        use crate::mechanics::corruptions::extinction_divisor_at_level;
+        use crate::state::EXTINCTION_INDEX;
+        // Audit H2: ant-upgrade effects must read the true level (purchased +
+        // capped free levels, / extinction divisor), not the raw purchased
+        // level. Coins (1) is corruption-eligible; Mortuus (11) is exempt.
+        const COINS: usize = 1;
+        const MORTUUS: usize = 11;
+
+        let mut state = GameState::default();
+        state.ants.upgrades[COINS] = 100.0;
+        // Identity at default state (no free levels, extinction divisor 1.0).
+        assert!((true_ant_level(&state, COINS) - 100.0).abs() < 1e-9);
+
+        // research[97] grants 2x = 20 free levels, capped by min(100, 20) = 20.
+        state.researches.researches[97] = 10.0;
+        assert!((true_ant_level(&state, COINS) - 120.0).abs() < 1e-9);
+
+        // Extinction corruption level 4 → divisor 3.0 on the non-exempt upgrade.
+        state.corruptions.used.levels[EXTINCTION_INDEX] = 4;
+        let div = extinction_divisor_at_level(4);
+        assert!((div - 3.0).abs() < 1e-12);
+        assert!((true_ant_level(&state, COINS) - 120.0 / div).abs() < 1e-9);
+
+        // The exempt upgrade (Mortuus) ignores the divisor but still gets free levels.
+        state.ants.upgrades[MORTUUS] = 100.0;
+        assert!((true_ant_level(&state, MORTUUS) - 120.0).abs() < 1e-9);
+    }
+
+    #[test]
+    fn hepteract_effective_bal_applies_dr_above_limit() {
+        // Audit P1.4: hepteract effects read the DR-softened balance. Below the
+        // LIMIT (1000) the softening is identity; above it the excess is raised
+        // to the craft's DR exponent (legacy hepteractEffective).
+        assert_eq!(hepteract_effective_bal(500.0, 1.0 / 5.0), 500.0);
+        assert_eq!(hepteract_effective_bal(1000.0, 1.0 / 5.0), 1000.0);
+        // 1000 * (10000/1000)^(1/5) = 1000 * 10^0.2.
+        let expected = 1000.0 * 10.0_f64.powf(0.2);
+        assert!((hepteract_effective_bal(10000.0, 1.0 / 5.0) - expected).abs() < 1e-6);
+    }
+
+    #[test]
+    fn first_five_effective_rune_level_mult_matches_ts() {
+        // Audit P2.1/H3. TS-anchored against the verbatim Statistics.ts
+        // firstFiveRuneEffectivenessStats expressions (computed in
+        // tmp/rune_anchor.mjs); the neutral factors are 1 at these inputs, so the
+        // full TS product equals this port.
+        let mut s = GameState::default();
+        assert_eq!(first_five_effective_rune_level_mult(&s), 1.0);
+
+        s = GameState::default();
+        s.researches.researches[4] = 50.0;
+        assert!((first_five_effective_rune_level_mult(&s) - 6.0).abs() < 1e-9);
+
+        s = GameState::default();
+        s.researches.researches[21] = 100.0;
+        assert!((first_five_effective_rune_level_mult(&s) - 2.0).abs() < 1e-9);
+
+        s = GameState::default();
+        s.researches.researches[4] = 20.0;
+        s.challenges.challenge_completions[14] = 30.0; // CalcECC(asc,30)=20 -> 1+2*21=43
+        assert!((first_five_effective_rune_level_mult(&s) - 43.0).abs() < 1e-9);
+
+        s = GameState::default();
+        s.researches.researches[4] = 20.0;
+        s.researches.researches[84] = 100.0;
+        s.researches.researches[146] = 1000.0;
+        s.campaigns.constant_upgrades[9] = 1.0;
+        s.talismans.talisman_shards = 15.0;
+        assert!((first_five_effective_rune_level_mult(&s) - 22.95).abs() < 1e-9);
+    }
+
+    #[test]
+    fn first_five_effective_rune_level_clamps_and_scales() {
+        use crate::state::RUNE_SPEED;
+        // Identity at default: effective level == purchased level.
+        let mut s = GameState::default();
+        s.runes.rune_levels[RUNE_SPEED] = 100.0;
+        assert_eq!(first_five_effective_rune_level(&s, RUNE_SPEED), 100.0);
+
+        // researches[21] = 100 -> mult 2 -> effective 200.
+        s.researches.researches[21] = 100.0;
+        assert!((first_five_effective_rune_level(&s, RUNE_SPEED) - 200.0).abs() < 1e-9);
+
+        // Reincarnation challenge 9 collapses the effective level to 1.
+        s.challenges.current_reincarnation_challenge = 9;
+        assert_eq!(first_five_effective_rune_level(&s, RUNE_SPEED), 1.0);
+    }
+
+    #[test]
+    fn other_blessing_multipliers_matches_ts() {
+        // Audit P2.2/H4. TS-anchored vs verbatim RuneBlessings.ts
+        // otherBlessingMultipliers (tmp/blessing_anchor.mjs); the neutral factors
+        // (midas rarity-0, epicFragments, challenge15) are 1 here.
+        let mut s = GameState::default();
+        assert_eq!(other_blessing_multipliers(&s), 1.0);
+
+        s = GameState::default();
+        s.researches.researches[134] = 10.0;
+        assert!((other_blessing_multipliers(&s) - 1.69).abs() < 1e-9);
+
+        s = GameState::default();
+        s.researches.researches[194] = 50.0;
+        assert!((other_blessing_multipliers(&s) - 2.0).abs() < 1e-9);
+
+        s = GameState::default();
+        s.researches.researches[160] = 4.0;
+        assert!((other_blessing_multipliers(&s) - 2.0).abs() < 1e-9);
+
+        s = GameState::default();
+        s.researches.researches[134] = 10.0;
+        s.researches.researches[194] = 50.0;
+        s.researches.researches[160] = 4.0;
+        assert!((other_blessing_multipliers(&s) - 6.76).abs() < 1e-9);
+    }
+
+    #[test]
+    fn rune_blessing_power_folds_in_rune_level() {
+        use crate::state::RUNE_SPEED;
+        // power = blessing.level * rune.level * otherBlessingMultipliers; the
+        // dominant fix is the rune-level fold (was raw blessing level before).
+        let mut s = GameState::default();
+        s.runes.rune_blessing_levels[RUNE_SPEED] = 5.0;
+        s.runes.rune_levels[RUNE_SPEED] = 1000.0;
+        // mult 1 at default -> 5 * 1000 * 1 = 5000 (was 5 raw).
+        assert!((rune_blessing_power(&s, RUNE_SPEED) - 5000.0).abs() < 1e-9);
+
+        // researches[134] = 10 -> mult 1.69 -> 5 * 1000 * 1.69 = 8450.
+        s.researches.researches[134] = 10.0;
+        assert!((rune_blessing_power(&s, RUNE_SPEED) - 8450.0).abs() < 1e-9);
+    }
+
+    #[test]
+    fn rune_free_levels_assembles_from_state() {
+        use crate::state::{RUNE_PRISM, RUNE_SPEED};
+        // Audit P2.1b: freeLevels = shared firstFiveFreeLevels + per-rune bonus.
+        let mut s = GameState::default();
+        assert_eq!(rune_free_levels(&s, RUNE_SPEED), 0.0);
+
+        // Shared: 7 * min(constantUpgrades[7], 1000) = 70 (prism has no per-rune bonus).
+        s.campaigns.constant_upgrades[7] = 10.0;
+        assert_eq!(rune_free_levels(&s, RUNE_PRISM), 70.0);
+
+        // Speed per-rune bonus: upgrade_29 * floor(min(100, coinsOwned/400)) = 1*2.
+        s.upgrades.upgrades[29] = 1;
+        s.coin_producers.tiers[0].owned = 800.0;
+        assert_eq!(rune_free_levels(&s, RUNE_SPEED), 72.0);
+    }
+
+    #[test]
+    fn first_five_effective_rune_level_folds_in_free_levels() {
+        use crate::state::RUNE_PRISM;
+        let mut s = GameState::default();
+        s.runes.rune_levels[RUNE_PRISM] = 100.0;
+        s.campaigns.constant_upgrades[7] = 10.0; // shared free levels = 70
+                                                 // (level 100 + free 70) * mult 1 = 170.
+        assert!((first_five_effective_rune_level(&s, RUNE_PRISM) - 170.0).abs() < 1e-9);
     }
 
     #[test]

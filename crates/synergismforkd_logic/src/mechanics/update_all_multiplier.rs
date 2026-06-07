@@ -139,7 +139,7 @@ pub fn update_all_multiplier(
         a += 50.0_f64.min(log_val.to_number().floor());
     }
     if upgrade(68) > 0.0 {
-        a += 2500.0_f64.min(pre.taxdivisor.log10().to_number().floor() / 1_000.0);
+        a += 2500.0_f64.min((pre.taxdivisor.log10().to_number() / 1_000.0).floor());
     }
     if c_completions(1) > 0.0 {
         a += 1.0;
@@ -284,5 +284,24 @@ mod tests {
         let r = update_all_multiplier(&state, &UpdateAllMultiplierPre::default());
         // a = 2; pow(1.01, 2) ≈ 1.0201; floor → 2.
         assert_eq!(r.free_multiplier, 2.0);
+    }
+
+    #[test]
+    fn upgrade_68_floors_after_dividing_by_1000() {
+        // Audit P1.5: the upgrade-68 contribution is floor(log10(taxdivisor)/1000),
+        // not floor(log10(taxdivisor))/1000. The fractional difference rides the
+        // multiplicative chain before the final floor, so it shifts freeMultiplier.
+        // log10(1e2500) = 2500 → correct floor(2500/1000) = 2; the old
+        // floor(2500)/1000 = 2.5. With a ×2 multiplicative factor: 2*2 = 4
+        // (correct) vs 2.5*2 = 5 (buggy).
+        let mut state = GameState::default();
+        state.upgrades.upgrades[68] = 1;
+        let pre = UpdateAllMultiplierPre {
+            taxdivisor: Decimal::from_mantissa_exponent(1.0, 2500.0),
+            ant_multiplier_mult: 2.0,
+            ..UpdateAllMultiplierPre::default()
+        };
+        let r = update_all_multiplier(&state, &pre);
+        assert_eq!(r.free_multiplier, 4.0);
     }
 }

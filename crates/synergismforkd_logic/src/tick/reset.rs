@@ -14,7 +14,7 @@
 //! transcension, reincarnation, ascension** (the ascension tier ports the
 //! structural reset + every per-feature sub-reset — `resetResearches` /
 //! `resetChallengeSweep` / `resetRunes` / `resetAnts` / `resetTalismanData`;
-//! only its c10-gated cube/hepteract awards are neutral-defaulted and deferred;
+//! its c10-gated cube/hepteract awards are implemented but inert at default;
 //! see [`apply_ascension_layer`]). The singularity layer is paused.
 
 use smallvec::{smallvec, SmallVec};
@@ -67,6 +67,23 @@ const RESET_RESEARCHES_PRE_SING25: &[usize] = &[138, 153, 168, 183, 198];
 /// `highestSingularityCount` threshold below which the pre-sing-25 extras
 /// are wiped too.
 const RESET_RESEARCHES_SING_THRESHOLD: f64 = 25.0;
+
+/// Reset-count increment (legacy `updatePrestigeCount` / `updateTranscensionCount`
+/// / `updateReincarnationCount`): `floor(count * multiplier)` with `count = 1` per
+/// reset and `multiplier = achievementCountMultiplier * (1 + coeff * CalcECC(tier,
+/// completions))`. The achievement count-multiplier reward is unported → neutral
+/// `1.0`; the `CalcECC` term raises the increment once the gating challenge has
+/// completions (transcend c5 → prestige, reincarnation c7 → transcension,
+/// ascension c12 → reincarnation). Identity at the default state. (audit P1.6)
+fn reset_count_increment(
+    ecc_type: crate::mechanics::challenges::ChallengeType,
+    completions: f64,
+    ecc_coeff: f64,
+) -> f64 {
+    use crate::mechanics::challenges::calc_ecc;
+    let achievement_count_multiplier = 1.0; // getAchievementReward(*CountMultiplier) unported
+    (achievement_count_multiplier * (1.0 + ecc_coeff * calc_ecc(ecc_type, completions))).floor()
+}
 /// The Mortuus2 ant upgrade (index 15) — the one ant upgrade an ascension's
 /// `resetAnts` leaves untouched, since it is singularity-tier while every
 /// lower index is sacrifice- or ascension-tier (`AntUpgrades` data table).
@@ -146,7 +163,11 @@ fn apply_base_reset(state: &mut GameState, prestige_point_gain: Decimal) {
     reset_upgrade_slots(state, 106..=110);
     reset_upgrade_slots(state, 121..=125);
 
-    state.reset_counters.prestige_count += 1.0;
+    state.reset_counters.prestige_count += reset_count_increment(
+        crate::mechanics::challenges::ChallengeType::Transcend,
+        state.challenges.challenge_completions[5],
+        0.05,
+    );
     state.upgrades.prestige_points += prestige_point_gain;
     // `player.prestigeShards = 0`. The current-shards value lives in
     // `crystal_upgrades`; `reset_counters.prestige_shards` is a (currently
@@ -226,9 +247,13 @@ fn apply_transcension_layer(state: &mut GameState, transcend_point_gain: Decimal
     }
     state.accelerator.accelerator_boost_bought = 0.0;
 
-    // updateTranscensionCount(1) — multiplier is `1` at default, so +1.
+    // updateTranscensionCount(1) — floor(multiplier); multiplier = 1 at default.
     if transcension_check {
-        state.reset_counters.transcend_count += 1.0;
+        state.reset_counters.transcend_count += reset_count_increment(
+            crate::mechanics::challenges::ChallengeType::Reincarnation,
+            state.challenges.challenge_completions[7],
+            0.15,
+        );
     }
     state.upgrades.prestige_points = Decimal::zero();
     state.upgrades.transcend_points += transcend_point_gain;
@@ -318,8 +343,12 @@ fn apply_reincarnation_layer(
         // Obtainium award (Reset.ts:568-569) — `obtainium_to_gain` was
         // computed pre-reset by `perform_reincarnation_reset`.
         state.researches.obtainium += obtainium_to_gain;
-        // updateReincarnationCount(1) — multiplier is `1` at default, so +1.
-        state.reset_counters.reincarnation_count += 1.0;
+        // updateReincarnationCount(1) — floor(multiplier); multiplier = 1 at default.
+        state.reset_counters.reincarnation_count += reset_count_increment(
+            crate::mechanics::challenges::ChallengeType::Ascension,
+            state.challenges.challenge_completions[12],
+            0.2,
+        );
     }
 
     state.challenges.current_transcension_challenge = 0;
@@ -490,6 +519,50 @@ fn apply_ascension_layer(state: &mut GameState) -> Decimal {
     use crate::mechanics::calculate::{calc_corruption_stuff, CalcCorruptionStuffInput};
     use crate::mechanics::challenge_15_rewards;
 
+    // c10 cube reward (Reset.ts:419-420): CalcCorruptionStuff + ascensionCount
+    // must read PRE-reset state — the cube/tesseract/hyper/platonic/hepteract
+    // multipliers depend on researches (incl. [192] Mortuus), ant upgrades, and
+    // the finiteDescent rune, all of which the destroy-lists below zero. Capture
+    // the award here and apply it after the resets. Inert at
+    // challengecompletions[10] == 0 (default).
+    let ascension_award = if state.challenges.challenge_completions[10] > 0.0 {
+        let score = super::compute_ascension_score_result(state);
+        let effective_score = score.effective_score;
+        let all_cube = super::compute_all_cube_multiplier(state);
+        let count_gain = super::compute_ascension_count(state, effective_score);
+        let rewards = calc_corruption_stuff(&CalcCorruptionStuffInput {
+            scores: score,
+            cube_multiplier: super::compute_cube_multiplier(state, effective_score, all_cube),
+            tesseract_multiplier: super::compute_tesseract_multiplier(
+                state,
+                effective_score,
+                all_cube,
+            ),
+            hypercube_multiplier: super::compute_hypercube_multiplier(
+                state,
+                effective_score,
+                all_cube,
+            ),
+            platonic_multiplier: super::compute_platonic_multiplier(
+                state,
+                effective_score,
+                all_cube,
+            ),
+            hepteract_multiplier: super::compute_hepteract_multiplier(
+                state,
+                effective_score,
+                all_cube,
+            ),
+            hepteracts_unlocked: challenge_15_rewards::hepteracts_unlocked(
+                state.challenges.challenge15_exponent,
+            ),
+            singularity_count: state.singularity.singularity_count,
+        });
+        Some((count_gain, rewards))
+    } else {
+        None
+    };
+
     // Clear the lower auto-challenge gates (Reset.ts:633-634). The ascension
     // challenge gate itself is intentionally left untouched.
     state.challenges.current_transcension_challenge = 0;
@@ -568,45 +641,11 @@ fn apply_ascension_layer(state: &mut GameState) -> Decimal {
         }
     }
 
-    // c10-gated reward block (Reset.ts:687-694): the ascension cube award +
-    // ascensionCount. Reads pre-reset `highestChallengeCompletions` and the
-    // ascensionCounter (both zeroed just below), so it runs here. Inert at
-    // `challengecompletions[10] == 0` (default) — the block is skipped. Returns
-    // the wow-cube gain for the `ResetPerformed` event.
-    let wow_cubes_gained = if state.challenges.challenge_completions[10] > 0.0 {
-        let score = super::compute_ascension_score_result(state);
-        let effective_score = score.effective_score;
-        let all_cube = super::compute_all_cube_multiplier(state);
-        let count_gain = super::compute_ascension_count(state, effective_score);
-        let rewards = calc_corruption_stuff(&CalcCorruptionStuffInput {
-            scores: score,
-            cube_multiplier: super::compute_cube_multiplier(state, effective_score, all_cube),
-            tesseract_multiplier: super::compute_tesseract_multiplier(
-                state,
-                effective_score,
-                all_cube,
-            ),
-            hypercube_multiplier: super::compute_hypercube_multiplier(
-                state,
-                effective_score,
-                all_cube,
-            ),
-            platonic_multiplier: super::compute_platonic_multiplier(
-                state,
-                effective_score,
-                all_cube,
-            ),
-            hepteract_multiplier: super::compute_hepteract_multiplier(
-                state,
-                effective_score,
-                all_cube,
-            ),
-            hepteracts_unlocked: challenge_15_rewards::hepteracts_unlocked(
-                state.challenges.challenge15_exponent,
-            ),
-            singularity_count: state.singularity.singularity_count,
-        });
-        // All `&state` reads are done; now apply the awards.
+    // Apply the c10 cube award captured up front (its compute reads pre-reset
+    // researches / ant upgrades / finiteDescent that the destroy-lists above
+    // zero). The cube-balance writes + ascensionCount still happen here, before
+    // the challenge/counter zeroing below (Reset.ts:687-694). Inert at default.
+    let wow_cubes_gained = if let Some((count_gain, rewards)) = ascension_award {
         state.reset_counters.ascension_count += count_gain;
         let cap = Decimal::from_finite(1e300);
         let cb = &mut state.cube_balances;
@@ -1070,6 +1109,59 @@ mod tests {
             CoreEvent::ResetPerformed { points_gained, .. }
                 if points_gained.to_number() > 0.0
         ));
+    }
+
+    #[test]
+    fn ascension_cube_award_reads_pre_reset_research_and_ants() {
+        // Audit P1.3: the c10 cube award must be computed from PRE-reset state.
+        // research[192] and the Mortuus ant upgrade (11) both feed the cube
+        // multiplier and are both zeroed by the ascension reset's destroy-lists;
+        // computing the award after the wipes (the bug) dropped their boost.
+        let base = || {
+            let mut s = GameState::default();
+            s.challenges.challenge_completions[10] = 10.0;
+            for i in 1..=10 {
+                s.challenges.highest_challenge_completions[i] = 100.0;
+                s.challenges.challenge_completions[i] = 50.0;
+            }
+            s.reset_counters.ascension_counter = 1e12;
+            s
+        };
+
+        let mut without = base();
+        let _ = perform_ascension_reset(&mut without, &gains(0.0, 0.0, 0.0));
+
+        let mut with = base();
+        with.researches.researches[192] = 1000.0;
+        with.ants.upgrades[11] = 100.0; // Mortuus
+        let _ = perform_ascension_reset(&mut with, &gains(0.0, 0.0, 0.0));
+
+        assert!(
+            with.cube_balances.wow_cubes.to_number() > without.cube_balances.wow_cubes.to_number(),
+            "pre-reset research[192]/Mortuus must increase the cube award (lost when computed post-reset)"
+        );
+    }
+
+    #[test]
+    fn prestige_count_uses_ecc_multiplier() {
+        use crate::mechanics::challenges::ChallengeType;
+        // Audit P1.6: count increments are floor(multiplier) where multiplier rises
+        // with the gating challenge's CalcECC, not a flat +1. Identity at default.
+        assert_eq!(
+            reset_count_increment(ChallengeType::Transcend, 0.0, 0.05),
+            1.0
+        );
+
+        // c5 = 1000 → CalcECC(Transcend) = 145 → floor(1 + 0.05*145) = 8 (not 1).
+        let expected_inc = reset_count_increment(ChallengeType::Transcend, 1000.0, 0.05);
+        assert_eq!(expected_inc, 8.0);
+
+        // End-to-end: a prestige reset increments by exactly that (was flat +1).
+        let mut state = GameState::default();
+        state.challenges.challenge_completions[5] = 1000.0;
+        let before = state.reset_counters.prestige_count;
+        let _ = perform_prestige_reset(&mut state, Decimal::zero());
+        assert_eq!(state.reset_counters.prestige_count, before + expected_inc);
     }
 
     #[test]
