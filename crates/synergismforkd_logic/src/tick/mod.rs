@@ -705,6 +705,35 @@ fn first_five_effective_rune_level(state: &GameState, rune: usize) -> f64 {
     state.runes.rune_levels[rune] * first_five_effective_rune_level_mult(state)
 }
 
+/// `otherBlessingMultipliers` (RuneBlessings.ts:42): the shared multiplier on
+/// every rune blessing's power. researches 134/194/160 and the midas talisman
+/// blessingBonus are live; the epicFragments factor (driven by researches[174]
+/// over the unported epicFragments balance) is neutral 1.0 — faithful while
+/// researches[174] == 0 — and the challenge15 blessingBonus is neutral 1.0
+/// (unported). Identity at default. TS-anchored.
+fn other_blessing_multipliers(state: &GameState) -> f64 {
+    use crate::mechanics::talisman_effects::midas_talisman_effects;
+    use crate::state::TALISMAN_MIDAS;
+    let research = &state.researches.researches;
+    (1.0 + 6.9 * research[134] / 100.0)
+        * midas_talisman_effects(state.talismans.talisman_rarity[TALISMAN_MIDAS] as i32)
+            .blessing_bonus
+        * (1.0 + 2.0 * research[194] / 100.0)
+        * (1.0 + 0.25 * research[160])
+}
+
+/// Rune blessing power (legacy `getRuneBlessingPower` × `blessingMultiplier`):
+/// `blessing.level · (rune.level + freeLevels()) · otherBlessingMultipliers()`.
+/// The blessing effect formulas already match — only this power argument was
+/// wrong (raw blessing level, dropping the rune's own level and the shared
+/// mult). `freeLevels` is deferred (P2.1b, neutral 0). Identity at default
+/// (blessing level 0 → power 0).
+fn rune_blessing_power(state: &GameState, rune: usize) -> f64 {
+    state.runes.rune_blessing_levels[rune]
+        * state.runes.rune_levels[rune]
+        * other_blessing_multipliers(state)
+}
+
 /// Build the shared achievement-reward input from `&GameState` — the
 /// earned-flag array plus the cross-state values the reward formulas
 /// read (coin-producer owned counts, prestige points).
@@ -1070,7 +1099,7 @@ fn compute_update_all_multiplier_pre(
 
     let sum_of_rune_levels: f64 = state.runes.rune_levels.iter().sum();
     let duplication_level = first_five_effective_rune_level(state, RUNE_DUPLICATION);
-    let duplication_blessing_level = state.runes.rune_blessing_levels[RUNE_DUPLICATION];
+    let duplication_blessing_level = rune_blessing_power(state, RUNE_DUPLICATION);
     let hept_mult = multiplier_hepteract_effects(hepteract_effective_bal(
         state.hepteracts.multiplier.bal,
         1.0 / 5.0,
@@ -1508,7 +1537,7 @@ fn compute_global_speed_mult_pre(state: &GameState) -> f64 {
         1.0 + 0.009 * researches[166],
         1.0 + 0.006 * researches[181],
         1.0 + 0.003 * researches[196],
-        speed_rune_blessing_effects(state.runes.rune_blessing_levels[RUNE_SPEED]).global_speed,
+        speed_rune_blessing_effects(rune_blessing_power(state, RUNE_SPEED)).global_speed,
         1.0, // speed spirit: effective spirit power unported → 1.0
         chronos_cube,
         1.0 + cube_upgrades[CUBE_UPGRADE_2X8] / 5.0,
@@ -3221,9 +3250,10 @@ fn compute_ant_speed_mult(state: &GameState) -> Decimal {
     );
 
     // RuneBlessingBonus: max(1, obtainium) ^ obtToAntExponent.
-    let obt_to_ant_exponent = superior_intellect_rune_blessing_effects(
-        state.runes.rune_blessing_levels[RUNE_SUPERIOR_INTELLECT],
-    )
+    let obt_to_ant_exponent = superior_intellect_rune_blessing_effects(rune_blessing_power(
+        state,
+        RUNE_SUPERIOR_INTELLECT,
+    ))
     .obt_to_ant_exponent;
     let rune_blessing_bonus = obtainium
         .max(Decimal::one())
@@ -7768,6 +7798,49 @@ mod tests {
         // Reincarnation challenge 9 collapses the effective level to 1.
         s.challenges.current_reincarnation_challenge = 9;
         assert_eq!(first_five_effective_rune_level(&s, RUNE_SPEED), 1.0);
+    }
+
+    #[test]
+    fn other_blessing_multipliers_matches_ts() {
+        // Audit P2.2/H4. TS-anchored vs verbatim RuneBlessings.ts
+        // otherBlessingMultipliers (tmp/blessing_anchor.mjs); the neutral factors
+        // (midas rarity-0, epicFragments, challenge15) are 1 here.
+        let mut s = GameState::default();
+        assert_eq!(other_blessing_multipliers(&s), 1.0);
+
+        s = GameState::default();
+        s.researches.researches[134] = 10.0;
+        assert!((other_blessing_multipliers(&s) - 1.69).abs() < 1e-9);
+
+        s = GameState::default();
+        s.researches.researches[194] = 50.0;
+        assert!((other_blessing_multipliers(&s) - 2.0).abs() < 1e-9);
+
+        s = GameState::default();
+        s.researches.researches[160] = 4.0;
+        assert!((other_blessing_multipliers(&s) - 2.0).abs() < 1e-9);
+
+        s = GameState::default();
+        s.researches.researches[134] = 10.0;
+        s.researches.researches[194] = 50.0;
+        s.researches.researches[160] = 4.0;
+        assert!((other_blessing_multipliers(&s) - 6.76).abs() < 1e-9);
+    }
+
+    #[test]
+    fn rune_blessing_power_folds_in_rune_level() {
+        use crate::state::RUNE_SPEED;
+        // power = blessing.level * rune.level * otherBlessingMultipliers; the
+        // dominant fix is the rune-level fold (was raw blessing level before).
+        let mut s = GameState::default();
+        s.runes.rune_blessing_levels[RUNE_SPEED] = 5.0;
+        s.runes.rune_levels[RUNE_SPEED] = 1000.0;
+        // mult 1 at default -> 5 * 1000 * 1 = 5000 (was 5 raw).
+        assert!((rune_blessing_power(&s, RUNE_SPEED) - 5000.0).abs() < 1e-9);
+
+        // researches[134] = 10 -> mult 1.69 -> 5 * 1000 * 1.69 = 8450.
+        s.researches.researches[134] = 10.0;
+        assert!((rune_blessing_power(&s, RUNE_SPEED) - 8450.0).abs() < 1e-9);
     }
 
     #[test]
