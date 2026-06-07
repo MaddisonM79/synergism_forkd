@@ -690,19 +690,72 @@ fn first_five_effective_rune_level_mult(state: &GameState) -> f64 {
     ])
 }
 
+/// Free levels for a first-five rune (legacy `runes[rune].freeLevels()`): the
+/// shared `firstFiveFreeLevels` (the FreeRunes ant upgrade at its true level +
+/// `7·min(constantUpgrades[7], 1000)`) plus the per-rune bonus. Speed and
+/// duplication have ported bonus aggregators (coin-log + coin-upgrade driven);
+/// their `getRuneBonusFromAllTalismans` talisman bonus is unported (neutral 0),
+/// and the prism/thrift/SI per-rune bonuses are unported (0). Identity at default.
+fn rune_free_levels(state: &GameState, rune: usize) -> f64 {
+    use crate::mechanics::ant_upgrades::free_runes_ant_upgrade_effect;
+    use crate::mechanics::rune_level_bonuses::{
+        bonus_rune_levels_duplication, bonus_rune_levels_speed, first_five_free_levels,
+        BonusRuneLevelsDuplicationInput, BonusRuneLevelsSpeedInput, FirstFiveFreeLevelsInput,
+    };
+    use crate::state::{RUNE_DUPLICATION, RUNE_SPEED};
+
+    // FreeRunes ant upgrade (index 8), read at its true (free + corruption) level.
+    const ANT_UPGRADE_FREE_RUNES: usize = 8;
+    let shared = first_five_free_levels(&FirstFiveFreeLevelsInput {
+        free_runes_ant_upgrade: free_runes_ant_upgrade_effect(true_ant_level(
+            state,
+            ANT_UPGRADE_FREE_RUNES,
+        )),
+        constant_upgrade_7: state.campaigns.constant_upgrades[7],
+    });
+
+    let upgrade = |i: usize| f64::from(state.upgrades.upgrades[i]);
+    let coin_log10 = (state.upgrades.coins + Decimal::one()).log10().to_number();
+    let total_owned_coins_first_five: f64 = state.coin_producers.tiers[0..5]
+        .iter()
+        .map(|t| t.owned)
+        .sum();
+
+    let bonus = match rune {
+        RUNE_SPEED => bonus_rune_levels_speed(&BonusRuneLevelsSpeedInput {
+            talisman_bonus: 0.0, // getRuneBonusFromAllTalismans unported
+            upgrade_27: upgrade(27),
+            coin_log_1e10_floor: (coin_log10 / 10.0).floor(),
+            coin_log_1e50_floor: (coin_log10 / 50.0).floor(),
+            upgrade_29: upgrade(29),
+            total_owned_coins_first_five,
+        }),
+        RUNE_DUPLICATION => bonus_rune_levels_duplication(&BonusRuneLevelsDuplicationInput {
+            talisman_bonus: 0.0, // getRuneBonusFromAllTalismans unported
+            upgrade_28: upgrade(28),
+            total_owned_coins_first_five,
+            upgrade_30: upgrade(30),
+            coin_log_1e30_floor: (coin_log10 / 30.0).floor(),
+            coin_log_1e300_floor: (coin_log10 / 300.0).floor(),
+        }),
+        _ => 0.0, // prism/thrift/SI per-rune bonus aggregators unported
+    };
+    shared + bonus
+}
+
 /// Effective level of a first-five rune (speed/duplication/prism/thrift/SI),
 /// legacy `getRuneEffectiveLevel`: reincarnation challenge 9 collapses it to 1
 /// (all first-five `ignoreChal9 = false`); otherwise
-/// `level * firstFiveEffectiveRuneLevelMult`. Deferred (neutral, all identity at
-/// default): the achievement-gated `isUnlocked` gates (defaulting them to locked
-/// would wrongly zero the runes while the achievement system is unported, H5),
-/// `freeLevels` (needs the per-rune bonus aggregators — P2.1b), and SI's extra
-/// quark-based mult.
+/// `(level + freeLevels()) * firstFiveEffectiveRuneLevelMult`. Still deferred
+/// (neutral, identity at default): the achievement-gated `isUnlocked` gates
+/// (defaulting them to locked would wrongly zero the runes while achievements
+/// are unported, H5) and SI's extra quark-based mult.
 fn first_five_effective_rune_level(state: &GameState, rune: usize) -> f64 {
     if state.challenges.current_reincarnation_challenge == 9 {
         return 1.0;
     }
-    state.runes.rune_levels[rune] * first_five_effective_rune_level_mult(state)
+    (state.runes.rune_levels[rune] + rune_free_levels(state, rune))
+        * first_five_effective_rune_level_mult(state)
 }
 
 /// `otherBlessingMultipliers` (RuneBlessings.ts:42): the shared multiplier on
@@ -7841,6 +7894,33 @@ mod tests {
         // researches[134] = 10 -> mult 1.69 -> 5 * 1000 * 1.69 = 8450.
         s.researches.researches[134] = 10.0;
         assert!((rune_blessing_power(&s, RUNE_SPEED) - 8450.0).abs() < 1e-9);
+    }
+
+    #[test]
+    fn rune_free_levels_assembles_from_state() {
+        use crate::state::{RUNE_PRISM, RUNE_SPEED};
+        // Audit P2.1b: freeLevels = shared firstFiveFreeLevels + per-rune bonus.
+        let mut s = GameState::default();
+        assert_eq!(rune_free_levels(&s, RUNE_SPEED), 0.0);
+
+        // Shared: 7 * min(constantUpgrades[7], 1000) = 70 (prism has no per-rune bonus).
+        s.campaigns.constant_upgrades[7] = 10.0;
+        assert_eq!(rune_free_levels(&s, RUNE_PRISM), 70.0);
+
+        // Speed per-rune bonus: upgrade_29 * floor(min(100, coinsOwned/400)) = 1*2.
+        s.upgrades.upgrades[29] = 1;
+        s.coin_producers.tiers[0].owned = 800.0;
+        assert_eq!(rune_free_levels(&s, RUNE_SPEED), 72.0);
+    }
+
+    #[test]
+    fn first_five_effective_rune_level_folds_in_free_levels() {
+        use crate::state::RUNE_PRISM;
+        let mut s = GameState::default();
+        s.runes.rune_levels[RUNE_PRISM] = 100.0;
+        s.campaigns.constant_upgrades[7] = 10.0; // shared free levels = 70
+                                                 // (level 100 + free 70) * mult 1 = 170.
+        assert!((first_five_effective_rune_level(&s, RUNE_PRISM) - 170.0).abs() < 1e-9);
     }
 
     #[test]
