@@ -36,12 +36,12 @@ use crate::state::GameState;
 ///
 /// Neutral-defaulted lines (faithful — identity at the current state):
 /// `RuneBlessing` (prism rune-blessing `antSacrificeMult` — the rune-blessing
-/// layer is unported; identity `1` at blessing level 0), `Event` (UI-tier event
-/// calendar → `1`), and the trailing `calculateAntSacrificeCubeBlessing` (cube
-/// blessing levels are frozen at `0` until `open()` lands — P3.2 — where it
-/// evaluates to `1`; the same factor is neutral-defaulted in
-/// `compute_obtainium_gain`'s ant-sacrifice source).
-fn compute_ant_sacrifice_multiplier(state: &GameState) -> Decimal {
+/// layer is unported; identity `1` at blessing level 0) and `Event` (UI-tier
+/// event calendar → `1`). The trailing `calculateAntSacrificeCubeBlessing` reads
+/// the live blessing cascade (`ant_sacrifice_cube_blessing`) now that `open()`
+/// (P3.2) makes the cube-blessing levels accrue. (`compute_obtainium_gain`'s
+/// ant-sacrifice obtainium source still neutral-defaults — see its docs.)
+pub(super) fn compute_ant_sacrifice_multiplier(state: &GameState) -> Decimal {
     use crate::mechanics::achievement_rewards::sacrifice_mult;
     use crate::mechanics::ant_upgrades::ant_sacrifice_ant_upgrade_effect;
     use crate::mechanics::calculate::product_f64;
@@ -76,8 +76,9 @@ fn compute_ant_sacrifice_multiplier(state: &GameState) -> Decimal {
         1.0, // Event — UI-tier event calendar → 1 + 0
     ]);
 
-    // × calculateAntSacrificeCubeBlessing() — `1` while blessing levels frozen.
-    Decimal::from_finite(stats)
+    // × calculateAntSacrificeCubeBlessing() — the live ant-sacrifice blessing
+    // cascade (now that `open()` makes the cube-blessing levels accrue).
+    Decimal::from_finite(stats) * ant_sacrifice_cube_blessing(state)
 }
 
 /// `rebornELOCreationSpeedMult` (RebornELO/lib/calculate.ts) — the product of
@@ -86,9 +87,10 @@ fn compute_ant_sacrifice_multiplier(state: &GameState) -> Decimal {
 ///
 /// Neutral-defaulted lines (faithful — identity at the current state):
 /// `MortuusTalisman` (talisman effect-level wiring is unported — P2.3 blocked;
-/// `MORTUUS_INSCRIPT_VALUES[0] = 1`), `CubeBlessing`
-/// (`calculateAntELOCubeBlessing` — frozen blessing levels → `1`, P3.2), and
-/// `Exalt6` (singularity layer paused → `1`).
+/// `MORTUUS_INSCRIPT_VALUES[0] = 1`) and `Exalt6` (singularity layer paused →
+/// `1`). The `CubeBlessing` line (`calculateAntELOCubeBlessing`) reads the live
+/// blessing cascade via `ant_elo_cube_blessing` now that `open()` (P3.2) makes
+/// the levels accrue.
 fn compute_reborn_elo_creation_speed_mult(state: &GameState) -> f64 {
     use crate::mechanics::ant_reborn_elo::{
         reborn_elo_stage_modifiers, RebornELOStageModifiersInput,
@@ -130,10 +132,56 @@ fn compute_reborn_elo_creation_speed_mult(state: &GameState) -> f64 {
         if owned(HOLY_SPIRIT) { 3.0 } else { 1.0 },
         stage_mods.reborn_speed_mult,
         1.0, // MortuusTalisman — talisman effect level unported (P2.3) → 1
-        1.0, // CubeBlessing — calculateAntELOCubeBlessing, frozen blessings → 1
+        ant_elo_cube_blessing(state), // CubeBlessing — calculateAntELOCubeBlessing
         1.0 + state.cube_upgrade_levels.platonic_upgrades[PLATONIC_UPGRADE_12] / 10.0,
         1.0, // Exalt6 — singularity layer paused → 1
     ])
+}
+
+// ─── Live cube-blessing cascades (platonic → hypercube → tesseract → cube) ────
+
+/// `calculateAntSacrificeCubeBlessing()` — the ant-sacrifice cube-blessing
+/// cascade. Evaluates to `1` until cubes are opened (all blessing levels `0`);
+/// P3.2's `open()` makes the levels accrue, so this reads the live state.
+fn ant_sacrifice_cube_blessing(state: &GameState) -> Decimal {
+    use crate::mechanics::cube_blessings::calculate_ant_sacrifice_cube_blessing;
+    use crate::mechanics::hypercube_blessings::calculate_ant_sacrifice_hypercube_blessing;
+    use crate::mechanics::platonic_blessings::calculate_hypercube_blessing_multiplier_platonic_blessing;
+    use crate::mechanics::tesseract_blessings::calculate_ant_sacrifice_tesseract_blessing;
+
+    // `player.cubeUpgrades[15]` — the ant-sacrifice cube-blessing DR increase.
+    const CUBE_UPGRADE_ANT_SACRIFICE_BLESSING: usize = 15;
+
+    let platonic =
+        calculate_hypercube_blessing_multiplier_platonic_blessing(&state.platonic_blessings);
+    let hypercube =
+        calculate_ant_sacrifice_hypercube_blessing(&state.hypercube_blessings, platonic);
+    let tesseract =
+        calculate_ant_sacrifice_tesseract_blessing(&state.tesseract_blessings, hypercube);
+    calculate_ant_sacrifice_cube_blessing(
+        &state.cube_blessings,
+        tesseract,
+        state.cube_upgrade_levels.cube_upgrades[CUBE_UPGRADE_ANT_SACRIFICE_BLESSING],
+    )
+}
+
+/// `calculateAntELOCubeBlessing()` — the ant-ELO cube-blessing cascade (its
+/// hypercube layer takes no platonic amplifier). `1` until cubes are opened.
+fn ant_elo_cube_blessing(state: &GameState) -> f64 {
+    use crate::mechanics::cube_blessings::calculate_ant_elo_cube_blessing;
+    use crate::mechanics::hypercube_blessings::calculate_ant_elo_hypercube_blessing;
+    use crate::mechanics::tesseract_blessings::calculate_ant_elo_tesseract_blessing;
+
+    // `player.cubeUpgrades[25]` — the ant-ELO cube-blessing exponent increase.
+    const CUBE_UPGRADE_ANT_ELO_BLESSING: usize = 25;
+
+    let hypercube = calculate_ant_elo_hypercube_blessing(&state.hypercube_blessings);
+    let tesseract = calculate_ant_elo_tesseract_blessing(&state.tesseract_blessings, hypercube);
+    calculate_ant_elo_cube_blessing(
+        &state.cube_blessings,
+        tesseract,
+        state.cube_upgrade_levels.cube_upgrades[CUBE_UPGRADE_ANT_ELO_BLESSING],
+    )
 }
 
 // ─── The sacrifice ────────────────────────────────────────────────────────────
@@ -556,6 +604,28 @@ mod tests {
         assert_eq!(state.achievements.achievement_points, 8.0);
         // The producer was consumed by the post-sacrifice reset.
         assert_eq!(state.ants.producers[1].purchased, 0.0);
+    }
+
+    #[test]
+    fn ant_sacrifice_multiplier_picks_up_live_cube_blessings() {
+        let mut state = GameState::default();
+        // No blessings opened → the cube-blessing factor is identity.
+        assert_eq!(ant_sacrifice_cube_blessing(&state).to_number(), 1.0);
+        let base = compute_ant_sacrifice_multiplier(&state).to_number();
+
+        // Raising the ant-sacrifice cube blessing (as opening cubes would) lifts
+        // both the cascade factor and the assembled multiplier above the base.
+        state.cube_blessings.ant_sacrifice = 5_000.0;
+        assert!(ant_sacrifice_cube_blessing(&state).to_number() > 1.0);
+        assert!(compute_ant_sacrifice_multiplier(&state).to_number() > base);
+    }
+
+    #[test]
+    fn reborn_elo_rate_picks_up_live_ant_elo_cube_blessing() {
+        let mut state = GameState::default();
+        assert_eq!(ant_elo_cube_blessing(&state), 1.0); // identity at level 0
+        state.cube_blessings.ant_elo = 1e6;
+        assert!(ant_elo_cube_blessing(&state) > 1.0);
     }
 
     #[test]

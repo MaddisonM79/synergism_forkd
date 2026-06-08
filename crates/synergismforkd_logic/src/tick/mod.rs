@@ -3591,10 +3591,9 @@ fn compute_offerings(state: &GameState) -> Decimal {
 /// The resource multiplier (`calculateObtainium(false)`) and base obtainium
 /// flow through [`compute_obtainium`] / [`compute_base_obtainium`]. The
 /// ant-sacrifice obtainium source (a `max()` alternative gated by
-/// `cubeUpgrades[47] > 0`) is neutral-defaulted to `0`: it needs
-/// `calculateAntSacrificeMultiplier()` — the unported `antSacrificeRewardStats`
-/// StatLine + ant-sacrifice cube blessing — and is inert at the current state
-/// (`cubeUpgrades[47] == 0`). The reset-time divisor uses
+/// `cubeUpgrades[47] > 0`) is now wired to `calculateAntSacrificeObtainium` via
+/// the ported `ant_sacrifice::compute_ant_sacrifice_multiplier`; it stays inert
+/// at the current state (`cubeUpgrades[47] == 0`). The reset-time divisor uses
 /// `campaignTimeThresholdReduction = 0` (campaign subsystem unported).
 fn compute_obtainium_gain(
     state: &GameState,
@@ -3614,6 +3613,38 @@ fn compute_obtainium_gain(
         campaign_time_threshold_reduction: 0.0, // campaign subsystem unported → 0
     });
 
+    // Ant-sacrifice obtainium alternative source (gated by cubeUpgrades[47]):
+    // `calculateAntSacrificeObtainium(antSacrificeObtainiumStageMult, useTime=false)`.
+    // Inert until the cube upgrade is bought; the obtainium multiplier reuses the
+    // already-computed `calculateObtainium(false)` (`resource_mult`).
+    let ant_sacrifice_obtainium = if cube[47] > 0.0 {
+        use crate::mechanics::ant_reborn_elo::{
+            reborn_elo_stage_modifiers, RebornELOStageModifiersInput,
+        };
+        use crate::mechanics::ant_sacrifice_reward_calc::{
+            calculate_ant_sacrifice_obtainium, AntSacrificeObtainiumInput,
+        };
+        let stage_mods = reborn_elo_stage_modifiers(&RebornELOStageModifiersInput {
+            reborn_elo: state.ants.reborn_elo,
+            sing_count: state.singularity.singularity_count,
+        });
+        calculate_ant_sacrifice_obtainium(&AntSacrificeObtainiumInput {
+            ant_sac_mult: ant_sacrifice::compute_ant_sacrifice_multiplier(state),
+            stage_mult: stage_mods.ant_sacrifice_obtainium_mult,
+            time_multiplier: offering_obtainium_time_multiplier(
+                state,
+                state.ants.ant_sacrifice_timer,
+                false,
+            ),
+            obtainium_mult: resource_mult,
+            current_obtainium: state.researches.obtainium,
+            taxman_last_stand_enabled: state.singularity.taxman_last_stand.enabled,
+            taxman_last_stand_completions: state.singularity.taxman_last_stand.completions,
+        })
+    } else {
+        Decimal::zero()
+    };
+
     calculate_research_automatic_obtainium(&ResearchAutomaticObtainiumInput {
         delta_time: dt,
         ascension_challenge: state.challenges.current_ascension_challenge,
@@ -3626,7 +3657,7 @@ fn compute_obtainium_gain(
         reset_time_divisor,
         reincarnation_counter: state.reset_counters.reincarnation_counter,
         base_obtainium,
-        ant_sacrifice_obtainium: Decimal::zero(),
+        ant_sacrifice_obtainium,
         ant_sacrifice_timer: state.ants.ant_sacrifice_timer,
     })
 }
@@ -6705,6 +6736,31 @@ mod tests {
         state.researches.researches[108] = 4.0; // effective ELO 101
         state.ants.immortal_elo = 50.0;
         assert_eq!(compute_immortal_elo_gain(&state), 51.0);
+    }
+
+    #[test]
+    fn auto_obtainium_ant_sacrifice_source_engages_with_cube_upgrade_47() {
+        let mut state = GameState::default();
+        // Activate the auto-research-obtainium multiplier gate (0.8·cubeUpgrades[3]).
+        state.cube_upgrade_levels.cube_upgrades[3] = 1.0;
+        // Make the ant-sacrifice obtainium source large: a big multiplier line,
+        // a live ant-sacrifice cube blessing, and a non-zero sacrifice timer.
+        state.researches.researches[103] = 1_000.0;
+        state.cube_blessings.ant_sacrifice = 5_000.0;
+        state.ants.ant_sacrifice_timer = 9.0;
+
+        let without = compute_obtainium_gain(&state, 1.0, Decimal::zero());
+        state.cube_upgrade_levels.cube_upgrades[47] = 1.0; // enable the ant branch
+        let with = compute_obtainium_gain(&state, 1.0, Decimal::zero());
+
+        // The ant-sacrifice source is a max() alternative; with it dominating
+        // here, the auto-obtainium rises.
+        assert!(
+            with > without,
+            "ant source should raise auto-obtainium: {} vs {}",
+            with.to_number(),
+            without.to_number()
+        );
     }
 
     #[test]
