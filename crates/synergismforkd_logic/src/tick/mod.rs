@@ -34,7 +34,7 @@ use smallvec::{smallvec, SmallVec};
 
 use synergismforkd_bignum::Decimal;
 
-use crate::events::{CoreEvent, ProducerType};
+use crate::events::{CoreEvent, CubeTier, ProducerType};
 use crate::mechanics::accelerators::{buy_accelerator, BuyAcceleratorInput};
 use crate::mechanics::achievement_rewards;
 use crate::mechanics::ant_producers::{buy_ant_producer, BuyAntProducerInput};
@@ -69,6 +69,7 @@ use crate::mechanics::upgrades::{buy_upgrades, BuyUpgradeInput};
 use crate::state::{GameState, RngPurpose};
 
 mod ant_generation;
+mod ant_sacrifice;
 mod auto_research;
 mod auto_reset;
 mod automatic_tools;
@@ -296,6 +297,17 @@ pub enum PlayerAction {
     EnterChallenge {
         /// Challenge index (`0..=15`; `0` exits the transcension slot).
         challenge: u32,
+    },
+    /// Open cubes of a tier (legacy `WowCubes.open` etc.): distribute blessings
+    /// into the matching `*_blessings` slice and credit any quark gift. `value`
+    /// is the count to open; `max` opens the whole balance (ignoring `value`).
+    OpenCubes {
+        /// Which cube tier to open.
+        tier: CubeTier,
+        /// Number of cubes to open (ignored when `max`).
+        value: f64,
+        /// Open the entire balance.
+        max: bool,
     },
 }
 
@@ -3579,10 +3591,9 @@ fn compute_offerings(state: &GameState) -> Decimal {
 /// The resource multiplier (`calculateObtainium(false)`) and base obtainium
 /// flow through [`compute_obtainium`] / [`compute_base_obtainium`]. The
 /// ant-sacrifice obtainium source (a `max()` alternative gated by
-/// `cubeUpgrades[47] > 0`) is neutral-defaulted to `0`: it needs
-/// `calculateAntSacrificeMultiplier()` — the unported `antSacrificeRewardStats`
-/// StatLine + ant-sacrifice cube blessing — and is inert at the current state
-/// (`cubeUpgrades[47] == 0`). The reset-time divisor uses
+/// `cubeUpgrades[47] > 0`) is now wired to `calculateAntSacrificeObtainium` via
+/// the ported `ant_sacrifice::compute_ant_sacrifice_multiplier`; it stays inert
+/// at the current state (`cubeUpgrades[47] == 0`). The reset-time divisor uses
 /// `campaignTimeThresholdReduction = 0` (campaign subsystem unported).
 fn compute_obtainium_gain(
     state: &GameState,
@@ -3602,6 +3613,38 @@ fn compute_obtainium_gain(
         campaign_time_threshold_reduction: 0.0, // campaign subsystem unported → 0
     });
 
+    // Ant-sacrifice obtainium alternative source (gated by cubeUpgrades[47]):
+    // `calculateAntSacrificeObtainium(antSacrificeObtainiumStageMult, useTime=false)`.
+    // Inert until the cube upgrade is bought; the obtainium multiplier reuses the
+    // already-computed `calculateObtainium(false)` (`resource_mult`).
+    let ant_sacrifice_obtainium = if cube[47] > 0.0 {
+        use crate::mechanics::ant_reborn_elo::{
+            reborn_elo_stage_modifiers, RebornELOStageModifiersInput,
+        };
+        use crate::mechanics::ant_sacrifice_reward_calc::{
+            calculate_ant_sacrifice_obtainium, AntSacrificeObtainiumInput,
+        };
+        let stage_mods = reborn_elo_stage_modifiers(&RebornELOStageModifiersInput {
+            reborn_elo: state.ants.reborn_elo,
+            sing_count: state.singularity.singularity_count,
+        });
+        calculate_ant_sacrifice_obtainium(&AntSacrificeObtainiumInput {
+            ant_sac_mult: ant_sacrifice::compute_ant_sacrifice_multiplier(state),
+            stage_mult: stage_mods.ant_sacrifice_obtainium_mult,
+            time_multiplier: offering_obtainium_time_multiplier(
+                state,
+                state.ants.ant_sacrifice_timer,
+                false,
+            ),
+            obtainium_mult: resource_mult,
+            current_obtainium: state.researches.obtainium,
+            taxman_last_stand_enabled: state.singularity.taxman_last_stand.enabled,
+            taxman_last_stand_completions: state.singularity.taxman_last_stand.completions,
+        })
+    } else {
+        Decimal::zero()
+    };
+
     calculate_research_automatic_obtainium(&ResearchAutomaticObtainiumInput {
         delta_time: dt,
         ascension_challenge: state.challenges.current_ascension_challenge,
@@ -3614,7 +3657,7 @@ fn compute_obtainium_gain(
         reset_time_divisor,
         reincarnation_counter: state.reset_counters.reincarnation_counter,
         base_obtainium,
-        ant_sacrifice_obtainium: Decimal::zero(),
+        ant_sacrifice_obtainium,
         ant_sacrifice_timer: state.ants.ant_sacrifice_timer,
     })
 }
@@ -4033,31 +4076,25 @@ fn compute_available_reborn_elo(state: &GameState) -> f64 {
     })
 }
 
-/// Ant-sacrifice `immortalELO` gain (legacy `antSacrificeRewards().immortalELO`),
-/// self-derived from `&GameState`. `max(0, calculateEffectiveAntELO −
-/// immortalELO)`, where `calculateEffectiveAntELO = ⌊Σ antELOStats ×
-/// Σ additiveAntELOMultStats⌋` — the base-ELO sum (15 lines) times the
-/// additive-multiplier sum (10 lines, base 1), both StatLine reductions.
-/// Drives the `ImmortalELOGain` auto-sacrifice mode.
+/// `calculateEffectiveAntELO` (Statistics-backed) — self-derived from
+/// `&GameState`. `⌊Σ antELOStats × Σ additiveAntELOMultStats⌋`: the base-ELO
+/// sum (15 lines) times the additive-multiplier sum (10 lines, base 1), both
+/// StatLine reductions. Feeds [`compute_immortal_elo_gain`], the per-sacrifice
+/// talisman-item thresholds, and the reborn-ELO creation-speed `EffectiveELO`
+/// line.
 ///
 /// Self-derives to `1` at the default state — the `ants` level reward's
-/// `defaultValue` (1) is the sole non-zero base line, × mult 1, floored — vs
-/// the old `AutomationPre` default `0`. Harmless: the ant-sacrifice middle that
-/// reads it is gated by `ant_sacrifice_unlocked` (false at default), so it is
-/// never consumed there, and `1` is in fact the faithful legacy value. The
+/// `defaultValue` (1) is the sole non-zero base line, × mult 1, floored. The
 /// `SingularityDebuff` line neutral-defaults to its Ant-ELO no-penalty value
 /// `0` (additive context; `calculate_singularity_debuff` is banner-flagged
 /// DO NOT extend / paused).
-fn compute_immortal_elo_gain(state: &GameState) -> f64 {
+fn compute_effective_ant_elo(state: &GameState) -> f64 {
     use crate::mechanics::achievement_levels::achievement_level_from_points;
     use crate::mechanics::achievement_rewards::{
         ant_elo_additive, ant_elo_additive_multiplier, ant_speed_2_upgrade_improver,
     };
     use crate::mechanics::ant_reborn_elo::{
         calculate_singularity_perk_elo, singularity_elo_bonus_mult, SingularityPerkELOInput,
-    };
-    use crate::mechanics::ant_sacrifice_reward_calc::{
-        calculate_immortal_elo_gain, CalculateImmortalELOGainInput,
     };
     use crate::mechanics::ant_upgrades::{
         ant_elo_ant_upgrade_effect, ant_sacrifice_ant_upgrade_effect, AntELOAntUpgradeInput,
@@ -4163,10 +4200,23 @@ fn compute_immortal_elo_gain(state: &GameState) -> f64 {
         singularity_elo_bonus_mult(sing_count),
     ]);
 
-    let effective_elo = (base_ant_elo * elo_mult).floor();
+    (base_ant_elo * elo_mult).floor()
+}
+
+/// Ant-sacrifice `immortalELO` gain (legacy `antSacrificeRewards().immortalELO`):
+/// `max(0, calculateEffectiveAntELO − immortalELO)`. Drives the
+/// `ImmortalELOGain` auto-sacrifice mode. Self-derives to `1` at the default
+/// state (effective ELO `1`, immortal ELO `0`); harmless because the
+/// ant-sacrifice middle that reads it is gated by `ant_sacrifice_unlocked`
+/// (false at default), so it is never consumed there, and `1` is the faithful
+/// legacy value.
+fn compute_immortal_elo_gain(state: &GameState) -> f64 {
+    use crate::mechanics::ant_sacrifice_reward_calc::{
+        calculate_immortal_elo_gain, CalculateImmortalELOGainInput,
+    };
     calculate_immortal_elo_gain(&CalculateImmortalELOGainInput {
-        effective_elo,
-        immortal_elo,
+        effective_elo: compute_effective_ant_elo(state),
+        immortal_elo: state.ants.immortal_elo,
     })
 }
 
@@ -4971,6 +5021,11 @@ fn phase_player_input(
                     .events
                     .extend(enter_challenge(state, *challenge, reset_gains));
             }
+            PlayerAction::OpenCubes { tier, value, max } => {
+                output.events.extend(crate::mechanics::cube_opening::open(
+                    state, *tier, *value, *max,
+                ));
+            }
         }
     }
 }
@@ -5276,11 +5331,12 @@ fn complete_active_challenge(
     // challengeAchievementCheck(q) — award the challengeN group from the
     // updated completion count (the legacy resetCheck calls it after the
     // completion increments).
-    crate::mechanics::achievement_awards::challenge_achievement_check(
+    let awarded = crate::mechanics::achievement_awards::challenge_achievement_check(
         &mut state.achievements,
         q_idx,
         &state.challenges.challenge_completions,
     );
+    credit_achievement_quarks(state, awarded);
     while state.challenges.challenge_completions[q_idx]
         > state.challenges.highest_challenge_completions[q_idx]
     {
@@ -5574,6 +5630,17 @@ fn phase_automation(
         state.ants.crumbs_this_sacrifice = ant.crumbs_this_sacrifice;
         state.ants.crumbs_ever_made = ant.crumbs_ever_made;
 
+        // Reborn-ELO activation — the legacy `generateAntsAndCrumbs` tail calls
+        // `activateELO(dt)` each live tick. Gated on `immortal_elo > 0` to keep
+        // the default-state sim unshifted: the only default effect would be an
+        // inert `{elo: 0}` leaderboard push, and any all-zero entry contributes
+        // `weight × 0 = 0` to `calculate_leaderboard_value`, so suppressing it is
+        // outcome-identical to the legacy unconditional push (see
+        // `ant_sacrifice::activate_elo`).
+        if state.ants.immortal_elo > 0.0 {
+            output.events.extend(ant_sacrifice::activate_elo(state, dt));
+        }
+
         // ── Head: simple counters (no events) ────────────────────────────
         state.reset_counters.prestige_counter = timers::advance_reset_counter(
             state.reset_counters.prestige_counter,
@@ -5805,7 +5872,21 @@ fn phase_automation(
                     reborn_elo: state.ants.reborn_elo,
                 },
             );
+
+            // Consume the `AntSacrificeTriggered` intent → run the sacrifice
+            // effect, mirroring the `AutoResetTriggered` → `perform_reset` loop
+            // in this phase's tail. Intent first, then the effect event.
+            let mut performed: SmallVec<[CoreEvent; 2]> = SmallVec::new();
+            for event in &events {
+                if matches!(event, CoreEvent::AntSacrificeTriggered) {
+                    performed.extend(ant_sacrifice::perform_ant_sacrifice(
+                        state,
+                        pre.reincarnation_point_gain,
+                    ));
+                }
+            }
             output.events.extend(events);
+            output.events.extend(performed);
         }
 
         // 3. Obtainium — research[61] == 1 credits gain; else (vestigial)
@@ -5972,14 +6053,27 @@ fn inside_singularity_challenge(s: &crate::state::SingularityState) -> bool {
 // ─── Dispatch helpers ────────────────────────────────────────────────────
 
 /// `buildingAchievementCheck()` — run after a coin-producer buy to award the
+/// Credit the per-achievement quark reward for `count` newly-awarded
+/// achievements (legacy `awardAchievement`'s `player.worlds.add`). Threads the
+/// `GameState` quark slices into the slice-based reward helper.
+pub(crate) fn credit_achievement_quarks(state: &mut GameState, count: usize) {
+    crate::mechanics::achievement_awards::credit_achievement_quarks(
+        &mut state.quarks.worlds,
+        &mut state.golden_quarks.quarks_this_singularity,
+        state.quarks.quark_bonus,
+        count,
+    );
+}
+
 /// `*OwnedCoin` achievement groups from the current owned counts (the legacy
 /// `buyBuilding` calls it on every building purchase).
 fn check_coin_building_achievements(state: &mut GameState) {
     let coin_owned: [f64; 5] = std::array::from_fn(|i| state.coin_producers.tiers[i].owned);
-    crate::mechanics::achievement_awards::building_achievement_check(
+    let awarded = crate::mechanics::achievement_awards::building_achievement_check(
         &mut state.achievements,
         &coin_owned,
     );
+    credit_achievement_quarks(state, awarded);
 }
 
 fn dispatch_buy(state: &mut GameState, req: &BuyRequest) -> SmallVec<[CoreEvent; 4]> {
@@ -6656,6 +6750,31 @@ mod tests {
         state.researches.researches[108] = 4.0; // effective ELO 101
         state.ants.immortal_elo = 50.0;
         assert_eq!(compute_immortal_elo_gain(&state), 51.0);
+    }
+
+    #[test]
+    fn auto_obtainium_ant_sacrifice_source_engages_with_cube_upgrade_47() {
+        let mut state = GameState::default();
+        // Activate the auto-research-obtainium multiplier gate (0.8·cubeUpgrades[3]).
+        state.cube_upgrade_levels.cube_upgrades[3] = 1.0;
+        // Make the ant-sacrifice obtainium source large: a big multiplier line,
+        // a live ant-sacrifice cube blessing, and a non-zero sacrifice timer.
+        state.researches.researches[103] = 1_000.0;
+        state.cube_blessings.ant_sacrifice = 5_000.0;
+        state.ants.ant_sacrifice_timer = 9.0;
+
+        let without = compute_obtainium_gain(&state, 1.0, Decimal::zero());
+        state.cube_upgrade_levels.cube_upgrades[47] = 1.0; // enable the ant branch
+        let with = compute_obtainium_gain(&state, 1.0, Decimal::zero());
+
+        // The ant-sacrifice source is a max() alternative; with it dominating
+        // here, the auto-obtainium rises.
+        assert!(
+            with > without,
+            "ant source should raise auto-obtainium: {} vs {}",
+            with.to_number(),
+            without.to_number()
+        );
     }
 
     #[test]
@@ -7773,8 +7892,10 @@ mod tests {
         assert!(
             matches!(quark_events[0], CoreEvent::QuarksAwarded { quarks } if (*quarks - 1.0).abs() < 1e-9)
         );
-        assert!((state.quarks.worlds.to_number() - 1.0).abs() < 1e-9);
-        assert!((state.golden_quarks.quarks_this_singularity - 1.0).abs() < 1e-9);
+        // worlds = 1 (highest-challenge reward) + 5 (the challenge-1 achievement
+        // award now grants getAchievementQuarks() = 5 at the default quark bonus).
+        assert!((state.quarks.worlds.to_number() - 6.0).abs() < 1e-9);
+        assert!((state.golden_quarks.quarks_this_singularity - 6.0).abs() < 1e-9);
     }
 
     #[test]
@@ -7796,7 +7917,9 @@ mod tests {
             .events
             .iter()
             .any(|e| matches!(e, CoreEvent::QuarksAwarded { .. })));
-        assert_eq!(state.quarks.worlds.to_number(), 0.0);
+        // The highest-challenge reward is gated off (no QuarksAwarded event), but
+        // the challenge-1 achievement still grants its 5 quarks (ungated).
+        assert_eq!(state.quarks.worlds.to_number(), 5.0);
     }
 
     #[test]

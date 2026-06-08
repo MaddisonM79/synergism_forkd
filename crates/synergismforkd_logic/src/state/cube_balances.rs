@@ -42,6 +42,26 @@ pub struct CubeBalancesState {
     pub platonic_cubes_this_ascension: Decimal,
     /// `hepteracts_this_ascension` — see [`Self::cubes_this_ascension`].
     pub hepteracts_this_ascension: Decimal,
+    // ── Daily cube-opening counters (quark-from-opening bookkeeping) ──────
+    // Reset on a new real-life day (the daily reset is a UI/time-tier
+    // concern, not yet ported); `open()` accumulates the cubes opened and
+    // the quarks already awarded today, so each open awards only the delta.
+    /// `player.cubeOpenedDaily` — cubes opened today.
+    pub cube_opened_daily: f64,
+    /// `player.cubeQuarkDaily` — quarks already awarded from cube opens today.
+    pub cube_quark_daily: f64,
+    /// `player.tesseractOpenedDaily`.
+    pub tesseract_opened_daily: f64,
+    /// `player.tesseractQuarkDaily`.
+    pub tesseract_quark_daily: f64,
+    /// `player.hypercubeOpenedDaily`.
+    pub hypercube_opened_daily: f64,
+    /// `player.hypercubeQuarkDaily`.
+    pub hypercube_quark_daily: f64,
+    /// `player.platonicCubeOpenedDaily`.
+    pub platonic_cube_opened_daily: f64,
+    /// `player.platonicCubeQuarkDaily`.
+    pub platonic_cube_quark_daily: f64,
 }
 
 impl Default for CubeBalancesState {
@@ -60,6 +80,14 @@ impl Default for CubeBalancesState {
             hypercubes_this_ascension: Decimal::zero(),
             platonic_cubes_this_ascension: Decimal::zero(),
             hepteracts_this_ascension: Decimal::zero(),
+            cube_opened_daily: 0.0,
+            cube_quark_daily: 0.0,
+            tesseract_opened_daily: 0.0,
+            tesseract_quark_daily: 0.0,
+            hypercube_opened_daily: 0.0,
+            hypercube_quark_daily: 0.0,
+            platonic_cube_opened_daily: 0.0,
+            platonic_cube_quark_daily: 0.0,
         }
     }
 }

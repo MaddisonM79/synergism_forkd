@@ -28,6 +28,7 @@ pub mod corruptions;
 pub mod crystal_and_building_power;
 pub mod crystal_upgrades;
 pub mod cube_blessings;
+pub mod cube_opening;
 pub mod cube_upgrades;
 pub mod event_buffs;
 pub mod exalt_penalties;

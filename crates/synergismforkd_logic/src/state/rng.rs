@@ -33,11 +33,16 @@ pub enum RngPurpose {
     Ambrosia = 1,
     /// Red-ambrosia loot rolls. Legacy `Seed.RedAmbrosia = 2`.
     RedAmbrosia = 2,
+    /// Cube-opening blessing-distribution rolls (Wow! Cubes / Tesseracts /
+    /// Hypercubes / Platonic Cubes share one stream). Legacy used the
+    /// unseeded global `Math.random()`; this port keeps a deterministic
+    /// per-purpose stream, so opens are reproducible but not TS-bit-equal.
+    CubeOpen = 3,
 }
 
 impl RngPurpose {
     /// Count of `RngPurpose` variants. Update when adding a variant.
-    pub const COUNT: usize = 3;
+    pub const COUNT: usize = 4;
 }
 
 /// One `Xoshiro256PlusPlus` per [`RngPurpose`]. Fixed-arity array keyed by the

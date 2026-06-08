@@ -256,5 +256,49 @@
       "current_obtainium": "0",
       "value": "0"
     }
+  ],
+  "calculate_ant_sacrifice_offering": [
+    {
+      "ant_sac_mult": "2",
+      "stage_mult": 1.5,
+      "time_multiplier": 3,
+      "offering_mult": "10",
+      "current_offerings": "0",
+      "taxman_last_stand_enabled": false,
+      "taxman_last_stand_completions": 0,
+      "value": "90"
+    },
+    {
+      "ant_sac_mult": "1",
+      "stage_mult": 1,
+      "time_multiplier": 1,
+      "offering_mult": "1e20",
+      "current_offerings": "5",
+      "taxman_last_stand_enabled": true,
+      "taxman_last_stand_completions": 2,
+      "value": "501"
+    }
+  ],
+  "calculate_ant_sacrifice_obtainium": [
+    {
+      "ant_sac_mult": "2",
+      "stage_mult": 1.5,
+      "time_multiplier": 3,
+      "obtainium_mult": "10",
+      "current_obtainium": "0",
+      "taxman_last_stand_enabled": false,
+      "taxman_last_stand_completions": 0,
+      "value": "90"
+    },
+    {
+      "ant_sac_mult": "1",
+      "stage_mult": 1,
+      "time_multiplier": 1,
+      "obtainium_mult": "1e20",
+      "current_obtainium": "7",
+      "taxman_last_stand_enabled": true,
+      "taxman_last_stand_completions": 3,
+      "value": "701"
+    }
   ]
 }
