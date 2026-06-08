@@ -34,9 +34,9 @@ use crate::state::GameState;
 /// `calculateAntSacrificeMultiplier` (Calculate.ts:382) — the product of the
 /// `antSacrificeRewardStats` StatLine times `calculateAntSacrificeCubeBlessing`.
 ///
-/// Neutral-defaulted lines (faithful — identity at the current state):
-/// `RuneBlessing` (prism rune-blessing `antSacrificeMult` — the rune-blessing
-/// layer is unported; identity `1` at blessing level 0) and `Event` (UI-tier
+/// The `RuneBlessing` line reads the prism rune-blessing `antSacrificeMult`
+/// (`prism_rune_blessing_effects` over the shared `rune_blessing_power`; identity
+/// at blessing level 0). The only neutral-defaulted line is `Event` (UI-tier
 /// event calendar → `1`). The trailing `calculateAntSacrificeCubeBlessing` reads
 /// the live blessing cascade (`ant_sacrifice_cube_blessing`) now that `open()`
 /// (P3.2) makes the cube-blessing levels accrue. (`compute_obtainium_gain`'s
@@ -46,6 +46,8 @@ pub(super) fn compute_ant_sacrifice_multiplier(state: &GameState) -> Decimal {
     use crate::mechanics::ant_upgrades::ant_sacrifice_ant_upgrade_effect;
     use crate::mechanics::calculate::product_f64;
     use crate::mechanics::challenges::{calc_ecc, ChallengeType};
+    use crate::mechanics::rune_blessing_effects::prism_rune_blessing_effects;
+    use crate::state::RUNE_PRISM;
 
     // Ant upgrade slot: AntSacrifice (index 10).
     const ANT_UPGRADE_ANT_SACRIFICE: usize = 10;
@@ -62,7 +64,10 @@ pub(super) fn compute_ant_sacrifice_multiplier(state: &GameState) -> Decimal {
             .ant_sacrifice_multiplier,
         1.0 + researches[103] / 20.0,
         1.0 + researches[104] / 20.0,
-        1.0, // RuneBlessing — prism rune-blessing antSacrificeMult (unported → 1)
+        // RuneBlessing — prism rune-blessing antSacrificeMult, wired through the
+        // shared blessing power (rune_blessing_power); identity at level 0.
+        prism_rune_blessing_effects(super::rune_blessing_power(state, RUNE_PRISM))
+            .ant_sacrifice_mult,
         1.0 + (1.0 / 50.0)
             * calc_ecc(
                 ChallengeType::Reincarnation,
@@ -627,6 +632,20 @@ mod tests {
         state.cube_blessings.ant_sacrifice = 5_000.0;
         assert!(ant_sacrifice_cube_blessing(&state).to_number() > 1.0);
         assert!(compute_ant_sacrifice_multiplier(&state).to_number() > base);
+    }
+
+    #[test]
+    fn ant_sacrifice_multiplier_picks_up_prism_blessing() {
+        use crate::state::RUNE_PRISM;
+        let mut state = GameState::default();
+        // Default: prism blessing power = 0 → antSacrificeMult factor = 1.
+        let base = compute_ant_sacrifice_multiplier(&state).to_number();
+        // blessing power = blessing_level · rune_level · otherMult (1 at default):
+        // 1000 · 1000 = 1e6 → factor = 1 + 1e6/1e6 = 2 → the multiplier doubles.
+        state.runes.rune_blessing_levels[RUNE_PRISM] = 1000.0;
+        state.runes.rune_levels[RUNE_PRISM] = 1000.0;
+        let boosted = compute_ant_sacrifice_multiplier(&state).to_number();
+        assert!((boosted / base - 2.0).abs() < 1e-9);
     }
 
     #[test]
