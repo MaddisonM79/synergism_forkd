@@ -5338,6 +5338,21 @@ fn phase_challenge_completion(
                 (state.upgrades.coins + Decimal::one()).log10().to_number() * c15_sm;
         }
     }
+
+    // sadisticAch (#252): `challengeAchievementCheck(15)` awards it once the c15
+    // `achievementUnlock` reward (exponent >= 666666) is active. Idempotent and
+    // independent of challenge15Auto (the exponent may already be high). pv 50.
+    if qa == 15
+        && challenge_15_rewards::achievement_unlock(state.challenges.challenge15_exponent) == 1.0
+    {
+        let awarded = crate::mechanics::achievement_awards::award_ungrouped_achievement(
+            &mut state.achievements,
+            252,
+            50.0,
+            true,
+        );
+        credit_achievement_quarks(state, awarded);
+    }
 }
 
 /// Award + exit + reset for one in-progress challenge that has met its goal
@@ -5365,13 +5380,35 @@ fn complete_active_challenge(
         counter += 1.0;
     }
     state.challenges.challenge_completions[q_idx] = comp;
-    // challengeAchievementCheck(q) — award the challengeN group from the
-    // updated completion count (the legacy resetCheck calls it after the
-    // completion increments).
+    // challengeAchievementCheck(q) — award the challengeN group plus the
+    // ungrouped per-challenge extras (chalNNoGen / diamondSearch / extraChallenging)
+    // from the updated completion count (the legacy resetCheck calls it after the
+    // completion increments). The extras' context is captured before the mutable
+    // achievements borrow; `current_transcension_challenge` is still set here (the
+    // challenge exits further below).
+    let extras_ctx = crate::mechanics::achievement_awards::ChallengeUngroupedContext {
+        coins_this_transcension_log10: (state.coin_counters.coins_this_transcension
+            + Decimal::one())
+        .log10()
+        .to_number(),
+        current_transcension_challenge: state.challenges.current_transcension_challenge,
+        generator_upgrades_owned: state.upgrades.upgrades[101..=105]
+            .iter()
+            .map(|&u| u32::from(u))
+            .sum(),
+        accelerator_bought: state.accelerator.accelerator_bought,
+        accelerator_boost_bought: state.accelerator.accelerator_boost_bought,
+        extinction_level: f64::from(state.corruptions.used.levels[crate::state::EXTINCTION_INDEX]),
+    };
     let awarded = crate::mechanics::achievement_awards::challenge_achievement_check(
         &mut state.achievements,
         q_idx,
         &state.challenges.challenge_completions,
+    ) + crate::mechanics::achievement_awards::challenge_ungrouped_achievement_check(
+        &mut state.achievements,
+        q_idx,
+        &state.challenges.challenge_completions,
+        &extras_ctx,
     );
     credit_achievement_quarks(state, awarded);
     while state.challenges.challenge_completions[q_idx]
@@ -7790,6 +7827,27 @@ mod tests {
         };
         let _ = tack(&mut state, &input);
         assert!(state.challenges.challenge15_exponent > 0.0);
+    }
+
+    #[test]
+    fn c15_awards_sadistic_achievement_once_exponent_unlocks_it() {
+        use crate::mechanics::reset_currency::ResetCurrencyResult;
+        use crate::state::shop::SHOP_CHALLENGE_15_AUTO;
+        let mut state = GameState::default();
+        state.challenges.current_ascension_challenge = 15;
+        state.shop.upgrades[SHOP_CHALLENGE_15_AUTO] = 1.0;
+        // coins = 1e700000 → accrued exponent ≈ 700000, past the c15
+        // achievementUnlock requirement (666666) → sadisticAch (#252) awarded.
+        state.upgrades.coins = Decimal::from_finite(10.0).pow(Decimal::from_finite(700_000.0));
+        let gains = ResetCurrencyResult {
+            prestige_point_gain: Decimal::zero(),
+            transcend_point_gain: Decimal::zero(),
+            reincarnation_point_gain: Decimal::zero(),
+        };
+        let mut output = TickOutput::default();
+        phase_challenge_completion(&mut state, &gains, &mut output);
+        assert!(state.challenges.challenge15_exponent >= 666_666.0);
+        assert_eq!(state.achievements.achievements[252], 1);
     }
 
     #[test]

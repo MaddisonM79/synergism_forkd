@@ -574,6 +574,82 @@ pub fn challenge_achievement_check(
     award_threshold_group(ach, challenge_completions[challenge], table)
 }
 
+/// Per-completion context for the ungrouped per-challenge achievements (the
+/// `awardUngroupedAchievement` calls in `challengeAchievementCheck`). All fields
+/// are existing state reads; coins are carried as `log10(coins + 1)` because the
+/// thresholds (`1e1000`, `1e99999`, `1e120000`) far exceed `f64`.
+#[derive(Debug, Clone, Copy)]
+pub struct ChallengeUngroupedContext {
+    /// `log10(player.coinsThisTranscension + 1)`.
+    pub coins_this_transcension_log10: f64,
+    /// `player.currentChallenge.transcension`.
+    pub current_transcension_challenge: u32,
+    /// `sumContents(player.upgrades.slice(101, 106))` — generator upgrades
+    /// (101..=105) owned (`0` = none bought this run).
+    pub generator_upgrades_owned: u32,
+    /// `player.acceleratorBought`.
+    pub accelerator_bought: f64,
+    /// `player.acceleratorBoostBought`.
+    pub accelerator_boost_bought: f64,
+    /// `player.corruptions.used.extinction` level.
+    pub extinction_level: f64,
+}
+
+/// `challengeAchievementCheck`'s ungrouped per-challenge achievements, awarded
+/// alongside the `challengeN` group: `chal{1,2,3}NoGen` (reach the coin
+/// threshold in that transcension challenge with no generator upgrades),
+/// `diamondSearch` (challenge 5: `1e120000` coins, no accelerators/boosts), and
+/// `extraChallenging` (challenge 11: `c10 > 50 && extinction >= 5 && c11 >= 20`).
+/// `sadisticAch` (challenge 15) is awarded from the c15 path instead. Each
+/// `(index, pointValue)` and unlock condition is taken verbatim from the legacy
+/// `achievements` array. Returns the count newly awarded.
+pub fn challenge_ungrouped_achievement_check(
+    ach: &mut AchievementsState,
+    challenge: usize,
+    challenge_completions: &[f64],
+    ctx: &ChallengeUngroupedContext,
+) -> usize {
+    let tc = ctx.current_transcension_challenge as usize;
+    let no_generators = ctx.generator_upgrades_owned == 0;
+    match challenge {
+        1 => usize::from(award_achievement(
+            ach,
+            75,
+            tc == 1 && ctx.coins_this_transcension_log10 >= 1_000.0 && no_generators,
+            25.0,
+        )),
+        2 => usize::from(award_achievement(
+            ach,
+            76,
+            tc == 2 && ctx.coins_this_transcension_log10 >= 1_000.0 && no_generators,
+            25.0,
+        )),
+        3 => usize::from(award_achievement(
+            ach,
+            77,
+            tc == 3 && ctx.coins_this_transcension_log10 >= 99_999.0 && no_generators,
+            50.0,
+        )),
+        5 => usize::from(award_achievement(
+            ach,
+            63,
+            ctx.coins_this_transcension_log10 >= 120_000.0
+                && ctx.accelerator_bought == 0.0
+                && ctx.accelerator_boost_bought == 0.0,
+            35.0,
+        )),
+        11 => usize::from(award_achievement(
+            ach,
+            247,
+            challenge_completions[10] > 50.0
+                && ctx.extinction_level >= 5.0
+                && challenge_completions[11] >= 20.0,
+            50.0,
+        )),
+        _ => 0,
+    }
+}
+
 /// `sacCount` achievement group — `antSacrificeCount >= threshold`. Awarded
 /// after every ant sacrifice (legacy `awardAchievementGroup('sacCount')` inside
 /// `resetPlayerAntSacrificeCounts`).
@@ -951,6 +1027,86 @@ mod tests {
         challenge_achievement_check(&mut ach, 15, &completions);
         challenge_achievement_check(&mut ach, 0, &completions);
         assert_eq!(ach.achievement_points, 0.0);
+    }
+
+    #[test]
+    fn challenge_ungrouped_chal_no_gen_needs_no_generators_and_coins() {
+        let completions = [0.0_f64; 16];
+        let ctx = ChallengeUngroupedContext {
+            coins_this_transcension_log10: 1_500.0, // >= 1e1000
+            current_transcension_challenge: 1,
+            generator_upgrades_owned: 0,
+            accelerator_bought: 0.0,
+            accelerator_boost_bought: 0.0,
+            extinction_level: 0.0,
+        };
+        let mut ach = AchievementsState::default();
+        challenge_ungrouped_achievement_check(&mut ach, 1, &completions, &ctx);
+        assert_eq!(ach.achievements[75], 1); // chal1NoGen, pv 25
+        assert_eq!(ach.achievement_points, 25.0);
+
+        // Owning even one generator upgrade suppresses it.
+        let mut ach2 = AchievementsState::default();
+        let ctx2 = ChallengeUngroupedContext {
+            generator_upgrades_owned: 1,
+            ..ctx
+        };
+        challenge_ungrouped_achievement_check(&mut ach2, 1, &completions, &ctx2);
+        assert_eq!(ach2.achievements[75], 0);
+    }
+
+    #[test]
+    fn challenge_ungrouped_diamond_search_needs_coins_and_no_accelerators() {
+        let completions = [0.0_f64; 16];
+        let ctx = ChallengeUngroupedContext {
+            coins_this_transcension_log10: 120_000.0, // >= 1e120000
+            current_transcension_challenge: 5,
+            generator_upgrades_owned: 0,
+            accelerator_bought: 0.0,
+            accelerator_boost_bought: 0.0,
+            extinction_level: 0.0,
+        };
+        let mut ach = AchievementsState::default();
+        challenge_ungrouped_achievement_check(&mut ach, 5, &completions, &ctx);
+        assert_eq!(ach.achievements[63], 1); // diamondSearch, pv 35
+        assert_eq!(ach.achievement_points, 35.0);
+
+        // Any accelerator bought suppresses it.
+        let mut ach2 = AchievementsState::default();
+        let ctx2 = ChallengeUngroupedContext {
+            accelerator_bought: 1.0,
+            ..ctx
+        };
+        challenge_ungrouped_achievement_check(&mut ach2, 5, &completions, &ctx2);
+        assert_eq!(ach2.achievements[63], 0);
+    }
+
+    #[test]
+    fn challenge_ungrouped_extra_challenging_needs_all_three_conditions() {
+        let mut completions = [0.0_f64; 16];
+        completions[10] = 51.0; // c10 > 50
+        completions[11] = 20.0; // c11 >= 20
+        let ctx = ChallengeUngroupedContext {
+            coins_this_transcension_log10: 0.0,
+            current_transcension_challenge: 0,
+            generator_upgrades_owned: 0,
+            accelerator_bought: 0.0,
+            accelerator_boost_bought: 0.0,
+            extinction_level: 5.0, // extinction >= 5
+        };
+        let mut ach = AchievementsState::default();
+        challenge_ungrouped_achievement_check(&mut ach, 11, &completions, &ctx);
+        assert_eq!(ach.achievements[247], 1); // extraChallenging, pv 50
+        assert_eq!(ach.achievement_points, 50.0);
+
+        // extinction < 5 suppresses it.
+        let mut ach2 = AchievementsState::default();
+        let ctx2 = ChallengeUngroupedContext {
+            extinction_level: 4.0,
+            ..ctx
+        };
+        challenge_ungrouped_achievement_check(&mut ach2, 11, &completions, &ctx2);
+        assert_eq!(ach2.achievements[247], 0);
     }
 
     #[test]
