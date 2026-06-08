@@ -48,7 +48,7 @@ pub use currency::{Coins, Multiplier, PrestigePoints, ReincarnationPoints, Trans
 
 // ─── Tick orchestrator ───────────────────────────────────────────────────
 
-pub use tick::{tack, AutomationPre, BuyRequest, PlayerAction, TackInput, TickOutput};
+pub use tick::{daily_reset, tack, AutomationPre, BuyRequest, PlayerAction, TackInput, TickOutput};
 
 // ─── Per-tick aggregator entry points ────────────────────────────────────
 

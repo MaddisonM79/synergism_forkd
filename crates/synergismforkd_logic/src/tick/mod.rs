@@ -418,6 +418,37 @@ pub enum ResetRequest {
     AscensionChallenge,
 }
 
+/// `forcedDailyReset` (Calculate.ts:1638) — the once-per-real-day bookkeeping
+/// reset. A **host seam**: the logic crate has no clock, so a host (web/desktop)
+/// calls this when its `dailyResetCheck` detects a new calendar day. Zeroes the
+/// per-day cube-opening counters and the reborn-ELO daily leaderboard; the
+/// latter (`resetPlayerRebornELODaily`) also clears `quarks_gained_from_ants`,
+/// so the next day's ant-sacrifice quark award restarts from a clean delta. The
+/// all-time `highest_reborn_elo_ever` leaderboard is intentionally left intact.
+///
+/// The `rewards = true` overflux branch (`overfluxPowder += overfluxOrbs *
+/// calculatePowderConversion()`; `overfluxOrbs = challenge15Rewards.freeOrbs`)
+/// is **not** ported: `calculatePowderConversion`'s full formula and the c15
+/// `freeOrbs` reward are unported. The counter reset is the portion that maps to
+/// ported state — and `forcedDailyReset` deliberately awards no powder / expires
+/// no orbs on the manual (`rewards = false`) path regardless.
+pub fn daily_reset(state: &mut GameState) {
+    let cubes = &mut state.cube_balances;
+    cubes.cube_quark_daily = 0.0;
+    cubes.tesseract_quark_daily = 0.0;
+    cubes.hypercube_quark_daily = 0.0;
+    cubes.platonic_cube_quark_daily = 0.0;
+    cubes.cube_opened_daily = 0.0;
+    cubes.tesseract_opened_daily = 0.0;
+    cubes.hypercube_opened_daily = 0.0;
+    cubes.platonic_cube_opened_daily = 0.0;
+
+    // resetPlayerRebornELODaily(): empty the daily leaderboard + zero the running
+    // ant-quark total (defaultHighestRebornELODaily = [], defaultQuarksGainedFromAnts = 0).
+    state.ants.highest_reborn_elo_daily.clear();
+    state.ants.quarks_gained_from_ants = 0.0;
+}
+
 /// Result of [`tack`]. The accumulated event stream is the only output
 /// the UI tier reads from a tick today; derived stats and dirty flags
 /// land here once Phase 2 acquires a `state.g_cache` slice to read from.
@@ -7848,6 +7879,48 @@ mod tests {
         phase_challenge_completion(&mut state, &gains, &mut output);
         assert!(state.challenges.challenge15_exponent >= 666_666.0);
         assert_eq!(state.achievements.achievements[252], 1);
+    }
+
+    #[test]
+    fn daily_reset_zeroes_daily_counters_and_preserves_all_time() {
+        use crate::state::ants::RebornELOEntry;
+        let mut state = GameState::default();
+        // A day of play populates the daily counters, the daily leaderboard, and
+        // the running ant-quark total — plus the all-time leaderboard.
+        state.cube_balances.cube_opened_daily = 12.0;
+        state.cube_balances.cube_quark_daily = 34.0;
+        state.cube_balances.tesseract_opened_daily = 5.0;
+        state.cube_balances.tesseract_quark_daily = 6.0;
+        state.cube_balances.hypercube_opened_daily = 7.0;
+        state.cube_balances.hypercube_quark_daily = 8.0;
+        state.cube_balances.platonic_cube_opened_daily = 9.0;
+        state.cube_balances.platonic_cube_quark_daily = 10.0;
+        state.ants.quarks_gained_from_ants = 500.0;
+        state.ants.highest_reborn_elo_daily.push(RebornELOEntry {
+            elo: 1000.0,
+            sacrifice_id: 1,
+        });
+        state.ants.highest_reborn_elo_ever.push(RebornELOEntry {
+            elo: 1000.0,
+            sacrifice_id: 1,
+        });
+
+        daily_reset(&mut state);
+
+        // All 8 per-day cube counters cleared.
+        assert_eq!(state.cube_balances.cube_opened_daily, 0.0);
+        assert_eq!(state.cube_balances.cube_quark_daily, 0.0);
+        assert_eq!(state.cube_balances.tesseract_opened_daily, 0.0);
+        assert_eq!(state.cube_balances.tesseract_quark_daily, 0.0);
+        assert_eq!(state.cube_balances.hypercube_opened_daily, 0.0);
+        assert_eq!(state.cube_balances.hypercube_quark_daily, 0.0);
+        assert_eq!(state.cube_balances.platonic_cube_opened_daily, 0.0);
+        assert_eq!(state.cube_balances.platonic_cube_quark_daily, 0.0);
+        // Daily reborn-ELO leaderboard + running ant-quark total reset...
+        assert!(state.ants.highest_reborn_elo_daily.is_empty());
+        assert_eq!(state.ants.quarks_gained_from_ants, 0.0);
+        // ...but the all-time leaderboard survives.
+        assert_eq!(state.ants.highest_reborn_elo_ever.len(), 1);
     }
 
     #[test]
