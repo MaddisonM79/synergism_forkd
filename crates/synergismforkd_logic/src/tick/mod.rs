@@ -701,14 +701,23 @@ fn hepteract_effective_bal(raw_amount: f64, dr_exponent: f64) -> f64 {
 
 /// `firstFiveEffectiveRuneLevelMult` (Statistics.ts `firstFiveRuneEffectivenessStats`):
 /// the product applied to the first five runes' level. The eight research
-/// factors, `ConstantUpgrade9`, and `Research4x9` are live; the `Challenge15`
-/// rune bonus, the `MidasTribute` cube-blessing chain, and the `AchievementBonus`
-/// quark-gain reward are neutral-defaulted to `1.0` (unported / blessing chain
-/// deferred / achievements unported, H5). Identity at the default state.
-/// TS-anchored against the verbatim Statistics.ts expressions.
+/// factors, `ConstantUpgrade9`, `Research4x9`, and the `MidasTribute`
+/// cube-blessing cascade are live; only the `Challenge15` rune bonus stays
+/// neutral-defaulted to `1.0` (its `challenge_15_rewards` reader is unported).
+/// (A spurious `quarkGain` factor was dropped here — `getAchievementReward('quarkGain')`
+/// is an `allQuarkStats` term, not part of `firstFiveRuneEffectivenessStats`.)
+/// Identity at the default state. TS-anchored against the verbatim Statistics.ts.
 fn first_five_effective_rune_level_mult(state: &GameState) -> f64 {
     use crate::mechanics::calculate::product_f64;
     use crate::mechanics::challenges::{calc_ecc, ChallengeType};
+    use crate::mechanics::cube_blessings::calculate_rune_effectiveness_cube_blessing;
+    use crate::mechanics::hypercube_blessings::calculate_rune_effectiveness_hypercube_blessing;
+    use crate::mechanics::platonic_blessings::calculate_hypercube_blessing_multiplier_platonic_blessing;
+    use crate::mechanics::tesseract_blessings::calculate_rune_effectiveness_tesseract_blessing;
+
+    // `player.cubeUpgrades[44]` — the rune-effectiveness cube-blessing DR increase.
+    const CUBE_UPGRADE_RUNE_EFFECTIVENESS_BLESSING: usize = 44;
+
     let research = &state.researches.researches;
     let cc = &state.challenges.challenge_completions;
     // ConstantUpgrade9: 1 + 0.01·log4(talismanShards+1)·min(1, constantUpgrades[9]).
@@ -716,6 +725,26 @@ fn first_five_effective_rune_level_mult(state: &GameState) -> f64 {
         + 0.01
             * ((state.talismans.talisman_shards + 1.0).ln() / 4.0_f64.ln())
             * state.campaigns.constant_upgrades[9].min(1.0);
+
+    // MidasTribute = calculateRuneEffectivenessCubeBlessing(): the cube-blessing
+    // cascade (platonic → hypercube → tesseract → cube), now live since open()
+    // (P3.2) makes the blessing levels accrue. Identity at level 0.
+    let platonic_amplifier =
+        calculate_hypercube_blessing_multiplier_platonic_blessing(&state.platonic_blessings);
+    let hypercube_blessing = calculate_rune_effectiveness_hypercube_blessing(
+        &state.hypercube_blessings,
+        platonic_amplifier,
+    );
+    let tesseract_blessing = calculate_rune_effectiveness_tesseract_blessing(
+        &state.tesseract_blessings,
+        hypercube_blessing,
+    );
+    let midas_tribute = calculate_rune_effectiveness_cube_blessing(
+        &state.cube_blessings,
+        tesseract_blessing,
+        state.cube_upgrade_levels.cube_upgrades[CUBE_UPGRADE_RUNE_EFFECTIVENESS_BLESSING],
+    );
+
     product_f64(&[
         1.0 + research[4] / 10.0 * (1.0 + calc_ecc(ChallengeType::Ascension, cc[14])),
         1.0 + research[21] / 100.0,
@@ -726,10 +755,9 @@ fn first_five_effective_rune_level_mult(state: &GameState) -> f64 {
         1.0 + (research[176] / 200.0 * 2.0) / 5.0,
         1.0 + (research[191] / 200.0) / 5.0,
         const_upgrade_9,
-        1.0, // Challenge15 runeBonus -> neutral (unported)
-        1.0, // MidasTribute cube blessing -> neutral (blessing chain deferred)
-        1.0 + research[84] / 200.0,
-        1.0, // AchievementBonus quarkGain -> neutral (achievements unported, H5)
+        1.0,           // Challenge15 runeBonus -> neutral (challenge_15_rewards reader unported)
+        midas_tribute, // MidasTribute = rune-effectiveness cube-blessing cascade
+        1.0 + research[84] / 200.0, // Research4x9 (runeEffectivenessStatsSI)
     ])
 }
 
@@ -7921,6 +7949,19 @@ mod tests {
         assert_eq!(state.ants.quarks_gained_from_ants, 0.0);
         // ...but the all-time leaderboard survives.
         assert_eq!(state.ants.highest_reborn_elo_ever.len(), 1);
+    }
+
+    #[test]
+    fn first_five_rune_mult_picks_up_midas_tribute_cube_blessing() {
+        let mut state = GameState::default();
+        // No blessings opened → every factor is identity → the mult is 1.
+        assert_eq!(first_five_effective_rune_level_mult(&state), 1.0);
+        // Accruing the talisman-bonus blessing tier (as opening cubes would) lifts
+        // the MidasTribute cascade above 1, so the rune-effectiveness mult rises.
+        state.cube_blessings.talisman_bonus = 500.0;
+        state.tesseract_blessings.talisman_bonus = 5_000.0;
+        state.hypercube_blessings.talisman_bonus = 5_000.0;
+        assert!(first_five_effective_rune_level_mult(&state) > 1.0);
     }
 
     #[test]
