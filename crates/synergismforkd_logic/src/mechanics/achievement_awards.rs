@@ -460,6 +460,83 @@ pub fn challenge_achievement_check(
     award_threshold_group(ach, challenge_completions[challenge], table);
 }
 
+/// `sacCount` achievement group — `antSacrificeCount >= threshold`. Awarded
+/// after every ant sacrifice (legacy `awardAchievementGroup('sacCount')` inside
+/// `resetPlayerAntSacrificeCounts`).
+const SAC_COUNT: &[ThresholdRow] = &[
+    (481, 1.0, 3.0),
+    (482, 10.0, 6.0),
+    (483, 50.0, 9.0),
+    (484, 250.0, 12.0),
+    (485, 1_250.0, 15.0),
+    (486, 5_000.0, 17.0),
+    (487, 20_000.0, 19.0),
+    (488, 80_000.0, 21.0),
+    (489, 250_000.0, 23.0),
+    (490, 1_000_000.0, 25.0),
+    (491, 3_000_000.0, 40.0),
+    (492, 10_000_000.0, 45.0),
+    (493, 100_000_000.0, 55.0),
+];
+
+/// `awardAchievementGroup('sacCount')` — the ant-sacrifice-count milestones.
+pub fn sac_count_achievement_check(ach: &mut AchievementsState, ant_sacrifice_count: f64) {
+    award_threshold_group(ach, ant_sacrifice_count, SAC_COUNT);
+}
+
+/// `sacMult` achievement group — the compound condition
+/// `immortalELO >= elo_req && producers[tier].purchased > 0`; the late #347/#348
+/// are immortal-ELO-only (`tier = None`), so [`award_threshold_group`] can't
+/// express them. Rows: `(index, elo_req, producer_tier, point_value)`.
+const SAC_MULT: &[(usize, f64, Option<usize>, f64)] = &[
+    (176, 50.0, Some(1), 5.0),
+    (177, 200.0, Some(2), 10.0),
+    (178, 500.0, Some(3), 15.0),
+    (179, 1_000.0, Some(4), 20.0),
+    (180, 2_500.0, Some(5), 25.0),
+    (181, 20_000.0, Some(6), 30.0),
+    (182, 100_000.0, Some(7), 35.0),
+    (347, 400_000.0, None, 40.0),
+    (348, 1_500_000.0, None, 45.0),
+    (349, 5_000_000.0, Some(8), 50.0),
+];
+
+/// `awardAchievementGroup('sacMult')` — awarded after a sacrifice, *before* the
+/// ants reset (so the producers are still owned). `producer_owned[t]` is
+/// `producers[t].purchased > 0` for tier `t` (Workers=0 .. HolySpirit=8).
+pub fn sac_mult_achievement_check(
+    ach: &mut AchievementsState,
+    immortal_elo: f64,
+    producer_owned: &[bool; 9],
+) {
+    for &(index, elo_req, tier, point_value) in SAC_MULT {
+        let owned = tier.is_none_or(|t| producer_owned[t]);
+        award_achievement(ach, index, immortal_elo >= elo_req && owned, point_value);
+    }
+}
+
+/// The two ungrouped mythical-fragment achievements checked after a sacrifice:
+/// `seeingRed` (#239, `mythicalFragments >= 1e25`) and `seeingRedNoBlue` (#248,
+/// `mythicalFragments >= 1e11` inside ascension challenge 14), each worth 50
+/// points. Mirrors the trailing `awardUngroupedAchievement` calls in
+/// `sacrificeAnts` (`awardUngroupedAchievement(name)` →
+/// `awardAchievement(achievementID)`).
+pub fn ant_sacrifice_fragment_achievement_check(
+    ach: &mut AchievementsState,
+    mythical_fragments: f64,
+    in_ascension_challenge_14: bool,
+) {
+    const SEEING_RED: usize = 239;
+    const SEEING_RED_NO_BLUE: usize = 248;
+    award_achievement(ach, SEEING_RED, mythical_fragments >= 1e25, 50.0);
+    award_achievement(
+        ach,
+        SEEING_RED_NO_BLUE,
+        mythical_fragments >= 1e11 && in_ascension_challenge_14,
+        50.0,
+    );
+}
+
 /// Apply one progressive-achievement update — a port of `updateProgressiveCache`
 /// and `updateProgressiveAP`. Bumps the cached value via `Math.max(cached,
 /// live_value)`, recomputes its awarded points via `points_of(cached_value)`,
@@ -641,5 +718,45 @@ mod tests {
         assert_eq!(ach.progressive[4].cached_value, 7.0);
         assert_eq!(ach.progressive[4].cached_points, 42.0);
         assert_eq!(ach.achievement_points, 42.0);
+    }
+
+    #[test]
+    fn sac_count_group_awards_met_thresholds() {
+        let mut ach = AchievementsState::default();
+        sac_count_achievement_check(&mut ach, 60.0);
+        // >=1 (#481,3), >=10 (#482,6), >=50 (#483,9) met; >=250 (#484) not.
+        assert_ne!(ach.achievements[481], 0);
+        assert_ne!(ach.achievements[483], 0);
+        assert_eq!(ach.achievements[484], 0);
+        assert_eq!(ach.achievement_points, 18.0); // 3 + 6 + 9
+    }
+
+    #[test]
+    fn sac_mult_group_requires_both_elo_and_producer() {
+        let mut ach = AchievementsState::default();
+        // High ELO but no producers owned → the producer-gated tiers stay locked,
+        // while the immortal-ELO-only tiers (#347 @400k, #348 @1.5M) can fire.
+        sac_mult_achievement_check(&mut ach, 1_000_000.0, &[false; 9]);
+        assert_eq!(ach.achievements[176], 0); // needs Breeders
+        assert_ne!(ach.achievements[347], 0); // ELO-only, 1M >= 400k
+        assert_eq!(ach.achievements[348], 0); // 1M < 1.5M
+
+        let mut owned = [false; 9];
+        owned[1] = true; // Breeders
+        sac_mult_achievement_check(&mut ach, 1_000_000.0, &owned);
+        assert_ne!(ach.achievements[176], 0);
+    }
+
+    #[test]
+    fn seeing_red_awards_above_fragment_thresholds() {
+        let mut ach = AchievementsState::default();
+        ant_sacrifice_fragment_achievement_check(&mut ach, 1e25, false);
+        assert_ne!(ach.achievements[239], 0); // seeingRed (>= 1e25)
+        assert_eq!(ach.achievements[248], 0); // seeingRedNoBlue needs c14
+
+        let mut c14 = AchievementsState::default();
+        ant_sacrifice_fragment_achievement_check(&mut c14, 1e11, true);
+        assert_ne!(c14.achievements[248], 0); // >= 1e11 inside ascension c14
+        assert_eq!(c14.achievements[239], 0); // 1e11 < 1e25
     }
 }

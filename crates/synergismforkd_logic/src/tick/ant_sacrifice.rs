@@ -155,6 +155,7 @@ pub(super) fn perform_ant_sacrifice(
     state: &mut GameState,
     reincarnation_point_gain: Decimal,
 ) -> SmallVec<[CoreEvent; 2]> {
+    use crate::mechanics::achievement_awards;
     use crate::mechanics::ant_reborn_elo::{
         reborn_elo_stage_modifiers, RebornELOStageModifiersInput,
     };
@@ -278,10 +279,27 @@ pub(super) fn perform_ant_sacrifice(
         t.legendary_fragments += talisman_rewards[5];
         t.mythical_fragments += talisman_rewards[6];
     }
-    // TODO(P3.1): awardAchievementGroup('sacMult') + the seeingRed /
-    // seeingRedNoBlue ungrouped mythical-fragment achievements.
+    // awardAchievementGroup('sacMult') — reads the updated immortal ELO and the
+    // still-owned producers, before the reset clears them.
+    let immortal_elo = state.ants.immortal_elo;
+    let producer_owned: [bool; 9] =
+        std::array::from_fn(|i| state.ants.producers[i].purchased > 0.0);
+    achievement_awards::sac_mult_achievement_check(
+        &mut state.achievements,
+        immortal_elo,
+        &producer_owned,
+    );
 
     reset_ants_for_sacrifice(state);
+
+    // Trailing ungrouped seeingRed / seeingRedNoBlue checks (post-reset in
+    // `sacrificeAnts`; the reset does not touch the mythical-fragment balance).
+    let mythical_fragments = state.talismans.mythical_fragments;
+    achievement_awards::ant_sacrifice_fragment_achievement_check(
+        &mut state.achievements,
+        mythical_fragments,
+        in_challenge_14,
+    );
 
     smallvec![CoreEvent::AntSacrificePerformed {
         offerings_gained,
@@ -334,6 +352,13 @@ fn reset_ants_for_sacrifice(state: &mut GameState) {
     // `antSacrificeCountMultiplier` achievement reward is unported (→ ×1).
     state.ants.current_sacrifice_id += 1;
     state.ants.ant_sacrifice_count += 1.0 + state.researches.researches[RESEARCH_SAC_COUNT];
+
+    // awardAchievementGroup('sacCount') — on the updated sacrifice count.
+    let sacrifice_count = state.ants.ant_sacrifice_count;
+    crate::mechanics::achievement_awards::sac_count_achievement_check(
+        &mut state.achievements,
+        sacrifice_count,
+    );
 
     // Timers reset.
     state.ants.ant_sacrifice_timer = 0.0;
@@ -503,12 +528,34 @@ mod tests {
         assert_eq!(state.ants.crumbs_this_sacrifice.to_number(), 1.0);
         assert_eq!(state.ants.reborn_elo, 0.0);
         assert_eq!(state.ants.ant_sacrifice_count, 1.0);
+        // sacCount >= 1 achievement (#481, 3 points) fires on the first sacrifice.
+        assert_eq!(state.achievements.achievement_points, 3.0);
+        assert_ne!(state.achievements.achievements[481], 0);
         assert_eq!(state.ants.current_sacrifice_id, 1);
         assert_eq!(state.ants.ant_sacrifice_timer, 0.0);
         assert!(matches!(
             events.as_slice(),
             [CoreEvent::AntSacrificePerformed { .. }]
         ));
+    }
+
+    #[test]
+    fn sacrifice_awards_sac_mult_when_elo_and_producer_met() {
+        let mut state = GameState::default();
+        state.ants.ant_sacrifice_timer = 10.0;
+        // Pre-existing immortal ELO + an owned Breeders producer unlocks the
+        // first sacMult tier (#176: immortalELO >= 50 && Breeders owned).
+        state.ants.immortal_elo = 1_000.0;
+        state.ants.producers[1].purchased = 5.0; // Breeders
+
+        let _ = perform_ant_sacrifice(&mut state, Decimal::zero());
+
+        // sacMult #176 (5 pts) + sacCount #481 (3 pts) = 8.
+        assert_ne!(state.achievements.achievements[176], 0, "sacMult tier 1");
+        assert_ne!(state.achievements.achievements[481], 0, "sacCount >= 1");
+        assert_eq!(state.achievements.achievement_points, 8.0);
+        // The producer was consumed by the post-sacrifice reset.
+        assert_eq!(state.ants.producers[1].purchased, 0.0);
     }
 
     #[test]
