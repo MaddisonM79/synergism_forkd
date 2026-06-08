@@ -6354,6 +6354,7 @@ mod tests {
             &mut state.achievements,
             crate::events::AutoResetTier::Prestige,
             Decimal::from_finite(1e6),
+            &crate::mechanics::achievement_awards::ResetNoBuyFlags::default(),
         );
         assert_eq!(state.achievements.achievement_points, 15.0);
 
@@ -8010,6 +8011,12 @@ mod tests {
         // c1 transcension challenge, enough coins to complete.
         state.challenges.current_transcension_challenge = 1;
         state.coin_counters.coins_this_transcension = Decimal::from_finite(1e11);
+        // Clear the transcension no-buy flags so the completion-triggered reset
+        // doesn't add their quarks (isolating the highest-challenge reward).
+        state.multiplier.transcend_no_multiplier = false;
+        state.accelerator.transcend_no_accelerator = false;
+        state.upgrades.transcend_no_coin_upgrades = false;
+        state.upgrades.transcend_no_coin_or_prestige_upgrades = false;
         // ascension_count == 0 → gate passes.
         assert_eq!(state.reset_counters.ascension_count, 0.0);
         // quark_bonus = 0 → multiplier = 1; base = 1 + floor(1 * 0.1) = 1 + 0 = 1.
@@ -8043,6 +8050,12 @@ mod tests {
         let mut state = GameState::default();
         state.challenges.current_transcension_challenge = 1;
         state.coin_counters.coins_this_transcension = Decimal::from_finite(1e11);
+        // Clear the transcension no-buy flags so the completion-triggered reset
+        // doesn't add their quarks (isolating the gated highest-challenge reward).
+        state.multiplier.transcend_no_multiplier = false;
+        state.accelerator.transcend_no_accelerator = false;
+        state.upgrades.transcend_no_coin_upgrades = false;
+        state.upgrades.transcend_no_coin_or_prestige_upgrades = false;
         // ascension_count > 0 → gate blocks quark award.
         state.reset_counters.ascension_count = 1.0;
         let gains = ResetCurrencyResult {
