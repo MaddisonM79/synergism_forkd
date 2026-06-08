@@ -85,17 +85,20 @@ pub(super) fn compute_ant_sacrifice_multiplier(state: &GameState) -> Decimal {
 /// `rebornELOCreationSpeedMultStats`. Sets how fast `immortalELO` bleeds into
 /// `rebornELO` per second in [`activate_elo`].
 ///
-/// Neutral-defaulted lines (faithful — identity at the current state):
-/// `MortuusTalisman` (talisman effect-level wiring is unported — P2.3 blocked;
-/// `MORTUUS_INSCRIPT_VALUES[0] = 1`) and `Exalt6` (singularity layer paused →
-/// `1`). The `CubeBlessing` line (`calculateAntELOCubeBlessing`) reads the live
-/// blessing cascade via `ant_elo_cube_blessing` now that `open()` (P3.2) makes
-/// the levels accrue.
+/// Neutral-defaulted lines (faithful — identity at the current state): only
+/// `Exalt6` (singularity layer paused → `1`). The `MortuusTalisman` line reads
+/// `mortuus_talisman_effects(talismanRarity[mortuus]).ant_bonus`
+/// (`MORTUUS_INSCRIPT_VALUES[rarity]`, identity at rarity 0) and the
+/// `CubeBlessing` line (`calculateAntELOCubeBlessing`) reads the live blessing
+/// cascade via `ant_elo_cube_blessing` — both wired now that the underlying
+/// state can accrue (talisman rarity / `open()` blessings).
 fn compute_reborn_elo_creation_speed_mult(state: &GameState) -> f64 {
     use crate::mechanics::ant_reborn_elo::{
         reborn_elo_stage_modifiers, RebornELOStageModifiersInput,
     };
     use crate::mechanics::calculate::product_f64;
+    use crate::mechanics::talisman_effects::mortuus_talisman_effects;
+    use crate::state::talismans::TALISMAN_MORTUUS;
 
     // Ant producer slots: Queens .. HolySpirit.
     const QUEENS: usize = 4;
@@ -131,7 +134,10 @@ fn compute_reborn_elo_creation_speed_mult(state: &GameState) -> f64 {
         if owned(DISCIPLES) { 2.0 } else { 1.0 },
         if owned(HOLY_SPIRIT) { 3.0 } else { 1.0 },
         stage_mods.reborn_speed_mult,
-        1.0, // MortuusTalisman — talisman effect level unported (P2.3) → 1
+        // MortuusTalisman — getTalismanEffects('mortuus').antBonus =
+        // MORTUUS_INSCRIPT_VALUES[talismanRarity[mortuus]] (1 at rarity 0).
+        mortuus_talisman_effects(state.talismans.talisman_rarity[TALISMAN_MORTUUS] as i32)
+            .ant_bonus,
         ant_elo_cube_blessing(state), // CubeBlessing — calculateAntELOCubeBlessing
         1.0 + state.cube_upgrade_levels.platonic_upgrades[PLATONIC_UPGRADE_12] / 10.0,
         1.0, // Exalt6 — singularity layer paused → 1
@@ -626,6 +632,15 @@ mod tests {
         assert_eq!(ant_elo_cube_blessing(&state), 1.0); // identity at level 0
         state.cube_blessings.ant_elo = 1e6;
         assert!(ant_elo_cube_blessing(&state) > 1.0);
+    }
+
+    #[test]
+    fn reborn_elo_rate_picks_up_mortuus_talisman_rarity() {
+        let mut state = GameState::default();
+        let base = compute_reborn_elo_creation_speed_mult(&state);
+        // Mortuus rarity 5 → MORTUUS_INSCRIPT_VALUES[5] = 1.3× the rate.
+        state.talismans.talisman_rarity[5] = 5.0;
+        assert!(compute_reborn_elo_creation_speed_mult(&state) > base);
     }
 
     #[test]
