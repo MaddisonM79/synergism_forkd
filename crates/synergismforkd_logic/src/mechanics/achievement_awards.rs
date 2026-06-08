@@ -537,6 +537,20 @@ pub fn ant_sacrifice_fragment_achievement_check(
     );
 }
 
+/// Award a single ungrouped achievement by index when `unlocked` and not
+/// already owned — the generic `awardUngroupedAchievement` →
+/// `awardAchievement(index)` path. `point_value` is that achievement's
+/// `pointValue`. (e.g. `oneCubeOfMany` #246, awarded on opening a single cube
+/// at high accelerator blessing.)
+pub fn award_ungrouped_achievement(
+    ach: &mut AchievementsState,
+    index: usize,
+    point_value: f64,
+    unlocked: bool,
+) {
+    award_achievement(ach, index, unlocked, point_value);
+}
+
 /// Apply one progressive-achievement update — a port of `updateProgressiveCache`
 /// and `updateProgressiveAP`. Bumps the cached value via `Math.max(cached,
 /// live_value)`, recomputes its awarded points via `points_of(cached_value)`,

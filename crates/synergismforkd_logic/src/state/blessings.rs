@@ -63,3 +63,57 @@ pub struct PlatonicBlessings {
     /// Global-speed blessing count.
     pub global_speed: f64,
 }
+
+impl BlessingValues {
+    /// Add a cube-open distribution in the legacy `cubeBlessings` key order
+    /// (accelerator, multiplier, offering, runeExp, obtainium, antSpeed,
+    /// antSacrifice, antELO, talismanBonus, globalSpeed) — the same order the
+    /// open-distribution weight/pdf tables use.
+    pub(crate) fn add_in_order(&mut self, increments: &[f64; 10]) {
+        self.accelerator += increments[0];
+        self.multiplier += increments[1];
+        self.offering += increments[2];
+        self.rune_exp += increments[3];
+        self.obtainium += increments[4];
+        self.ant_speed += increments[5];
+        self.ant_sacrifice += increments[6];
+        self.ant_elo += increments[7];
+        self.talisman_bonus += increments[8];
+        self.global_speed += increments[9];
+    }
+
+    /// Sum of all ten blessing counts — the legacy `sumContents(cubeBlessings)`
+    /// used for the `1e300` tribute cap on cube opening.
+    pub(crate) fn sum(&self) -> f64 {
+        self.accelerator
+            + self.multiplier
+            + self.offering
+            + self.rune_exp
+            + self.obtainium
+            + self.ant_speed
+            + self.ant_sacrifice
+            + self.ant_elo
+            + self.talisman_bonus
+            + self.global_speed
+    }
+}
+
+impl PlatonicBlessings {
+    /// Add an 8-slot platonic-open distribution in the legacy `platonicBlessings`
+    /// key order (cubes, tesseracts, hypercubes, platonics, hypercubeBonus,
+    /// taxes, **scoreBonus**, globalSpeed). The `scoreBonus` slot (index 6) is
+    /// dropped: the legacy schema stores it but no effect reads it (the
+    /// ascension-score reader reads `globalSpeed`), so this port omits the field
+    /// — its distribution share is still computed (for faithful remainder
+    /// accounting) and then discarded here.
+    pub(crate) fn add_from_eight(&mut self, increments: &[f64; 8]) {
+        self.cubes += increments[0];
+        self.tesseracts += increments[1];
+        self.hypercubes += increments[2];
+        self.platonics += increments[3];
+        self.hypercube_bonus += increments[4];
+        self.taxes += increments[5];
+        // increments[6] = scoreBonus — discarded (write-only dead field).
+        self.global_speed += increments[7];
+    }
+}

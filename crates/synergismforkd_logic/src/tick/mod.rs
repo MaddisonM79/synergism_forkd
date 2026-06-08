@@ -34,7 +34,7 @@ use smallvec::{smallvec, SmallVec};
 
 use synergismforkd_bignum::Decimal;
 
-use crate::events::{CoreEvent, ProducerType};
+use crate::events::{CoreEvent, CubeTier, ProducerType};
 use crate::mechanics::accelerators::{buy_accelerator, BuyAcceleratorInput};
 use crate::mechanics::achievement_rewards;
 use crate::mechanics::ant_producers::{buy_ant_producer, BuyAntProducerInput};
@@ -297,6 +297,17 @@ pub enum PlayerAction {
     EnterChallenge {
         /// Challenge index (`0..=15`; `0` exits the transcension slot).
         challenge: u32,
+    },
+    /// Open cubes of a tier (legacy `WowCubes.open` etc.): distribute blessings
+    /// into the matching `*_blessings` slice and credit any quark gift. `value`
+    /// is the count to open; `max` opens the whole balance (ignoring `value`).
+    OpenCubes {
+        /// Which cube tier to open.
+        tier: CubeTier,
+        /// Number of cubes to open (ignored when `max`).
+        value: f64,
+        /// Open the entire balance.
+        max: bool,
     },
 }
 
@@ -4978,6 +4989,11 @@ fn phase_player_input(
                 output
                     .events
                     .extend(enter_challenge(state, *challenge, reset_gains));
+            }
+            PlayerAction::OpenCubes { tier, value, max } => {
+                output.events.extend(crate::mechanics::cube_opening::open(
+                    state, *tier, *value, *max,
+                ));
             }
         }
     }

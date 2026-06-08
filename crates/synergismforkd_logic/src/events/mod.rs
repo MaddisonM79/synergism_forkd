@@ -621,6 +621,29 @@ pub enum CoreEvent {
         /// Quarks to credit (already multiplied by the quark bonus).
         quarks: f64,
     },
+    /// Cubes of a tier were opened — blessings have been distributed into the
+    /// matching `*_blessings` slice and any quark gift credited. Emitted by the
+    /// cube-open mechanic. The cascade's free re-opens of lower tiers emit
+    /// their own `CubesOpened` events.
+    CubesOpened {
+        /// Which cube tier was opened.
+        tier: CubeTier,
+        /// Number of cubes consumed from the balance.
+        spent: f64,
+    },
+}
+
+/// Which cube-tier currency a [`CoreEvent::CubesOpened`] / open action targets.
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum CubeTier {
+    /// Wow! Cubes.
+    Cubes,
+    /// Wow! Tesseracts.
+    Tesseracts,
+    /// Wow! Hypercubes.
+    Hypercubes,
+    /// Platonic Cubes.
+    Platonic,
 }
 
 #[cfg(test)]
