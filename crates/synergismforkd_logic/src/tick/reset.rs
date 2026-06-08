@@ -121,11 +121,12 @@ pub(crate) fn perform_prestige_reset(
     // resetAchievementCheck('prestige') runs before reset() in the legacy
     // trigger, so the offering award inside the base reset sees the updated
     // achievement_points.
-    crate::mechanics::achievement_awards::reset_achievement_check(
+    let awarded = crate::mechanics::achievement_awards::reset_achievement_check(
         &mut state.achievements,
         AutoResetTier::Prestige,
         prestige_point_gain,
     );
+    super::credit_achievement_quarks(state, awarded);
     apply_base_reset(state, prestige_point_gain);
     smallvec![CoreEvent::ResetPerformed {
         tier: AutoResetTier::Prestige,
@@ -207,11 +208,12 @@ pub(crate) fn perform_transcension_reset(
     state: &mut GameState,
     gains: &ResetCurrencyResult,
 ) -> SmallVec<[CoreEvent; 2]> {
-    crate::mechanics::achievement_awards::reset_achievement_check(
+    let awarded = crate::mechanics::achievement_awards::reset_achievement_check(
         &mut state.achievements,
         AutoResetTier::Transcension,
         gains.transcend_point_gain,
     );
+    super::credit_achievement_quarks(state, awarded);
     apply_base_reset(state, gains.prestige_point_gain);
     apply_transcension_layer(state, gains.transcend_point_gain);
     smallvec![CoreEvent::ResetPerformed {
@@ -297,11 +299,12 @@ pub(crate) fn perform_reincarnation_reset(
 ) -> SmallVec<[CoreEvent; 2]> {
     // resetAchievementCheck('reincarnation') runs first, so the obtainium and
     // offering awards below read the updated achievement_points.
-    crate::mechanics::achievement_awards::reset_achievement_check(
+    let awarded = crate::mechanics::achievement_awards::reset_achievement_check(
         &mut state.achievements,
         AutoResetTier::Reincarnation,
         gains.reincarnation_point_gain,
     );
+    super::credit_achievement_quarks(state, awarded);
     // `reincarnationCheck` is the *pre-reset* shard total — capture it
     // before the transcension layer zeroes `transcend_shards`.
     let reincarnation_check = state.reset_counters.transcend_shards

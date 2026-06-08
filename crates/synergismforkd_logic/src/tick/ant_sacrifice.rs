@@ -338,22 +338,24 @@ pub(super) fn perform_ant_sacrifice(
     let immortal_elo = state.ants.immortal_elo;
     let producer_owned: [bool; 9] =
         std::array::from_fn(|i| state.ants.producers[i].purchased > 0.0);
-    achievement_awards::sac_mult_achievement_check(
+    let awarded = achievement_awards::sac_mult_achievement_check(
         &mut state.achievements,
         immortal_elo,
         &producer_owned,
     );
+    super::credit_achievement_quarks(state, awarded);
 
     reset_ants_for_sacrifice(state);
 
     // Trailing ungrouped seeingRed / seeingRedNoBlue checks (post-reset in
     // `sacrificeAnts`; the reset does not touch the mythical-fragment balance).
     let mythical_fragments = state.talismans.mythical_fragments;
-    achievement_awards::ant_sacrifice_fragment_achievement_check(
+    let awarded = achievement_awards::ant_sacrifice_fragment_achievement_check(
         &mut state.achievements,
         mythical_fragments,
         in_challenge_14,
     );
+    super::credit_achievement_quarks(state, awarded);
 
     smallvec![CoreEvent::AntSacrificePerformed {
         offerings_gained,
@@ -409,10 +411,11 @@ fn reset_ants_for_sacrifice(state: &mut GameState) {
 
     // awardAchievementGroup('sacCount') — on the updated sacrifice count.
     let sacrifice_count = state.ants.ant_sacrifice_count;
-    crate::mechanics::achievement_awards::sac_count_achievement_check(
+    let awarded = crate::mechanics::achievement_awards::sac_count_achievement_check(
         &mut state.achievements,
         sacrifice_count,
     );
+    super::credit_achievement_quarks(state, awarded);
 
     // Timers reset.
     state.ants.ant_sacrifice_timer = 0.0;

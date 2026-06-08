@@ -5331,11 +5331,12 @@ fn complete_active_challenge(
     // challengeAchievementCheck(q) — award the challengeN group from the
     // updated completion count (the legacy resetCheck calls it after the
     // completion increments).
-    crate::mechanics::achievement_awards::challenge_achievement_check(
+    let awarded = crate::mechanics::achievement_awards::challenge_achievement_check(
         &mut state.achievements,
         q_idx,
         &state.challenges.challenge_completions,
     );
+    credit_achievement_quarks(state, awarded);
     while state.challenges.challenge_completions[q_idx]
         > state.challenges.highest_challenge_completions[q_idx]
     {
@@ -6052,14 +6053,27 @@ fn inside_singularity_challenge(s: &crate::state::SingularityState) -> bool {
 // ─── Dispatch helpers ────────────────────────────────────────────────────
 
 /// `buildingAchievementCheck()` — run after a coin-producer buy to award the
+/// Credit the per-achievement quark reward for `count` newly-awarded
+/// achievements (legacy `awardAchievement`'s `player.worlds.add`). Threads the
+/// `GameState` quark slices into the slice-based reward helper.
+pub(crate) fn credit_achievement_quarks(state: &mut GameState, count: usize) {
+    crate::mechanics::achievement_awards::credit_achievement_quarks(
+        &mut state.quarks.worlds,
+        &mut state.golden_quarks.quarks_this_singularity,
+        state.quarks.quark_bonus,
+        count,
+    );
+}
+
 /// `*OwnedCoin` achievement groups from the current owned counts (the legacy
 /// `buyBuilding` calls it on every building purchase).
 fn check_coin_building_achievements(state: &mut GameState) {
     let coin_owned: [f64; 5] = std::array::from_fn(|i| state.coin_producers.tiers[i].owned);
-    crate::mechanics::achievement_awards::building_achievement_check(
+    let awarded = crate::mechanics::achievement_awards::building_achievement_check(
         &mut state.achievements,
         &coin_owned,
     );
+    credit_achievement_quarks(state, awarded);
 }
 
 fn dispatch_buy(state: &mut GameState, req: &BuyRequest) -> SmallVec<[CoreEvent; 4]> {
@@ -7878,8 +7892,10 @@ mod tests {
         assert!(
             matches!(quark_events[0], CoreEvent::QuarksAwarded { quarks } if (*quarks - 1.0).abs() < 1e-9)
         );
-        assert!((state.quarks.worlds.to_number() - 1.0).abs() < 1e-9);
-        assert!((state.golden_quarks.quarks_this_singularity - 1.0).abs() < 1e-9);
+        // worlds = 1 (highest-challenge reward) + 5 (the challenge-1 achievement
+        // award now grants getAchievementQuarks() = 5 at the default quark bonus).
+        assert!((state.quarks.worlds.to_number() - 6.0).abs() < 1e-9);
+        assert!((state.golden_quarks.quarks_this_singularity - 6.0).abs() < 1e-9);
     }
 
     #[test]
@@ -7901,7 +7917,9 @@ mod tests {
             .events
             .iter()
             .any(|e| matches!(e, CoreEvent::QuarksAwarded { .. })));
-        assert_eq!(state.quarks.worlds.to_number(), 0.0);
+        // The highest-challenge reward is gated off (no QuarksAwarded event), but
+        // the challenge-1 achievement still grants its 5 quarks (ungated).
+        assert_eq!(state.quarks.worlds.to_number(), 5.0);
     }
 
     #[test]

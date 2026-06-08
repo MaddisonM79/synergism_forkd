@@ -157,7 +157,14 @@ pub(crate) fn open_cubes(
 
     // oneCubeOfMany — opening exactly one cube at >= 2e11 accelerator blessing.
     if value == 1.0 && state.cube_blessings.accelerator >= 2e11 {
-        award_ungrouped_achievement(&mut state.achievements, ONE_CUBE_OF_MANY, 50.0, true);
+        let awarded =
+            award_ungrouped_achievement(&mut state.achievements, ONE_CUBE_OF_MANY, 50.0, true);
+        crate::mechanics::achievement_awards::credit_achievement_quarks(
+            &mut state.quarks.worlds,
+            &mut state.golden_quarks.quarks_this_singularity,
+            state.quarks.quark_bonus,
+            awarded,
+        );
     }
 
     if !free {

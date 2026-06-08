@@ -25,15 +25,22 @@
 //! brace-matched parse, not hand-counted) to avoid index-transcription
 //! drift.
 //!
-//! ## Deferred (faithful: those bits stay `0`, as before)
+//! ## Implemented since slice 1
 //!
-//! - The ungrouped no-accelerator / no-mult / no-upgrade reset
-//!   achievements (indices 57–74) — they need the timing-sensitive
-//!   `*no*` flags + a name→index map; they land with the ungrouped tail.
-//! - `challengeAchievementCheck` (the 14 challenge groups) — slice 2.
-//! - Progressive achievements (the `Math.max` cache system) — slice 3.
-//! - The quark reward on award (`player.worlds.add(getAchievementQuarks())`)
-//!   — a separable currency effect; see [`super::achievement_points`].
+//! - `challengeAchievementCheck` (the 14 challenge groups) — slice 2;
+//!   progressive achievements (the `Math.max` cache) — slice 3a; the
+//!   `sacMult` / `sacCount` and ungrouped (`seeingRed`, `oneCubeOfMany`)
+//!   sacrifice & cube achievements.
+//! - The per-achievement quark reward (`player.worlds.add(getAchievementQuarks())`):
+//!   `award_achievement` returns whether it newly awarded, the check helpers sum
+//!   that into a count, and each call site credits it via
+//!   `credit_achievement_quarks`.
+//!
+//! ## Still deferred (faithful: those bits stay `0`)
+//!
+//! - The ungrouped no-accelerator / no-mult / no-upgrade reset achievements
+//!   (indices 57–74) — they need the timing-sensitive `*no*` flags + a
+//!   name→index map; they land with the ungrouped tail.
 //!
 //! Points accumulate **incrementally** here (`achievement_points +=
 //! pointValue`), mirroring `awardAchievement`. The full-recompute path
@@ -381,34 +388,45 @@ fn award_achievement(
 }
 
 /// Award every row in a building group whose owned threshold `value` meets.
-fn award_threshold_group(ach: &mut AchievementsState, value: f64, table: &[ThresholdRow]) {
+/// Returns the count of achievements newly awarded (for the per-achievement
+/// quark reward).
+fn award_threshold_group(ach: &mut AchievementsState, value: f64, table: &[ThresholdRow]) -> usize {
+    let mut awarded = 0;
     for &(index, threshold, point_value) in table {
-        award_achievement(ach, index, value >= threshold, point_value);
+        if award_achievement(ach, index, value >= threshold, point_value) {
+            awarded += 1;
+        }
     }
+    awarded
 }
 
 /// Award every row in a point-gain group whose `10^threshold` the `gain`
 /// meets, compared in log10 space. A non-positive gain (a zero-gain reset)
-/// awards nothing — every row requires `gain >= 1`.
-fn award_log10_group(ach: &mut AchievementsState, gain: Decimal, table: &[Log10Row]) {
+/// awards nothing — every row requires `gain >= 1`. Returns the count newly
+/// awarded.
+fn award_log10_group(ach: &mut AchievementsState, gain: Decimal, table: &[Log10Row]) -> usize {
     if gain <= Decimal::zero() {
-        return;
+        return 0;
     }
     let log10 = gain.log10().to_number();
+    let mut awarded = 0;
     for &(index, threshold, point_value) in table {
-        award_achievement(ach, index, log10 >= threshold, point_value);
+        if award_achievement(ach, index, log10 >= threshold, point_value) {
+            awarded += 1;
+        }
     }
+    awarded
 }
 
 /// `buildingAchievementCheck()` — award the five `*OwnedCoin` groups from the
 /// owned coin-producer counts (`coin_owned[0..5]` = first..fifth owned coin).
 /// Called after a coin-producer buy.
-pub fn building_achievement_check(ach: &mut AchievementsState, coin_owned: &[f64; 5]) {
-    award_threshold_group(ach, coin_owned[0], FIRST_OWNED_COIN);
-    award_threshold_group(ach, coin_owned[1], SECOND_OWNED_COIN);
-    award_threshold_group(ach, coin_owned[2], THIRD_OWNED_COIN);
-    award_threshold_group(ach, coin_owned[3], FOURTH_OWNED_COIN);
-    award_threshold_group(ach, coin_owned[4], FIFTH_OWNED_COIN);
+pub fn building_achievement_check(ach: &mut AchievementsState, coin_owned: &[f64; 5]) -> usize {
+    award_threshold_group(ach, coin_owned[0], FIRST_OWNED_COIN)
+        + award_threshold_group(ach, coin_owned[1], SECOND_OWNED_COIN)
+        + award_threshold_group(ach, coin_owned[2], THIRD_OWNED_COIN)
+        + award_threshold_group(ach, coin_owned[3], FOURTH_OWNED_COIN)
+        + award_threshold_group(ach, coin_owned[4], FIFTH_OWNED_COIN)
 }
 
 /// `resetAchievementCheck(reset)` — slice-1 subset: the per-tier point-gain
@@ -420,14 +438,18 @@ pub fn building_achievement_check(ach: &mut AchievementsState, coin_owned: &[f64
 /// `Ascension` awards no point-gain group (faithful to
 /// `resetAchievementCheck('ascension')`). The ungrouped no-* reset
 /// achievements are deferred (see module docs).
-pub fn reset_achievement_check(ach: &mut AchievementsState, tier: AutoResetTier, gain: Decimal) {
+pub fn reset_achievement_check(
+    ach: &mut AchievementsState,
+    tier: AutoResetTier,
+    gain: Decimal,
+) -> usize {
     let table = match tier {
         AutoResetTier::Prestige => PRESTIGE_POINT_GAIN,
         AutoResetTier::Transcension => TRANSCEND_POINT_GAIN,
         AutoResetTier::Reincarnation => REINCARNATION_POINT_GAIN,
-        AutoResetTier::Ascension => return,
+        AutoResetTier::Ascension => return 0,
     };
-    award_log10_group(ach, gain, table);
+    award_log10_group(ach, gain, table)
 }
 
 /// `challengeAchievementCheck(i)` — award the `challengeI` group from the
@@ -439,7 +461,7 @@ pub fn challenge_achievement_check(
     ach: &mut AchievementsState,
     challenge: usize,
     challenge_completions: &[f64],
-) {
+) -> usize {
     let table: &[ThresholdRow] = match challenge {
         1 => CHALLENGE_1,
         2 => CHALLENGE_2,
@@ -455,9 +477,9 @@ pub fn challenge_achievement_check(
         12 => CHALLENGE_12,
         13 => CHALLENGE_13,
         14 => CHALLENGE_14,
-        _ => return,
+        _ => return 0,
     };
-    award_threshold_group(ach, challenge_completions[challenge], table);
+    award_threshold_group(ach, challenge_completions[challenge], table)
 }
 
 /// `sacCount` achievement group — `antSacrificeCount >= threshold`. Awarded
@@ -480,8 +502,8 @@ const SAC_COUNT: &[ThresholdRow] = &[
 ];
 
 /// `awardAchievementGroup('sacCount')` — the ant-sacrifice-count milestones.
-pub fn sac_count_achievement_check(ach: &mut AchievementsState, ant_sacrifice_count: f64) {
-    award_threshold_group(ach, ant_sacrifice_count, SAC_COUNT);
+pub fn sac_count_achievement_check(ach: &mut AchievementsState, ant_sacrifice_count: f64) -> usize {
+    award_threshold_group(ach, ant_sacrifice_count, SAC_COUNT)
 }
 
 /// `sacMult` achievement group — the compound condition
@@ -508,11 +530,15 @@ pub fn sac_mult_achievement_check(
     ach: &mut AchievementsState,
     immortal_elo: f64,
     producer_owned: &[bool; 9],
-) {
+) -> usize {
+    let mut awarded = 0;
     for &(index, elo_req, tier, point_value) in SAC_MULT {
         let owned = tier.is_none_or(|t| producer_owned[t]);
-        award_achievement(ach, index, immortal_elo >= elo_req && owned, point_value);
+        if award_achievement(ach, index, immortal_elo >= elo_req && owned, point_value) {
+            awarded += 1;
+        }
     }
+    awarded
 }
 
 /// The two ungrouped mythical-fragment achievements checked after a sacrifice:
@@ -525,16 +551,20 @@ pub fn ant_sacrifice_fragment_achievement_check(
     ach: &mut AchievementsState,
     mythical_fragments: f64,
     in_ascension_challenge_14: bool,
-) {
+) -> usize {
     const SEEING_RED: usize = 239;
     const SEEING_RED_NO_BLUE: usize = 248;
-    award_achievement(ach, SEEING_RED, mythical_fragments >= 1e25, 50.0);
-    award_achievement(
+    usize::from(award_achievement(
+        ach,
+        SEEING_RED,
+        mythical_fragments >= 1e25,
+        50.0,
+    )) + usize::from(award_achievement(
         ach,
         SEEING_RED_NO_BLUE,
         mythical_fragments >= 1e11 && in_ascension_challenge_14,
         50.0,
-    );
+    ))
 }
 
 /// Award a single ungrouped achievement by index when `unlocked` and not
@@ -547,8 +577,40 @@ pub fn award_ungrouped_achievement(
     index: usize,
     point_value: f64,
     unlocked: bool,
+) -> usize {
+    usize::from(award_achievement(ach, index, unlocked, point_value))
+}
+
+/// `getAchievementQuarks()` — quarks granted per achievement award:
+/// `floor(5 × applyBonus(1))`, where `applyBonus(1) = 1 + quark_bonus / 100`
+/// (the cached quark multiplier), soft-capped at `100^0.6 × m^0.4` once it
+/// exceeds 100.
+#[must_use]
+pub fn get_achievement_quarks(quark_bonus: f64) -> f64 {
+    let mut multiplier = 1.0 + quark_bonus / 100.0;
+    if multiplier > 100.0 {
+        multiplier = 100.0_f64.powf(0.6) * multiplier.powf(0.4);
+    }
+    (5.0 * multiplier).floor()
+}
+
+/// Credit the per-achievement quark reward (legacy `awardAchievement`'s
+/// `player.worlds.add(getAchievementQuarks(), false, true)`): `count`
+/// newly-awarded achievements each grant `get_achievement_quarks(quark_bonus)`,
+/// credited to `worlds` + `quarks_this_singularity`. No `QuarksAwarded` event —
+/// the achievement awards already signal the gain to the UI.
+pub fn credit_achievement_quarks(
+    worlds: &mut Decimal,
+    quarks_this_singularity: &mut f64,
+    quark_bonus: f64,
+    count: usize,
 ) {
-    award_achievement(ach, index, unlocked, point_value);
+    if count == 0 {
+        return;
+    }
+    let total = get_achievement_quarks(quark_bonus) * count as f64;
+    *worlds += Decimal::from_finite(total);
+    *quarks_this_singularity += total;
 }
 
 /// Apply one progressive-achievement update — a port of `updateProgressiveCache`
@@ -772,5 +834,29 @@ mod tests {
         ant_sacrifice_fragment_achievement_check(&mut c14, 1e11, true);
         assert_ne!(c14.achievements[248], 0); // >= 1e11 inside ascension c14
         assert_eq!(c14.achievements[239], 0); // 1e11 < 1e25
+    }
+
+    #[test]
+    fn achievement_quarks_default_is_five_with_soft_cap() {
+        // quark_bonus 0 → multiplier 1 → floor(5 × 1) = 5.
+        assert_eq!(get_achievement_quarks(0.0), 5.0);
+        // multiplier exactly 100 (bonus 9900) → no cap → floor(5 × 100) = 500.
+        assert_eq!(get_achievement_quarks(9900.0), 500.0);
+        // multiplier 200 (> 100) → soft cap 100^0.6 × 200^0.4.
+        let expected = (5.0 * (100.0_f64.powf(0.6) * 200.0_f64.powf(0.4))).floor();
+        assert_eq!(get_achievement_quarks(19_900.0), expected);
+    }
+
+    #[test]
+    fn credit_achievement_quarks_scales_with_count() {
+        let mut worlds = Decimal::zero();
+        let mut quarks_this_singularity = 0.0;
+        // 3 achievements × 5 quarks each at the default bonus.
+        credit_achievement_quarks(&mut worlds, &mut quarks_this_singularity, 0.0, 3);
+        assert_eq!(worlds.to_number(), 15.0);
+        assert_eq!(quarks_this_singularity, 15.0);
+        // count 0 is a no-op.
+        credit_achievement_quarks(&mut worlds, &mut quarks_this_singularity, 0.0, 0);
+        assert_eq!(worlds.to_number(), 15.0);
     }
 }
