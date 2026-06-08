@@ -5112,15 +5112,17 @@ fn phase_challenge_completion(
     output: &mut TickOutput,
 ) {
     use crate::mechanics::challenges::{
-        challenge_requirement, get_max_challenges, ChallengeRequirementInput,
-        GetMaxChallengesInput, CHALLENGE_BASE_REQUIREMENTS,
+        challenge_15_score_multiplier, challenge_requirement, get_max_challenges,
+        Challenge15ScoreMultiplierInput, ChallengeRequirementInput, GetMaxChallengesInput,
+        CHALLENGE_BASE_REQUIREMENTS,
     };
     use crate::mechanics::shop_upgrades::{
         challenge_extension_effect, instant_challenge_2_effect, instant_challenge_effect,
         InstantChallengeKey, InstantChallengeValue,
     };
     use crate::state::shop::{
-        SHOP_CHALLENGE_EXTENSION, SHOP_INSTANT_CHALLENGE, SHOP_INSTANT_CHALLENGE_2,
+        SHOP_CHALLENGE_15_AUTO, SHOP_CHALLENGE_EXTENSION, SHOP_INSTANT_CHALLENGE,
+        SHOP_INSTANT_CHALLENGE_2,
     };
 
     const PLATONIC_UPGRADE_8: usize = 8;
@@ -5299,6 +5301,41 @@ fn phase_challenge_completion(
                 gains,
                 output,
             );
+        }
+    }
+
+    // ── Ascension challenge 15: exponent accrual.
+    // c15 does NOT increment `challengecompletions`; instead `challenge15Exponent`
+    // grows from coins, and the (already-ported) `challenge_15_rewards::*` cascade
+    // reads that exponent live. Synergism.ts:4514-4525 ("Challenge 15 autoupdate")
+    // and the `a === 15` branch of `resetCheck` (3760-3784) share the same body.
+    // The only tick-reachable trigger is the `challenge15Auto` shop upgrade — the
+    // manual / leaving-the-challenge update is UI-tier (deferred). `c15RewardUpdate()`
+    // is a no-op for us (rewards are read live), and the
+    // `challenge15Exponent >= 1e15 → unlocks.hepteracts` side-effect is already
+    // covered: the hepteract-gain gate reads
+    // `challenge_15_rewards::hepteracts_unlocked(exponent)` directly (calculate.rs).
+    if qa == 15 && state.shop.upgrades[SHOP_CHALLENGE_15_AUTO] > 0.0 {
+        // challenge15ScoreMultiplier(): campaign · challenge-hepteract · OMEGA.
+        let c15_sm = challenge_15_score_multiplier(&Challenge15ScoreMultiplierInput {
+            // Campaign subsystem unported → neutral (mirrors the `campaign_*` legs
+            // elsewhere in the tick, e.g. `campaign_ascension_score_mult`).
+            c15_bonus: 1.0,
+            // `hepteractEffective('challenge')` — challenge craft LIMIT 1000, DR 1/6,
+            // DR_INCREASE 0 (Hepteracts.ts:190-192).
+            challenge_hepteract_effective: hepteract_effective_bal(
+                state.hepteracts.challenge.bal,
+                1.0 / 6.0,
+            ),
+            platonic_upgrade_15: state.cube_upgrade_levels.platonic_upgrades[PLATONIC_UPGRADE_15],
+        });
+        // Grow only once coins clear the next threshold `10^(exponent / c15SM)`.
+        let threshold = Decimal::from_finite(10.0).pow(Decimal::from_finite(
+            state.challenges.challenge15_exponent / c15_sm,
+        ));
+        if state.upgrades.coins >= threshold {
+            state.challenges.challenge15_exponent =
+                (state.upgrades.coins + Decimal::one()).log10().to_number() * c15_sm;
         }
     }
 }
@@ -7650,6 +7687,108 @@ mod tests {
         assert_eq!(state.challenges.challenge_completions[11], 0.0);
         assert_eq!(state.challenges.current_ascension_challenge, 11); // still in
         assert!(!state.reset_counters.tesseracts_unlocked);
+    }
+
+    #[test]
+    fn phase_challenge_completion_c15_quiescent_without_auto() {
+        use crate::mechanics::reset_currency::ResetCurrencyResult;
+        use crate::state::shop::SHOP_CHALLENGE_15_AUTO;
+        let mut state = GameState::default();
+        state.challenges.current_ascension_challenge = 15;
+        state.upgrades.coins = Decimal::from_finite(1e6);
+        // challenge15Auto NOT unlocked → the tick autoupdate must not fire
+        // (the manual update path is UI-tier).
+        assert_eq!(state.shop.upgrades[SHOP_CHALLENGE_15_AUTO], 0.0);
+        let gains = ResetCurrencyResult {
+            prestige_point_gain: Decimal::zero(),
+            transcend_point_gain: Decimal::zero(),
+            reincarnation_point_gain: Decimal::zero(),
+        };
+        let mut output = TickOutput::default();
+        phase_challenge_completion(&mut state, &gains, &mut output);
+        assert_eq!(state.challenges.challenge15_exponent, 0.0);
+    }
+
+    #[test]
+    fn phase_challenge_completion_c15_accrues_with_auto() {
+        use crate::mechanics::reset_currency::ResetCurrencyResult;
+        use crate::state::shop::SHOP_CHALLENGE_15_AUTO;
+        let mut state = GameState::default();
+        state.challenges.current_ascension_challenge = 15;
+        state.shop.upgrades[SHOP_CHALLENGE_15_AUTO] = 1.0; // challenge15Auto unlocked
+        state.upgrades.coins = Decimal::from_finite(1e6);
+        let gains = ResetCurrencyResult {
+            prestige_point_gain: Decimal::zero(),
+            transcend_point_gain: Decimal::zero(),
+            reincarnation_point_gain: Decimal::zero(),
+        };
+        let mut output = TickOutput::default();
+        phase_challenge_completion(&mut state, &gains, &mut output);
+        // c15SM = 1 at default legs (campaign 1, no challenge hept, platonic[15]=0),
+        // so exponent = log10(1e6 + 1) * 1 ≈ 6.0.
+        assert!((state.challenges.challenge15_exponent - 6.0).abs() < 1e-3);
+    }
+
+    #[test]
+    fn phase_challenge_completion_c15_threshold_gates_growth() {
+        use crate::mechanics::reset_currency::ResetCurrencyResult;
+        use crate::state::shop::SHOP_CHALLENGE_15_AUTO;
+        let mut state = GameState::default();
+        state.challenges.current_ascension_challenge = 15;
+        state.shop.upgrades[SHOP_CHALLENGE_15_AUTO] = 1.0;
+        // Already-high exponent → next threshold is 10^(100/1) = 1e100.
+        state.challenges.challenge15_exponent = 100.0;
+        state.upgrades.coins = Decimal::from_finite(1e6);
+        let gains = ResetCurrencyResult {
+            prestige_point_gain: Decimal::zero(),
+            transcend_point_gain: Decimal::zero(),
+            reincarnation_point_gain: Decimal::zero(),
+        };
+        let mut output = TickOutput::default();
+        phase_challenge_completion(&mut state, &gains, &mut output);
+        // Coins (1e6) < threshold (1e100) → exponent unchanged.
+        assert_eq!(state.challenges.challenge15_exponent, 100.0);
+    }
+
+    #[test]
+    fn phase_challenge_completion_c15_exponent_lights_reward_cascade() {
+        use crate::mechanics::challenge_15_rewards;
+        use crate::mechanics::reset_currency::ResetCurrencyResult;
+        use crate::state::shop::SHOP_CHALLENGE_15_AUTO;
+        // The whole point of the accrual: a frozen-0 exponent leaves every
+        // c15 reward at identity; a grown exponent lights the cascade.
+        assert_eq!(challenge_15_rewards::coin_exponent(0.0), 1.0);
+        let mut state = GameState::default();
+        state.challenges.current_ascension_challenge = 15;
+        state.shop.upgrades[SHOP_CHALLENGE_15_AUTO] = 1.0;
+        // coins = 1e4000 → exponent ≈ 4000, past coin_exponent's 3000 requirement.
+        state.upgrades.coins = Decimal::from_finite(10.0).pow(Decimal::from_finite(4000.0));
+        let gains = ResetCurrencyResult {
+            prestige_point_gain: Decimal::zero(),
+            transcend_point_gain: Decimal::zero(),
+            reincarnation_point_gain: Decimal::zero(),
+        };
+        let mut output = TickOutput::default();
+        phase_challenge_completion(&mut state, &gains, &mut output);
+        assert!(state.challenges.challenge15_exponent > 3000.0);
+        assert!(challenge_15_rewards::coin_exponent(state.challenges.challenge15_exponent) > 1.0);
+    }
+
+    #[test]
+    fn tack_accrues_challenge_15_exponent_end_to_end() {
+        // The orchestrator runs the c15 accrual during a normal tick (closes the
+        // "is the new phase actually wired into tack" blind spot).
+        use crate::state::shop::SHOP_CHALLENGE_15_AUTO;
+        let mut state = GameState::default();
+        state.challenges.current_ascension_challenge = 15;
+        state.shop.upgrades[SHOP_CHALLENGE_15_AUTO] = 1.0;
+        state.upgrades.coins = Decimal::from_finite(1e6);
+        let input = TackInput {
+            dt: 0.025,
+            ..TackInput::default()
+        };
+        let _ = tack(&mut state, &input);
+        assert!(state.challenges.challenge15_exponent > 0.0);
     }
 
     #[test]
