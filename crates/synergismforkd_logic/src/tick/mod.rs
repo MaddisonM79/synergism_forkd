@@ -418,6 +418,37 @@ pub enum ResetRequest {
     AscensionChallenge,
 }
 
+/// `forcedDailyReset` (Calculate.ts:1638) — the once-per-real-day bookkeeping
+/// reset. A **host seam**: the logic crate has no clock, so a host (web/desktop)
+/// calls this when its `dailyResetCheck` detects a new calendar day. Zeroes the
+/// per-day cube-opening counters and the reborn-ELO daily leaderboard; the
+/// latter (`resetPlayerRebornELODaily`) also clears `quarks_gained_from_ants`,
+/// so the next day's ant-sacrifice quark award restarts from a clean delta. The
+/// all-time `highest_reborn_elo_ever` leaderboard is intentionally left intact.
+///
+/// The `rewards = true` overflux branch (`overfluxPowder += overfluxOrbs *
+/// calculatePowderConversion()`; `overfluxOrbs = challenge15Rewards.freeOrbs`)
+/// is **not** ported: `calculatePowderConversion`'s full formula and the c15
+/// `freeOrbs` reward are unported. The counter reset is the portion that maps to
+/// ported state — and `forcedDailyReset` deliberately awards no powder / expires
+/// no orbs on the manual (`rewards = false`) path regardless.
+pub fn daily_reset(state: &mut GameState) {
+    let cubes = &mut state.cube_balances;
+    cubes.cube_quark_daily = 0.0;
+    cubes.tesseract_quark_daily = 0.0;
+    cubes.hypercube_quark_daily = 0.0;
+    cubes.platonic_cube_quark_daily = 0.0;
+    cubes.cube_opened_daily = 0.0;
+    cubes.tesseract_opened_daily = 0.0;
+    cubes.hypercube_opened_daily = 0.0;
+    cubes.platonic_cube_opened_daily = 0.0;
+
+    // resetPlayerRebornELODaily(): empty the daily leaderboard + zero the running
+    // ant-quark total (defaultHighestRebornELODaily = [], defaultQuarksGainedFromAnts = 0).
+    state.ants.highest_reborn_elo_daily.clear();
+    state.ants.quarks_gained_from_ants = 0.0;
+}
+
 /// Result of [`tack`]. The accumulated event stream is the only output
 /// the UI tier reads from a tick today; derived stats and dirty flags
 /// land here once Phase 2 acquires a `state.g_cache` slice to read from.
@@ -670,14 +701,23 @@ fn hepteract_effective_bal(raw_amount: f64, dr_exponent: f64) -> f64 {
 
 /// `firstFiveEffectiveRuneLevelMult` (Statistics.ts `firstFiveRuneEffectivenessStats`):
 /// the product applied to the first five runes' level. The eight research
-/// factors, `ConstantUpgrade9`, and `Research4x9` are live; the `Challenge15`
-/// rune bonus, the `MidasTribute` cube-blessing chain, and the `AchievementBonus`
-/// quark-gain reward are neutral-defaulted to `1.0` (unported / blessing chain
-/// deferred / achievements unported, H5). Identity at the default state.
-/// TS-anchored against the verbatim Statistics.ts expressions.
+/// factors, `ConstantUpgrade9`, `Research4x9`, and the `MidasTribute`
+/// cube-blessing cascade are live; only the `Challenge15` rune bonus stays
+/// neutral-defaulted to `1.0` (its `challenge_15_rewards` reader is unported).
+/// (A spurious `quarkGain` factor was dropped here — `getAchievementReward('quarkGain')`
+/// is an `allQuarkStats` term, not part of `firstFiveRuneEffectivenessStats`.)
+/// Identity at the default state. TS-anchored against the verbatim Statistics.ts.
 fn first_five_effective_rune_level_mult(state: &GameState) -> f64 {
     use crate::mechanics::calculate::product_f64;
     use crate::mechanics::challenges::{calc_ecc, ChallengeType};
+    use crate::mechanics::cube_blessings::calculate_rune_effectiveness_cube_blessing;
+    use crate::mechanics::hypercube_blessings::calculate_rune_effectiveness_hypercube_blessing;
+    use crate::mechanics::platonic_blessings::calculate_hypercube_blessing_multiplier_platonic_blessing;
+    use crate::mechanics::tesseract_blessings::calculate_rune_effectiveness_tesseract_blessing;
+
+    // `player.cubeUpgrades[44]` — the rune-effectiveness cube-blessing DR increase.
+    const CUBE_UPGRADE_RUNE_EFFECTIVENESS_BLESSING: usize = 44;
+
     let research = &state.researches.researches;
     let cc = &state.challenges.challenge_completions;
     // ConstantUpgrade9: 1 + 0.01·log4(talismanShards+1)·min(1, constantUpgrades[9]).
@@ -685,6 +725,26 @@ fn first_five_effective_rune_level_mult(state: &GameState) -> f64 {
         + 0.01
             * ((state.talismans.talisman_shards + 1.0).ln() / 4.0_f64.ln())
             * state.campaigns.constant_upgrades[9].min(1.0);
+
+    // MidasTribute = calculateRuneEffectivenessCubeBlessing(): the cube-blessing
+    // cascade (platonic → hypercube → tesseract → cube), now live since open()
+    // (P3.2) makes the blessing levels accrue. Identity at level 0.
+    let platonic_amplifier =
+        calculate_hypercube_blessing_multiplier_platonic_blessing(&state.platonic_blessings);
+    let hypercube_blessing = calculate_rune_effectiveness_hypercube_blessing(
+        &state.hypercube_blessings,
+        platonic_amplifier,
+    );
+    let tesseract_blessing = calculate_rune_effectiveness_tesseract_blessing(
+        &state.tesseract_blessings,
+        hypercube_blessing,
+    );
+    let midas_tribute = calculate_rune_effectiveness_cube_blessing(
+        &state.cube_blessings,
+        tesseract_blessing,
+        state.cube_upgrade_levels.cube_upgrades[CUBE_UPGRADE_RUNE_EFFECTIVENESS_BLESSING],
+    );
+
     product_f64(&[
         1.0 + research[4] / 10.0 * (1.0 + calc_ecc(ChallengeType::Ascension, cc[14])),
         1.0 + research[21] / 100.0,
@@ -695,10 +755,9 @@ fn first_five_effective_rune_level_mult(state: &GameState) -> f64 {
         1.0 + (research[176] / 200.0 * 2.0) / 5.0,
         1.0 + (research[191] / 200.0) / 5.0,
         const_upgrade_9,
-        1.0, // Challenge15 runeBonus -> neutral (unported)
-        1.0, // MidasTribute cube blessing -> neutral (blessing chain deferred)
-        1.0 + research[84] / 200.0,
-        1.0, // AchievementBonus quarkGain -> neutral (achievements unported, H5)
+        1.0,           // Challenge15 runeBonus -> neutral (challenge_15_rewards reader unported)
+        midas_tribute, // MidasTribute = rune-effectiveness cube-blessing cascade
+        1.0 + research[84] / 200.0, // Research4x9 (runeEffectivenessStatsSI)
     ])
 }
 
@@ -5112,15 +5171,17 @@ fn phase_challenge_completion(
     output: &mut TickOutput,
 ) {
     use crate::mechanics::challenges::{
-        challenge_requirement, get_max_challenges, ChallengeRequirementInput,
-        GetMaxChallengesInput, CHALLENGE_BASE_REQUIREMENTS,
+        challenge_15_score_multiplier, challenge_requirement, get_max_challenges,
+        Challenge15ScoreMultiplierInput, ChallengeRequirementInput, GetMaxChallengesInput,
+        CHALLENGE_BASE_REQUIREMENTS,
     };
     use crate::mechanics::shop_upgrades::{
         challenge_extension_effect, instant_challenge_2_effect, instant_challenge_effect,
         InstantChallengeKey, InstantChallengeValue,
     };
     use crate::state::shop::{
-        SHOP_CHALLENGE_EXTENSION, SHOP_INSTANT_CHALLENGE, SHOP_INSTANT_CHALLENGE_2,
+        SHOP_CHALLENGE_15_AUTO, SHOP_CHALLENGE_EXTENSION, SHOP_INSTANT_CHALLENGE,
+        SHOP_INSTANT_CHALLENGE_2,
     };
 
     const PLATONIC_UPGRADE_8: usize = 8;
@@ -5301,6 +5362,56 @@ fn phase_challenge_completion(
             );
         }
     }
+
+    // ── Ascension challenge 15: exponent accrual.
+    // c15 does NOT increment `challengecompletions`; instead `challenge15Exponent`
+    // grows from coins, and the (already-ported) `challenge_15_rewards::*` cascade
+    // reads that exponent live. Synergism.ts:4514-4525 ("Challenge 15 autoupdate")
+    // and the `a === 15` branch of `resetCheck` (3760-3784) share the same body.
+    // The only tick-reachable trigger is the `challenge15Auto` shop upgrade — the
+    // manual / leaving-the-challenge update is UI-tier (deferred). `c15RewardUpdate()`
+    // is a no-op for us (rewards are read live), and the
+    // `challenge15Exponent >= 1e15 → unlocks.hepteracts` side-effect is already
+    // covered: the hepteract-gain gate reads
+    // `challenge_15_rewards::hepteracts_unlocked(exponent)` directly (calculate.rs).
+    if qa == 15 && state.shop.upgrades[SHOP_CHALLENGE_15_AUTO] > 0.0 {
+        // challenge15ScoreMultiplier(): campaign · challenge-hepteract · OMEGA.
+        let c15_sm = challenge_15_score_multiplier(&Challenge15ScoreMultiplierInput {
+            // Campaign subsystem unported → neutral (mirrors the `campaign_*` legs
+            // elsewhere in the tick, e.g. `campaign_ascension_score_mult`).
+            c15_bonus: 1.0,
+            // `hepteractEffective('challenge')` — challenge craft LIMIT 1000, DR 1/6,
+            // DR_INCREASE 0 (Hepteracts.ts:190-192).
+            challenge_hepteract_effective: hepteract_effective_bal(
+                state.hepteracts.challenge.bal,
+                1.0 / 6.0,
+            ),
+            platonic_upgrade_15: state.cube_upgrade_levels.platonic_upgrades[PLATONIC_UPGRADE_15],
+        });
+        // Grow only once coins clear the next threshold `10^(exponent / c15SM)`.
+        let threshold = Decimal::from_finite(10.0).pow(Decimal::from_finite(
+            state.challenges.challenge15_exponent / c15_sm,
+        ));
+        if state.upgrades.coins >= threshold {
+            state.challenges.challenge15_exponent =
+                (state.upgrades.coins + Decimal::one()).log10().to_number() * c15_sm;
+        }
+    }
+
+    // sadisticAch (#252): `challengeAchievementCheck(15)` awards it once the c15
+    // `achievementUnlock` reward (exponent >= 666666) is active. Idempotent and
+    // independent of challenge15Auto (the exponent may already be high). pv 50.
+    if qa == 15
+        && challenge_15_rewards::achievement_unlock(state.challenges.challenge15_exponent) == 1.0
+    {
+        let awarded = crate::mechanics::achievement_awards::award_ungrouped_achievement(
+            &mut state.achievements,
+            252,
+            50.0,
+            true,
+        );
+        credit_achievement_quarks(state, awarded);
+    }
 }
 
 /// Award + exit + reset for one in-progress challenge that has met its goal
@@ -5328,13 +5439,35 @@ fn complete_active_challenge(
         counter += 1.0;
     }
     state.challenges.challenge_completions[q_idx] = comp;
-    // challengeAchievementCheck(q) — award the challengeN group from the
-    // updated completion count (the legacy resetCheck calls it after the
-    // completion increments).
+    // challengeAchievementCheck(q) — award the challengeN group plus the
+    // ungrouped per-challenge extras (chalNNoGen / diamondSearch / extraChallenging)
+    // from the updated completion count (the legacy resetCheck calls it after the
+    // completion increments). The extras' context is captured before the mutable
+    // achievements borrow; `current_transcension_challenge` is still set here (the
+    // challenge exits further below).
+    let extras_ctx = crate::mechanics::achievement_awards::ChallengeUngroupedContext {
+        coins_this_transcension_log10: (state.coin_counters.coins_this_transcension
+            + Decimal::one())
+        .log10()
+        .to_number(),
+        current_transcension_challenge: state.challenges.current_transcension_challenge,
+        generator_upgrades_owned: state.upgrades.upgrades[101..=105]
+            .iter()
+            .map(|&u| u32::from(u))
+            .sum(),
+        accelerator_bought: state.accelerator.accelerator_bought,
+        accelerator_boost_bought: state.accelerator.accelerator_boost_bought,
+        extinction_level: f64::from(state.corruptions.used.levels[crate::state::EXTINCTION_INDEX]),
+    };
     let awarded = crate::mechanics::achievement_awards::challenge_achievement_check(
         &mut state.achievements,
         q_idx,
         &state.challenges.challenge_completions,
+    ) + crate::mechanics::achievement_awards::challenge_ungrouped_achievement_check(
+        &mut state.achievements,
+        q_idx,
+        &state.challenges.challenge_completions,
+        &extras_ctx,
     );
     credit_achievement_quarks(state, awarded);
     while state.challenges.challenge_completions[q_idx]
@@ -6317,6 +6450,7 @@ mod tests {
             &mut state.achievements,
             crate::events::AutoResetTier::Prestige,
             Decimal::from_finite(1e6),
+            &crate::mechanics::achievement_awards::ResetNoBuyFlags::default(),
         );
         assert_eq!(state.achievements.achievement_points, 15.0);
 
@@ -7653,6 +7787,184 @@ mod tests {
     }
 
     #[test]
+    fn phase_challenge_completion_c15_quiescent_without_auto() {
+        use crate::mechanics::reset_currency::ResetCurrencyResult;
+        use crate::state::shop::SHOP_CHALLENGE_15_AUTO;
+        let mut state = GameState::default();
+        state.challenges.current_ascension_challenge = 15;
+        state.upgrades.coins = Decimal::from_finite(1e6);
+        // challenge15Auto NOT unlocked → the tick autoupdate must not fire
+        // (the manual update path is UI-tier).
+        assert_eq!(state.shop.upgrades[SHOP_CHALLENGE_15_AUTO], 0.0);
+        let gains = ResetCurrencyResult {
+            prestige_point_gain: Decimal::zero(),
+            transcend_point_gain: Decimal::zero(),
+            reincarnation_point_gain: Decimal::zero(),
+        };
+        let mut output = TickOutput::default();
+        phase_challenge_completion(&mut state, &gains, &mut output);
+        assert_eq!(state.challenges.challenge15_exponent, 0.0);
+    }
+
+    #[test]
+    fn phase_challenge_completion_c15_accrues_with_auto() {
+        use crate::mechanics::reset_currency::ResetCurrencyResult;
+        use crate::state::shop::SHOP_CHALLENGE_15_AUTO;
+        let mut state = GameState::default();
+        state.challenges.current_ascension_challenge = 15;
+        state.shop.upgrades[SHOP_CHALLENGE_15_AUTO] = 1.0; // challenge15Auto unlocked
+        state.upgrades.coins = Decimal::from_finite(1e6);
+        let gains = ResetCurrencyResult {
+            prestige_point_gain: Decimal::zero(),
+            transcend_point_gain: Decimal::zero(),
+            reincarnation_point_gain: Decimal::zero(),
+        };
+        let mut output = TickOutput::default();
+        phase_challenge_completion(&mut state, &gains, &mut output);
+        // c15SM = 1 at default legs (campaign 1, no challenge hept, platonic[15]=0),
+        // so exponent = log10(1e6 + 1) * 1 ≈ 6.0.
+        assert!((state.challenges.challenge15_exponent - 6.0).abs() < 1e-3);
+    }
+
+    #[test]
+    fn phase_challenge_completion_c15_threshold_gates_growth() {
+        use crate::mechanics::reset_currency::ResetCurrencyResult;
+        use crate::state::shop::SHOP_CHALLENGE_15_AUTO;
+        let mut state = GameState::default();
+        state.challenges.current_ascension_challenge = 15;
+        state.shop.upgrades[SHOP_CHALLENGE_15_AUTO] = 1.0;
+        // Already-high exponent → next threshold is 10^(100/1) = 1e100.
+        state.challenges.challenge15_exponent = 100.0;
+        state.upgrades.coins = Decimal::from_finite(1e6);
+        let gains = ResetCurrencyResult {
+            prestige_point_gain: Decimal::zero(),
+            transcend_point_gain: Decimal::zero(),
+            reincarnation_point_gain: Decimal::zero(),
+        };
+        let mut output = TickOutput::default();
+        phase_challenge_completion(&mut state, &gains, &mut output);
+        // Coins (1e6) < threshold (1e100) → exponent unchanged.
+        assert_eq!(state.challenges.challenge15_exponent, 100.0);
+    }
+
+    #[test]
+    fn phase_challenge_completion_c15_exponent_lights_reward_cascade() {
+        use crate::mechanics::challenge_15_rewards;
+        use crate::mechanics::reset_currency::ResetCurrencyResult;
+        use crate::state::shop::SHOP_CHALLENGE_15_AUTO;
+        // The whole point of the accrual: a frozen-0 exponent leaves every
+        // c15 reward at identity; a grown exponent lights the cascade.
+        assert_eq!(challenge_15_rewards::coin_exponent(0.0), 1.0);
+        let mut state = GameState::default();
+        state.challenges.current_ascension_challenge = 15;
+        state.shop.upgrades[SHOP_CHALLENGE_15_AUTO] = 1.0;
+        // coins = 1e4000 → exponent ≈ 4000, past coin_exponent's 3000 requirement.
+        state.upgrades.coins = Decimal::from_finite(10.0).pow(Decimal::from_finite(4000.0));
+        let gains = ResetCurrencyResult {
+            prestige_point_gain: Decimal::zero(),
+            transcend_point_gain: Decimal::zero(),
+            reincarnation_point_gain: Decimal::zero(),
+        };
+        let mut output = TickOutput::default();
+        phase_challenge_completion(&mut state, &gains, &mut output);
+        assert!(state.challenges.challenge15_exponent > 3000.0);
+        assert!(challenge_15_rewards::coin_exponent(state.challenges.challenge15_exponent) > 1.0);
+    }
+
+    #[test]
+    fn tack_accrues_challenge_15_exponent_end_to_end() {
+        // The orchestrator runs the c15 accrual during a normal tick (closes the
+        // "is the new phase actually wired into tack" blind spot).
+        use crate::state::shop::SHOP_CHALLENGE_15_AUTO;
+        let mut state = GameState::default();
+        state.challenges.current_ascension_challenge = 15;
+        state.shop.upgrades[SHOP_CHALLENGE_15_AUTO] = 1.0;
+        state.upgrades.coins = Decimal::from_finite(1e6);
+        let input = TackInput {
+            dt: 0.025,
+            ..TackInput::default()
+        };
+        let _ = tack(&mut state, &input);
+        assert!(state.challenges.challenge15_exponent > 0.0);
+    }
+
+    #[test]
+    fn c15_awards_sadistic_achievement_once_exponent_unlocks_it() {
+        use crate::mechanics::reset_currency::ResetCurrencyResult;
+        use crate::state::shop::SHOP_CHALLENGE_15_AUTO;
+        let mut state = GameState::default();
+        state.challenges.current_ascension_challenge = 15;
+        state.shop.upgrades[SHOP_CHALLENGE_15_AUTO] = 1.0;
+        // coins = 1e700000 → accrued exponent ≈ 700000, past the c15
+        // achievementUnlock requirement (666666) → sadisticAch (#252) awarded.
+        state.upgrades.coins = Decimal::from_finite(10.0).pow(Decimal::from_finite(700_000.0));
+        let gains = ResetCurrencyResult {
+            prestige_point_gain: Decimal::zero(),
+            transcend_point_gain: Decimal::zero(),
+            reincarnation_point_gain: Decimal::zero(),
+        };
+        let mut output = TickOutput::default();
+        phase_challenge_completion(&mut state, &gains, &mut output);
+        assert!(state.challenges.challenge15_exponent >= 666_666.0);
+        assert_eq!(state.achievements.achievements[252], 1);
+    }
+
+    #[test]
+    fn daily_reset_zeroes_daily_counters_and_preserves_all_time() {
+        use crate::state::ants::RebornELOEntry;
+        let mut state = GameState::default();
+        // A day of play populates the daily counters, the daily leaderboard, and
+        // the running ant-quark total — plus the all-time leaderboard.
+        state.cube_balances.cube_opened_daily = 12.0;
+        state.cube_balances.cube_quark_daily = 34.0;
+        state.cube_balances.tesseract_opened_daily = 5.0;
+        state.cube_balances.tesseract_quark_daily = 6.0;
+        state.cube_balances.hypercube_opened_daily = 7.0;
+        state.cube_balances.hypercube_quark_daily = 8.0;
+        state.cube_balances.platonic_cube_opened_daily = 9.0;
+        state.cube_balances.platonic_cube_quark_daily = 10.0;
+        state.ants.quarks_gained_from_ants = 500.0;
+        state.ants.highest_reborn_elo_daily.push(RebornELOEntry {
+            elo: 1000.0,
+            sacrifice_id: 1,
+        });
+        state.ants.highest_reborn_elo_ever.push(RebornELOEntry {
+            elo: 1000.0,
+            sacrifice_id: 1,
+        });
+
+        daily_reset(&mut state);
+
+        // All 8 per-day cube counters cleared.
+        assert_eq!(state.cube_balances.cube_opened_daily, 0.0);
+        assert_eq!(state.cube_balances.cube_quark_daily, 0.0);
+        assert_eq!(state.cube_balances.tesseract_opened_daily, 0.0);
+        assert_eq!(state.cube_balances.tesseract_quark_daily, 0.0);
+        assert_eq!(state.cube_balances.hypercube_opened_daily, 0.0);
+        assert_eq!(state.cube_balances.hypercube_quark_daily, 0.0);
+        assert_eq!(state.cube_balances.platonic_cube_opened_daily, 0.0);
+        assert_eq!(state.cube_balances.platonic_cube_quark_daily, 0.0);
+        // Daily reborn-ELO leaderboard + running ant-quark total reset...
+        assert!(state.ants.highest_reborn_elo_daily.is_empty());
+        assert_eq!(state.ants.quarks_gained_from_ants, 0.0);
+        // ...but the all-time leaderboard survives.
+        assert_eq!(state.ants.highest_reborn_elo_ever.len(), 1);
+    }
+
+    #[test]
+    fn first_five_rune_mult_picks_up_midas_tribute_cube_blessing() {
+        let mut state = GameState::default();
+        // No blessings opened → every factor is identity → the mult is 1.
+        assert_eq!(first_five_effective_rune_level_mult(&state), 1.0);
+        // Accruing the talisman-bonus blessing tier (as opening cubes would) lifts
+        // the MidasTribute cascade above 1, so the rune-effectiveness mult rises.
+        state.cube_blessings.talisman_bonus = 500.0;
+        state.tesseract_blessings.talisman_bonus = 5_000.0;
+        state.hypercube_blessings.talisman_bonus = 5_000.0;
+        assert!(first_five_effective_rune_level_mult(&state) > 1.0);
+    }
+
+    #[test]
     fn challenge_completion_awards_challenge_achievements() {
         // Completing a challenge through the real path fires
         // challengeAchievementCheck: c11 completed once awards the challenge11
@@ -7871,6 +8183,12 @@ mod tests {
         // c1 transcension challenge, enough coins to complete.
         state.challenges.current_transcension_challenge = 1;
         state.coin_counters.coins_this_transcension = Decimal::from_finite(1e11);
+        // Clear the transcension no-buy flags so the completion-triggered reset
+        // doesn't add their quarks (isolating the highest-challenge reward).
+        state.multiplier.transcend_no_multiplier = false;
+        state.accelerator.transcend_no_accelerator = false;
+        state.upgrades.transcend_no_coin_upgrades = false;
+        state.upgrades.transcend_no_coin_or_prestige_upgrades = false;
         // ascension_count == 0 → gate passes.
         assert_eq!(state.reset_counters.ascension_count, 0.0);
         // quark_bonus = 0 → multiplier = 1; base = 1 + floor(1 * 0.1) = 1 + 0 = 1.
@@ -7904,6 +8222,12 @@ mod tests {
         let mut state = GameState::default();
         state.challenges.current_transcension_challenge = 1;
         state.coin_counters.coins_this_transcension = Decimal::from_finite(1e11);
+        // Clear the transcension no-buy flags so the completion-triggered reset
+        // doesn't add their quarks (isolating the gated highest-challenge reward).
+        state.multiplier.transcend_no_multiplier = false;
+        state.accelerator.transcend_no_accelerator = false;
+        state.upgrades.transcend_no_coin_upgrades = false;
+        state.upgrades.transcend_no_coin_or_prestige_upgrades = false;
         // ascension_count > 0 → gate blocks quark award.
         state.reset_counters.ascension_count = 1.0;
         let gains = ResetCurrencyResult {

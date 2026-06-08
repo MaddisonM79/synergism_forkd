@@ -121,10 +121,17 @@ pub(crate) fn perform_prestige_reset(
     // resetAchievementCheck('prestige') runs before reset() in the legacy
     // trigger, so the offering award inside the base reset sees the updated
     // achievement_points.
+    let no_buy = crate::mechanics::achievement_awards::ResetNoBuyFlags {
+        no_multiplier: state.multiplier.prestige_no_multiplier,
+        no_accelerator: state.accelerator.prestige_no_accelerator,
+        no_coin_upgrades: state.upgrades.prestige_no_coin_upgrades,
+        ..Default::default()
+    };
     let awarded = crate::mechanics::achievement_awards::reset_achievement_check(
         &mut state.achievements,
         AutoResetTier::Prestige,
         prestige_point_gain,
+        &no_buy,
     );
     super::credit_achievement_quarks(state, awarded);
     apply_base_reset(state, prestige_point_gain);
@@ -208,10 +215,18 @@ pub(crate) fn perform_transcension_reset(
     state: &mut GameState,
     gains: &ResetCurrencyResult,
 ) -> SmallVec<[CoreEvent; 2]> {
+    let no_buy = crate::mechanics::achievement_awards::ResetNoBuyFlags {
+        no_multiplier: state.multiplier.transcend_no_multiplier,
+        no_accelerator: state.accelerator.transcend_no_accelerator,
+        no_coin_upgrades: state.upgrades.transcend_no_coin_upgrades,
+        no_coin_or_prestige_upgrades: state.upgrades.transcend_no_coin_or_prestige_upgrades,
+        ..Default::default()
+    };
     let awarded = crate::mechanics::achievement_awards::reset_achievement_check(
         &mut state.achievements,
         AutoResetTier::Transcension,
         gains.transcend_point_gain,
+        &no_buy,
     );
     super::credit_achievement_quarks(state, awarded);
     apply_base_reset(state, gains.prestige_point_gain);
@@ -299,10 +314,23 @@ pub(crate) fn perform_reincarnation_reset(
 ) -> SmallVec<[CoreEvent; 2]> {
     // resetAchievementCheck('reincarnation') runs first, so the obtainium and
     // offering awards below read the updated achievement_points.
+    let no_buy = crate::mechanics::achievement_awards::ResetNoBuyFlags {
+        no_multiplier: state.multiplier.reincarnate_no_multiplier,
+        no_accelerator: state.accelerator.reincarnate_no_accelerator,
+        no_coin_upgrades: state.upgrades.reincarnate_no_coin_upgrades,
+        no_coin_or_prestige_upgrades: state.upgrades.reincarnate_no_coin_or_prestige_upgrades,
+        no_coin_prestige_or_transcend_upgrades: state
+            .upgrades
+            .reincarnate_no_coin_prestige_or_transcend_upgrades,
+        no_coin_prestige_transcend_or_generator_upgrades: state
+            .upgrades
+            .reincarnate_no_coin_prestige_transcend_or_generator_upgrades,
+    };
     let awarded = crate::mechanics::achievement_awards::reset_achievement_check(
         &mut state.achievements,
         AutoResetTier::Reincarnation,
         gains.reincarnation_point_gain,
+        &no_buy,
     );
     super::credit_achievement_quarks(state, awarded);
     // `reincarnationCheck` is the *pre-reset* shard total — capture it
@@ -1086,6 +1114,18 @@ mod tests {
         // the 1e30 row (index 52) stays unmet.
         let mut state = GameState::default();
         state.reset_counters.transcend_shards = Decimal::from_finite(1e305);
+        // Clear the reincarnation no-buy flags so only reincarnationPointGain
+        // awards here (the no-buy achievements have their own tests).
+        state.multiplier.reincarnate_no_multiplier = false;
+        state.accelerator.reincarnate_no_accelerator = false;
+        state.upgrades.reincarnate_no_coin_upgrades = false;
+        state.upgrades.reincarnate_no_coin_or_prestige_upgrades = false;
+        state
+            .upgrades
+            .reincarnate_no_coin_prestige_or_transcend_upgrades = false;
+        state
+            .upgrades
+            .reincarnate_no_coin_prestige_transcend_or_generator_upgrades = false;
         perform_reincarnation_reset(&mut state, &gains(0.0, 0.0, 1e6));
         assert_eq!(state.achievements.achievements[50], 1);
         assert_eq!(state.achievements.achievements[51], 1);
@@ -1096,6 +1136,12 @@ mod tests {
     #[test]
     fn prestige_reset_awards_point_gain_achievements() {
         let mut state = GameState::default();
+        // Clear the prestige no-buy flags (as if purchases were made this run)
+        // so only prestigePointGain awards here — the no-buy achievements have
+        // their own tests.
+        state.multiplier.prestige_no_multiplier = false;
+        state.accelerator.prestige_no_accelerator = false;
+        state.upgrades.prestige_no_coin_upgrades = false;
         // gain 1e6 → log10 6 → prestigePointGain rows at thresholds 0 and 6
         // (indices 36,37; pv 5+10 = 15).
         perform_prestige_reset(&mut state, Decimal::from_finite(1e6));

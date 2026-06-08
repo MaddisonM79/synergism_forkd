@@ -36,11 +36,19 @@
 //!   that into a count, and each call site credits it via
 //!   `credit_achievement_quarks`.
 //!
+//! ## Implemented since slice 1 (continued)
+//!
+//! - The ungrouped no-reset achievements (indices 57–62, 64–70) — awarded by
+//!   [`reset_achievement_check`] from the per-run "didn't buy X" flags
+//!   ([`ResetNoBuyFlags`]). Those flags are already plumbed false-on-buy /
+//!   true-on-reset across the multiplier/accelerator/upgrade slices, so a flag
+//!   still `true` at the (pre-reset) check means the run avoided that purchase.
+//!
 //! ## Still deferred (faithful: those bits stay `0`)
 //!
-//! - The ungrouped no-accelerator / no-mult / no-upgrade reset achievements
-//!   (indices 57–74) — they need the timing-sensitive `*no*` flags + a
-//!   name→index map; they land with the ungrouped tail.
+//! - The per-challenge ungrouped extras (`chalNNoGen`, `diamondSearch` #63,
+//!   `extraChallenging` #247, `sadisticAch` #252) — the ungrouped tail of
+//!   `challengeAchievementCheck`.
 //!
 //! Points accumulate **incrementally** here (`achievement_points +=
 //! pointValue`), mirroring `awardAchievement`. The full-recompute path
@@ -429,27 +437,111 @@ pub fn building_achievement_check(ach: &mut AchievementsState, coin_owned: &[f64
         + award_threshold_group(ach, coin_owned[4], FIFTH_OWNED_COIN)
 }
 
-/// `resetAchievementCheck(reset)` — slice-1 subset: the per-tier point-gain
-/// group, awarded from the just-computed `gain` (`G.{tier}PointGain`). Must
-/// run **before** the reset proper (the legacy trigger calls it ahead of
-/// `reset()`), so the offering/obtainium awards inside the reset see the
-/// updated `achievement_points`.
+/// Per-run "didn't buy X this run" flags read by the ungrouped no-reset
+/// achievements (the `awardUngroupedAchievement` calls in the legacy
+/// `resetAchievementCheck`). Each starts `true`, is cleared on the matching
+/// purchase, and restored on the matching reset — so a flag still `true` at the
+/// check (which runs *before* the reset body) means the run reached this reset
+/// without that purchase. The caller fills the current tier's tier-prefixed
+/// flags; cross-tier fields stay `false` (each tier branch reads only its own).
+/// Synergism naming: "diamond" = the prestige currency, "mythos" = the
+/// transcend currency.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct ResetNoBuyFlags {
+    /// `{tier}nomultiplier`.
+    pub no_multiplier: bool,
+    /// `{tier}noaccelerator`.
+    pub no_accelerator: bool,
+    /// `{tier}nocoinupgrades`.
+    pub no_coin_upgrades: bool,
+    /// `{tier}nocoinorprestigeupgrades` — "no coin or diamond upgrade"
+    /// (transcend #66, reincarnate #68).
+    pub no_coin_or_prestige_upgrades: bool,
+    /// `reincarnatenocoinprestigeortranscendupgrades` — "no coin/diamond/mythos
+    /// upgrade" (#69).
+    pub no_coin_prestige_or_transcend_upgrades: bool,
+    /// `reincarnatenocoinprestigetranscendorgeneratorupgrades` — the "minimum
+    /// upgrades" achievement (#70).
+    pub no_coin_prestige_transcend_or_generator_upgrades: bool,
+}
+
+/// The ungrouped no-reset achievements awarded by `resetAchievementCheck`'s
+/// `awardUngroupedAchievement` calls, gated on the per-run [`ResetNoBuyFlags`].
+/// Each `(index, pointValue)` is taken verbatim from the legacy `achievements`
+/// array, where the unlock condition is exactly the matching flag. Returns the
+/// count newly awarded.
+fn award_no_buy_achievements(
+    ach: &mut AchievementsState,
+    tier: AutoResetTier,
+    f: &ResetNoBuyFlags,
+) -> usize {
+    match tier {
+        AutoResetTier::Prestige => {
+            usize::from(award_achievement(ach, 57, f.no_multiplier, 5.0))
+                + usize::from(award_achievement(ach, 60, f.no_accelerator, 20.0))
+                + usize::from(award_achievement(ach, 64, f.no_coin_upgrades, 5.0))
+        }
+        AutoResetTier::Transcension => {
+            usize::from(award_achievement(ach, 58, f.no_multiplier, 10.0))
+                + usize::from(award_achievement(ach, 61, f.no_accelerator, 25.0))
+                + usize::from(award_achievement(ach, 65, f.no_coin_upgrades, 10.0))
+                + usize::from(award_achievement(
+                    ach,
+                    66,
+                    f.no_coin_or_prestige_upgrades,
+                    15.0,
+                ))
+        }
+        AutoResetTier::Reincarnation => {
+            usize::from(award_achievement(ach, 59, f.no_multiplier, 15.0))
+                + usize::from(award_achievement(ach, 62, f.no_accelerator, 30.0))
+                + usize::from(award_achievement(ach, 67, f.no_coin_upgrades, 15.0))
+                + usize::from(award_achievement(
+                    ach,
+                    68,
+                    f.no_coin_or_prestige_upgrades,
+                    20.0,
+                ))
+                + usize::from(award_achievement(
+                    ach,
+                    69,
+                    f.no_coin_prestige_or_transcend_upgrades,
+                    30.0,
+                ))
+                + usize::from(award_achievement(
+                    ach,
+                    70,
+                    f.no_coin_prestige_transcend_or_generator_upgrades,
+                    40.0,
+                ))
+        }
+        AutoResetTier::Ascension => 0,
+    }
+}
+
+/// `resetAchievementCheck(reset)` — the ungrouped no-reset achievements (gated
+/// on [`ResetNoBuyFlags`]) plus the per-tier point-gain group (from the
+/// just-computed `gain`, `G.{tier}PointGain`). Must run **before** the reset
+/// proper (the legacy trigger calls it ahead of `reset()`), so the
+/// offering/obtainium awards inside the reset see the updated
+/// `achievement_points`.
 ///
-/// `Ascension` awards no point-gain group (faithful to
-/// `resetAchievementCheck('ascension')`). The ungrouped no-* reset
-/// achievements are deferred (see module docs).
+/// `Ascension` awards nothing (faithful to `resetAchievementCheck('ascension')`).
 pub fn reset_achievement_check(
     ach: &mut AchievementsState,
     tier: AutoResetTier,
     gain: Decimal,
+    no_buy: &ResetNoBuyFlags,
 ) -> usize {
+    let mut awarded = award_no_buy_achievements(ach, tier, no_buy);
     let table = match tier {
         AutoResetTier::Prestige => PRESTIGE_POINT_GAIN,
         AutoResetTier::Transcension => TRANSCEND_POINT_GAIN,
         AutoResetTier::Reincarnation => REINCARNATION_POINT_GAIN,
-        AutoResetTier::Ascension => return 0,
+        AutoResetTier::Ascension => return awarded,
     };
-    award_log10_group(ach, gain, table)
+    awarded += award_log10_group(ach, gain, table);
+    awarded
 }
 
 /// `challengeAchievementCheck(i)` — award the `challengeI` group from the
@@ -480,6 +572,82 @@ pub fn challenge_achievement_check(
         _ => return 0,
     };
     award_threshold_group(ach, challenge_completions[challenge], table)
+}
+
+/// Per-completion context for the ungrouped per-challenge achievements (the
+/// `awardUngroupedAchievement` calls in `challengeAchievementCheck`). All fields
+/// are existing state reads; coins are carried as `log10(coins + 1)` because the
+/// thresholds (`1e1000`, `1e99999`, `1e120000`) far exceed `f64`.
+#[derive(Debug, Clone, Copy)]
+pub struct ChallengeUngroupedContext {
+    /// `log10(player.coinsThisTranscension + 1)`.
+    pub coins_this_transcension_log10: f64,
+    /// `player.currentChallenge.transcension`.
+    pub current_transcension_challenge: u32,
+    /// `sumContents(player.upgrades.slice(101, 106))` — generator upgrades
+    /// (101..=105) owned (`0` = none bought this run).
+    pub generator_upgrades_owned: u32,
+    /// `player.acceleratorBought`.
+    pub accelerator_bought: f64,
+    /// `player.acceleratorBoostBought`.
+    pub accelerator_boost_bought: f64,
+    /// `player.corruptions.used.extinction` level.
+    pub extinction_level: f64,
+}
+
+/// `challengeAchievementCheck`'s ungrouped per-challenge achievements, awarded
+/// alongside the `challengeN` group: `chal{1,2,3}NoGen` (reach the coin
+/// threshold in that transcension challenge with no generator upgrades),
+/// `diamondSearch` (challenge 5: `1e120000` coins, no accelerators/boosts), and
+/// `extraChallenging` (challenge 11: `c10 > 50 && extinction >= 5 && c11 >= 20`).
+/// `sadisticAch` (challenge 15) is awarded from the c15 path instead. Each
+/// `(index, pointValue)` and unlock condition is taken verbatim from the legacy
+/// `achievements` array. Returns the count newly awarded.
+pub fn challenge_ungrouped_achievement_check(
+    ach: &mut AchievementsState,
+    challenge: usize,
+    challenge_completions: &[f64],
+    ctx: &ChallengeUngroupedContext,
+) -> usize {
+    let tc = ctx.current_transcension_challenge as usize;
+    let no_generators = ctx.generator_upgrades_owned == 0;
+    match challenge {
+        1 => usize::from(award_achievement(
+            ach,
+            75,
+            tc == 1 && ctx.coins_this_transcension_log10 >= 1_000.0 && no_generators,
+            25.0,
+        )),
+        2 => usize::from(award_achievement(
+            ach,
+            76,
+            tc == 2 && ctx.coins_this_transcension_log10 >= 1_000.0 && no_generators,
+            25.0,
+        )),
+        3 => usize::from(award_achievement(
+            ach,
+            77,
+            tc == 3 && ctx.coins_this_transcension_log10 >= 99_999.0 && no_generators,
+            50.0,
+        )),
+        5 => usize::from(award_achievement(
+            ach,
+            63,
+            ctx.coins_this_transcension_log10 >= 120_000.0
+                && ctx.accelerator_bought == 0.0
+                && ctx.accelerator_boost_bought == 0.0,
+            35.0,
+        )),
+        11 => usize::from(award_achievement(
+            ach,
+            247,
+            challenge_completions[10] > 50.0
+                && ctx.extinction_level >= 5.0
+                && challenge_completions[11] >= 20.0,
+            50.0,
+        )),
+        _ => 0,
+    }
 }
 
 /// `sacCount` achievement group — `antSacrificeCount >= threshold`. Awarded
@@ -685,7 +853,12 @@ mod tests {
         let mut ach = AchievementsState::default();
         // gain 1e6 → log10 6 → rows at thresholds 0 and 6 (indices 36,37;
         // pv 5+10 = 15). Threshold-100 row (index 38) stays unmet.
-        reset_achievement_check(&mut ach, AutoResetTier::Prestige, Decimal::from_finite(1e6));
+        reset_achievement_check(
+            &mut ach,
+            AutoResetTier::Prestige,
+            Decimal::from_finite(1e6),
+            &ResetNoBuyFlags::default(),
+        );
         assert_eq!(ach.achievements[36], 1);
         assert_eq!(ach.achievements[37], 1);
         assert_eq!(ach.achievements[38], 0);
@@ -695,7 +868,12 @@ mod tests {
     #[test]
     fn reset_check_zero_gain_awards_nothing() {
         let mut ach = AchievementsState::default();
-        reset_achievement_check(&mut ach, AutoResetTier::Prestige, Decimal::zero());
+        reset_achievement_check(
+            &mut ach,
+            AutoResetTier::Prestige,
+            Decimal::zero(),
+            &ResetNoBuyFlags::default(),
+        );
         assert_eq!(ach.achievement_points, 0.0);
         assert_eq!(ach.achievements[36], 0);
     }
@@ -707,6 +885,7 @@ mod tests {
             &mut ach,
             AutoResetTier::Ascension,
             Decimal::from_finite(1e9),
+            &ResetNoBuyFlags::default(),
         );
         assert_eq!(ach.achievement_points, 0.0);
     }
@@ -720,11 +899,95 @@ mod tests {
             &mut ach,
             AutoResetTier::Reincarnation,
             Decimal::from_finite(1e5),
+            &ResetNoBuyFlags::default(),
         );
         assert_eq!(ach.achievements[50], 1);
         assert_eq!(ach.achievements[51], 1);
         assert_eq!(ach.achievements[52], 0);
         assert_eq!(ach.achievement_points, 15.0);
+    }
+
+    #[test]
+    fn reset_check_awards_prestige_no_buy_achievements() {
+        let mut ach = AchievementsState::default();
+        // All three prestige no-buy flags still set, zero gain → only the
+        // ungrouped no-reset achievements fire (57 noMult, 60 noAccel, 64 noCoinUpg).
+        let flags = ResetNoBuyFlags {
+            no_multiplier: true,
+            no_accelerator: true,
+            no_coin_upgrades: true,
+            ..ResetNoBuyFlags::default()
+        };
+        let awarded =
+            reset_achievement_check(&mut ach, AutoResetTier::Prestige, Decimal::zero(), &flags);
+        assert_eq!(ach.achievements[57], 1);
+        assert_eq!(ach.achievements[60], 1);
+        assert_eq!(ach.achievements[64], 1);
+        assert_eq!(ach.achievement_points, 30.0); // 5 + 20 + 5
+        assert_eq!(awarded, 3);
+    }
+
+    #[test]
+    fn reset_check_no_buy_flag_false_suppresses_its_achievement() {
+        let mut ach = AchievementsState::default();
+        // Bought a multiplier this run → flag cleared → #57 not awarded; the
+        // other two prestige no-buy achievements still fire.
+        let flags = ResetNoBuyFlags {
+            no_multiplier: false,
+            no_accelerator: true,
+            no_coin_upgrades: true,
+            ..ResetNoBuyFlags::default()
+        };
+        reset_achievement_check(&mut ach, AutoResetTier::Prestige, Decimal::zero(), &flags);
+        assert_eq!(ach.achievements[57], 0);
+        assert_eq!(ach.achievements[60], 1);
+        assert_eq!(ach.achievements[64], 1);
+        assert_eq!(ach.achievement_points, 25.0); // 20 + 5
+    }
+
+    #[test]
+    fn reset_check_awards_all_reincarnation_no_buy_achievements() {
+        let mut ach = AchievementsState::default();
+        let flags = ResetNoBuyFlags {
+            no_multiplier: true,
+            no_accelerator: true,
+            no_coin_upgrades: true,
+            no_coin_or_prestige_upgrades: true,
+            no_coin_prestige_or_transcend_upgrades: true,
+            no_coin_prestige_transcend_or_generator_upgrades: true,
+        };
+        reset_achievement_check(
+            &mut ach,
+            AutoResetTier::Reincarnation,
+            Decimal::zero(),
+            &flags,
+        );
+        // 59,62,67,68,69,70 → pv 15 + 30 + 15 + 20 + 30 + 40 = 150.
+        for idx in [59, 62, 67, 68, 69, 70] {
+            assert_eq!(ach.achievements[idx], 1, "achievement {idx} should be set");
+        }
+        assert_eq!(ach.achievement_points, 150.0);
+    }
+
+    #[test]
+    fn reset_check_no_buy_and_point_gain_combine_in_one_call() {
+        // resetAchievementCheck awards both the ungrouped no-buy achievements
+        // and the point-gain group in a single call.
+        let mut ach = AchievementsState::default();
+        let flags = ResetNoBuyFlags {
+            no_multiplier: true,
+            no_accelerator: true,
+            no_coin_upgrades: true,
+            ..ResetNoBuyFlags::default()
+        };
+        reset_achievement_check(
+            &mut ach,
+            AutoResetTier::Prestige,
+            Decimal::from_finite(1e6),
+            &flags,
+        );
+        // no-buy 57,60,64 (30) + point-gain 36 (>=1) & 37 (>=1e6) (15) = 45.
+        assert_eq!(ach.achievement_points, 45.0);
     }
 
     #[test]
@@ -764,6 +1027,86 @@ mod tests {
         challenge_achievement_check(&mut ach, 15, &completions);
         challenge_achievement_check(&mut ach, 0, &completions);
         assert_eq!(ach.achievement_points, 0.0);
+    }
+
+    #[test]
+    fn challenge_ungrouped_chal_no_gen_needs_no_generators_and_coins() {
+        let completions = [0.0_f64; 16];
+        let ctx = ChallengeUngroupedContext {
+            coins_this_transcension_log10: 1_500.0, // >= 1e1000
+            current_transcension_challenge: 1,
+            generator_upgrades_owned: 0,
+            accelerator_bought: 0.0,
+            accelerator_boost_bought: 0.0,
+            extinction_level: 0.0,
+        };
+        let mut ach = AchievementsState::default();
+        challenge_ungrouped_achievement_check(&mut ach, 1, &completions, &ctx);
+        assert_eq!(ach.achievements[75], 1); // chal1NoGen, pv 25
+        assert_eq!(ach.achievement_points, 25.0);
+
+        // Owning even one generator upgrade suppresses it.
+        let mut ach2 = AchievementsState::default();
+        let ctx2 = ChallengeUngroupedContext {
+            generator_upgrades_owned: 1,
+            ..ctx
+        };
+        challenge_ungrouped_achievement_check(&mut ach2, 1, &completions, &ctx2);
+        assert_eq!(ach2.achievements[75], 0);
+    }
+
+    #[test]
+    fn challenge_ungrouped_diamond_search_needs_coins_and_no_accelerators() {
+        let completions = [0.0_f64; 16];
+        let ctx = ChallengeUngroupedContext {
+            coins_this_transcension_log10: 120_000.0, // >= 1e120000
+            current_transcension_challenge: 5,
+            generator_upgrades_owned: 0,
+            accelerator_bought: 0.0,
+            accelerator_boost_bought: 0.0,
+            extinction_level: 0.0,
+        };
+        let mut ach = AchievementsState::default();
+        challenge_ungrouped_achievement_check(&mut ach, 5, &completions, &ctx);
+        assert_eq!(ach.achievements[63], 1); // diamondSearch, pv 35
+        assert_eq!(ach.achievement_points, 35.0);
+
+        // Any accelerator bought suppresses it.
+        let mut ach2 = AchievementsState::default();
+        let ctx2 = ChallengeUngroupedContext {
+            accelerator_bought: 1.0,
+            ..ctx
+        };
+        challenge_ungrouped_achievement_check(&mut ach2, 5, &completions, &ctx2);
+        assert_eq!(ach2.achievements[63], 0);
+    }
+
+    #[test]
+    fn challenge_ungrouped_extra_challenging_needs_all_three_conditions() {
+        let mut completions = [0.0_f64; 16];
+        completions[10] = 51.0; // c10 > 50
+        completions[11] = 20.0; // c11 >= 20
+        let ctx = ChallengeUngroupedContext {
+            coins_this_transcension_log10: 0.0,
+            current_transcension_challenge: 0,
+            generator_upgrades_owned: 0,
+            accelerator_bought: 0.0,
+            accelerator_boost_bought: 0.0,
+            extinction_level: 5.0, // extinction >= 5
+        };
+        let mut ach = AchievementsState::default();
+        challenge_ungrouped_achievement_check(&mut ach, 11, &completions, &ctx);
+        assert_eq!(ach.achievements[247], 1); // extraChallenging, pv 50
+        assert_eq!(ach.achievement_points, 50.0);
+
+        // extinction < 5 suppresses it.
+        let mut ach2 = AchievementsState::default();
+        let ctx2 = ChallengeUngroupedContext {
+            extinction_level: 4.0,
+            ..ctx
+        };
+        challenge_ungrouped_achievement_check(&mut ach2, 11, &completions, &ctx2);
+        assert_eq!(ach2.achievements[247], 0);
     }
 
     #[test]

@@ -244,6 +244,17 @@ pub fn hepteracts_unlocked(exponent: f64) -> f64 {
     }
 }
 
+/// `challenge15Rewards.achievementUnlock.value` — `1` once `exponent >= 666666`,
+/// else `0`. Gates the `sadisticAch` achievement (#252).
+#[must_use]
+pub fn achievement_unlock(exponent: f64) -> f64 {
+    if exponent >= 666_666.0 {
+        1.0
+    } else {
+        0.0
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -377,5 +388,8 @@ mod tests {
         assert_eq!(hepteracts_unlocked(0.0), 0.0);
         assert_eq!(hepteracts_unlocked(9.9e14), 0.0);
         assert_eq!(hepteracts_unlocked(1e15), 1.0);
+        assert_eq!(achievement_unlock(0.0), 0.0);
+        assert_eq!(achievement_unlock(666_665.0), 0.0);
+        assert_eq!(achievement_unlock(666_666.0), 1.0);
     }
 }
