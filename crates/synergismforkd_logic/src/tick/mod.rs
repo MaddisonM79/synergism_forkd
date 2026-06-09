@@ -2557,13 +2557,14 @@ fn populate_ambrosia_free_levels(state: &mut GameState) {
 /// awards) credit the full multiplier — every such site reads
 /// `1 + quark_bonus / 100`, which equals this product.
 ///
-/// Terms left at the multiplicative identity `1.0` are documented inline: the
-/// `quarkGain` achievement reward, the c15 quarks reward + quark-hepteract gate,
-/// `shopPanthema` / `infiniteAscent` (need their bonus-levels precompute /
-/// unlock gate), campaign bonus, and the UI/host-tier event + patreon
-/// (global / personal) bonuses. `favoriteUpgrade` passes a `0` maxed-sibling
-/// count (identity until that GQ upgrade is bought) and `ambrosiaCubeQuark1`
-/// passes a `0` `wow_cube_log_sum` — the same precedent as
+/// The `quarkGain` achievement reward (#250/#251/#266), the Challenge-15
+/// `quarks` reward, and the quark-hepteract bonus are now wired (each identity
+/// at default). The terms still left at the multiplicative identity `1.0` are
+/// documented inline: `shopPanthema` / `infiniteAscent` (need their bonus-levels
+/// precompute / unlock gate), campaign bonus, and the UI/host-tier event +
+/// patreon (global / personal) bonuses. `favoriteUpgrade` passes a `0`
+/// maxed-sibling count (identity until that GQ upgrade is bought) and
+/// `ambrosiaCubeQuark1` passes a `0` `wow_cube_log_sum` — the same precedent as
 /// [`compute_ambrosia_luck_pre`]'s deferred cube-log terms.
 fn compute_quark_multiplier(state: &GameState) -> f64 {
     use crate::mechanics::achievement_levels::achievement_level_from_points;
@@ -2576,7 +2577,8 @@ fn compute_quark_multiplier(state: &GameState) -> f64 {
     use crate::mechanics::calculate::product_f64;
     use crate::mechanics::golden_quark_upgrades::{
         advanced_pack_effect, divine_pack_effect, expert_pack_effect, favorite_upgrade_effect,
-        intermediate_pack_effect, master_pack_effect, sing_quark_improver_1_effect,
+        intermediate_pack_effect, master_pack_effect, sing_quark_hepteract_2_effect,
+        sing_quark_hepteract_3_effect, sing_quark_hepteract_effect, sing_quark_improver_1_effect,
         AdvancedPackKey, DivinePackKey, ExpertPackKey, IntermediatePackKey, MasterPackKey,
     };
     use crate::mechanics::level_rewards::{get_level_reward, LevelRewardKey};
@@ -2605,7 +2607,8 @@ fn compute_quark_multiplier(state: &GameState) -> f64 {
     };
     use crate::state::golden_quarks::{
         GQ_ADVANCED_PACK, GQ_DIVINE_PACK, GQ_EXPERT_PACK, GQ_FAVORITE_UPGRADE,
-        GQ_INTERMEDIATE_PACK, GQ_MASTER_PACK, GQ_SING_QUARK_IMPROVER_1,
+        GQ_INTERMEDIATE_PACK, GQ_MASTER_PACK, GQ_SING_QUARK_HEPTERACT, GQ_SING_QUARK_HEPTERACT_2,
+        GQ_SING_QUARK_HEPTERACT_3, GQ_SING_QUARK_IMPROVER_1,
     };
     use crate::state::octeract_upgrades::{
         OCTERACT_QUARK_GAIN, OCTERACT_QUARK_GAIN_2, OCTERACT_STARTER,
@@ -2660,8 +2663,29 @@ fn compute_quark_multiplier(state: &GameState) -> f64 {
         _ => 1.0,
     };
 
+    // QuarkHepteract: once `challenge15Exponent` reaches the `hepteractsUnlocked`
+    // requirement (`1e15`), the quark hepteract's `quarkMultiplier` applies.
+    // `hepteractEffective('quark')` returns the raw `BAL` (the quark craft uses a
+    // custom non-polynomial formula — Hepteracts.ts:633), and the effect is
+    // `(1 + 0.2·log2(1 + bal/500))^(DR + DR_INCREASE)` (Hepteracts.ts:134) with
+    // `DR = 2` and `DR_INCREASE` the three `singQuarkHepteract` GQ upgrades'
+    // `quarkHeptExponent`. Identity at default (`bal = 0` → base `1`).
+    let quark_hepteract = if state.challenges.challenge15_exponent >= 1e15 {
+        let exponent = 2.0
+            + sing_quark_hepteract_effect(gq(GQ_SING_QUARK_HEPTERACT))
+            + sing_quark_hepteract_2_effect(gq(GQ_SING_QUARK_HEPTERACT_2))
+            + sing_quark_hepteract_3_effect(gq(GQ_SING_QUARK_HEPTERACT_3));
+        (1.0 + 0.2 * (1.0 + state.hepteracts.quark.bal / 500.0).log2()).powf(exponent)
+    } else {
+        1.0
+    };
+
     product_f64(&[
-        1.0, // AchievementBonus — getAchievementReward('quarkGain') unported
+        // AchievementBonus — getAchievementReward('quarkGain') (#250/#251/#266).
+        crate::mechanics::achievement_rewards::quark_gain(
+            &state.achievements.achievements,
+            state.reset_counters.ascension_count,
+        ),
         get_level_reward(LevelRewardKey::Quarks, achievement_level),
         plastic_talisman_effects(state.talismans.talisman_levels[TALISMAN_PLASTIC] as i32)
             .quark_bonus,
@@ -2669,10 +2693,11 @@ fn compute_quark_multiplier(state: &GameState) -> f64 {
         if platonic[10] > 0.0 { 1.1 } else { 1.0 }, // PlatonicBETA
         if platonic[15] > 0.0 { 1.15 } else { 1.0 }, // PlatonicOMEGA
         1.0, // Jack (shopPanthema) — needs ShopPanthemaBonusLevels precompute
-        1.0, // Challenge15 — c15 quarks reward unported
+        // Challenge15 — c15 `quarks` reward, gated on `challenge15Exponent`.
+        crate::mechanics::challenge_15_rewards::quarks(state.challenges.challenge15_exponent),
         1.0, // CampaignBonus — player.campaigns.quarkBonus unported
         1.0, // InfiniteAscent — needs shop infiniteAscent unlock gate + rune
-        1.0, // QuarkHepteract — needs c15 hepteractsUnlocked gate + quark hepteract DR
+        quark_hepteract,
         calculate_quark_mult_from_powder(state.hepteracts.overflux_powder),
         1.0 + sing / 10.0,                                     // SingularityCount
         favorite_upgrade_effect(gq(GQ_FAVORITE_UPGRADE), 0.0), // siblings=0 until GQ bought
@@ -7087,6 +7112,43 @@ mod tests {
         state.singularity.highest_singularity_count = 1.0;
         state.ambrosia.upgrades[crate::state::ambrosia::AMBROSIA_QUARKS_1].level = 10.0;
         assert!((compute_quark_multiplier(&state) - 1.1).abs() < 1e-9);
+    }
+
+    #[test]
+    fn quark_multiplier_includes_quark_gain_achievement_reward() {
+        // getAchievementReward('quarkGain'): achievement #266 (ascensionCount
+        // group) earned with ascensionCount ≥ 1e15 ⇒ ×(1 + 0.1·1) = ×1.1
+        // (first-singularity bonus disabled).
+        let mut state = GameState::default();
+        state.singularity.highest_singularity_count = 1.0;
+        state.achievements.achievements[266] = 1;
+        state.reset_counters.ascension_count = 1e16;
+        assert!((compute_quark_multiplier(&state) - 1.1).abs() < 1e-9);
+    }
+
+    #[test]
+    fn quark_multiplier_includes_challenge15_quarks_reward() {
+        // The c15 `quarks` reward at exponent 1e11 (its requirement, below the
+        // 1e15 quark-hepteract gate) ⇒ 1 + (3/400)·log2(32) = 1.0375.
+        let mut state = GameState::default();
+        state.singularity.highest_singularity_count = 1.0;
+        state.challenges.challenge15_exponent = 1e11;
+        assert!((compute_quark_multiplier(&state) - 1.0375).abs() < 1e-9);
+    }
+
+    #[test]
+    fn quark_multiplier_includes_quark_hepteract() {
+        // QuarkHepteract activates at challenge15Exponent ≥ 1e15. Isolate its
+        // factor by holding the exponent fixed and varying only the quark
+        // hepteract balance: with no GQ DR upgrades the exponent is 2, so
+        // (1 + 0.2·log2(1 + 1500/500))^2 = (1 + 0.2·log2(4))^2 = 1.4^2 = 1.96.
+        let mut base = GameState::default();
+        base.singularity.highest_singularity_count = 1.0;
+        base.challenges.challenge15_exponent = 1e15;
+        let mut with_hept = base.clone();
+        with_hept.hepteracts.quark.bal = 1500.0;
+        let ratio = compute_quark_multiplier(&with_hept) / compute_quark_multiplier(&base);
+        assert!((ratio - 1.96).abs() < 1e-9);
     }
 
     #[test]

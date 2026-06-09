@@ -208,6 +208,14 @@ const ASCENSION_COUNT_MULT_SCORE_INDEX: usize = 187;
 const ASCENSION_COUNT_MULT_FLAT_INDICES: [usize; 2] = [260, 261];
 const ASCENSION_COUNT_MULT_COUNTER_INDEX: usize = 474;
 
+/// `quarkGain` reward indices (multiplicative product; feeds the
+/// `AchievementBonus` line of the quark multiplier, `allQuarkStats`):
+/// #250 (Thousand Suns) and #251 (Thousand Moons) each grant flat `1.05`;
+/// #266 (group `ascensionCount`, `ascensionCount >= 1e14`) grants
+/// `1 + 0.1·min(ascensionCount/1e15, 1)`.
+const QUARK_GAIN_FLAT_INDICES: [usize; 2] = [250, 251];
+const QUARK_GAIN_ASC_COUNT_INDEX: usize = 266;
+
 #[inline]
 fn earned(achievements: &[u8; ACHIEVEMENTS_LEN], index: usize) -> bool {
     achievements[index] != 0
@@ -595,6 +603,28 @@ pub fn ascension_count_multiplier(
     prod
 }
 
+/// `getAchievementReward('quarkGain')` — multiplicative (base 1). Feeds the
+/// `AchievementBonus` line of `allQuarkStats` (the quark multiplier,
+/// [`crate::tick`]'s `compute_quark_multiplier`). Identity `1.0` at default.
+///
+/// `#250`/`#251` (Thousand Suns / Moons) are `ungrouped` achievements whose
+/// awarding is still deferred, so their `1.05` factors stay dormant; `#266` is
+/// in the ported `ascensionCount` group, so this reward goes live once
+/// `ascensionCount` reaches `1e14`.
+#[must_use]
+pub fn quark_gain(achievements: &[u8; ACHIEVEMENTS_LEN], ascension_count: f64) -> f64 {
+    let mut prod = 1.0;
+    for &index in &QUARK_GAIN_FLAT_INDICES {
+        if earned(achievements, index) {
+            prod *= 1.05;
+        }
+    }
+    if earned(achievements, QUARK_GAIN_ASC_COUNT_INDEX) {
+        prod *= 1.0 + 0.1 * (ascension_count / 1e15).min(1.0);
+    }
+    prod
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -628,6 +658,22 @@ mod tests {
     fn ascension_reward_scaling_tracks_achievement_204() {
         assert!(!ascension_reward_scaling(&earned_array(&[])));
         assert!(ascension_reward_scaling(&earned_array(&[204])));
+    }
+
+    #[test]
+    fn quark_gain_is_identity_at_default_and_compounds_when_earned() {
+        let none = earned_array(&[]);
+        assert_eq!(quark_gain(&none, 0.0), 1.0);
+        // Thousand Suns + Moons → 1.05 · 1.05.
+        assert!((quark_gain(&earned_array(&[250, 251]), 0.0) - 1.05 * 1.05).abs() < 1e-12);
+        // #266 alone, ascensionCount 5e14 → 1 + 0.1·min(0.5, 1) = 1.05.
+        assert!((quark_gain(&earned_array(&[266]), 5e14) - 1.05).abs() < 1e-12);
+        // #266 alone, ascensionCount ≥ 1e15 → the min saturates at 1 → 1.1.
+        assert!((quark_gain(&earned_array(&[266]), 1e16) - 1.1).abs() < 1e-12);
+        // All three earned at saturation → 1.05 · 1.05 · 1.1.
+        assert!(
+            (quark_gain(&earned_array(&[250, 251, 266]), 1e16) - 1.05 * 1.05 * 1.1).abs() < 1e-12
+        );
     }
 
     #[test]
