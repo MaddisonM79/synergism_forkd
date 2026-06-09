@@ -88,7 +88,7 @@ flowchart LR
   `accelBoostCostDelay` now feeds the cost (the runes-page wire). The autobuyer path
   (`boostAccelerator(true)`) is now wired into the `updateAll` driver, and the `acceleratorBoosts`
   achievement group now awards.
-- **`updateAll` autobuyers now self-drive** (PR #269, `tick/auto_buy.rs`, Phase 5): producers
+- **`updateAll` autobuyers now self-drive** (`tick/auto_buy.rs`, Phase 5): producers
   (coin/diamond/mythos/particle), accelerator/multiplier/boost, crystal upgrades, the upgrade tab,
-  ascension constants, and ant producers/masteries — 10 of 13 families (ant-upgrades / talisman /
-  tesseract deferred behind prerequisites). A pure-idle Rust loop auto-buys once the toggles are on.
+  ascension constants, ant producers/masteries/upgrades, talismans, and tesseracts — **all 13
+  families**. A pure-idle Rust loop auto-buys once the toggles are on.

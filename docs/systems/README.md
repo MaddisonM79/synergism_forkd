@@ -105,9 +105,9 @@ fixed in code, the map had simply gone stale:
 > **Baseline caveat.** Reflects `main` *after* PR #265 + branch `claude/nifty-colden-ef7278`
 > (PR #269), plus branch `claude/close-unmigrated-systems`: the quark multiplier
 > (`calculateQuarkMultiplier`) + blueberry quark/free-levels are ported, the 21 `unlocks` keys are
-> complete, and **the singularity layer is live** (reset + GQ grant + seeded metadata). **No HIGH
-> parity bugs remain open.** Remaining: the three deferred autobuyer families (talisman / ant-upgrade
-> / tesseract — each needs a prerequisite), the singularity elevator triad + challenge entry, and the
+> complete, **the singularity layer is live** (reset + GQ grant + seeded metadata), and **all 13
+> `updateAll` autobuyer families are wired** (incl. talisman / tesseract / ant-upgrade). **No HIGH
+> parity bugs remain open.** Remaining: the singularity elevator triad + challenge entry, and the
 > UI tree.
 
 ## Appendix: full single-canvas map
