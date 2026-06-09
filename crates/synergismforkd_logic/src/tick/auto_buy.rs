@@ -13,11 +13,12 @@
 //! per-tier unlock upgrades are unowned at default, the whole driver is inert
 //! on a fresh save.
 //!
-//! **Deferred families** (each needs an unported prerequisite, all dormant at
-//! default): the **ant-upgrade** autobuyer (its 16 per-upgrade `autobuy()`
-//! conditions are distinct unported achievement rewards / level milestones).
-//! The **talisman** autobuyer (Family 11, `buyTalismanLevelToRarityIncrease`)
-//! and the **tesseract** autobuyer (Family 12) are now wired.
+//! **All 13 `updateAll` autobuyer families are wired** — including the formerly
+//! deferred three: talisman (Family 11, `buyTalismanLevelToRarityIncrease`),
+//! tesseract (Family 12, AMOUNT mode + `calculate_tess_buildings_in_budget`),
+//! and ant-upgrades (Family 13, per-upgrade achievement / research / milestone
+//! gates). The PERCENTAGE-mode tesseract path (`autoBuyTesseracts`, on-ascension)
+//! is a separate call site, not part of this `updateAll` driver.
 
 use crate::events::{ProducerType, UpgradeTier};
 use crate::mechanics::accelerators::BuyAcceleratorInput;
@@ -161,6 +162,9 @@ pub(crate) fn run_auto_buy(state: &mut GameState, pre: &AutomationPre, output: &
 
     // ── Family 11: talismans (buyTalismanLevelToRarityIncrease) ──────
     talisman_autobuyer(state, output, ppg);
+
+    // ── Family 12: tesseract buildings (AMOUNT mode) ─────────────────
+    tesseract_autobuyer(state, output, ppg);
 
     // ── Family 13 (producers + masteries): ant autobuyers ────────────
     // Gated on the ant autobuy toggles + getAchievementReward('antAutobuyers').
@@ -570,6 +574,48 @@ fn talisman_level_cap_increase(state: &GameState, talisman: usize, universal: f6
     }
 }
 
+/// AMOUNT-mode tesseract-building autobuyer (`updateAll`, `Synergism.ts:4256`).
+/// Gated on `researches[190] > 0 && tesseract_auto_buyer_toggle && ascension_reset_mode == Amount`.
+/// Solves the cheapest-first distribution of `wow_tesseracts − reserve` across the
+/// auto-buy-enabled tiers ([`calculate_tess_buildings_in_budget`]) and dispatches
+/// the deltas highest-tier-first. The PERCENTAGE mode (on-ascension
+/// `autoBuyTesseracts`) is a separate call site and not driven here.
+fn tesseract_autobuyer(state: &mut GameState, output: &mut TickOutput, ppg: Decimal) {
+    use crate::mechanics::tesseract_buildings::{
+        calculate_tess_buildings_in_budget, BuyTesseractBuildingInput,
+    };
+    use crate::state::automation::AutoAscensionMode;
+
+    if state.researches.researches[190] <= 0.0
+        || !state.automation.tesseract_auto_buyer_toggle
+        || state.automation.ascension_reset_mode != AutoAscensionMode::Amount
+    {
+        return;
+    }
+    let owned: [Option<f64>; 5] = std::array::from_fn(|i| {
+        if state.automation.auto_tesseracts[i + 1] {
+            Some(state.tesseract_buildings.building((i + 1) as u8).owned)
+        } else {
+            None
+        }
+    });
+    let budget =
+        state.tesseract_buildings.wow_tesseracts - state.automation.tesseract_auto_buyer_amount;
+    let buy_to = calculate_tess_buildings_in_budget(owned, budget);
+    // Highest tier to lowest (matches the legacy order — guards float fuzz).
+    for i in (0..5).rev() {
+        if let (Some(from), Some(to)) = (owned[i], buy_to[i]) {
+            if to > from {
+                let req = BuyRequest::TesseractBuilding(BuyTesseractBuildingInput {
+                    index: (i + 1) as u8,
+                    amount: to - from,
+                });
+                output.events.extend(dispatch_buy(state, &req, ppg));
+            }
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -627,5 +673,30 @@ mod tests {
         let mut output = TickOutput::default();
         run_auto_buy(&mut state, &AutomationPre::default(), &mut output);
         assert!(state.ants.upgrades[0] > 0.0);
+    }
+
+    #[test]
+    fn tesseract_autobuyer_buys_within_budget() {
+        let mut state = GameState::default();
+        state.researches.researches[190] = 1.0;
+        state.automation.tesseract_auto_buyer_toggle = true; // ascension mode defaults Amount
+        state.automation.auto_tesseracts[1] = true; // enable tier 1
+        state.tesseract_buildings.wow_tesseracts = 1000.0;
+        let mut output = TickOutput::default();
+        tesseract_autobuyer(&mut state, &mut output, Decimal::zero());
+        assert!(state.tesseract_buildings.building(1).owned > 0.0);
+        assert!(!output.events.is_empty());
+    }
+
+    #[test]
+    fn tesseract_autobuyer_inert_without_toggle() {
+        let mut state = GameState::default();
+        state.researches.researches[190] = 1.0;
+        state.automation.auto_tesseracts[1] = true;
+        state.tesseract_buildings.wow_tesseracts = 1000.0;
+        let mut output = TickOutput::default();
+        tesseract_autobuyer(&mut state, &mut output, Decimal::zero());
+        assert_eq!(state.tesseract_buildings.building(1).owned, 0.0);
+        assert!(output.events.is_empty());
     }
 }

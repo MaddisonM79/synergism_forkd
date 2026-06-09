@@ -56,6 +56,19 @@ pub enum AutoAscendMode {
     RealAscensionTime,
 }
 
+/// `player.resetToggleModes.ascension` (legacy `AutoAscensionModes`) — the
+/// tesseract-autobuyer mode. `Amount` (the `updateAll` Family-12 path) spends
+/// down to a flat `tesseract_auto_buyer_amount` reserve; `Percentage` is the
+/// on-ascension `autoBuyTesseracts` path (`Reset.ts:825`, not driven here).
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum AutoAscensionMode {
+    /// `amount = 0` — keep a flat reserve.
+    #[default]
+    Amount,
+    /// `percentage = 1` — keep a percentage reserve.
+    Percentage,
+}
+
 /// `player.shoptoggles` — the five category gates read by the upgrade-tab
 /// autobuyer (`autoUpgrades`). Distinct from the indexed `toggles` array:
 /// these are the shop's "auto-buy this upgrade family" switches.
@@ -192,6 +205,9 @@ pub struct AutomationState {
     /// `player.autoTesseracts` — per-tier tesseract autobuy enables (slot 0
     /// unused; `1..=5` are the five buildings).
     pub auto_tesseracts: [bool; 6],
+    /// `player.resetToggleModes.ascension` — the tesseract-autobuyer mode. Only
+    /// `Amount` is driven by the `updateAll` autobuyer.
+    pub ascension_reset_mode: AutoAscensionMode,
     /// `player.autoFortifyToggle` — talisman level→rarity autobuyer armed.
     pub auto_fortify_toggle: bool,
     /// `player.shoptoggles` — the five upgrade-tab auto-buy category gates.
@@ -244,6 +260,7 @@ impl Default for AutomationState {
             tesseract_auto_buyer_amount: 0.0,
             tesseract_buy_amount: 1.0,
             auto_tesseracts: [false; 6],
+            ascension_reset_mode: AutoAscensionMode::Amount,
             auto_fortify_toggle: false,
             shop_toggles: ShopToggles::default(),
         }
