@@ -9192,6 +9192,35 @@ mod tests {
     }
 
     #[test]
+    fn auto_buy_constant_upgrades_when_research_175() {
+        let mut state = GameState::default();
+        state.researches.researches[175] = 1.0;
+        state.campaigns.ascend_shards = Decimal::from_finite(1e3);
+        let input = TackInput {
+            dt: 0.025,
+            ..TackInput::default()
+        };
+        let _ = tack(&mut state, &input);
+        // research[175] > 0 → free constant-upgrade buys.
+        assert!(state.campaigns.constant_upgrades[1] > 0.0);
+    }
+
+    #[test]
+    fn auto_buy_ant_producers_when_unlocked() {
+        let mut state = GameState::default();
+        state.ants.toggles.autobuy_producers = true;
+        // Achievement 173 grants antAutobuyers → tiers_unlocked = 0 (Workers).
+        state.achievements.achievements[173] = 1;
+        state.ants.crumbs = Decimal::from_finite(1e6);
+        let input = TackInput {
+            dt: 0.025,
+            ..TackInput::default()
+        };
+        let _ = tack(&mut state, &input);
+        assert!(state.ants.producers[0].purchased > 0.0);
+    }
+
+    #[test]
     fn phase_tax_feeds_coin_gain_and_writes_taxdivisor() {
         // tier-1 coin producer owned → produce_total = 1000 * 0.25 = 250
         // (default coin multipliers are 1), above the 0.001 coin-gain gate,

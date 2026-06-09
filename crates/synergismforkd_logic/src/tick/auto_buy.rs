@@ -12,9 +12,22 @@
 //! Because `player.toggles[1..=26]` all default `false` and `shoptoggles`'
 //! per-tier unlock upgrades are unowned at default, the whole driver is inert
 //! on a fresh save.
+//!
+//! **Deferred families** (each needs an unported prerequisite, all dormant at
+//! default): the **ant-upgrade** autobuyer (its 16 per-upgrade `autobuy()`
+//! conditions are distinct unported achievement rewards / level milestones),
+//! the **talisman** autobuyer (`buyTalismanLevelToRarityIncrease` is a
+//! rarity-target purchase loop — `levelsUntilRarityIncrease` + the budget /
+//! affordability walk — not the single-level `buy_talisman_level`), and the
+//! **tesseract** autobuyer (needs the `resetToggleModes.ascension` mode, absent
+//! from the Rust schema, plus the budget-driven multi-building purchase).
 
 use crate::events::{ProducerType, UpgradeTier};
 use crate::mechanics::accelerators::BuyAcceleratorInput;
+use crate::mechanics::ant_masteries::{
+    can_buy_ant_mastery, BuyAntMasteryInput, CanBuyAntMasteryInput, MAX_ANT_MASTERY_LEVEL,
+};
+use crate::mechanics::ant_producers::BuyAntProducerInput;
 use crate::mechanics::ant_upgrades::building_cost_scale_ant_upgrade_effect;
 use crate::mechanics::auto_upgrades::{
     buy_generator, click_upgrades, diamond_upgrade_reward, ClickUpgradesUnlocks,
@@ -23,6 +36,7 @@ use crate::mechanics::auto_upgrades::{
 };
 use crate::mechanics::calculate::{get_reduction_value, ReductionValueInput};
 use crate::mechanics::challenges::{calc_ecc, ChallengeType};
+use crate::mechanics::constant_upgrades::BuyConstantUpgradeInput;
 use crate::mechanics::crystal_upgrades::BuyCrystalUpgradesInput;
 use crate::mechanics::level_milestones::{get_level_milestone, LevelMilestoneKey};
 use crate::mechanics::multipliers::BuyMultiplierInput;
@@ -137,6 +151,76 @@ pub(crate) fn run_auto_buy(state: &mut GameState, pre: &AutomationPre, output: &
             output.events.extend(dispatch_buy(state, &req, ppg));
         }
     }
+
+    // ── Family 10: constant upgrades 1..=10 ──────────────────────────
+    // researches[175] > 0 → free buys (the primitive checks affordability).
+    if state.researches.researches[175] > 0.0 {
+        for i in 1..=10usize {
+            let req = BuyRequest::ConstantUpgrade(BuyConstantUpgradeInput { index: i });
+            output.events.extend(dispatch_buy(state, &req, ppg));
+        }
+    }
+
+    // ── Family 13 (producers + masteries): ant autobuyers ────────────
+    // Gated on the ant autobuy toggles + getAchievementReward('antAutobuyers').
+    // The ant-UPGRADE autobuyer is deferred (see the module docs).
+    let tiers_unlocked = ant_autobuyer_tiers_unlocked(&state.achievements.achievements);
+    if state.ants.toggles.autobuy_producers {
+        let max = state.ants.toggles.max_buy_producers;
+        for ant in (0..=8u8).rev() {
+            if i32::from(ant) <= tiers_unlocked {
+                let req = BuyRequest::AntProducer(BuyAntProducerInput { index: ant, max });
+                output.events.extend(dispatch_buy(state, &req, ppg));
+            }
+        }
+    }
+    if state.ants.toggles.autobuy_masteries {
+        for ant in (0..=8u8).rev() {
+            if i32::from(ant) > tiers_unlocked {
+                continue;
+            }
+            // while canBuyAntMastery && mastery < highestMastery (autobuy only
+            // rebuilds the high-water mark lost on reincarnation).
+            loop {
+                let mastery = state.ants.masteries[ant as usize].mastery;
+                let highest = state.ants.masteries[ant as usize].highest_mastery;
+                if mastery >= highest {
+                    break;
+                }
+                let check = CanBuyAntMasteryInput {
+                    producer: ant,
+                    mastery_level: mastery,
+                    max_level: MAX_ANT_MASTERY_LEVEL,
+                    current_elo: state.ants.reborn_elo,
+                    current_particles: state.upgrades.reincarnation_points,
+                };
+                if !can_buy_ant_mastery(&check) {
+                    break;
+                }
+                let req = BuyRequest::AntMastery(BuyAntMasteryInput { producer: ant });
+                let events = dispatch_buy(state, &req, ppg);
+                if events.is_empty() {
+                    break;
+                }
+                output.events.extend(events);
+            }
+        }
+    }
+}
+
+/// Achievement indices granting `antAutobuyers` (each reward `1`).
+/// `getAchievementReward('antAutobuyers')` sums them, so the count owned is the
+/// reward. Calibrated against `legacy/original/src/Achievements.ts`.
+const ANT_AUTOBUYER_ACHIEVEMENTS: [usize; 9] = [173, 176, 177, 178, 179, 180, 181, 182, 349];
+
+/// `+getAchievementReward('antAutobuyers') - 1` — the highest ant-producer tier
+/// (0-indexed) whose producer / mastery autobuyer is unlocked; `-1` = none.
+fn ant_autobuyer_tiers_unlocked(achievements: &[u8]) -> i32 {
+    let count = ANT_AUTOBUYER_ACHIEVEMENTS
+        .iter()
+        .filter(|&&idx| achievements.get(idx).is_some_and(|&v| v != 0))
+        .count();
+    count as i32 - 1
 }
 
 /// `getLevelMilestone('tierNCrystalAutobuy') === 1` for crystal-autobuy tier
