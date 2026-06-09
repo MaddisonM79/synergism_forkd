@@ -21,8 +21,8 @@ flowchart LR
   potions["Potions · consumables"]:::ported
   purchases["Purchases · cosmetics"]:::absent
   codes["Promo codes"]:::absent
-  achievements["Achievements ·509"]:::partial
-  achPoints["Achievement points/levels ⚠H5"]:::bug
+  achievements["Achievements ·509"]:::ported
+  achPoints["Achievement points/levels"]:::ported
   progAch["Progressive achievements"]:::partial
   statistics["Statistics"]:::stub
   history["History"]:::stub
@@ -65,17 +65,25 @@ flowchart LR
 | Shop upgrades + costs | 🟩 Ported | `mechanics/shop_upgrades.rs`, `shop_costs.rs` |
 | Potions / consumables | 🟩 Ported | `state/shop.rs` |
 | Purchases / cosmetics / codes | ⬜ Absent | monetization + backend parked — see [`BACKEND_API_PLAN.md`](../../BACKEND_API_PLAN.md) |
-| Achievements (509) | 🟨 Partial | `state/achievements.rs`, `mechanics/achievement_*.rs` |
-| Achievement points / levels | 🟨 Partial ⚠**H5** | `mechanics/achievement_points.rs` |
+| Achievements (509) | 🟩 Mostly | `state/achievements.rs`, `mechanics/achievement_*.rs` (all portable award groups done; remaining blocked — see notes) |
+| Achievement points / levels | 🟩 Ported | `mechanics/achievement_points.rs` (H5 fixed: full-table recompute + every award group feeds the points total) |
 | Statistics / History | 🟧 Stub | not yet modeled (UI-tier) |
 
 ## Porting notes / open bugs
 
-- ⚠ **H5 — achievement points frozen:** `compute_achievement_points` still has **zero production
-  callers**, so points stay at 0 and the crystal `(1+0.01·u)^points` and mythos `1.01^points·(points/5+1)`
-  multipliers never leave ≈1.0 — a real mid-game coin-multiplier hole. PR #265 extended *awarding*
-  (P3.1 slice 3b: no-reset + per-challenge achievements), but the points recompute (and the progressive
-  cache update) is still missing.
-- The achievement **full-table recompute** is blocked on save-load + the 509-entry value table.
-- Shop **bonus-level composition** (topHat rune, ambrosia/red-ambrosia free nodes, etc. modifying shop
-  rewards) is not yet modeled (medium finding).
+- ✅ **H5 — FIXED.** The full-table recompute (`recompute_achievement_points` + the 509-entry
+  `ACHIEVEMENT_POINT_VALUES`) now runs on save import, and **every portable award group** feeds the
+  points total incrementally — so the crystal `(1+0.01·u)^points` / mythos `1.01^points·(points/5+1)`
+  multipliers now grow with progress.
+- ✅ **Award groups — all portable ones ported** (a per-tick monotonic sweep in `phase_global_state`,
+  reusing `award_threshold_group`/`award_log10_group`): reset counts (ascension/prestige/transcend/
+  reincarnation), accelerators/multipliers/acceleratorBoosts, speed-rune level/freeLevel/blessing/
+  spirit, constant (ascendShards), antCrumbs, ascensionScore — on top of the pre-existing building /
+  point-gain / challenge / sacrifice / no-reset groups.
+- **Still blocked** (each needs an unported prerequisite): `campaignTokens` (the running token total
+  isn't a Rust state field), `singularityCount` (singularity paused), `addCodesUsed` (UI-tier code
+  array), progressive slots 8–11 (exalt rewardAP + upgrade `maxLevel` tracking unported). The
+  `getAchievementReward('quarkGain')` reward-reader is blocked on the unported quark-multiplier
+  assembler (`allQuarkStats` → `quark_bonus` is currently a static cache).
+- Shop **bonus-level composition** + the ~76 ported-but-unwired shop effects are not yet modeled
+  (the larger remaining meta-economy gap).
