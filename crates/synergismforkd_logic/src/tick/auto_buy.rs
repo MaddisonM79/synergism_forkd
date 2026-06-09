@@ -25,7 +25,7 @@ use crate::mechanics::ant_masteries::{
     can_buy_ant_mastery, BuyAntMasteryInput, CanBuyAntMasteryInput, MAX_ANT_MASTERY_LEVEL,
 };
 use crate::mechanics::ant_producers::BuyAntProducerInput;
-use crate::mechanics::ant_upgrades::building_cost_scale_ant_upgrade_effect;
+use crate::mechanics::ant_upgrades::{building_cost_scale_ant_upgrade_effect, BuyAntUpgradeInput};
 use crate::mechanics::auto_upgrades::{
     buy_generator, click_upgrades, diamond_upgrade_reward, ClickUpgradesUnlocks,
     DIAMOND_UPGRADE_18_ACHIEVEMENT, DIAMOND_UPGRADE_19_ACHIEVEMENT, DIAMOND_UPGRADE_20_ACHIEVEMENT,
@@ -206,6 +206,60 @@ pub(crate) fn run_auto_buy(state: &mut GameState, pre: &AutomationPre, output: &
                 output.events.extend(events);
             }
         }
+    }
+
+    // ── Family 13 (upgrades): ant-upgrade autobuyer ──────────────────
+    // autobuyAntUpgrades — each of the 16 ant upgrades gates on its own
+    // `autobuy()` predicate (per-upgrade achievement reward / research /
+    // level milestone). `max_buy_upgrades` chooses single-vs-max.
+    if state.ants.toggles.autobuy_upgrades {
+        let max = state.ants.toggles.max_buy_upgrades;
+        for upgrade in 0..16u8 {
+            if ant_upgrade_autobuy_unlocked(state, upgrade) {
+                let req = BuyRequest::AntUpgrade(BuyAntUpgradeInput {
+                    index: upgrade,
+                    max,
+                });
+                output.events.extend(dispatch_buy(state, &req, ppg));
+            }
+        }
+    }
+}
+
+/// Per-ant-upgrade autobuy achievement index for upgrades 0-10 (the
+/// `getAchievementReward('<name>Autobuy')` gate, `AntUpgrades/data/data.ts`):
+/// AntSpeed/Coins→176, Taxes→177, AcceleratorBoosts/Multipliers→178,
+/// Offerings→179, BuildingCostScale→482, Salvage→174, FreeRunes→484,
+/// Obtainium→137, AntSacrifice→486 (verified against the antSacrificeUnlock=173
+/// anchor). Upgrades 11-15 use research / level-milestone gates instead.
+const ANT_UPGRADE_AUTOBUY_ACHIEVEMENTS: [usize; 11] =
+    [176, 176, 177, 178, 178, 179, 482, 174, 484, 137, 486];
+
+/// `antUpgradeData[upgrade].autobuy()` — whether ant upgrade `upgrade` (0-15)
+/// may autobuy. 0-10: the per-upgrade achievement reward; 11 (Mortuus):
+/// `researches[145] > 0`; 12-15 (AntELO/WowCubes/AscensionScore/Mortuus2): a
+/// level milestone.
+fn ant_upgrade_autobuy_unlocked(state: &GameState, upgrade: u8) -> bool {
+    match upgrade {
+        0..=10 => {
+            let idx = ANT_UPGRADE_AUTOBUY_ACHIEVEMENTS[upgrade as usize];
+            state
+                .achievements
+                .achievements
+                .get(idx)
+                .is_some_and(|&v| v != 0)
+        }
+        11 => state.researches.researches[145] > 0.0,
+        12 => get_level_milestone(LevelMilestoneKey::AntSpeed2Autobuyer, state.level.level) > 0.5,
+        13 => get_level_milestone(LevelMilestoneKey::WowCubesAutobuyer, state.level.level) > 0.5,
+        14 => {
+            get_level_milestone(
+                LevelMilestoneKey::AscensionScoreAutobuyer,
+                state.level.level,
+            ) > 0.5
+        }
+        15 => get_level_milestone(LevelMilestoneKey::Mortuus2Autobuyer, state.level.level) > 0.5,
+        _ => false,
     }
 }
 
@@ -547,5 +601,31 @@ mod tests {
         talisman_autobuyer(&mut state, &mut output, Decimal::zero());
         assert_eq!(state.talismans.talisman_levels[0], 0.0);
         assert!(output.events.is_empty());
+    }
+
+    #[test]
+    fn ant_upgrade_autobuy_gate_maps_correctly() {
+        let mut state = GameState::default();
+        assert!(!ant_upgrade_autobuy_unlocked(&state, 0));
+        // Achievement 176 (inceptus + fortunae) unlocks AntSpeed (0) + Coins (1).
+        state.achievements.achievements[176] = 1;
+        assert!(ant_upgrade_autobuy_unlocked(&state, 0));
+        assert!(ant_upgrade_autobuy_unlocked(&state, 1));
+        assert!(!ant_upgrade_autobuy_unlocked(&state, 2)); // Taxes needs 177
+                                                           // Mortuus (11) gates on research[145], not an achievement.
+        assert!(!ant_upgrade_autobuy_unlocked(&state, 11));
+        state.researches.researches[145] = 1.0;
+        assert!(ant_upgrade_autobuy_unlocked(&state, 11));
+    }
+
+    #[test]
+    fn ant_upgrade_autobuyer_buys_unlocked_upgrade() {
+        let mut state = GameState::default();
+        state.ants.toggles.autobuy_upgrades = true;
+        state.achievements.achievements[176] = 1; // unlock AntSpeed (0)
+        state.ants.crumbs = Decimal::from_mantissa_exponent(1.0, 20.0); // ample
+        let mut output = TickOutput::default();
+        run_auto_buy(&mut state, &AutomationPre::default(), &mut output);
+        assert!(state.ants.upgrades[0] > 0.0);
     }
 }
