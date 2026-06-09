@@ -56,6 +56,36 @@ pub enum AutoAscendMode {
     RealAscensionTime,
 }
 
+/// `player.shoptoggles` — the five category gates read by the upgrade-tab
+/// autobuyer (`autoUpgrades`). Distinct from the indexed `toggles` array:
+/// these are the shop's "auto-buy this upgrade family" switches.
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ShopToggles {
+    /// `player.shoptoggles.coin` — auto-buy coin-tab upgrades.
+    pub coin: bool,
+    /// `player.shoptoggles.prestige` — auto-buy prestige-tab upgrades.
+    pub prestige: bool,
+    /// `player.shoptoggles.transcend` — auto-buy transcension-tab upgrades.
+    pub transcend: bool,
+    /// `player.shoptoggles.generators` — auto-buy generator upgrades.
+    pub generators: bool,
+    /// `player.shoptoggles.reincarnate` — auto-buy reincarnation-tab upgrades.
+    pub reincarnate: bool,
+}
+
+impl Default for ShopToggles {
+    /// Legacy blank-save values — every category auto-buy on.
+    fn default() -> Self {
+        Self {
+            coin: true,
+            prestige: true,
+            transcend: true,
+            generators: true,
+            reincarnate: true,
+        }
+    }
+}
+
 /// Slice of `GameState` for cross-cutting automation toggles + timers.
 ///
 /// Not `Copy` (holds a [`SweepState`], which carries a `BTreeSet`) and
@@ -141,6 +171,31 @@ pub struct AutomationState {
     pub auto_ascend_mode: AutoAscendMode,
     /// `player.autoAscendThreshold` — real-ascension-time mode threshold.
     pub auto_ascend_threshold: f64,
+
+    // ── Building / upgrade autobuyers ────────────────────────────────
+    /// `player.toggles[1..=26]` — the per-building / accelerator / multiplier
+    /// / boost autobuy enables read by `updateAll`. Indexed by the legacy
+    /// toggle number (slot 0 unused). Slots 15 and 21 exist for index parity
+    /// but are NOT read here: `player.toggles[15]` / `[21]` (auto-prestige /
+    /// auto-transcend) are owned by the named `auto_prestige_enabled` /
+    /// `auto_transcend_enabled` fields above, and `toggles[27]`
+    /// (auto-reincarnate) is out of range and likewise named.
+    pub toggles: [bool; 27],
+    /// `player.tesseractAutoBuyerToggle` — tesseract-building autobuyer armed.
+    pub tesseract_auto_buyer_toggle: bool,
+    /// `player.tesseractAutoBuyerAmount` — wow-tesseract floor the autobuyer
+    /// keeps in reserve (spend budget = balance − this).
+    pub tesseract_auto_buyer_amount: f64,
+    /// `player.tesseractbuyamount` — tesseract buy quantity (also the per-tier
+    /// step the autobuyer rounds to).
+    pub tesseract_buy_amount: f64,
+    /// `player.autoTesseracts` — per-tier tesseract autobuy enables (slot 0
+    /// unused; `1..=5` are the five buildings).
+    pub auto_tesseracts: [bool; 6],
+    /// `player.autoFortifyToggle` — talisman level→rarity autobuyer armed.
+    pub auto_fortify_toggle: bool,
+    /// `player.shoptoggles` — the five upgrade-tab auto-buy category gates.
+    pub shop_toggles: ShopToggles,
 }
 
 impl Default for AutomationState {
@@ -184,6 +239,13 @@ impl Default for AutomationState {
             auto_ascend: false,
             auto_ascend_mode: AutoAscendMode::C10Completions,
             auto_ascend_threshold: 1.0,
+            toggles: [false; 27],
+            tesseract_auto_buyer_toggle: false,
+            tesseract_auto_buyer_amount: 0.0,
+            tesseract_buy_amount: 1.0,
+            auto_tesseracts: [false; 6],
+            auto_fortify_toggle: false,
+            shop_toggles: ShopToggles::default(),
         }
     }
 }
@@ -224,5 +286,24 @@ mod tests {
         assert!(!s.auto_ascend);
         assert_eq!(s.auto_ascend_mode, AutoAscendMode::C10Completions);
         assert_eq!(s.auto_ascend_threshold, 1.0);
+    }
+
+    #[test]
+    fn autobuy_toggles_default_off_shop_toggles_on() {
+        let s = AutomationState::default();
+        // Legacy player.toggles[1..=26] all default false → autobuyers dormant.
+        assert!(s.toggles.iter().all(|&t| !t));
+        assert!(!s.tesseract_auto_buyer_toggle);
+        assert_eq!(s.tesseract_auto_buyer_amount, 0.0);
+        assert_eq!(s.tesseract_buy_amount, 1.0);
+        assert!(s.auto_tesseracts.iter().all(|&t| !t));
+        assert!(!s.auto_fortify_toggle);
+        // player.shoptoggles default on (legacy blank save).
+        assert_eq!(s.shop_toggles, ShopToggles::default());
+        assert!(s.shop_toggles.coin);
+        assert!(s.shop_toggles.prestige);
+        assert!(s.shop_toggles.transcend);
+        assert!(s.shop_toggles.generators);
+        assert!(s.shop_toggles.reincarnate);
     }
 }

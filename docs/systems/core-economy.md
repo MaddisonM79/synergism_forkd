@@ -83,6 +83,9 @@ flowchart LR
 - **Accelerator boosts** are ported — `BuyRequest::AcceleratorBoost` runs the classic
   single-boost+prestige-reset path and the bulk solver, and the thrift rune-blessing
   `accelBoostCostDelay` now feeds the cost (the runes-page wire). The autobuyer path
-  (`boostAccelerator(true)`) and `awardAchievementGroup('acceleratorBoosts')` are still unported.
-- `updateAll` autobuyers (the monolith's separate 50 ms producer/crystal/cube buy loop) are **absent**,
-  so a pure-idle Rust loop won't auto-buy producers yet.
+  (`boostAccelerator(true)`) is now wired into the `updateAll` driver, and the `acceleratorBoosts`
+  achievement group now awards.
+- **`updateAll` autobuyers now self-drive** (PR #269, `tick/auto_buy.rs`, Phase 5): producers
+  (coin/diamond/mythos/particle), accelerator/multiplier/boost, crystal upgrades, the upgrade tab,
+  ascension constants, and ant producers/masteries — 10 of 13 families (ant-upgrades / talisman /
+  tesseract deferred behind prerequisites). A pure-idle Rust loop auto-buys once the toggles are on.

@@ -29,6 +29,7 @@ break-eternity-rs = { version = "0.4", default-features = false }
 rand = { version = "0.10", default-features = false, features = ["thread_rng"] }
 rand_xoshiro = { version = "0.8", default-features = false, features = ["serde"] }
 smallvec = { version = "1", default-features = false, features = ["serde"] }
+base64 = { version = "0.22", default-features = false, features = ["std"] }
 
 [workspace.lints.rust]
 unused_crate_dependencies = "warn"

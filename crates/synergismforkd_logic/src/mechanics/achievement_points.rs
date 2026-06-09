@@ -9,6 +9,9 @@
 //! formulas that convert per-progressive cached values + the
 //! aggregated points sum.
 
+use crate::mechanics::achievement_point_values::ACHIEVEMENT_POINT_VALUES;
+use crate::state::GameState;
+
 // ─── Progressive achievement: rune levels ──────────────────────────────────
 
 /// Points from the cumulative rune-level progressive achievement.
@@ -180,6 +183,25 @@ pub fn compute_achievement_points(input: &ComputeAchievementPointsInput<'_>) -> 
     points
 }
 
+/// Recompute `state.achievements.achievement_points` from scratch — the
+/// full-table sum the audit flagged as missing (H5: points were only ever
+/// awarded incrementally, never recomputed). Sums [`ACHIEVEMENT_POINT_VALUES`]
+/// over the unlocked bitmap plus each progressive entry's `cached_points`.
+///
+/// A **host seam**: the logic crate maintains points incrementally during a
+/// session, but a freshly-loaded save needs the total rebuilt from its bitmap.
+/// The save tier calls this after deserializing. Idempotent.
+pub fn recompute_achievement_points(state: &mut GameState) {
+    let progressive: [f64; 12] =
+        core::array::from_fn(|k| state.achievements.progressive[k].cached_points);
+    state.achievements.achievement_points =
+        compute_achievement_points(&ComputeAchievementPointsInput {
+            point_values: &ACHIEVEMENT_POINT_VALUES,
+            saved_achievements: &state.achievements.achievements,
+            progressive_points_awarded: &progressive,
+        });
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -273,5 +295,18 @@ mod tests {
             progressive_points_awarded: &[],
         };
         assert_eq!(compute_achievement_points(&input), 10.0);
+    }
+
+    #[test]
+    fn recompute_rebuilds_points_from_bitmap_and_progressive() {
+        let mut state = GameState::default();
+        // Unlock achievement 0 (5 pts) and 173 (25 pts) + a progressive cache.
+        state.achievements.achievements[0] = 1;
+        state.achievements.achievements[173] = 1;
+        state.achievements.progressive[0].cached_points = 7.0;
+        // A deliberately-wrong running total (the H5 drift the recompute fixes).
+        state.achievements.achievement_points = 999.0;
+        recompute_achievement_points(&mut state);
+        assert_eq!(state.achievements.achievement_points, 5.0 + 25.0 + 7.0);
     }
 }

@@ -37,10 +37,12 @@ use synergismforkd_bignum::Decimal;
 use crate::events::{CoreEvent, CubeTier, ProducerType};
 use crate::mechanics::accelerators::{buy_accelerator, BuyAcceleratorInput};
 use crate::mechanics::achievement_rewards;
+use crate::mechanics::ant_masteries::{buy_ant_mastery, BuyAntMasteryInput};
 use crate::mechanics::ant_producers::{buy_ant_producer, BuyAntProducerInput};
 use crate::mechanics::ant_upgrades::{buy_ant_upgrade, BuyAntUpgradeInput};
 use crate::mechanics::blueberry_upgrades::{buy_ambrosia_upgrade, BuyAmbrosiaUpgradeInput};
 use crate::mechanics::challenge_15_rewards;
+use crate::mechanics::constant_upgrades::{buy_constant_upgrade, BuyConstantUpgradeInput};
 use crate::mechanics::crystal_upgrades::{buy_crystal_upgrades, BuyCrystalUpgradesInput};
 use crate::mechanics::cube_upgrades::{buy_cube_upgrade, BuyCubeUpgradeInput};
 use crate::mechanics::global_multipliers::{
@@ -70,6 +72,7 @@ use crate::state::{GameState, RngPurpose, RUNE_COUNT, TALISMAN_COUNT};
 
 mod ant_generation;
 mod ant_sacrifice;
+mod auto_buy;
 mod auto_research;
 mod auto_reset;
 mod automatic_tools;
@@ -388,6 +391,12 @@ pub enum BuyRequest {
     ParticleBuilding(BuyParticleBuildingInput),
     /// Routes to [`buy_tesseract_building`].
     TesseractBuilding(BuyTesseractBuildingInput),
+    /// Routes to [`buy_constant_upgrade`] — ascension constant upgrade `i`,
+    /// paid in `ascendShards` (free when `researches[175] > 0`).
+    ConstantUpgrade(BuyConstantUpgradeInput),
+    /// Routes to [`buy_ant_mastery`] — one mastery level for an ant producer,
+    /// paid in reincarnation points.
+    AntMastery(BuyAntMasteryInput),
     /// Routes to [`buy_max`] — buy-as-many-as-affordable across the
     /// producer family selected by `input.producer_type`.
     ProducerMax(BuyMaxInput),
@@ -1207,10 +1216,11 @@ fn compute_global_multipliers_pre(state: &GameState) -> GlobalMultipliersPreEval
         // achievement awarding lands.
         const_upgrade_1_buff_achievement: 0.0,
         const_upgrade_2_buff_achievement: 0.0,
-        // `constantEX` shop upgrade (`getShopUpgradeEffects` = identity):
-        // the shop name→index map / buy-path is UI-tier and unported, so
-        // the level is 0 in logic-driven play → 0.
-        constant_ex_max_percent_increase: 0.0,
+        // `constantEX` shop upgrade — `getShopUpgradeEffects` is identity
+        // (`maxPercentIncrease = level`); the shop is ported, so read the level.
+        constant_ex_max_percent_increase: crate::mechanics::shop_upgrades::constant_ex_effect(
+            state.shop.upgrades[crate::state::shop::SHOP_CONSTANT_EX],
+        ),
         ascend_building_dr_value,
         // Placeholders — phase_global_state overwrites these five with the
         // aggregator outputs + the shared total_accelerator_boost.
@@ -1630,6 +1640,43 @@ fn get_rune_bonus_from_all_talismans(state: &GameState, rune: usize) -> f64 {
 
 fn phase_global_state(state: &mut GameState) -> AggregatorOutputs {
     update_progressive_achievements(state);
+    // Sweep the monotonic threshold-based achievement groups (reset counts,
+    // accelerator/multiplier/boost bought totals, speed-rune progression).
+    // Awards on threshold crossing.
+    let speed_free_level = rune_free_levels(state, crate::state::runes::RUNE_SPEED);
+    // The ascension score is `f64`-softcapped and below the 1e5 group floor
+    // while ascension is locked — skip the full CalcCorruptionStuff there.
+    let ascension_score = if state.reset_counters.ascension_unlocked {
+        compute_ascension_score_result(state).effective_score
+    } else {
+        0.0
+    };
+    let awarded = crate::mechanics::achievement_awards::reset_count_achievement_check(
+        &mut state.achievements,
+        state.reset_counters.prestige_count,
+        state.reset_counters.transcend_count,
+        state.reset_counters.reincarnation_count,
+        state.reset_counters.ascension_count,
+    ) + crate::mechanics::achievement_awards::accelerator_achievement_check(
+        &mut state.achievements,
+        state.accelerator.accelerator_bought,
+        state.multiplier.multiplier_bought,
+        state.accelerator.accelerator_boost_bought,
+    ) + crate::mechanics::achievement_awards::rune_achievement_check(
+        &mut state.achievements,
+        state.runes.rune_levels[crate::state::runes::RUNE_SPEED],
+        speed_free_level,
+        state.runes.rune_blessing_levels[crate::state::runes::RUNE_SPEED],
+        state.runes.rune_spirit_levels[crate::state::runes::RUNE_SPEED],
+    ) + crate::mechanics::achievement_awards::decimal_currency_achievement_check(
+        &mut state.achievements,
+        state.campaigns.ascend_shards,
+        state.ants.crumbs,
+    ) + crate::mechanics::achievement_awards::ascension_score_achievement_check(
+        &mut state.achievements,
+        ascension_score,
+    );
+    credit_achievement_quarks(state, awarded);
     recompute_talisman_rarities(state);
     let total_accelerator_boost = compute_total_accelerator_boost(state);
     let update_all_multiplier_pre =
@@ -6271,6 +6318,10 @@ fn phase_automation(
             },
         );
         output.events.extend(auto_research_events);
+
+        // 5. updateAll autobuyer pass — buy producers / accelerators /
+        //    upgrades / ants / cubes the way the legacy 50 ms loop does.
+        auto_buy::run_auto_buy(state, pre, output);
     }
 
     // ─── Tail (tackTail) — runs unconditionally, even under time-warp
@@ -6565,6 +6616,20 @@ fn dispatch_buy(
         BuyRequest::TesseractBuilding(inp) => {
             buy_tesseract_building(&mut state.tesseract_buildings, *inp)
         }
+        BuyRequest::ConstantUpgrade(inp) => {
+            let researches_175 = state.researches.researches[175];
+            buy_constant_upgrade(
+                &mut state.campaigns.constant_upgrades,
+                &mut state.campaigns.ascend_shards,
+                inp.index,
+                researches_175,
+            )
+        }
+        BuyRequest::AntMastery(inp) => buy_ant_mastery(
+            &mut state.ants,
+            &mut state.upgrades.reincarnation_points,
+            *inp,
+        ),
         BuyRequest::ProducerMax(inp) => match inp.producer_type {
             ProducerType::Coin => {
                 let events = buy_max(&mut state.coin_producers, &mut state.upgrades.coins, *inp);
@@ -6775,10 +6840,12 @@ mod tests {
         };
         tack(&mut state, &input);
         assert_eq!(state.achievements.progressive[0].cached_value, 2500.0);
-        assert_eq!(state.achievements.achievement_points, 3.0);
+        // 3 progressive points + the runeLevel *group* (speed level 2500 crosses
+        // thresholds 100/250/500/1000/2000 → idx 396..=400, points 2+4+6+8+10=30).
+        assert_eq!(state.achievements.achievement_points, 3.0 + 30.0);
         // Idempotent: a second identical tick re-takes the max → no double-count.
         tack(&mut state, &input);
-        assert_eq!(state.achievements.achievement_points, 3.0);
+        assert_eq!(state.achievements.achievement_points, 3.0 + 30.0);
     }
 
     #[test]
@@ -9037,6 +9104,197 @@ mod tests {
         let _ = tack(&mut state, &input);
         // Bought at least one of tier-1 Coin producer.
         assert!(state.coin_producers.tiers[0].owned > 0.0);
+    }
+
+    #[test]
+    fn dispatch_buy_routes_constant_upgrade() {
+        let mut state = GameState::default();
+        state.campaigns.ascend_shards = Decimal::from_finite(1e3);
+        // researches[175] == 0 -> the buy deducts ascend shards.
+        let mut input = TackInput {
+            dt: 0.025,
+            ..TackInput::default()
+        };
+        input
+            .player_actions
+            .push(PlayerAction::Buy(BuyRequest::ConstantUpgrade(
+                BuyConstantUpgradeInput { index: 1 },
+            )));
+        let _ = tack(&mut state, &input);
+        // i=1 (base 1), 1000 shards: toBuy = floor(1 + log10(1000)) = 4.
+        assert_eq!(state.campaigns.constant_upgrades[1], 4.0);
+        assert_eq!(state.campaigns.ascend_shards.to_number(), 0.0);
+    }
+
+    #[test]
+    fn dispatch_buy_routes_ant_mastery() {
+        let mut state = GameState::default();
+        // Workers (producer 0) level 0 needs 0 ELO and costs 1e700.
+        state.upgrades.reincarnation_points = Decimal::from_mantissa_exponent(1.0, 1_000.0);
+        let mut input = TackInput {
+            dt: 0.025,
+            ..TackInput::default()
+        };
+        input
+            .player_actions
+            .push(PlayerAction::Buy(BuyRequest::AntMastery(
+                BuyAntMasteryInput { producer: 0 },
+            )));
+        let _ = tack(&mut state, &input);
+        assert_eq!(state.ants.masteries[0].mastery, 1);
+        assert_eq!(state.ants.masteries[0].highest_mastery, 1);
+    }
+
+    #[test]
+    fn tack_awards_reset_count_achievements() {
+        // A tick with a non-zero lifetime reset count awards the matching
+        // count-group achievements (phase_global_state sweep) + their points.
+        let mut state = GameState::default();
+        state.reset_counters.prestige_count = 100.0; // crosses prestigeCount 1/10/100
+        let before = state.achievements.achievement_points;
+        let input = TackInput {
+            dt: 0.025,
+            ..TackInput::default()
+        };
+        let _ = tack(&mut state, &input);
+        assert_eq!(state.achievements.achievements[436], 1); // prestigeCount >= 1
+        assert_eq!(state.achievements.achievements[438], 1); // prestigeCount >= 100
+        assert_eq!(state.achievements.achievements[439], 0); // >= 1000 not reached
+        assert_eq!(
+            state.achievements.achievement_points,
+            before + 2.0 + 4.0 + 6.0
+        );
+    }
+
+    #[test]
+    fn constant_ex_shop_level_feeds_global_mult_pre() {
+        // The constantEX shop upgrade (identity effect) now feeds the global
+        // multiplier's constant-upgrade term instead of a frozen 0.
+        let mut state = GameState::default();
+        assert_eq!(
+            compute_global_multipliers_pre(&state).constant_ex_max_percent_increase,
+            0.0
+        );
+        state.shop.upgrades[crate::state::shop::SHOP_CONSTANT_EX] = 5.0;
+        assert_eq!(
+            compute_global_multipliers_pre(&state).constant_ex_max_percent_increase,
+            5.0
+        );
+    }
+
+    #[test]
+    fn auto_buy_purchases_coin_producers_when_enabled() {
+        // The idle loop self-purchases once the per-building autobuy toggle is
+        // on and its unlock upgrade is owned — the updateAll autobuyer gap.
+        let mut state = GameState::default();
+        state.automation.toggles[1] = true; // player.toggles[1] — coin tier-1 autobuy
+        state.upgrades.upgrades[81] = 1; // the autobuy-unlock upgrade
+        state.upgrades.coins = Decimal::from_finite(1e6);
+        let input = TackInput {
+            dt: 0.025,
+            ..TackInput::default()
+        };
+        let output = tack(&mut state, &input);
+        assert!(state.coin_producers.tiers[0].owned > 0.0);
+        assert!(output
+            .events
+            .iter()
+            .any(|e| matches!(e, CoreEvent::ProducersPurchased { .. })));
+    }
+
+    #[test]
+    fn auto_buy_inert_when_toggles_off() {
+        // Default save: every autobuy toggle off → the driver buys nothing and
+        // the tick still emits only the single obtainium-recompute request.
+        let mut state = GameState::default();
+        state.upgrades.coins = Decimal::from_finite(1e30);
+        state.upgrades.upgrades[81] = 1; // unlock owned, but toggle is off
+        let input = TackInput {
+            dt: 0.025,
+            ..TackInput::default()
+        };
+        let output = tack(&mut state, &input);
+        assert_eq!(state.coin_producers.tiers[0].owned, 0.0);
+        assert!(!output
+            .events
+            .iter()
+            .any(|e| matches!(e, CoreEvent::ProducersPurchased { .. })));
+    }
+
+    #[test]
+    fn auto_buy_purchases_mythos_producers_when_enabled() {
+        let mut state = GameState::default();
+        state.automation.toggles[16] = true; // mythos tier-1 autobuy
+        state.upgrades.upgrades[94] = 1;
+        state.upgrades.transcend_points = Decimal::from_finite(1e30);
+        let input = TackInput {
+            dt: 0.025,
+            ..TackInput::default()
+        };
+        let _ = tack(&mut state, &input);
+        assert!(state.mythos_producers.tiers[0].owned > 0.0);
+    }
+
+    #[test]
+    fn auto_buy_diamond_producers_gated_on_crystal_milestone() {
+        let mut state = GameState::default();
+        state.automation.toggles[10] = true; // diamond tier-1 autobuy
+        state.upgrades.prestige_points = Decimal::from_finite(1e30);
+        let input = TackInput {
+            dt: 0.025,
+            ..TackInput::default()
+        };
+        // Level 0: tier1CrystalAutobuy milestone not met -> no purchase.
+        let mut low = state.clone();
+        let _ = tack(&mut low, &input);
+        assert_eq!(low.diamond_producers.tiers[0].owned, 0.0);
+        // Level >= 6 unlocks the milestone -> diamonds auto-buy.
+        state.level.level = 100.0;
+        let _ = tack(&mut state, &input);
+        assert!(state.diamond_producers.tiers[0].owned > 0.0);
+    }
+
+    #[test]
+    fn auto_buy_crystal_upgrades_gated_on_milestone() {
+        let mut state = GameState::default();
+        state.level.level = 1000.0; // unlock all tierNCrystalAutobuy milestones
+        state.crystal_upgrades.prestige_shards = Decimal::from_finite(1e30);
+        let input = TackInput {
+            dt: 0.025,
+            ..TackInput::default()
+        };
+        let _ = tack(&mut state, &input);
+        // auto = free buy; the level is computed from prestige shards.
+        assert!(state.crystal_upgrades.crystal_upgrades[0] > 0.0);
+    }
+
+    #[test]
+    fn auto_buy_constant_upgrades_when_research_175() {
+        let mut state = GameState::default();
+        state.researches.researches[175] = 1.0;
+        state.campaigns.ascend_shards = Decimal::from_finite(1e3);
+        let input = TackInput {
+            dt: 0.025,
+            ..TackInput::default()
+        };
+        let _ = tack(&mut state, &input);
+        // research[175] > 0 → free constant-upgrade buys.
+        assert!(state.campaigns.constant_upgrades[1] > 0.0);
+    }
+
+    #[test]
+    fn auto_buy_ant_producers_when_unlocked() {
+        let mut state = GameState::default();
+        state.ants.toggles.autobuy_producers = true;
+        // Achievement 173 grants antAutobuyers → tiers_unlocked = 0 (Workers).
+        state.achievements.achievements[173] = 1;
+        state.ants.crumbs = Decimal::from_finite(1e6);
+        let input = TackInput {
+            dt: 0.025,
+            ..TackInput::default()
+        };
+        let _ = tack(&mut state, &input);
+        assert!(state.ants.producers[0].purchased > 0.0);
     }
 
     #[test]

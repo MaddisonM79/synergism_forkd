@@ -15,11 +15,11 @@ flowchart LR
   classDef stub fill:#ef6c00,color:#fff,stroke:#bf360c;
   classDef ext fill:#eceff1,color:#37474f,stroke:#90a4ae,stroke-dasharray:4 3;
 
-  gameLoop["Game loop · tack/middle/tail"]:::partial
+  gameLoop["Game loop · tack/middle/tail + autobuyers"]:::ported
   calcEng["Calculate engine"]:::ported
   stateSchema["Player state schema"]:::partial
   events["Events enum"]:::ported
-  save["Save · Import/Export"]:::stub
+  save["Save · Import/Export"]:::partial
   uiRender["UI render · Tabs/HTML/Visuals"]:::stub
   autoOverseer["Automation overseer"]:::ported
   rng["RNG · seed"]:::ported
@@ -55,20 +55,29 @@ flowchart LR
 
 | System | Status | Rust |
 |---|---|---|
-| Tick / game loop | 🟨 Partial | `tick/mod.rs` (phases wired; `updateAll` autobuyers absent) |
+| Tick / game loop | 🟩 Mostly | `tick/mod.rs` + `tick/auto_buy.rs` (10/13 `updateAll` autobuyer families self-drive; ant-upgrades / talisman / tesseract deferred — each needs an unported prerequisite) |
 | Calculate engine | 🟩 Ported | `mechanics/calculate.rs`, `math/*` (leaf math faithful; golden-vector coverage thin) |
 | State schema | 🟨 Partial | `state/` (~80%; `unlocks` only 8/21 keys; some rune-blessing type divergence) |
 | Events enum | 🟩 Ported | `events/mod.rs` |
-| Save / Import-Export | 🟧 Stub | `crates/synergismforkd_save/` (serde scaffold; no migration) |
+| Save / Import-Export | 🟨 Partial | `crates/synergismforkd_save/` (postcard round-trip + versioned envelope + base64 export/import string + on-load achievement recompute; persistent storage + save-on-tick are host-tier) |
 | UI render | 🟧 Stub | `synergismforkd_ui*` (scaffold) |
 | Automation overseer | 🟩 Ported | `tick/auto_reset.rs`, `auto_research.rs`, `challenge_sweep.rs`, `automatic_tools.rs` |
 | RNG | 🟩 Ported | deterministic Xoshiro, per-purpose seeding (used by cube opening) |
 
 ## Porting notes
 
-- The **logic core is healthy**; the main infrastructure gaps are **save-load** (blocks the achievement
-  full-table recompute and the Rust save format) and the **UI** tree (still scaffold).
+- The **logic core is healthy**. The remaining infrastructure gaps are the **UI** tree (still
+  scaffold), three deferred autobuyer families, and the host-tier slice of save (persistent storage,
+  save-on-tick).
+- The **`updateAll` autobuyers now self-drive** (`tick/auto_buy.rs`, run in Phase 5): autoUpgrades +
+  coin/diamond/mythos/particle producers + accelerator/multiplier/boost + crystal upgrades + constant
+  upgrades + ant producers/masteries. Deferred (dormant at default, each needs an unported
+  prerequisite): the **ant-upgrade** autobuyer (16 per-upgrade `autobuy()` achievement-reward gates),
+  the **talisman** autobuyer (`buyTalismanLevelToRarityIncrease` rarity-loop wrapper), and the
+  **tesseract** autobuyer (`resetToggleModes.ascension` state + budget machinery). Inert on a fresh
+  save (`player.toggles[1..=26]` default false).
+- **Save-load** gained a base64 export/import string API and an on-load **achievement-points
+  recompute** (the full 509-entry `ACHIEVEMENT_POINT_VALUES` table → closes audit **H5**). The Rust
+  save format is fresh (no TS-save compat); persistent storage + save-on-tick stay host-tier.
 - State schema is the gating dependency for several features: adding fields requires explicit sign-off
   (it affects save-file size) per the project rules.
-- `updateAll` autobuyers are the notable tick gap — without them an idle loop won't auto-purchase
-  producers/ants/cubes the way the monolith's 50 ms loop does.

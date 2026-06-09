@@ -437,6 +437,341 @@ pub fn building_achievement_check(ach: &mut AchievementsState, coin_owned: &[f64
         + award_threshold_group(ach, coin_owned[4], FIFTH_OWNED_COIN)
 }
 
+// ─── Reset-count groups (ascension / prestige / transcend / reincarnation) ──
+//
+// Awarded from the lifetime reset counts. Thresholds + pointValues are verbatim
+// from `legacy/original/src/Achievements.ts` (extracted in array order; the
+// 0-indexed positions align with the achievement bitmap). The counts only grow,
+// so a per-tick sweep awards each row the tick its threshold is first crossed.
+
+/// `ascensionCount` group.
+const ASCENSION_COUNT: &[ThresholdRow] = &[
+    (183, 1.0, 5.0),
+    (184, 2.0, 10.0),
+    (185, 10.0, 15.0),
+    (186, 100.0, 20.0),
+    (187, 1_000.0, 25.0),
+    (188, 14_142.0, 30.0),
+    (189, 141_421.0, 35.0),
+    (260, 1e7, 40.0),
+    (261, 1e8, 45.0),
+    (262, 2e9, 50.0),
+    (263, 4e10, 55.0),
+    (264, 8e11, 60.0),
+    (265, 1.6e13, 65.0),
+    (266, 1e14, 70.0),
+    (350, 1e16, 75.0),
+    (351, 1e20, 80.0),
+    (352, 1e25, 85.0),
+    (353, 1e35, 90.0),
+    (354, 1e50, 95.0),
+    (355, 1e75, 100.0),
+];
+
+/// `prestigeCount` group.
+const PRESTIGE_COUNT: &[ThresholdRow] = &[
+    (436, 1.0, 2.0),
+    (437, 10.0, 4.0),
+    (438, 100.0, 6.0),
+    (439, 1_000.0, 8.0),
+    (440, 10_000.0, 10.0),
+    (441, 100_000.0, 12.0),
+    (442, 1e6, 14.0),
+    (443, 1e7, 16.0),
+    (444, 1e8, 18.0),
+    (445, 1e9, 20.0),
+    (446, 1e11, 22.0),
+    (447, 1e13, 24.0),
+    (448, 1e15, 26.0),
+    (449, 1e17, 28.0),
+    (450, 1e20, 30.0),
+];
+
+/// `transcensionCount` group.
+const TRANSCENSION_COUNT: &[ThresholdRow] = &[
+    (451, 1.0, 3.0),
+    (452, 10.0, 6.0),
+    (453, 100.0, 9.0),
+    (454, 1_000.0, 12.0),
+    (455, 10_000.0, 15.0),
+    (456, 100_000.0, 18.0),
+    (457, 1e6, 21.0),
+    (458, 1e7, 24.0),
+    (459, 1e8, 27.0),
+    (460, 1e9, 30.0),
+    (461, 3e10, 33.0),
+    (462, 9e11, 36.0),
+    (463, 2.7e13, 39.0),
+    (464, 8.1e14, 42.0),
+    (465, 1e17, 45.0),
+];
+
+/// `reincarnationCount` group.
+const REINCARNATION_COUNT: &[ThresholdRow] = &[
+    (466, 1.0, 4.0),
+    (467, 10.0, 8.0),
+    (468, 100.0, 12.0),
+    (469, 1_000.0, 16.0),
+    (470, 10_000.0, 20.0),
+    (471, 100_000.0, 24.0),
+    (472, 1e6, 28.0),
+    (473, 1e7, 32.0),
+    (474, 1e8, 36.0),
+    (475, 1e9, 40.0),
+    (476, 8e9, 44.0),
+    (477, 1e11, 48.0),
+    (478, 1e12, 52.0),
+    (479, 13_131_313_131_313.0, 56.0),
+    (480, 2e14, 60.0),
+];
+
+/// The four reset-count achievement groups (`ascensionCount`, `prestigeCount`,
+/// `transcensionCount`, `reincarnationCount`) — awarded from the lifetime reset
+/// counters. Returns the count newly awarded (for the per-achievement quark
+/// reward). Safe to call every tick: the counts are monotonic and
+/// [`award_achievement`] is idempotent.
+pub fn reset_count_achievement_check(
+    ach: &mut AchievementsState,
+    prestige_count: f64,
+    transcend_count: f64,
+    reincarnation_count: f64,
+    ascension_count: f64,
+) -> usize {
+    award_threshold_group(ach, prestige_count, PRESTIGE_COUNT)
+        + award_threshold_group(ach, transcend_count, TRANSCENSION_COUNT)
+        + award_threshold_group(ach, reincarnation_count, REINCARNATION_COUNT)
+        + award_threshold_group(ach, ascension_count, ASCENSION_COUNT)
+}
+
+// ─── Accelerator / multiplier / boost groups (lifetime bought counts) ───────
+
+/// `accelerators` group — `player.acceleratorBought`.
+const ACCELERATORS: &[ThresholdRow] = &[
+    (148, 5.0, 5.0),
+    (149, 25.0, 10.0),
+    (150, 100.0, 15.0),
+    (151, 666.0, 20.0),
+    (152, 2_000.0, 25.0),
+    (153, 12_500.0, 30.0),
+    (154, 100_000.0, 35.0),
+    (335, 1e6, 40.0),
+    (336, 1e7, 45.0),
+    (337, 1e8, 50.0),
+];
+
+/// `multipliers` group — `player.multiplierBought`.
+const MULTIPLIERS: &[ThresholdRow] = &[
+    (155, 2.0, 5.0),
+    (156, 20.0, 10.0),
+    (157, 100.0, 15.0),
+    (158, 500.0, 20.0),
+    (159, 2_000.0, 25.0),
+    (160, 12_500.0, 30.0),
+    (161, 100_000.0, 35.0),
+    (338, 3e6, 40.0),
+    (339, 3e7, 45.0),
+    (340, 3e8, 50.0),
+];
+
+/// `acceleratorBoosts` group — `player.acceleratorBoostBought`.
+const ACCELERATOR_BOOSTS: &[ThresholdRow] = &[
+    (162, 2.0, 5.0),
+    (163, 10.0, 10.0),
+    (164, 50.0, 15.0),
+    (165, 200.0, 20.0),
+    (166, 1_000.0, 25.0),
+    (167, 5_000.0, 30.0),
+    (168, 15_000.0, 35.0),
+    (341, 1e5, 40.0),
+    (342, 1e6, 45.0),
+    (343, 1e7, 50.0),
+];
+
+/// The accelerator / multiplier / accelerator-boost achievement groups —
+/// awarded from the lifetime bought counts. Returns the count newly awarded.
+pub fn accelerator_achievement_check(
+    ach: &mut AchievementsState,
+    accelerator_bought: f64,
+    multiplier_bought: f64,
+    accelerator_boost_bought: f64,
+) -> usize {
+    award_threshold_group(ach, accelerator_bought, ACCELERATORS)
+        + award_threshold_group(ach, multiplier_bought, MULTIPLIERS)
+        + award_threshold_group(ach, accelerator_boost_bought, ACCELERATOR_BOOSTS)
+}
+
+// ─── Speed-rune groups (level / free levels / blessing / spirit) ────────────
+
+/// `runeLevel` group — `runes.speed.level`.
+const RUNE_LEVEL: &[ThresholdRow] = &[
+    (396, 100.0, 2.0),
+    (397, 250.0, 4.0),
+    (398, 500.0, 6.0),
+    (399, 1_000.0, 8.0),
+    (400, 2_000.0, 10.0),
+    (401, 5_000.0, 12.0),
+    (402, 10_000.0, 14.0),
+    (403, 20_000.0, 16.0),
+    (404, 50_000.0, 18.0),
+    (405, 100_000.0, 20.0),
+    (406, 200_000.0, 22.0),
+    (407, 300_000.0, 24.0),
+    (408, 500_000.0, 26.0),
+    (409, 750_000.0, 28.0),
+    (410, 1_000_000.0, 30.0),
+];
+
+/// `runeFreeLevel` group — `runes.speed.freeLevels()`.
+const RUNE_FREE_LEVEL: &[ThresholdRow] = &[
+    (411, 10.0, 2.0),
+    (412, 40.0, 4.0),
+    (413, 125.0, 6.0),
+    (414, 250.0, 8.0),
+    (415, 500.0, 10.0),
+    (416, 1_000.0, 12.0),
+    (417, 2_000.0, 14.0),
+    (418, 4_000.0, 16.0),
+    (419, 7_500.0, 18.0),
+    (420, 12_500.0, 20.0),
+    (421, 25_000.0, 22.0),
+    (422, 37_500.0, 24.0),
+    (423, 50_000.0, 26.0),
+    (424, 75_000.0, 28.0),
+    (425, 100_000.0, 30.0),
+];
+
+/// `speedBlessing` group — `runeBlessings.speed.level`.
+const SPEED_BLESSING: &[ThresholdRow] = &[
+    (232, 20.0, 10.0),
+    (233, 40.0, 20.0),
+    (234, 80.0, 30.0),
+    (382, 200.0, 40.0),
+    (383, 400.0, 50.0),
+    (384, 800.0, 60.0),
+    (385, 1_000.0, 70.0),
+    (386, 1_200.0, 80.0),
+    (387, 1_500.0, 90.0),
+    (388, 2_000.0, 100.0),
+];
+
+/// `speedSpirit` group — `runeSpirits.speed.level`.
+const SPEED_SPIRIT: &[ThresholdRow] = &[
+    (235, 20.0, 10.0),
+    (236, 40.0, 20.0),
+    (237, 80.0, 30.0),
+    (389, 160.0, 40.0),
+    (390, 320.0, 50.0),
+    (391, 640.0, 60.0),
+    (392, 960.0, 70.0),
+    (393, 1_280.0, 80.0),
+    (394, 1_600.0, 90.0),
+    (395, 2_000.0, 100.0),
+];
+
+/// The four speed-rune achievement groups (`runeLevel`, `runeFreeLevel`,
+/// `speedBlessing`, `speedSpirit`) — all gated on the **speed** rune's
+/// level / free-levels / blessing-level / spirit-level. Returns the count
+/// newly awarded.
+pub fn rune_achievement_check(
+    ach: &mut AchievementsState,
+    speed_rune_level: f64,
+    speed_rune_free_level: f64,
+    speed_blessing_level: f64,
+    speed_spirit_level: f64,
+) -> usize {
+    award_threshold_group(ach, speed_rune_level, RUNE_LEVEL)
+        + award_threshold_group(ach, speed_rune_free_level, RUNE_FREE_LEVEL)
+        + award_threshold_group(ach, speed_blessing_level, SPEED_BLESSING)
+        + award_threshold_group(ach, speed_spirit_level, SPEED_SPIRIT)
+}
+
+// ─── Decimal-currency groups (constant = ascendShards, antCrumbs) ───────────
+//
+// Compared in log10 space — the gates run past f64 (`ascendShards.gte('1e1e8')`,
+// `crumbs.gte('1e1000000')`). The threshold column is `log10(gate)` at full f64
+// precision (so a fractional gate like `3.14` keeps its exact boundary).
+
+/// `constant` group — `player.ascendShards`.
+const CONSTANT: &[Log10Row] = &[
+    (190, 0.496_929_648_073_214_94, 5.0), // gate 3.14
+    (191, 6.0, 10.0),                     // gate 1e6
+    (192, 10.635_483_746_814_913, 15.0),  // gate 4.32e10
+    (193, 21.838_849_090_737_256, 20.0),  // gate 6.9e21
+    (194, 33.178_689_239_775_586, 25.0),  // gate 1.509e33
+    (195, 66.0, 30.0),                    // gate 1e66
+    (196, 308.255_272_505_103_3, 35.0),   // gate 1.8e308
+    (267, 1_000.0, 40.0),                 // gate 1e1000
+    (268, 5_000.0, 45.0),                 // gate 1e5000
+    (269, 15_000.0, 50.0),                // gate 1e15000
+    (270, 50_000.0, 55.0),                // gate 1e50000
+    (271, 100_000.0, 60.0),               // gate 1e100000
+    (272, 300_000.0, 65.0),               // gate 1e300000
+    (273, 1_000_000.0, 70.0),             // gate 1e1000000
+    (356, 2_000_000.0, 75.0),             // gate 1e2000000
+    (357, 5_000_000.0, 80.0),             // gate 1e5000000
+    (358, 10_000_000.0, 85.0),            // gate 1e10000000
+    (359, 25_000_000.0, 90.0),            // gate 1e25000000
+    (360, 50_000_000.0, 95.0),            // gate 1e50000000
+    (361, 100_000_000.0, 100.0),          // gate 1e100000000
+];
+
+/// `antCrumbs` group — `player.ants.crumbs`.
+const ANT_CRUMBS: &[Log10Row] = &[
+    (169, 0.477_121_254_719_662_44, 5.0), // gate 3
+    (170, 5.0, 10.0),                     // gate 1e5
+    (171, 8.823_908_740_510_024, 15.0),   // gate 666666666
+    (172, 20.0, 20.0),                    // gate 1e20
+    (173, 40.0, 25.0),                    // gate 1e40
+    (174, 250.0, 30.0),                   // gate 1e250
+    (175, 2_500.0, 35.0),                 // gate 1e2500
+    (344, 25_000.0, 40.0),                // gate 1e25000
+    (345, 125_000.0, 45.0),               // gate 1e125000
+    (346, 1_000_000.0, 50.0),             // gate 1e1000000
+];
+
+/// The two Decimal-currency achievement groups (`constant` = `ascendShards`,
+/// `antCrumbs` = ant crumbs) — compared in log10 space. Returns the count newly
+/// awarded.
+pub fn decimal_currency_achievement_check(
+    ach: &mut AchievementsState,
+    ascend_shards: Decimal,
+    crumbs: Decimal,
+) -> usize {
+    award_log10_group(ach, ascend_shards, CONSTANT) + award_log10_group(ach, crumbs, ANT_CRUMBS)
+}
+
+// ─── Ascension-score group ──────────────────────────────────────────────────
+
+/// `ascensionScore` group — `CalcCorruptionStuff().effectiveScore`. The score
+/// is `f64` (softcapped at `1e23`), so the gates are compared directly.
+const ASCENSION_SCORE: &[ThresholdRow] = &[
+    (225, 1e5, 5.0),
+    (226, 1e6, 10.0),
+    (227, 1e7, 15.0),
+    (228, 1e8, 20.0),
+    (229, 1e9, 25.0),
+    (230, 5e9, 30.0),
+    (231, 2.5e10, 35.0),
+    (253, 1e12, 40.0),
+    (254, 1e14, 45.0),
+    (255, 1e17, 50.0),
+    (256, 2e18, 55.0),
+    (257, 4e19, 60.0),
+    (258, 1e21, 65.0),
+    (259, 1e23, 70.0),
+];
+
+/// `ascensionScore` group — awarded from the effective ascension score. The
+/// caller supplies the score (and may skip the score computation while
+/// ascension is locked, where it stays below `1e5`). Returns the count newly
+/// awarded.
+pub fn ascension_score_achievement_check(
+    ach: &mut AchievementsState,
+    effective_score: f64,
+) -> usize {
+    award_threshold_group(ach, effective_score, ASCENSION_SCORE)
+}
+
 /// Per-run "didn't buy X this run" flags read by the ungrouped no-reset
 /// achievements (the `awardUngroupedAchievement` calls in the legacy
 /// `resetAchievementCheck`). Each starts `true`, is cleared on the matching
@@ -846,6 +1181,89 @@ mod tests {
         building_achievement_check(&mut ach, &[100.0, 0.0, 0.0, 0.0, 0.0]); // +3 (pv15)
         assert_eq!(ach.achievement_points, 30.0);
         assert_eq!(ach.achievements[3], 1);
+    }
+
+    #[test]
+    fn reset_count_check_awards_by_threshold_and_is_idempotent() {
+        let mut ach = AchievementsState::default();
+        // prestige_count 150 → prestigeCount idx 436/437/438 (>=1/10/100); 439 (>=1000) not.
+        let awarded = reset_count_achievement_check(&mut ach, 150.0, 0.0, 0.0, 0.0);
+        assert_eq!(awarded, 3);
+        assert_eq!(ach.achievements[436], 1);
+        assert_eq!(ach.achievements[438], 1);
+        assert_eq!(ach.achievements[439], 0);
+        assert_eq!(ach.achievement_points, 2.0 + 4.0 + 6.0);
+        // Re-running at the same counts awards nothing more.
+        assert_eq!(
+            reset_count_achievement_check(&mut ach, 150.0, 0.0, 0.0, 0.0),
+            0
+        );
+    }
+
+    #[test]
+    fn reset_count_check_ascension_group_thresholds() {
+        let mut ach = AchievementsState::default();
+        // ascension_count 5 → ascensionCount idx 183 (>=1) + 184 (>=2); 185 (>=10) not.
+        let awarded = reset_count_achievement_check(&mut ach, 0.0, 0.0, 0.0, 5.0);
+        assert_eq!(awarded, 2);
+        assert_eq!(ach.achievements[183], 1);
+        assert_eq!(ach.achievements[184], 1);
+        assert_eq!(ach.achievements[185], 0);
+    }
+
+    #[test]
+    fn accelerator_and_rune_checks_award_by_threshold() {
+        let mut ach = AchievementsState::default();
+        // accel 30 → accelerators 5/25 (148/149); mult 2 → 155; boost 0 → none.
+        assert_eq!(accelerator_achievement_check(&mut ach, 30.0, 2.0, 0.0), 3);
+        assert_eq!(ach.achievements[148], 1);
+        assert_eq!(ach.achievements[149], 1);
+        assert_eq!(ach.achievements[150], 0); // 100 not reached
+        assert_eq!(ach.achievements[155], 1);
+        // speed rune level 600 → runeLevel 100/250/500 (396/397/398); free 50 →
+        // 10/40 (411/412); blessing 25 → 20 (232); spirit 0 → none.
+        assert_eq!(rune_achievement_check(&mut ach, 600.0, 50.0, 25.0, 0.0), 6);
+        assert_eq!(ach.achievements[398], 1);
+        assert_eq!(ach.achievements[399], 0); // 1000 not reached
+        assert_eq!(ach.achievements[412], 1);
+        assert_eq!(ach.achievements[232], 1);
+        assert_eq!(ach.achievements[235], 0); // spirit threshold 20 not met
+    }
+
+    #[test]
+    fn decimal_currency_check_awards_in_log10_space() {
+        let mut ach = AchievementsState::default();
+        // ascend_shards 1e7 → constant 3.14 / 1e6 (idx 190/191); crumbs 1e6 →
+        // antCrumbs 3 / 1e5 (idx 169/170).
+        let awarded = decimal_currency_achievement_check(
+            &mut ach,
+            Decimal::from_finite(1e7),
+            Decimal::from_finite(1e6),
+        );
+        assert_eq!(awarded, 4);
+        assert_eq!(ach.achievements[191], 1); // shards >= 1e6
+        assert_eq!(ach.achievements[192], 0); // 4.32e10 not reached
+        assert_eq!(ach.achievements[170], 1); // crumbs >= 1e5
+        assert_eq!(ach.achievements[171], 0); // 666666666 not reached
+                                              // Zero balances award nothing (the log10 guard).
+        let mut empty = AchievementsState::default();
+        assert_eq!(
+            decimal_currency_achievement_check(&mut empty, Decimal::zero(), Decimal::zero()),
+            0
+        );
+    }
+
+    #[test]
+    fn ascension_score_check_awards_by_threshold() {
+        let mut ach = AchievementsState::default();
+        // score 1.5e6 → ascensionScore 1e5 / 1e6 (idx 225/226); 1e7 (227) not.
+        assert_eq!(ascension_score_achievement_check(&mut ach, 1.5e6), 2);
+        assert_eq!(ach.achievements[225], 1);
+        assert_eq!(ach.achievements[226], 1);
+        assert_eq!(ach.achievements[227], 0);
+        // Below the 1e5 floor → nothing.
+        let mut low = AchievementsState::default();
+        assert_eq!(ascension_score_achievement_check(&mut low, 9.9e4), 0);
     }
 
     #[test]
