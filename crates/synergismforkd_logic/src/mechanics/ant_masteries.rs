@@ -16,7 +16,11 @@
 //! inputs; the buy action itself stays in the UI tier because it
 //! mutates player state.
 
+use smallvec::SmallVec;
 use synergismforkd_bignum::Decimal;
+
+use crate::events::CoreEvent;
+use crate::state::AntsState;
 
 /// Mastery cap (legacy `MAX_ANT_MASTERY_LEVEL`). Mastery levels run
 /// `0..=12`; the cap is the max value `masteryLevel` can take.
@@ -552,6 +556,54 @@ pub fn get_buyable_ant_mastery_levels(input: &CanBuyAntMasteryInput) -> u8 {
     buyable_levels
 }
 
+// ─── Buy (state-mutating) ─────────────────────────────────────────────────
+
+/// Input to [`buy_ant_mastery`] carried by the buy dispatcher.
+#[derive(Debug, Clone, Copy)]
+pub struct BuyAntMasteryInput {
+    /// Ant-producer index (`0..=8`, Workers..HolySpirit).
+    pub producer: u8,
+}
+
+/// `buyAntMastery(ant)` (`Features/Ants/AntMasteries/lib/buy-mastery.ts`) —
+/// buy a single mastery level for `producer` when affordable (the ELO +
+/// particle gate of [`can_buy_ant_mastery`]). Bumps the mastery level and the
+/// `highest_mastery` high-water mark, then deducts the per-level particle cost
+/// from `reincarnation_points`. The cap is `getMaxAntMasteryLevel()`, a hard
+/// `12` ([`MAX_ANT_MASTERY_LEVEL`]). Emits [`CoreEvent::AntMasteryPurchased`]
+/// on a successful buy.
+#[must_use]
+pub fn buy_ant_mastery(
+    ants: &mut AntsState,
+    reincarnation_points: &mut Decimal,
+    input: BuyAntMasteryInput,
+) -> SmallVec<[CoreEvent; 4]> {
+    let mut events: SmallVec<[CoreEvent; 4]> = SmallVec::new();
+    let p = input.producer as usize;
+    let level = ants.masteries[p].mastery;
+    let check = CanBuyAntMasteryInput {
+        producer: input.producer,
+        mastery_level: level,
+        max_level: MAX_ANT_MASTERY_LEVEL,
+        current_elo: ants.reborn_elo,
+        current_particles: *reincarnation_points,
+    };
+    if can_buy_ant_mastery(&check) {
+        let cost = ant_mastery_particle_cost(input.producer, level);
+        ants.masteries[p].mastery += 1;
+        let new_level = ants.masteries[p].mastery;
+        ants.masteries[p].highest_mastery = ants.masteries[p].highest_mastery.max(new_level);
+        *reincarnation_points -= cost;
+        events.push(CoreEvent::AntMasteryPurchased {
+            index: u32::from(input.producer),
+            before: f64::from(level),
+            after: f64::from(new_level),
+            spent: cost,
+        });
+    }
+    events
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -690,5 +742,41 @@ mod tests {
         };
         let result = get_buyable_ant_mastery_levels(&input);
         assert_eq!(result, 4);
+    }
+
+    #[test]
+    fn buy_ant_mastery_increments_and_deducts() {
+        let mut ants = AntsState::default();
+        // Workers level 0 → 1 needs 0 ELO and costs 1e700; start just above it
+        // so the deduction stays visible at Decimal precision (subtracting
+        // 1e700 from 1e1000 would round back to 1e1000).
+        let start = Decimal::from_mantissa_exponent(2.0, 700.0);
+        let mut particles = start;
+        let events = buy_ant_mastery(
+            &mut ants,
+            &mut particles,
+            BuyAntMasteryInput { producer: 0 },
+        );
+        assert_eq!(ants.masteries[0].mastery, 1);
+        assert_eq!(ants.masteries[0].highest_mastery, 1);
+        assert!(particles < start); // 2e700 - 1e700 = 1e700
+        assert_eq!(events.len(), 1);
+    }
+
+    #[test]
+    fn buy_ant_mastery_blocked_without_elo() {
+        let mut ants = AntsState::default();
+        // Workers level 5 requires 500 ELO; with 0 ELO the buy is blocked
+        // however many particles are on hand.
+        ants.masteries[0].mastery = 5;
+        ants.masteries[0].highest_mastery = 5;
+        let mut particles = Decimal::from_mantissa_exponent(1.0, 100_000.0);
+        let events = buy_ant_mastery(
+            &mut ants,
+            &mut particles,
+            BuyAntMasteryInput { producer: 0 },
+        );
+        assert_eq!(ants.masteries[0].mastery, 5);
+        assert!(events.is_empty());
     }
 }

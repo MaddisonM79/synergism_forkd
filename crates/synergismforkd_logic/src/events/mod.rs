@@ -362,6 +362,18 @@ pub enum CoreEvent {
         /// Crumbs removed from the player's balance.
         spent: Decimal,
     },
+    /// One ant mastery gained a level — the legacy `buyAntMastery`. `spent`
+    /// is in reincarnation points (particles).
+    AntMasteryPurchased {
+        /// Ant-producer index (0..=8, Workers..HolySpirit).
+        index: u32,
+        /// Mastery level before the buy.
+        before: f64,
+        /// Mastery level after the buy.
+        after: f64,
+        /// Reincarnation points removed from the player's balance.
+        spent: Decimal,
+    },
     /// Hepteract `index` was crafted toward its cap — the legacy
     /// `craftHepteracts`. `before`/`after` are the craft's balance; `amount`
     /// is the units crafted (the multi-resource spend lands on state).

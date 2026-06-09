@@ -37,6 +37,7 @@ use synergismforkd_bignum::Decimal;
 use crate::events::{CoreEvent, CubeTier, ProducerType};
 use crate::mechanics::accelerators::{buy_accelerator, BuyAcceleratorInput};
 use crate::mechanics::achievement_rewards;
+use crate::mechanics::ant_masteries::{buy_ant_mastery, BuyAntMasteryInput};
 use crate::mechanics::ant_producers::{buy_ant_producer, BuyAntProducerInput};
 use crate::mechanics::ant_upgrades::{buy_ant_upgrade, BuyAntUpgradeInput};
 use crate::mechanics::blueberry_upgrades::{buy_ambrosia_upgrade, BuyAmbrosiaUpgradeInput};
@@ -392,6 +393,9 @@ pub enum BuyRequest {
     /// Routes to [`buy_constant_upgrade`] — ascension constant upgrade `i`,
     /// paid in `ascendShards` (free when `researches[175] > 0`).
     ConstantUpgrade(BuyConstantUpgradeInput),
+    /// Routes to [`buy_ant_mastery`] — one mastery level for an ant producer,
+    /// paid in reincarnation points.
+    AntMastery(BuyAntMasteryInput),
     /// Routes to [`buy_max`] — buy-as-many-as-affordable across the
     /// producer family selected by `input.producer_type`.
     ProducerMax(BuyMaxInput),
@@ -6578,6 +6582,11 @@ fn dispatch_buy(
                 researches_175,
             )
         }
+        BuyRequest::AntMastery(inp) => buy_ant_mastery(
+            &mut state.ants,
+            &mut state.upgrades.reincarnation_points,
+            *inp,
+        ),
         BuyRequest::ProducerMax(inp) => match inp.producer_type {
             ProducerType::Coin => {
                 let events = buy_max(&mut state.coin_producers, &mut state.upgrades.coins, *inp);
@@ -9070,6 +9079,25 @@ mod tests {
         // i=1 (base 1), 1000 shards: toBuy = floor(1 + log10(1000)) = 4.
         assert_eq!(state.campaigns.constant_upgrades[1], 4.0);
         assert_eq!(state.campaigns.ascend_shards.to_number(), 0.0);
+    }
+
+    #[test]
+    fn dispatch_buy_routes_ant_mastery() {
+        let mut state = GameState::default();
+        // Workers (producer 0) level 0 needs 0 ELO and costs 1e700.
+        state.upgrades.reincarnation_points = Decimal::from_mantissa_exponent(1.0, 1_000.0);
+        let mut input = TackInput {
+            dt: 0.025,
+            ..TackInput::default()
+        };
+        input
+            .player_actions
+            .push(PlayerAction::Buy(BuyRequest::AntMastery(
+                BuyAntMasteryInput { producer: 0 },
+            )));
+        let _ = tack(&mut state, &input);
+        assert_eq!(state.ants.masteries[0].mastery, 1);
+        assert_eq!(state.ants.masteries[0].highest_mastery, 1);
     }
 
     #[test]
