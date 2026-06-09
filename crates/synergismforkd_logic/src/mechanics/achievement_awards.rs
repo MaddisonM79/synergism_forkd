@@ -740,6 +740,38 @@ pub fn decimal_currency_achievement_check(
     award_log10_group(ach, ascend_shards, CONSTANT) + award_log10_group(ach, crumbs, ANT_CRUMBS)
 }
 
+// ─── Ascension-score group ──────────────────────────────────────────────────
+
+/// `ascensionScore` group — `CalcCorruptionStuff().effectiveScore`. The score
+/// is `f64` (softcapped at `1e23`), so the gates are compared directly.
+const ASCENSION_SCORE: &[ThresholdRow] = &[
+    (225, 1e5, 5.0),
+    (226, 1e6, 10.0),
+    (227, 1e7, 15.0),
+    (228, 1e8, 20.0),
+    (229, 1e9, 25.0),
+    (230, 5e9, 30.0),
+    (231, 2.5e10, 35.0),
+    (253, 1e12, 40.0),
+    (254, 1e14, 45.0),
+    (255, 1e17, 50.0),
+    (256, 2e18, 55.0),
+    (257, 4e19, 60.0),
+    (258, 1e21, 65.0),
+    (259, 1e23, 70.0),
+];
+
+/// `ascensionScore` group — awarded from the effective ascension score. The
+/// caller supplies the score (and may skip the score computation while
+/// ascension is locked, where it stays below `1e5`). Returns the count newly
+/// awarded.
+pub fn ascension_score_achievement_check(
+    ach: &mut AchievementsState,
+    effective_score: f64,
+) -> usize {
+    award_threshold_group(ach, effective_score, ASCENSION_SCORE)
+}
+
 /// Per-run "didn't buy X this run" flags read by the ungrouped no-reset
 /// achievements (the `awardUngroupedAchievement` calls in the legacy
 /// `resetAchievementCheck`). Each starts `true`, is cleared on the matching
@@ -1219,6 +1251,19 @@ mod tests {
             decimal_currency_achievement_check(&mut empty, Decimal::zero(), Decimal::zero()),
             0
         );
+    }
+
+    #[test]
+    fn ascension_score_check_awards_by_threshold() {
+        let mut ach = AchievementsState::default();
+        // score 1.5e6 → ascensionScore 1e5 / 1e6 (idx 225/226); 1e7 (227) not.
+        assert_eq!(ascension_score_achievement_check(&mut ach, 1.5e6), 2);
+        assert_eq!(ach.achievements[225], 1);
+        assert_eq!(ach.achievements[226], 1);
+        assert_eq!(ach.achievements[227], 0);
+        // Below the 1e5 floor → nothing.
+        let mut low = AchievementsState::default();
+        assert_eq!(ascension_score_achievement_check(&mut low, 9.9e4), 0);
     }
 
     #[test]

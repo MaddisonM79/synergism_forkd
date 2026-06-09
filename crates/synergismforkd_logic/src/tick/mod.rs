@@ -1643,6 +1643,13 @@ fn phase_global_state(state: &mut GameState) -> AggregatorOutputs {
     // accelerator/multiplier/boost bought totals, speed-rune progression).
     // Awards on threshold crossing.
     let speed_free_level = rune_free_levels(state, crate::state::runes::RUNE_SPEED);
+    // The ascension score is `f64`-softcapped and below the 1e5 group floor
+    // while ascension is locked — skip the full CalcCorruptionStuff there.
+    let ascension_score = if state.reset_counters.ascension_unlocked {
+        compute_ascension_score_result(state).effective_score
+    } else {
+        0.0
+    };
     let awarded = crate::mechanics::achievement_awards::reset_count_achievement_check(
         &mut state.achievements,
         state.reset_counters.prestige_count,
@@ -1664,6 +1671,9 @@ fn phase_global_state(state: &mut GameState) -> AggregatorOutputs {
         &mut state.achievements,
         state.campaigns.ascend_shards,
         state.ants.crumbs,
+    ) + crate::mechanics::achievement_awards::ascension_score_achievement_check(
+        &mut state.achievements,
+        ascension_score,
     );
     credit_achievement_quarks(state, awarded);
     recompute_talisman_rarities(state);
