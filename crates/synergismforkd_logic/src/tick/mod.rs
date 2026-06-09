@@ -407,9 +407,9 @@ pub enum BuyRequest {
 
 /// Per-tier dispatcher for a manual reset, mirroring [`BuyRequest`].
 /// [`Self::Prestige`] / [`Self::Transcension`] / [`Self::Reincarnation`] /
-/// [`Self::Ascension`] are wired today; the singularity tier cascades on
-/// top and ports later.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// [`Self::Ascension`] / [`Self::Singularity`] are all wired. (`Eq` is not
+/// derived: [`Self::SingularityChallenge`] carries an `f64` target.)
+#[derive(Debug, Clone, Copy, PartialEq)]
 #[non_exhaustive]
 pub enum ResetRequest {
     /// Manual prestige reset — the always-runs base reset
@@ -432,6 +432,18 @@ pub enum ResetRequest {
     /// `current_transcension/reincarnation_challenge` slots are zeroed as
     /// part of the shared ascension block in [`reset::perform_ascension_reset`].
     AscensionChallenge,
+    /// Manual singularity reset (`singularity(-1)`, `Reset.ts:1063`) — the
+    /// meta-reset above ascension. Grants golden quarks, advances the
+    /// singularity count (auto-climb), and rebuilds the player from a blank save
+    /// preserving meta-progression. Gated on the antiquities rune (level > 0).
+    Singularity,
+    /// Singularity challenge enter/exit (`singularity(setSingNumber)`). Same
+    /// reconstruction, but jumps the count to `set_sing_number` and skips the
+    /// antiquities gate (matching the legacy `setSingNumber !== -1` path).
+    SingularityChallenge {
+        /// The target `singularityCount` to jump to.
+        set_sing_number: f64,
+    },
 }
 
 /// `forcedDailyReset` (Calculate.ts:1638) — the once-per-real-day bookkeeping
@@ -3312,6 +3324,51 @@ fn compute_ascension_count(state: &GameState, effective_score: f64) -> f64 {
 
 /// `golden_quarks_multiplier_excluding_base` — self-derived from `&GameState`.
 ///
+/// `calculateGoldenQuarks()` (legacy `Calculate.ts`, granted on a singularity
+/// reset at `Reset.ts:1105`): the full `allGoldenQuarkMultiplierStats` product,
+/// i.e. `calculateBaseGoldenQuarks() × <the other 12 lines>`. The base reads
+/// quarks-this-singularity + the singularity / highest-singularity counts; the
+/// rest come from [`compute_golden_quarks_multiplier_excluding_base`].
+fn calculate_golden_quarks(state: &GameState) -> f64 {
+    use crate::mechanics::singularity_milestones::{
+        calculate_base_golden_quarks, CalculateBaseGoldenQuarksInput,
+    };
+    let base = calculate_base_golden_quarks(&CalculateBaseGoldenQuarksInput {
+        singularity: state.singularity.singularity_count,
+        quarks_this_singularity: state.golden_quarks.quarks_this_singularity,
+        highest_singularity_count: state.singularity.highest_singularity_count,
+    });
+    base * compute_golden_quarks_multiplier_excluding_base(state)
+}
+
+/// `calculateMaxSingularityLookahead(true)` — how many singularities the
+/// auto-climb advances per reset (legacy `Reset.ts:1108`). Self-derived from the
+/// fast-forward GQ / octeract upgrades; `1` at the default state.
+fn compute_singularity_lookahead(state: &GameState) -> f64 {
+    use crate::mechanics::golden_quark_upgrades::{
+        sing_fast_forward_2_effect, sing_fast_forward_effect,
+    };
+    use crate::mechanics::octeracts::octeract_fast_forward_effect;
+    use crate::mechanics::singularity_helpers::{
+        max_singularity_lookahead, MaxSingularityLookaheadInput,
+    };
+    use crate::state::golden_quarks::{GQ_SING_FAST_FORWARD, GQ_SING_FAST_FORWARD_2};
+    use crate::state::octeract_upgrades::OCTERACT_FAST_FORWARD;
+
+    let gq = |i: usize| {
+        state.golden_quarks.upgrades[i].level + state.golden_quarks.upgrades[i].free_level
+    };
+    let oct = |i: usize| {
+        state.octeract_upgrades.upgrades[i].level + state.octeract_upgrades.upgrades[i].free_level
+    };
+    max_singularity_lookahead(&MaxSingularityLookaheadInput {
+        non_zero: true,
+        sing_fast_forward_lookahead: sing_fast_forward_effect(gq(GQ_SING_FAST_FORWARD)),
+        sing_fast_forward_2_lookahead: sing_fast_forward_2_effect(gq(GQ_SING_FAST_FORWARD_2)),
+        octeract_fast_forward_lookahead: octeract_fast_forward_effect(oct(OCTERACT_FAST_FORWARD)),
+    })
+}
+
 /// Legacy Helper.ts `addTimers('goldenQuarks')` reduces
 /// `allGoldenQuarkMultiplierStats` (Statistics.ts:2337) but divides the `Base`
 /// line (`calculateBaseGoldenQuarks`) back out and applies it separately, so
