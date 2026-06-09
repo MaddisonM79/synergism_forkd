@@ -772,6 +772,32 @@ pub fn ascension_score_achievement_check(
     award_threshold_group(ach, effective_score, ASCENSION_SCORE)
 }
 
+// ─── Singularity-count group ────────────────────────────────────────────────
+
+/// `singularityCount` group — `player.highestSingularityCount`. Pure
+/// point-value achievements (no rewards). The seven indices sit between the
+/// `constant` group (…273) and the `firstOwnedCoin` second tier (281…). Now
+/// reachable: the singularity layer is live, so `highestSingularityCount`
+/// climbs in play.
+const SINGULARITY_COUNT: &[ThresholdRow] = &[
+    (274, 1.0, 10.0),
+    (275, 2.0, 20.0),
+    (276, 3.0, 30.0),
+    (277, 4.0, 40.0),
+    (278, 5.0, 50.0),
+    (279, 7.0, 60.0),
+    (280, 10.0, 70.0),
+];
+
+/// `singularityCount` achievement group — awarded from the highest singularity
+/// count reached. Returns the count newly awarded.
+pub fn singularity_achievement_check(
+    ach: &mut AchievementsState,
+    highest_singularity_count: f64,
+) -> usize {
+    award_threshold_group(ach, highest_singularity_count, SINGULARITY_COUNT)
+}
+
 /// Per-run "didn't buy X this run" flags read by the ungrouped no-reset
 /// achievements (the `awardUngroupedAchievement` calls in the legacy
 /// `resetAchievementCheck`). Each starts `true`, is cleared on the matching
@@ -1264,6 +1290,28 @@ mod tests {
         // Below the 1e5 floor → nothing.
         let mut low = AchievementsState::default();
         assert_eq!(ascension_score_achievement_check(&mut low, 9.9e4), 0);
+    }
+
+    #[test]
+    fn singularity_check_awards_by_highest_count_and_is_idempotent() {
+        let mut ach = AchievementsState::default();
+        // highestSingularityCount 5 → rows 274..=278 (thresholds 1/2/3/4/5);
+        // the threshold-7 row (279) stays unmet.
+        assert_eq!(singularity_achievement_check(&mut ach, 5.0), 5);
+        assert_eq!(ach.achievements[274], 1);
+        assert_eq!(ach.achievements[278], 1);
+        assert_eq!(ach.achievements[279], 0);
+        // Point values 10+20+30+40+50 = 150.
+        assert!((ach.achievement_points - 150.0).abs() < 1e-9);
+        // Monotonic + idempotent: re-checking the same count awards nothing.
+        assert_eq!(singularity_achievement_check(&mut ach, 5.0), 0);
+    }
+
+    #[test]
+    fn singularity_check_default_awards_nothing() {
+        let mut ach = AchievementsState::default();
+        assert_eq!(singularity_achievement_check(&mut ach, 0.0), 0);
+        assert_eq!(ach.achievement_points, 0.0);
     }
 
     #[test]

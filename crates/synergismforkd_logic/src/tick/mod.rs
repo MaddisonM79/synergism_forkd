@@ -1703,6 +1703,9 @@ fn phase_global_state(state: &mut GameState) -> AggregatorOutputs {
     ) + crate::mechanics::achievement_awards::ascension_score_achievement_check(
         &mut state.achievements,
         ascension_score,
+    ) + crate::mechanics::achievement_awards::singularity_achievement_check(
+        &mut state.achievements,
+        state.singularity.highest_singularity_count,
     );
     credit_achievement_quarks(state, awarded);
     recompute_talisman_rarities(state);
@@ -10136,6 +10139,20 @@ mod tests {
         let _ = phase_global_state(&mut s);
         // The per-tick recompute runs inside phase_global_state.
         assert_eq!(s.talismans.talisman_rarity[TALISMAN_EXEMPTION], 1.0);
+    }
+
+    #[test]
+    fn phase_global_state_awards_singularity_count_achievements() {
+        // The singularityCount group is swept every tick from
+        // highestSingularityCount; the layer is live so this fires in play.
+        let mut s = GameState::default();
+        assert_eq!(s.achievements.achievements[274], 0);
+        s.singularity.highest_singularity_count = 3.0;
+        let _ = phase_global_state(&mut s);
+        // Rows 274/275/276 (thresholds 1/2/3) awarded; 277 (threshold 4) not.
+        assert_eq!(s.achievements.achievements[274], 1);
+        assert_eq!(s.achievements.achievements[276], 1);
+        assert_eq!(s.achievements.achievements[277], 0);
     }
 
     #[test]
