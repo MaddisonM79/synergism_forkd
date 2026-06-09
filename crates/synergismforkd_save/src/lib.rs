@@ -32,10 +32,11 @@
 //! `Decimal` fields always encode as Decimal; `u32` fields always encode
 //! as u32; etc. There is no `SavedNumber`.
 
+use base64::prelude::{Engine as _, BASE64_STANDARD};
 use postcard::{from_bytes, to_allocvec};
 use serde::{Deserialize, Serialize};
 use synergismforkd_common as _;
-use synergismforkd_logic::GameState;
+use synergismforkd_logic::{recompute_achievement_points, GameState};
 
 /// Current save schema version. Bump when a breaking schema change ships
 /// and a new `SaveV<N>` migration arm is added.
@@ -73,6 +74,9 @@ pub enum SaveError {
     /// to read. The migration chain stops one version short of the
     /// current build.
     UnknownVersion(u16),
+    /// The import string was not valid standard base64 (the export/import
+    /// string path only; the raw [`load`] byte path never produces this).
+    Base64(base64::DecodeError),
 }
 
 impl core::fmt::Display for SaveError {
@@ -83,6 +87,7 @@ impl core::fmt::Display for SaveError {
                 f,
                 "save version {v} is newer than this build's CURRENT_VERSION ({CURRENT_VERSION})"
             ),
+            Self::Base64(e) => write!(f, "base64: {e}"),
         }
     }
 }
@@ -92,6 +97,7 @@ impl std::error::Error for SaveError {
         match self {
             Self::Postcard(e) => Some(e),
             Self::UnknownVersion(_) => None,
+            Self::Base64(e) => Some(e),
         }
     }
 }
@@ -99,6 +105,12 @@ impl std::error::Error for SaveError {
 impl From<postcard::Error> for SaveError {
     fn from(e: postcard::Error) -> Self {
         Self::Postcard(e)
+    }
+}
+
+impl From<base64::DecodeError> for SaveError {
+    fn from(e: base64::DecodeError) -> Self {
+        Self::Base64(e)
     }
 }
 
@@ -144,6 +156,42 @@ pub fn load(bytes: &[u8]) -> Result<GameState, SaveError> {
     // Single-arm dispatch today; the migration chain ladder lives here
     // when v2+ lands.
     Ok(envelope.payload.state)
+}
+
+/// Encode a [`GameState`] to a portable base64 string — the user-facing export
+/// blob (clipboard / file download), mirroring the TS `exportSynergism`
+/// operation. Standard base64 over the postcard bytes from [`save`]; no
+/// compression for v1 (postcard is already compact).
+///
+/// # Errors
+///
+/// [`SaveError::Postcard`] if encoding the state fails (see [`save`]).
+pub fn export_to_string(state: &GameState) -> Result<String, SaveError> {
+    Ok(BASE64_STANDARD.encode(save(state)?))
+}
+
+/// Decode a base64 export blob back into a [`GameState`], then rebuild the
+/// achievement-points total from the loaded bitmap. A loaded save must not
+/// trust a possibly-drifted running points field, so
+/// [`recompute_achievement_points`] runs on the import path (audit H5).
+///
+/// # Errors
+///
+/// - [`SaveError::Base64`] if the string is not valid standard base64.
+/// - [`SaveError::Postcard`] / [`SaveError::UnknownVersion`] from [`load`].
+pub fn import_from_string(s: &str) -> Result<GameState, SaveError> {
+    let bytes = BASE64_STANDARD.decode(s)?;
+    let mut state = load(&bytes)?;
+    recompute_achievement_points(&mut state);
+    Ok(state)
+}
+
+/// A fresh-start game state — the "reset save" operation (TS `resetGame`'s
+/// state portion). Returns [`GameState::default`]; clearing persistent storage
+/// is the host's responsibility (filesystem / browser storage are UI-tier).
+#[must_use]
+pub fn reset_save() -> GameState {
+    GameState::default()
 }
 
 #[cfg(test)]
@@ -219,5 +267,50 @@ mod tests {
             }
             other => panic!("expected UnknownVersion(127), got {other:?}"),
         }
+    }
+
+    #[test]
+    fn export_import_string_round_trip() {
+        let mut original = GameState::default();
+        original.upgrades.coins = synergismforkd_bignum::Decimal::from_finite(9.87e30);
+        original.challenges.challenge_completions[5] = 3.0;
+
+        let blob = export_to_string(&original).expect("export should succeed");
+        let restored = import_from_string(&blob).expect("import should succeed");
+
+        assert_eq!(restored.upgrades.coins, original.upgrades.coins);
+        assert_eq!(restored.challenges.challenge_completions[5], 3.0);
+    }
+
+    #[test]
+    fn import_rejects_non_base64() {
+        // Spaces / `!` are not in the standard base64 alphabet.
+        match import_from_string("not valid base64 !!!") {
+            Err(SaveError::Base64(_)) => {}
+            other => panic!("expected Base64 error, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn import_recomputes_achievement_points() {
+        let mut state = GameState::default();
+        // Unlock achievement 0 (5 pts) + 173 (25 pts); drift the running total.
+        state.achievements.achievements[0] = 1;
+        state.achievements.achievements[173] = 1;
+        state.achievements.achievement_points = 999.0;
+
+        let blob = export_to_string(&state).expect("export");
+        let restored = import_from_string(&blob).expect("import");
+
+        // The loaded total is rebuilt from the bitmap, discarding the drift.
+        assert_eq!(restored.achievements.achievement_points, 30.0);
+    }
+
+    #[test]
+    fn reset_save_returns_default() {
+        let fresh = reset_save();
+        let default = GameState::default();
+        assert_eq!(fresh.upgrades.coins, default.upgrades.coins);
+        assert_eq!(fresh.achievements.achievement_points, 0.0);
     }
 }
