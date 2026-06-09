@@ -9,7 +9,9 @@ porting notes.
   `Reset.ts`, `Runes.ts`, `Cubes.ts`/`Platonic.ts`, `Hepteracts.ts`, `Achievements.ts`,
   `singularity.ts`). Key edges were spot-checked against source, not taken from memory.
 - **Colors** = current Rust port status in `crates/synergismforkd_logic/src/…`, reconciled with the
-  repo-root [`PARITY_AUDIT.md`](../../PARITY_AUDIT.md). **Snapshot: `main` @ 2026-06-08, including PR #265** (C15 accrual, achievement tail, rune-blessing wiring).
+  repo-root [`PARITY_AUDIT.md`](../../PARITY_AUDIT.md). **Snapshot: `main` @ 2026-06-08 (incl. PR #265) +
+  branch `claude/nifty-colden-ef7278` (PR #269)** — the latter adds the `updateAll` autobuyers, the
+  save export/import + on-load recompute (**H5 fixed**), and the achievement award groups.
 
 ## Legend
 
@@ -33,7 +35,7 @@ porting notes.
 | [ants.md](ants.md) | ant producers / masteries / upgrades / sacrifice / crumbs / true-level | 🟩 (H2) |
 | [challenges-corruptions.md](challenges-corruptions.md) | challenges 1–15, corruptions, campaign, constants, auto-challenge | 🟩 |
 | [singularity-ambrosia.md](singularity-ambrosia.md) | singularity reset, golden quarks, octeracts, perks; ambrosia / blueberry / red-ambrosia | 🟧 / 🟨 |
-| [meta-economy.md](meta-economy.md) | quarks, shop, potions, purchases, codes, achievements, statistics/history | 🟨 (H5) |
+| [meta-economy.md](meta-economy.md) | quarks, shop, potions, purchases, codes, achievements, statistics/history | 🟩 mostly |
 | [infrastructure.md](infrastructure.md) | game loop, calculate engine, state schema, events, save, UI, automation, RNG | 🟨 |
 
 ## Overview
@@ -61,7 +63,7 @@ flowchart LR
   singularity["Singularity"]:::stub
   ambrosia["Ambrosia"]:::partial
   meta["Quarks / Shop"]:::ported
-  achievements["Achievements"]:::bug
+  achievements["Achievements"]:::ported
 
   coreEcon ==>|"prestige…"| resets
   resets ==>|"ascend"| ascension
@@ -92,15 +94,15 @@ HIGH findings still open on `main` — full detail in [`PARITY_AUDIT.md`](../../
 |---|---|---|
 | **H1** | [core-economy](core-economy.md) | crystals / `prestige_shards` read & write hit different slices → crystal coin-mult under-credited |
 | **H2** | [ants](ants.md) | `calculate_true_ant_level` called at 2/~14 sites → free levels + extinction divisor still bypassed at most sites |
-| **H5** | [meta-economy](meta-economy.md) | `compute_achievement_points` never called → crystal/mythos achievement exponents frozen ≈1.0 |
 
 Fixed since the audit (shown green): **C1** global-speed mult, **C2** c10→ascension unlock,
-**H6** cube-opening, **H7** ant-sacrifice, and — via PR #265 — **P1.4** C15 accrual,
-**H3** rune effective-level pipeline, **H4** rune-blessing power.
+**H6** cube-opening, **H7** ant-sacrifice, via PR #265 **P1.4** C15 accrual / **H3** rune
+effective-level pipeline / **H4** rune-blessing power, and — via PR #269 — **H5** (achievement points
+now recompute on load + every award group feeds the total).
 
-> **Baseline caveat.** This reflects `main` *after* PR #265 merged. The earlier draft of this map was
-> cut before #265 and flagged C15/H3/H4 as open; they're now wired, so those nodes are green here.
-> Still-open: **H1**, **H2**, **H5**.
+> **Baseline caveat.** This reflects `main` *after* PR #265 plus branch `claude/nifty-colden-ef7278`
+> (PR #269), which fixes **H5** (achievement points) and lands the autobuyers + save export/import.
+> Still-open: **H1**, **H2**.
 
 ## Appendix: full single-canvas map
 
