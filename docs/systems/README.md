@@ -29,10 +29,10 @@ porting notes.
 | Page | Covers | Overall |
 |---|---|---|
 | [reset-cascade.md](reset-cascade.md) | the prestige → … → singularity reset spine; what each tier grants / resets / unlocks | 🟩 mostly |
-| [core-economy.md](core-economy.md) | coins + the 4 building tiers, multipliers/accelerators, crystals, tax, research, obtainium | 🟨 (H1) |
-| [ascension-cubes.md](ascension-cubes.md) | ascension score hub, the 4 cube tiers, opening + blessings + upgrades, hepteracts/overflux | 🟨 |
+| [core-economy.md](core-economy.md) | coins + the 4 building tiers, multipliers/accelerators, crystals, tax, research, obtainium | 🟩 |
+| [ascension-cubes.md](ascension-cubes.md) | ascension score hub, the 4 cube tiers, opening + blessings + upgrades, hepteracts/overflux | 🟩 mostly |
 | [runes-talismans.md](runes-talismans.md) | offerings, the 10 runes, blessings, spirits, talismans, fragments | 🟩 |
-| [ants.md](ants.md) | ant producers / masteries / upgrades / sacrifice / crumbs / true-level | 🟩 (H2) |
+| [ants.md](ants.md) | ant producers / masteries / upgrades / sacrifice / crumbs / true-level | 🟩 |
 | [challenges-corruptions.md](challenges-corruptions.md) | challenges 1–15, corruptions, campaign, constants, auto-challenge | 🟩 |
 | [singularity-ambrosia.md](singularity-ambrosia.md) | singularity reset, golden quarks, octeracts, perks; ambrosia / blueberry / red-ambrosia | 🟧 / 🟨 |
 | [meta-economy.md](meta-economy.md) | quarks, shop, potions, purchases, codes, achievements, statistics/history | 🟩 mostly |
@@ -51,12 +51,12 @@ flowchart LR
   classDef bug fill:#f9a825,color:#000,stroke:#d50000,stroke-width:3px;
 
   infra["Infrastructure"]:::partial
-  coreEcon["Core economy"]:::bug
+  coreEcon["Core economy"]:::ported
   resets["Reset cascade"]:::ported
   research["Research / Obtainium"]:::ported
   offerings["Offerings"]:::ported
   runes["Runes / Talismans"]:::ported
-  ants["Ants"]:::bug
+  ants["Ants"]:::ported
   challenges["Challenges / Corruptions"]:::ported
   ascension["Ascension / Cubes"]:::partial
   hepteracts["Hepteracts / Overflux"]:::partial
@@ -86,23 +86,26 @@ flowchart LR
   achievements -->|"per-ach quarks"| meta
 ```
 
-## Open parity bugs (flagged on the pages)
+## Open parity bugs
 
-HIGH findings still open on `main` — full detail in [`PARITY_AUDIT.md`](../../PARITY_AUDIT.md):
-
-| Id | Where | One-liner |
-|---|---|---|
-| **H1** | [core-economy](core-economy.md) | crystals / `prestige_shards` read & write hit different slices → crystal coin-mult under-credited |
-| **H2** | [ants](ants.md) | `calculate_true_ant_level` called at 2/~14 sites → free levels + extinction divisor still bypassed at most sites |
+**None.** Every HIGH finding from the audit is now fixed in code, each verified against
+`crates/synergismforkd_logic/`. Full audit detail in [`PARITY_AUDIT.md`](../../PARITY_AUDIT.md).
 
 Fixed since the audit (shown green): **C1** global-speed mult, **C2** c10→ascension unlock,
-**H6** cube-opening, **H7** ant-sacrifice, via PR #265 **P1.4** C15 accrual / **H3** rune
-effective-level pipeline / **H4** rune-blessing power, and — via PR #269 — **H5** (achievement points
-now recompute on load + every award group feeds the total).
+**H6** cube-opening, **H7** ant-sacrifice; via PR #265 **P1.4** C15 accrual / **H3** rune
+effective-level pipeline / **H4** rune-blessing power; via PR #269 **H5** (achievement points
+recompute on load + every award group feeds the total); and now **H1** and **H2** — both already
+fixed in code, the map had simply gone stale:
 
-> **Baseline caveat.** This reflects `main` *after* PR #265 plus branch `claude/nifty-colden-ef7278`
-> (PR #269), which fixes **H5** (achievement points) and lands the autobuyers + save export/import.
-> Still-open: **H1**, **H2**.
+- **H1** — crystals / `prestige_shards` read *and* write the same `crystal_upgrades` slice; covered
+  by the regression test `prestige_shards_accumulate_across_ticks` (`tick/mod.rs`).
+- **H2** — a shared `true_ant_level()` wrapper (`tick/mod.rs:655`) threads the true level (free
+  levels + extinction divisor) through every ant-production site, not just two.
+
+> **Baseline caveat.** Reflects `main` *after* PR #265 + branch `claude/nifty-colden-ef7278`
+> (PR #269). **No HIGH parity bugs remain open.** Remaining porting work is feature breadth, not
+> bugs: the singularity layer, three deferred autobuyer families, and the `unlocks` schema keys
+> (tracked on their pages).
 
 ## Appendix: full single-canvas map
 

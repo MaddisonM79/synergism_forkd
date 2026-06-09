@@ -17,7 +17,7 @@ flowchart LR
   antCrumbs["Crumbs"]:::ported
   antMastery["Ant masteries"]:::ported
   antUpg["Ant upgrades"]:::ported
-  antTrueLvl["Ant true-level ⚠H2"]:::bug
+  antTrueLvl["Ant true-level"]:::ported
   antSac["Ant sacrifice"]:::ported
 
   corr["Corruptions ↗ challenges"]:::ext
@@ -54,14 +54,17 @@ flowchart LR
 |---|---|---|
 | Producers, masteries, upgrades, crumbs | 🟩 Ported | `mechanics/ant_producers.rs`, `ant_masteries.rs`, `ant_upgrades.rs`, `state/ants.rs` |
 | Ant sacrifice | 🟩 Ported | `tick/mod.rs:5882`, `mechanics/ant_sacrifice.rs` (was audit **H7**) |
-| Ant true-level | 🟨 Partial ⚠**H2** | `mechanics/ant_upgrade_levels.rs::calculate_true_ant_level` |
+| Ant true-level | 🟩 Ported | shared `true_ant_level()` wrapper, `mechanics/ant_upgrade_levels.rs::calculate_true_ant_level` |
 
-## Porting notes / open bugs
+## Porting notes
 
-- ⚠ **H2 — true-level bypassed:** `calculate_true_ant_level` exists and is correct, but is called at
-  only **~2 of ~14** production sites (`tick/mod.rs:676`, `:2549`). Everywhere else the **raw** level is
-  fed to coin mult, multiplier mult, accelerator-boost mult, building power, tax reduction, etc., so
-  free levels and the extinction divisor are skipped. The correct calls prove the fix is mechanical —
-  it just needs threading to the remaining sites.
+- ✅ **H2 — true-level threaded (FIXED):** a shared `true_ant_level()` wrapper (`tick/mod.rs:655`)
+  computes the free-level pool + extinction divisor (with the four `exemptFromCorruption` upgrades) and
+  is called at **every** ant-production site — coin mult, multiplier mult, accelerator-boost mult,
+  building power, tax reduction, ascension-score base, etc. The audit's "~2 of ~14" snapshot is stale.
+- Two free-level *input* terms stay neutral-defaulted (identity at the default state): the
+  `freeAntUpgrades` achievement reward (→ 0) and the challenge-15 `bonusAntLevel` multiplier (→ 1.0).
+  These only diverge once those sources feed in; not a bypass. Wiring the now-ported achievement
+  reward is a small follow-up.
 - **Sacrifice** is wired and faithful (ELO, reborn-ELO, talisman tiers, offerings); some free-level
   inputs are neutral-defaulted pending the achievement/C15 sources that feed them.
