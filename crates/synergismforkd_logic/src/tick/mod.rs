@@ -507,6 +507,10 @@ pub fn tack(state: &mut GameState, input: &TackInput) -> TickOutput {
     // (no caller bundle, no cross-mechanic cache). Built field-by-field below,
     // then handed to Phase 5.
     let mut automation_pre = AutomationPre::default();
+    // Refresh blueberry free levels (red-ambrosia `extraLevelCalc`) before the
+    // Phase 2 aggregators read `amb(i) = level + free_level` (cubes / luck /
+    // quark multipliers all depend on the effective level).
+    populate_ambrosia_free_levels(state);
     let aggregator_outputs = phase_global_state(state);
     // Quark multiplier (legacy `calculateQuarkMultiplier` / `allQuarkStats`):
     // cached as a percent so the `applyBonus` consumers (cube opening, challenge
@@ -2487,6 +2491,44 @@ fn compute_octeract_per_second(state: &GameState) -> f64 {
         shop_ex_ultra_effect(shop[SHOP_EX_ULTRA], lifetime_ambrosia),
         ascension_speed_line,
     ])
+}
+
+/// Populate each blueberry upgrade's `free_level` from the red-ambrosia
+/// `freeLevels` upgrades (legacy `BlueberryUpgrade.extraLevelCalc`). Row map:
+/// tutorial (0) → `freeTutorialLevels`; row 2 (1-3: quarks1/cubes1/luck1) →
+/// `freeLevelsRow2`; row 3 (4-9: the cross `*Cube1`/`*Quark1`/`*Luck1`) →
+/// `freeLevelsRow3`; row 4 (10-12: quarks2/cubes2/luck2) → `freeLevelsRow4`;
+/// row 5 (13-16: quarks3/cubes3/luck3/luck4) → `freeLevelsRow5`. Indices 17+
+/// have `extraLevelCalc: () => 0`. Recomputed each tick (the field is a cache),
+/// so it stays the identity `0` at the default state.
+fn populate_ambrosia_free_levels(state: &mut GameState) {
+    use crate::mechanics::red_ambrosia_upgrades::{
+        free_levels_row_2_effect, free_levels_row_3_effect, free_levels_row_4_effect,
+        free_levels_row_5_effect, free_tutorial_levels_effect,
+    };
+    use crate::state::red_ambrosia::{
+        RED_AMBROSIA_FREE_LEVELS_ROW_2, RED_AMBROSIA_FREE_LEVELS_ROW_3,
+        RED_AMBROSIA_FREE_LEVELS_ROW_4, RED_AMBROSIA_FREE_LEVELS_ROW_5,
+        RED_AMBROSIA_FREE_TUTORIAL_LEVELS,
+    };
+
+    let upgrades = &state.red_ambrosia.upgrades;
+    let tutorial = free_tutorial_levels_effect(upgrades[RED_AMBROSIA_FREE_TUTORIAL_LEVELS].level);
+    let row2 = free_levels_row_2_effect(upgrades[RED_AMBROSIA_FREE_LEVELS_ROW_2].level);
+    let row3 = free_levels_row_3_effect(upgrades[RED_AMBROSIA_FREE_LEVELS_ROW_3].level);
+    let row4 = free_levels_row_4_effect(upgrades[RED_AMBROSIA_FREE_LEVELS_ROW_4].level);
+    let row5 = free_levels_row_5_effect(upgrades[RED_AMBROSIA_FREE_LEVELS_ROW_5].level);
+
+    for (i, upgrade) in state.ambrosia.upgrades.iter_mut().enumerate() {
+        upgrade.free_level = match i {
+            0 => tutorial,
+            1..=3 => row2,
+            4..=9 => row3,
+            10..=12 => row4,
+            13..=16 => row5,
+            _ => 0.0,
+        };
+    }
 }
 
 /// `calculateQuarkMultiplier()` — the global quark-gain multiplier
@@ -6989,6 +7031,32 @@ mod tests {
         let mut state = GameState::default();
         let _ = tack(&mut state, &TackInput::default());
         assert!((state.quarks.quark_bonus - 25.0).abs() < 1e-9);
+    }
+
+    #[test]
+    fn ambrosia_free_levels_populated_from_red_ambrosia() {
+        // Red-ambrosia freeLevelsRow2 grants free levels to blueberry row-2
+        // upgrades (quarks1/cubes1/luck1) only — not tutorial or row 4.
+        use crate::state::ambrosia::{AMBROSIA_QUARKS_1, AMBROSIA_QUARKS_2, AMBROSIA_TUTORIAL};
+        use crate::state::red_ambrosia::RED_AMBROSIA_FREE_LEVELS_ROW_2;
+        let mut state = GameState::default();
+        state.red_ambrosia.upgrades[RED_AMBROSIA_FREE_LEVELS_ROW_2].level = 5.0;
+        populate_ambrosia_free_levels(&mut state);
+        assert_eq!(state.ambrosia.upgrades[AMBROSIA_QUARKS_1].free_level, 5.0);
+        assert_eq!(state.ambrosia.upgrades[AMBROSIA_TUTORIAL].free_level, 0.0);
+        assert_eq!(state.ambrosia.upgrades[AMBROSIA_QUARKS_2].free_level, 0.0);
+    }
+
+    #[test]
+    fn ambrosia_free_levels_feed_quark_multiplier() {
+        // Red-ambrosia freeLevelsRow2 = 5 ⇒ ambrosiaQuarks1 effective level
+        // 0 + 5 ⇒ 1 + 0.01·5 = 1.05 (first-singularity bonus disabled).
+        use crate::state::red_ambrosia::RED_AMBROSIA_FREE_LEVELS_ROW_2;
+        let mut state = GameState::default();
+        state.singularity.highest_singularity_count = 1.0;
+        state.red_ambrosia.upgrades[RED_AMBROSIA_FREE_LEVELS_ROW_2].level = 5.0;
+        populate_ambrosia_free_levels(&mut state);
+        assert!((compute_quark_multiplier(&state) - 1.05).abs() < 1e-9);
     }
 
     #[test]
