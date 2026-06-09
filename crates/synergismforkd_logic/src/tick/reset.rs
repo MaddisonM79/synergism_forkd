@@ -25,7 +25,7 @@ use crate::events::{AutoResetTier, CoreEvent, SweepState};
 use crate::mechanics::reset_currency::ResetCurrencyResult;
 use crate::state::{
     AntsState, GameState, TalismansState, DEFLATION_INDEX, RUNE_DUPLICATION, RUNE_FINITE_DESCENT,
-    RUNE_PRISM, RUNE_SPEED, RUNE_SUPERIOR_INTELLECT, RUNE_THRIFT, TALISMAN_COUNT,
+    RUNE_PRISM, RUNE_SPEED, RUNE_SUPERIOR_INTELLECT, RUNE_THRIFT, TALISMAN_WOW_SQUARE,
 };
 use crate::tick::ResetRequest;
 
@@ -827,18 +827,22 @@ fn reset_ants_ascension(ants: &mut AntsState) {
     ants.ant_sacrifice_timer_real = 0.0;
 }
 
-/// `resetTalismanData('ascension')` (`Talismans.ts:1067-1086`). All seven Rust
-/// talismans are ascension-tier, so each `resetSingleTalisman` runs: level → 0
-/// and a rarity recompute (`setTalismanRarity`). The recompute needs the
-/// UI-tier `isUnlocked()` predicate, which is `false` at reachable state
-/// (talismans have no unlock / level path in the port yet) ⇒ rarity 0 —
-/// faithful here; the unlocked-talisman rarity (`compute_talisman_rarity`
-/// returns 1 at level 0) is deferred. The shard balance and the six fragment
-/// pools zero; the rune-buff assignments (legacy `talismanOne..Seven`) are
-/// **not** touched, matching `resetSingleTalisman`.
+/// `resetTalismanData('ascension')` (`Talismans.ts:1067-1086`): an ascension
+/// reset runs `resetSingleTalisman` (level → 0 + rarity recompute) only for the
+/// ascension-tier talismans (`exemption..wowSquare`, indices `0..=7`). The
+/// singularity-tier talisman (achievement) and the never-tier talismans
+/// (cookieGrandma, horseShoe) outrank an ascension and survive untouched.
+/// The rarity recompute needs the UI-tier `isUnlocked()` predicate, which is
+/// `false` at reachable state ⇒ rarity 0 — faithful here; the unlocked-talisman
+/// rarity (`compute_talisman_rarity` returns 1 at level 0) is deferred. The
+/// shard balance and the six fragment pools always zero (every tier);
+/// the rune-buff assignments (legacy `talismanOne..Seven`) are **not** touched,
+/// matching `resetSingleTalisman`.
 fn reset_talismans_ascension(talismans: &mut TalismansState) {
-    talismans.talisman_levels = [0.0; TALISMAN_COUNT];
-    talismans.talisman_rarity = [0.0; TALISMAN_COUNT];
+    for t in 0..=TALISMAN_WOW_SQUARE {
+        talismans.talisman_levels[t] = 0.0;
+        talismans.talisman_rarity[t] = 0.0;
+    }
     talismans.talisman_shards = 0.0;
     talismans.common_fragments = 0.0;
     talismans.uncommon_fragments = 0.0;
@@ -863,6 +867,7 @@ mod tests {
     use crate::mechanics::reset_currency::ResetCurrencyResult;
     use crate::state::{
         RUNE_ANTIQUITIES, RUNE_COUNT, RUNE_HORSE_SHOE, RUNE_INFINITE_ASCENT, RUNE_TOP_HAT,
+        TALISMAN_ACHIEVEMENT, TALISMAN_COOKIE_GRANDMA, TALISMAN_COUNT, TALISMAN_HORSE_SHOE,
     };
 
     fn gains(prestige: f64, transcend: f64, reincarnation: f64) -> ResetCurrencyResult {
@@ -1549,7 +1554,7 @@ mod tests {
     }
 
     #[test]
-    fn ascension_reset_wipes_talisman_levels_and_fragments() {
+    fn ascension_reset_wipes_ascension_tier_talismans_and_all_fragments() {
         let mut state = GameState::default();
         state.talismans.talisman_levels = [50.0; TALISMAN_COUNT];
         state.talismans.talisman_rarity = [4.0; TALISMAN_COUNT];
@@ -1562,8 +1567,33 @@ mod tests {
 
         perform_ascension_reset(&mut state, &gains(0.0, 0.0, 0.0));
 
-        assert_eq!(state.talismans.talisman_levels, [0.0; TALISMAN_COUNT]);
-        assert_eq!(state.talismans.talisman_rarity, [0.0; TALISMAN_COUNT]);
+        // Ascension-tier talismans (0..=7) wipe to level + rarity 0.
+        for t in 0..=TALISMAN_WOW_SQUARE {
+            assert_eq!(
+                state.talismans.talisman_levels[t], 0.0,
+                "talisman {t} level"
+            );
+            assert_eq!(
+                state.talismans.talisman_rarity[t], 0.0,
+                "talisman {t} rarity"
+            );
+        }
+        // achievement (singularity) and cookieGrandma/horseShoe (never) survive.
+        for t in [
+            TALISMAN_ACHIEVEMENT,
+            TALISMAN_COOKIE_GRANDMA,
+            TALISMAN_HORSE_SHOE,
+        ] {
+            assert_eq!(
+                state.talismans.talisman_levels[t], 50.0,
+                "talisman {t} level"
+            );
+            assert_eq!(
+                state.talismans.talisman_rarity[t], 4.0,
+                "talisman {t} rarity"
+            );
+        }
+        // Fragment pools + shards always clear, regardless of tier.
         assert_eq!(state.talismans.talisman_shards, 0.0);
         assert_eq!(state.talismans.common_fragments, 0.0);
         assert_eq!(state.talismans.mythical_fragments, 0.0);

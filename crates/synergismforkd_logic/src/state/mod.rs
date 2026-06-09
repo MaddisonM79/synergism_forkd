@@ -82,8 +82,10 @@ pub use runes::{
 pub use shop::{ShopBuyMaxMode, ShopState};
 pub use singularity::{SingularityChallengeState, SingularityState};
 pub use talismans::{
-    TalismanRuneAssignment, TalismansState, TALISMAN_CHRONOS, TALISMAN_COUNT, TALISMAN_EXEMPTION,
+    TalismanRuneAssignment, TalismansState, TALISMAN_ACHIEVEMENT, TALISMAN_CHRONOS,
+    TALISMAN_COOKIE_GRANDMA, TALISMAN_COUNT, TALISMAN_EXEMPTION, TALISMAN_HORSE_SHOE,
     TALISMAN_METAPHYSICS, TALISMAN_MIDAS, TALISMAN_MORTUUS, TALISMAN_PLASTIC, TALISMAN_POLYMATH,
+    TALISMAN_WOW_SQUARE,
 };
 pub use tesseract_buildings::{AscendBuildingState, TesseractBuildingsState};
 pub use upgrades::{UpgradesState, UPGRADES_DEFAULT_LEN};

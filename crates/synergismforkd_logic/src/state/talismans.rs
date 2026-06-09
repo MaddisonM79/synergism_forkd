@@ -8,13 +8,18 @@
 
 use serde::{Deserialize, Serialize};
 
-/// Number of talismans in the legacy synergism build. Seven named:
-/// Exemption, Chronos, Midas, Metaphysics, Polymath, Mortuus, Plastic.
-/// The order matches the legacy `talismans` const
+/// Number of talismans in the current synergism build. Eleven named:
+/// Exemption, Chronos, Midas, Metaphysics, Polymath, Mortuus, Plastic,
+/// WowSquare, Achievement, CookieGrandma, HorseShoe. The order matches
+/// the legacy `talismans` const
 /// (`legacy/core_split/packages/web_ui/src/Talismans.ts`); index `i` is
-/// the i-th talisman, and the `TALISMAN_*` constants below give the
+/// the i-th key, and the `TALISMAN_*` constants below give the
 /// name → index mapping the UI tier must match.
-pub const TALISMAN_COUNT: usize = 7;
+///
+/// The first eight (Exemption..WowSquare) are ascension-tier; Achievement
+/// is singularity-tier; CookieGrandma and HorseShoe are never-tier (cf.
+/// each talisman's `minimalResetTier`).
+pub const TALISMAN_COUNT: usize = 11;
 
 /// `exemption` — index 0.
 pub const TALISMAN_EXEMPTION: usize = 0;
@@ -30,6 +35,14 @@ pub const TALISMAN_POLYMATH: usize = 4;
 pub const TALISMAN_MORTUUS: usize = 5;
 /// `plastic` — index 6.
 pub const TALISMAN_PLASTIC: usize = 6;
+/// `wowSquare` — index 7.
+pub const TALISMAN_WOW_SQUARE: usize = 7;
+/// `achievement` — index 8.
+pub const TALISMAN_ACHIEVEMENT: usize = 8;
+/// `cookieGrandma` — index 9.
+pub const TALISMAN_COOKIE_GRANDMA: usize = 9;
+/// `horseShoe` — index 10.
+pub const TALISMAN_HORSE_SHOE: usize = 10;
 
 /// Per-talisman fragment-allocation state. Mirrors the legacy
 /// `player.talismanOne..Seven` arrays: a small fixed slot list
@@ -51,7 +64,13 @@ pub struct TalismansState {
     /// `player.talismanRarity[0..=6]` — per-talisman rarity tier.
     pub talisman_rarity: [f64; TALISMAN_COUNT],
     /// Per-talisman rune-allocation slots. Legacy uses 5 slots per
-    /// talisman: `[Boolean, 0..=5]` per slot.
+    /// talisman: `[Boolean, 0..=5]` per slot. **Deprecated dead state**:
+    /// the current talisman→rune-level bonus reads fixed per-talisman
+    /// `talismanBaseCoefficient` data (see [`crate::mechanics::talisman_levels`]),
+    /// not these player-chosen slots. Retained because the legacy
+    /// `player.talismanOne..Seven` arrays remain in the (optional) save
+    /// schema; only the seven classic talismans (`0..=6`) ever had slots,
+    /// so indices `7..=10` stay at their unallocated default.
     pub rune_assignments: [[TalismanRuneAssignment; 5]; TALISMAN_COUNT],
     /// `player.talismanShards` — shard balance.
     pub talisman_shards: f64,
@@ -91,19 +110,25 @@ mod tests {
     use super::*;
 
     #[test]
-    fn default_has_7_talismans_with_5_slots_each() {
+    fn default_has_11_talismans_with_5_slots_each() {
         let s = TalismansState::default();
-        assert_eq!(s.talisman_levels.len(), 7);
+        assert_eq!(s.talisman_levels.len(), 11);
+        assert_eq!(s.talisman_rarity.len(), 11);
         assert_eq!(s.rune_assignments[0].len(), 5);
     }
 
     #[test]
     fn talisman_index_convention_sentinels() {
         // Coverage: the last named slot pins the array length.
-        assert_eq!(TALISMAN_PLASTIC, TALISMAN_COUNT - 1);
+        assert_eq!(TALISMAN_HORSE_SHOE, TALISMAN_COUNT - 1);
         // StatLine anchors (legacy `talismans` const order).
         assert_eq!(TALISMAN_EXEMPTION, 0);
         assert_eq!(TALISMAN_CHRONOS, 1);
         assert_eq!(TALISMAN_POLYMATH, 4);
+        assert_eq!(TALISMAN_PLASTIC, 6);
+        // The four current-era talismans appended after the classic seven.
+        assert_eq!(TALISMAN_WOW_SQUARE, 7);
+        assert_eq!(TALISMAN_ACHIEVEMENT, 8);
+        assert_eq!(TALISMAN_COOKIE_GRANDMA, 9);
     }
 }
