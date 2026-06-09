@@ -1458,8 +1458,77 @@ fn update_progressive_achievements(state: &mut GameState) {
     update_progressive_slot(ach, 11, 0.0, |_| 0.0); // redAmbrosiaUpgrades — maxLevel UI-tier
 }
 
+/// `talismans[t].isUnlocked()` — the per-talisman unlock predicate
+/// (`Talismans.ts`). Every gate is a pure function of `GameState`, so no
+/// persisted unlock flag is needed. Unported gates default to locked:
+/// chronos/midas/metaphysics/polymath read `getAchievementReward('*Talisman')`
+/// (achievement-reward table unported), `achievement` reads a level milestone
+/// (unported), and `horseShoe` reads the `taxmanLastStand` singularity
+/// challenge (singularity paused) — all neutral `false`. Shared with the
+/// talisman→rune-level bonus.
+fn talisman_is_unlocked(state: &GameState, t: usize) -> bool {
+    use crate::mechanics::ant_upgrades::mortuus_ant_upgrade_effect;
+    use crate::mechanics::shop_upgrades::shop_talisman_effect;
+    use crate::state::shop::SHOP_TALISMAN;
+    use crate::state::{
+        TALISMAN_COOKIE_GRANDMA, TALISMAN_EXEMPTION, TALISMAN_MORTUUS, TALISMAN_PLASTIC,
+        TALISMAN_WOW_SQUARE,
+    };
+    const ANT_UPGRADE_MORTUUS: usize = 11;
+    match t {
+        // unlocks.talismans ← highestchallengecompletions[9] > 0 (Synergism.ts:3136).
+        TALISMAN_EXEMPTION => state.challenges.highest_challenge_completions[9] > 0.0,
+        TALISMAN_MORTUUS => {
+            mortuus_ant_upgrade_effect(true_ant_level(state, ANT_UPGRADE_MORTUUS)).talisman_unlock
+        }
+        // shopTalisman: the PCoin instant-unlock-1 path is unported → false.
+        TALISMAN_PLASTIC => shop_talisman_effect(state.shop.upgrades[SHOP_TALISMAN], false),
+        TALISMAN_WOW_SQUARE => state.reset_counters.ascension_count >= 100.0,
+        TALISMAN_COOKIE_GRANDMA => state.cube_upgrade_levels.cube_upgrades[80] > 0.0,
+        // chronos/midas/metaphysics/polymath/achievement/horseShoe: gate unported → locked.
+        _ => false,
+    }
+}
+
+/// `updateTalismanRarities` (`Talismans.ts:670-676`): recompute every
+/// talisman's display rarity from its level + unlock state. Run first in
+/// [`phase_global_state`] so the rarity-indexed effects (midas blessing, the
+/// exemption/chronos/polymath/mortuus multipliers, and the talisman→rune-level
+/// bonus) read this tick's value. Locked talismans collapse to rarity 0; an
+/// unlocked talisman is at least rarity 1 even at level 0.
+fn recompute_talisman_rarities(state: &mut GameState) {
+    use crate::mechanics::talisman_levels::{compute_talisman_rarity, ComputeTalismanRarityInput};
+    use crate::state::TALISMAN_COUNT;
+    /// Per-talisman raw `maxLevel` (the data-table constant, **not** the cap
+    /// with `levelCapIncrease`). Drives the rarity-tier ratios. From the
+    /// legacy `talismans` data table.
+    const TALISMAN_MAX_LEVELS: [f64; TALISMAN_COUNT] = [
+        180.0, // exemption
+        180.0, // chronos
+        180.0, // midas
+        180.0, // metaphysics
+        180.0, // polymath
+        180.0, // mortuus
+        180.0, // plastic
+        210.0, // wowSquare
+        40.0,  // achievement
+        6.0,   // cookieGrandma
+        12.0,  // horseShoe
+    ];
+    for (t, &max_level) in TALISMAN_MAX_LEVELS.iter().enumerate() {
+        let is_unlocked = talisman_is_unlocked(state, t);
+        state.talismans.talisman_rarity[t] =
+            f64::from(compute_talisman_rarity(&ComputeTalismanRarityInput {
+                is_unlocked,
+                level: state.talismans.talisman_levels[t],
+                max_level,
+            }));
+    }
+}
+
 fn phase_global_state(state: &mut GameState) -> AggregatorOutputs {
     update_progressive_achievements(state);
+    recompute_talisman_rarities(state);
     let total_accelerator_boost = compute_total_accelerator_boost(state);
     let update_all_multiplier_pre =
         compute_update_all_multiplier_pre(state, total_accelerator_boost);
@@ -9050,6 +9119,76 @@ mod tests {
             "speed spirit should raise the global-speed mult"
         );
         assert!(with_spirit <= 2.0 * without_spirit + 1e-6);
+    }
+
+    #[test]
+    fn talisman_unlock_gates_are_pure_state_functions() {
+        use crate::state::shop::SHOP_TALISMAN;
+        use crate::state::{
+            TALISMAN_CHRONOS, TALISMAN_COOKIE_GRANDMA, TALISMAN_COUNT, TALISMAN_EXEMPTION,
+            TALISMAN_MORTUUS, TALISMAN_PLASTIC, TALISMAN_WOW_SQUARE,
+        };
+        let mut s = GameState::default();
+        // Default: every talisman locked.
+        for t in 0..TALISMAN_COUNT {
+            assert!(
+                !talisman_is_unlocked(&s, t),
+                "talisman {t} should start locked"
+            );
+        }
+        // exemption ← reincarnation challenge 9 completed at least once.
+        s.challenges.highest_challenge_completions[9] = 1.0;
+        assert!(talisman_is_unlocked(&s, TALISMAN_EXEMPTION));
+        // mortuus ← Mortuus ant upgrade owned.
+        s.ants.upgrades[11] = 5.0;
+        assert!(talisman_is_unlocked(&s, TALISMAN_MORTUUS));
+        // plastic ← shopTalisman bought.
+        s.shop.upgrades[SHOP_TALISMAN] = 1.0;
+        assert!(talisman_is_unlocked(&s, TALISMAN_PLASTIC));
+        // wowSquare ← 100 ascensions.
+        s.reset_counters.ascension_count = 100.0;
+        assert!(talisman_is_unlocked(&s, TALISMAN_WOW_SQUARE));
+        // cookieGrandma ← cubeUpgrade 80.
+        s.cube_upgrade_levels.cube_upgrades[80] = 1.0;
+        assert!(talisman_is_unlocked(&s, TALISMAN_COOKIE_GRANDMA));
+        // chronos gate (getAchievementReward) is unported → still locked.
+        assert!(!talisman_is_unlocked(&s, TALISMAN_CHRONOS));
+    }
+
+    #[test]
+    fn recompute_talisman_rarities_reflects_level_and_unlock() {
+        use crate::state::{TALISMAN_CHRONOS, TALISMAN_EXEMPTION};
+        let mut s = GameState::default();
+        // Locked → rarity 0 even with a level.
+        s.talismans.talisman_levels[TALISMAN_EXEMPTION] = 90.0;
+        recompute_talisman_rarities(&mut s);
+        assert_eq!(s.talismans.talisman_rarity[TALISMAN_EXEMPTION], 0.0);
+
+        // Unlock exemption: level 90 / maxLevel 180 = ratio 0.5 → band 3 → rarity 4.
+        s.challenges.highest_challenge_completions[9] = 1.0;
+        recompute_talisman_rarities(&mut s);
+        assert_eq!(s.talismans.talisman_rarity[TALISMAN_EXEMPTION], 4.0);
+
+        // Unlocked at level 0 → rarity 1 (the floor for an unlocked talisman).
+        s.talismans.talisman_levels[TALISMAN_EXEMPTION] = 0.0;
+        recompute_talisman_rarities(&mut s);
+        assert_eq!(s.talismans.talisman_rarity[TALISMAN_EXEMPTION], 1.0);
+
+        // chronos stays locked (gate unported) → 0 regardless of level.
+        s.talismans.talisman_levels[TALISMAN_CHRONOS] = 180.0;
+        recompute_talisman_rarities(&mut s);
+        assert_eq!(s.talismans.talisman_rarity[TALISMAN_CHRONOS], 0.0);
+    }
+
+    #[test]
+    fn phase_global_state_brings_talisman_rarity_online() {
+        use crate::state::TALISMAN_EXEMPTION;
+        let mut s = GameState::default();
+        s.challenges.highest_challenge_completions[9] = 1.0; // unlocks exemption
+        assert_eq!(s.talismans.talisman_rarity[TALISMAN_EXEMPTION], 0.0);
+        let _ = phase_global_state(&mut s);
+        // The per-tick recompute runs inside phase_global_state.
+        assert_eq!(s.talismans.talisman_rarity[TALISMAN_EXEMPTION], 1.0);
     }
 
     #[test]
