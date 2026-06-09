@@ -23,9 +23,16 @@ use crate::mechanics::auto_upgrades::{
 };
 use crate::mechanics::calculate::{get_reduction_value, ReductionValueInput};
 use crate::mechanics::challenges::{calc_ecc, ChallengeType};
+use crate::mechanics::crystal_upgrades::BuyCrystalUpgradesInput;
+use crate::mechanics::level_milestones::{get_level_milestone, LevelMilestoneKey};
 use crate::mechanics::multipliers::BuyMultiplierInput;
+use crate::mechanics::particle_buildings::BuyParticleBuildingInput;
 use crate::mechanics::producers::{BuyMaxInput, GetProducerCostInput};
+use crate::mechanics::rune_effects::{
+    prism_rune_effects, thrift_rune_effects, PrismRuneKey, ThriftRuneKey,
+};
 use crate::mechanics::upgrades::{buy_upgrades, BuyUpgradeInput};
+use crate::state::runes::{RUNE_PRISM, RUNE_THRIFT};
 use crate::state::{BuyAmount, GameState};
 
 use super::{dispatch_buy, AutomationPre, BuyRequest, TickOutput};
@@ -76,6 +83,94 @@ pub(crate) fn run_auto_buy(state: &mut GameState, pre: &AutomationPre, output: &
         output
             .events
             .extend(dispatch_buy(state, &BuyRequest::AcceleratorBoost, ppg));
+    }
+
+    // ── Family 6: diamond producers 1..=5 ────────────────────────────
+    // toggles[9 + t] && getLevelMilestone(tierNCrystalAutobuy) === 1.
+    let level = state.level.level;
+    for t in 1..=5u8 {
+        if state.automation.toggles[9 + t as usize] && crystal_autobuy_unlocked(level, t) {
+            let req = BuyRequest::ProducerMax(BuyMaxInput {
+                index: t,
+                producer_type: ProducerType::Diamonds,
+                cost_input: producer_cost_input(state),
+            });
+            output.events.extend(dispatch_buy(state, &req, ppg));
+        }
+    }
+
+    // ── Family 7: crystal upgrades 1..=5 ─────────────────────────────
+    // getLevelMilestone(tierNCrystalAutobuy) === 1 (no toggle).
+    for t in 1..=5u8 {
+        if crystal_autobuy_unlocked(level, t) {
+            let req = BuyRequest::CrystalUpgrade(crystal_input(state, t));
+            output.events.extend(dispatch_buy(state, &req, ppg));
+        }
+    }
+
+    // ── Family 8: mythos producers 1..=5 ─────────────────────────────
+    // toggles[15 + t] && upgrades[93 + t] === 1.
+    for t in 1..=5u8 {
+        if state.automation.toggles[15 + t as usize]
+            && state.upgrades.upgrades[93 + t as usize] == 1
+        {
+            let req = BuyRequest::ProducerMax(BuyMaxInput {
+                index: t,
+                producer_type: ProducerType::Mythos,
+                cost_input: producer_cost_input(state),
+            });
+            output.events.extend(dispatch_buy(state, &req, ppg));
+        }
+    }
+
+    // ── Family 9: particle buildings 1..=5 ───────────────────────────
+    // toggles[21 + t] && cubeUpgrades[7] > 0.
+    let cube_upgrade_7 = state.cube_upgrade_levels.cube_upgrades[7];
+    for t in 1..=5u8 {
+        if state.automation.toggles[21 + t as usize] && cube_upgrade_7 > 0.0 {
+            let req = BuyRequest::ParticleBuilding(BuyParticleBuildingInput {
+                index: t,
+                in_ascension_challenge_15: state.challenges.current_ascension_challenge == 15,
+                autobuyer: true,
+                particlebuyamount: BuyAmount::One,
+            });
+            output.events.extend(dispatch_buy(state, &req, ppg));
+        }
+    }
+}
+
+/// `getLevelMilestone('tierNCrystalAutobuy') === 1` for crystal-autobuy tier
+/// `tier` (`1..=5`) at player `level`. Gates the diamond-producer and
+/// crystal-upgrade autobuyers.
+fn crystal_autobuy_unlocked(level: f64, tier: u8) -> bool {
+    let key = match tier {
+        1 => LevelMilestoneKey::Tier1CrystalAutobuy,
+        2 => LevelMilestoneKey::Tier2CrystalAutobuy,
+        3 => LevelMilestoneKey::Tier3CrystalAutobuy,
+        4 => LevelMilestoneKey::Tier4CrystalAutobuy,
+        _ => LevelMilestoneKey::Tier5CrystalAutobuy,
+    };
+    get_level_milestone(key, level) > 0.5
+}
+
+/// `G.crystalUpgradesCost[0..5]` (`Variables.ts:36`) — `log10` base cost.
+const CRYSTAL_UPGRADES_COST: [f64; 5] = [6.0, 15.0, 20.0, 40.0, 100.0];
+/// `G.crystalUpgradeCostIncrement[0..5]` (`Variables.ts:37`).
+const CRYSTAL_UPGRADE_COST_INCREMENT: [f64; 5] = [8.0, 15.0, 20.0, 40.0, 100.0];
+
+/// `buyCrystalUpgrades(tier, true)` input. The prism cost-divisor uses the
+/// effective prism rune level (`getRuneEffects('prism', 'costDivisorLog10')`).
+fn crystal_input(state: &GameState, tier: u8) -> BuyCrystalUpgradesInput {
+    let prism_level = super::first_five_effective_rune_level(state, RUNE_PRISM);
+    let idx = usize::from(tier - 1);
+    BuyCrystalUpgradesInput {
+        i: tier,
+        auto: true,
+        prism_cost_divisor_log10: prism_rune_effects(prism_level, PrismRuneKey::CostDivisorLog10),
+        crystal_upgrades_cost: CRYSTAL_UPGRADES_COST[idx],
+        crystal_upgrade_cost_increment: CRYSTAL_UPGRADE_COST_INCREMENT[idx],
+        upgrade_73: f64::from(state.upgrades.upgrades[73]),
+        in_any_reincarnation_challenge: state.challenges.current_reincarnation_challenge != 0,
     }
 }
 
@@ -184,11 +279,7 @@ fn auto_upgrades(state: &mut GameState, output: &mut TickOutput) {
 
 /// The challenge-state flags + reduction value the producer cost solver reads.
 /// `cost_divisor` is the legacy `r` (`getReductionValue()`), **not**
-/// `G.costDivisor` (which is always `1` and lives in the solver). The thrift
-/// rune `costDelay` term is neutral-defaulted to `0` (it needs the effective
-/// rune-level pipeline); the researches[56..=60], transcend-ECC, and
-/// ant-building-cost-scale terms are computed — faithful at default and
-/// through mid-game.
+/// `G.costDivisor` (which is always `1` and lives in the solver).
 fn producer_cost_input(state: &GameState) -> GetProducerCostInput {
     GetProducerCostInput {
         cost_divisor: reduction_value(state),
@@ -200,13 +291,14 @@ fn producer_cost_input(state: &GameState) -> GetProducerCostInput {
     }
 }
 
-/// `getReductionValue()` (`Buy.ts:16`) minus the thrift-rune term (neutral 0).
+/// `getReductionValue()` (`Buy.ts:16`) — the producer-cost reduction `r`.
 fn reduction_value(state: &GameState) -> f64 {
     let researches_sum: f64 = (56..=60).map(|i| state.researches.researches[i]).sum();
     let ant_building_cost_scale =
         building_cost_scale_ant_upgrade_effect(state.ants.upgrades[6]).building_cost_scale;
+    let thrift_level = super::first_five_effective_rune_level(state, RUNE_THRIFT);
     get_reduction_value(&ReductionValueInput {
-        thrift_cost_delay: 0.0,
+        thrift_cost_delay: thrift_rune_effects(thrift_level, ThriftRuneKey::CostDelay),
         researches_sum,
         challenge_completions_4: state.challenges.challenge_completions[4],
         ant_building_cost_scale,

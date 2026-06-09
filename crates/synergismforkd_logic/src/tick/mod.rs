@@ -9145,6 +9145,53 @@ mod tests {
     }
 
     #[test]
+    fn auto_buy_purchases_mythos_producers_when_enabled() {
+        let mut state = GameState::default();
+        state.automation.toggles[16] = true; // mythos tier-1 autobuy
+        state.upgrades.upgrades[94] = 1;
+        state.upgrades.transcend_points = Decimal::from_finite(1e30);
+        let input = TackInput {
+            dt: 0.025,
+            ..TackInput::default()
+        };
+        let _ = tack(&mut state, &input);
+        assert!(state.mythos_producers.tiers[0].owned > 0.0);
+    }
+
+    #[test]
+    fn auto_buy_diamond_producers_gated_on_crystal_milestone() {
+        let mut state = GameState::default();
+        state.automation.toggles[10] = true; // diamond tier-1 autobuy
+        state.upgrades.prestige_points = Decimal::from_finite(1e30);
+        let input = TackInput {
+            dt: 0.025,
+            ..TackInput::default()
+        };
+        // Level 0: tier1CrystalAutobuy milestone not met -> no purchase.
+        let mut low = state.clone();
+        let _ = tack(&mut low, &input);
+        assert_eq!(low.diamond_producers.tiers[0].owned, 0.0);
+        // Level >= 6 unlocks the milestone -> diamonds auto-buy.
+        state.level.level = 100.0;
+        let _ = tack(&mut state, &input);
+        assert!(state.diamond_producers.tiers[0].owned > 0.0);
+    }
+
+    #[test]
+    fn auto_buy_crystal_upgrades_gated_on_milestone() {
+        let mut state = GameState::default();
+        state.level.level = 1000.0; // unlock all tierNCrystalAutobuy milestones
+        state.crystal_upgrades.prestige_shards = Decimal::from_finite(1e30);
+        let input = TackInput {
+            dt: 0.025,
+            ..TackInput::default()
+        };
+        let _ = tack(&mut state, &input);
+        // auto = free buy; the level is computed from prestige shards.
+        assert!(state.crystal_upgrades.crystal_upgrades[0] > 0.0);
+    }
+
+    #[test]
     fn phase_tax_feeds_coin_gain_and_writes_taxdivisor() {
         // tier-1 coin producer owned → produce_total = 1000 * 0.25 = 250
         // (default coin multipliers are 1), above the 0.001 coin-gain gate,
