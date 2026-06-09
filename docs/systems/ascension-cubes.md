@@ -17,7 +17,7 @@ flowchart LR
   ascReset["Ascension reset"]:::ported
   ascShards["Ascend shards"]:::ported
   ascBldg["Ascend buildings ×5"]:::ported
-  ascScore["Ascension score"]:::partial
+  ascScore["Ascension score"]:::ported
   wowCubes["Wow cubes"]:::ported
   tesseracts["Tesseracts"]:::ported
   hypercubes["Hypercubes"]:::ported
@@ -74,7 +74,7 @@ flowchart LR
   classDef ext fill:#eceff1,color:#37474f,stroke:#90a4ae,stroke-dasharray:4 3;
 
   ch15["Challenge 15 ↗ challenges"]:::ported
-  hepteracts["Hepteracts ·6"]:::partial
+  hepteracts["Hepteracts ·6"]:::ported
   hepAutoCraft["Hepteract auto-craft"]:::ported
   overfluxPowder["Overflux powder"]:::ported
   overfluxOrbs["Overflux orbs"]:::ported
@@ -105,18 +105,22 @@ flowchart LR
 | System | Status | Rust |
 |---|---|---|
 | Ascension reset + award | 🟩 Ported | `tick/reset.rs:460-650` |
-| Ascension score | 🟨 Partial | under-credited by **H2** (ant true-level) and a c11 collapse |
+| Ascension score | 🟩 Ported | H2 fixed (routes `true_ant_level`); base arrays + c10 exponent + 1e23 softcap match TS |
 | Cube tiers + opening (RNG) | 🟩 Ported | `mechanics/cube_opening.rs` (was audit **H6**) |
 | Cube/platonic blessings + upgrades | 🟩 Ported | `cube_blessings.rs`, `platonic_blessings.rs`, `cube_upgrades.rs`, `platonic_upgrade_costs.rs` |
-| Hepteracts | 🟨 Partial | `mechanics/hepteract_values.rs`, `hepteract_effects.rs` |
+| Hepteracts | 🟩 Ported | `mechanics/hepteract_values.rs`, `hepteract_effects.rs` (DR softening on all 4 effects) |
 | Overflux orbs / powder | 🟩 Ported | `mechanics/overflux_bonuses.rs` |
 
 ## Porting notes / open bugs
 
 - **Cube opening** (audit **H6**) and **ascension reset/award** are done — this whole tree is largely
   faithful and is one of the more complete areas.
-- **Hepteracts:** raw `.bal` is fed to 4 effects (chronos/hyperrealism/accelerator/multiplier),
-  skipping the diminishing-returns softening past 1000 (medium finding). Challenge + acceleratorBoost
-  hepteracts correctly call `hepteract_effective()`.
-- **Score** is the main carrier of the **H2** ant-true-level shortfall — see [ants.md](ants.md).
-- Cube upgrades 4/5/6 regrant on ascension reset rather than immediately (medium: intra-ascension loss).
+- ✅ **Hepteracts (DR softening done):** all 4 effects (chronos/hyperrealism/accelerator/multiplier)
+  feed `hepteract_effective_bal()` (`tick/mod.rs:1283,1371,2140,2937`), applying the diminishing-returns
+  softening past 1000 — matches TS `Hepteracts.ts`. Chronos uses the `platonicUpgrades[19]/750` DR
+  increase.
+- ✅ **Score — H2 fixed:** ascension score routes ant-upgrade index 14 through `true_ant_level()`
+  like every other ant site (see [ants.md](ants.md)). c10→ascension unlock (audit **C2**) is also wired
+  in production (`tick/mod.rs:5753`).
+- Cube upgrades 4/5/6 regrant the just-cleared upgrade slots **on ascension reset**, matching TS
+  `Reset.ts:739-751` (faithful port — the TS regrants at the same point, not on purchase).

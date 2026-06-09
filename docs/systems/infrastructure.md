@@ -55,9 +55,9 @@ flowchart LR
 
 | System | Status | Rust |
 |---|---|---|
-| Tick / game loop | 🟩 Mostly | `tick/mod.rs` + `tick/auto_buy.rs` (10/13 `updateAll` autobuyer families self-drive; ant-upgrades / talisman / tesseract deferred — each needs an unported prerequisite) |
+| Tick / game loop | 🟩 Ported | `tick/mod.rs` + `tick/auto_buy.rs` (all 13 `updateAll` autobuyer families self-drive) |
 | Calculate engine | 🟩 Ported | `mechanics/calculate.rs`, `math/*` (leaf math faithful; golden-vector coverage thin) |
-| State schema | 🟨 Partial | `state/` (~80%; `unlocks` only 8/21 keys; some rune-blessing type divergence) |
+| State schema | 🟨 Partial | `state/` (~85%; `unlocks` now 21/21 keys; + `total_quarks_ever`; some rune-blessing type divergence) |
 | Events enum | 🟩 Ported | `events/mod.rs` |
 | Save / Import-Export | 🟨 Partial | `crates/synergismforkd_save/` (postcard round-trip + versioned envelope + base64 export/import string + on-load achievement recompute; persistent storage + save-on-tick are host-tier) |
 | UI render | 🟧 Stub | `synergismforkd_ui*` (scaffold) |
@@ -67,15 +67,14 @@ flowchart LR
 ## Porting notes
 
 - The **logic core is healthy**. The remaining infrastructure gaps are the **UI** tree (still
-  scaffold), three deferred autobuyer families, and the host-tier slice of save (persistent storage,
-  save-on-tick).
-- The **`updateAll` autobuyers now self-drive** (`tick/auto_buy.rs`, run in Phase 5): autoUpgrades +
+  scaffold) and the host-tier slice of save (persistent storage, save-on-tick).
+- ✅ **All 13 `updateAll` autobuyer families self-drive** (`tick/auto_buy.rs`, Phase 5): autoUpgrades +
   coin/diamond/mythos/particle producers + accelerator/multiplier/boost + crystal upgrades + constant
-  upgrades + ant producers/masteries. Deferred (dormant at default, each needs an unported
-  prerequisite): the **ant-upgrade** autobuyer (16 per-upgrade `autobuy()` achievement-reward gates),
-  the **talisman** autobuyer (`buyTalismanLevelToRarityIncrease` rarity-loop wrapper), and the
-  **tesseract** autobuyer (`resetToggleModes.ascension` state + budget machinery). Inert on a fresh
-  save (`player.toggles[1..=26]` default false).
+  upgrades + ant producers/masteries + the formerly-deferred three — **talisman** (Family 11,
+  `buyTalismanLevelToRarityIncrease`), **tesseract** (Family 12, AMOUNT mode +
+  `calculate_tess_buildings_in_budget`), and **ant-upgrades** (Family 13, per-upgrade
+  achievement/research/milestone gates). Inert on a fresh save (`player.toggles[1..=26]` default
+  false). The PERCENTAGE-mode tesseract path (on-ascension) is a separate, non-`updateAll` call site.
 - **Save-load** gained a base64 export/import string API and an on-load **achievement-points
   recompute** (the full 509-entry `ACHIEVEMENT_POINT_VALUES` table → closes audit **H5**). The Rust
   save format is fresh (no TS-save compat); persistent storage + save-on-tick stay host-tier.

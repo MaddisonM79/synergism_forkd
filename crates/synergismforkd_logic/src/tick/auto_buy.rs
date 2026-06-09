@@ -13,14 +13,12 @@
 //! per-tier unlock upgrades are unowned at default, the whole driver is inert
 //! on a fresh save.
 //!
-//! **Deferred families** (each needs an unported prerequisite, all dormant at
-//! default): the **ant-upgrade** autobuyer (its 16 per-upgrade `autobuy()`
-//! conditions are distinct unported achievement rewards / level milestones),
-//! the **talisman** autobuyer (`buyTalismanLevelToRarityIncrease` is a
-//! rarity-target purchase loop — `levelsUntilRarityIncrease` + the budget /
-//! affordability walk — not the single-level `buy_talisman_level`), and the
-//! **tesseract** autobuyer (needs the `resetToggleModes.ascension` mode, absent
-//! from the Rust schema, plus the budget-driven multi-building purchase).
+//! **All 13 `updateAll` autobuyer families are wired** — including the formerly
+//! deferred three: talisman (Family 11, `buyTalismanLevelToRarityIncrease`),
+//! tesseract (Family 12, AMOUNT mode + `calculate_tess_buildings_in_budget`),
+//! and ant-upgrades (Family 13, per-upgrade achievement / research / milestone
+//! gates). The PERCENTAGE-mode tesseract path (`autoBuyTesseracts`, on-ascension)
+//! is a separate call site, not part of this `updateAll` driver.
 
 use crate::events::{ProducerType, UpgradeTier};
 use crate::mechanics::accelerators::BuyAcceleratorInput;
@@ -28,7 +26,7 @@ use crate::mechanics::ant_masteries::{
     can_buy_ant_mastery, BuyAntMasteryInput, CanBuyAntMasteryInput, MAX_ANT_MASTERY_LEVEL,
 };
 use crate::mechanics::ant_producers::BuyAntProducerInput;
-use crate::mechanics::ant_upgrades::building_cost_scale_ant_upgrade_effect;
+use crate::mechanics::ant_upgrades::{building_cost_scale_ant_upgrade_effect, BuyAntUpgradeInput};
 use crate::mechanics::auto_upgrades::{
     buy_generator, click_upgrades, diamond_upgrade_reward, ClickUpgradesUnlocks,
     DIAMOND_UPGRADE_18_ACHIEVEMENT, DIAMOND_UPGRADE_19_ACHIEVEMENT, DIAMOND_UPGRADE_20_ACHIEVEMENT,
@@ -48,6 +46,7 @@ use crate::mechanics::rune_effects::{
 use crate::mechanics::upgrades::{buy_upgrades, BuyUpgradeInput};
 use crate::state::runes::{RUNE_PRISM, RUNE_THRIFT};
 use crate::state::{BuyAmount, GameState};
+use synergismforkd_bignum::Decimal;
 
 use super::{dispatch_buy, AutomationPre, BuyRequest, TickOutput};
 
@@ -161,6 +160,12 @@ pub(crate) fn run_auto_buy(state: &mut GameState, pre: &AutomationPre, output: &
         }
     }
 
+    // ── Family 11: talismans (buyTalismanLevelToRarityIncrease) ──────
+    talisman_autobuyer(state, output, ppg);
+
+    // ── Family 12: tesseract buildings (AMOUNT mode) ─────────────────
+    tesseract_autobuyer(state, output, ppg);
+
     // ── Family 13 (producers + masteries): ant autobuyers ────────────
     // Gated on the ant autobuy toggles + getAchievementReward('antAutobuyers').
     // The ant-UPGRADE autobuyer is deferred (see the module docs).
@@ -205,6 +210,60 @@ pub(crate) fn run_auto_buy(state: &mut GameState, pre: &AutomationPre, output: &
                 output.events.extend(events);
             }
         }
+    }
+
+    // ── Family 13 (upgrades): ant-upgrade autobuyer ──────────────────
+    // autobuyAntUpgrades — each of the 16 ant upgrades gates on its own
+    // `autobuy()` predicate (per-upgrade achievement reward / research /
+    // level milestone). `max_buy_upgrades` chooses single-vs-max.
+    if state.ants.toggles.autobuy_upgrades {
+        let max = state.ants.toggles.max_buy_upgrades;
+        for upgrade in 0..16u8 {
+            if ant_upgrade_autobuy_unlocked(state, upgrade) {
+                let req = BuyRequest::AntUpgrade(BuyAntUpgradeInput {
+                    index: upgrade,
+                    max,
+                });
+                output.events.extend(dispatch_buy(state, &req, ppg));
+            }
+        }
+    }
+}
+
+/// Per-ant-upgrade autobuy achievement index for upgrades 0-10 (the
+/// `getAchievementReward('<name>Autobuy')` gate, `AntUpgrades/data/data.ts`):
+/// AntSpeed/Coins→176, Taxes→177, AcceleratorBoosts/Multipliers→178,
+/// Offerings→179, BuildingCostScale→482, Salvage→174, FreeRunes→484,
+/// Obtainium→137, AntSacrifice→486 (verified against the antSacrificeUnlock=173
+/// anchor). Upgrades 11-15 use research / level-milestone gates instead.
+const ANT_UPGRADE_AUTOBUY_ACHIEVEMENTS: [usize; 11] =
+    [176, 176, 177, 178, 178, 179, 482, 174, 484, 137, 486];
+
+/// `antUpgradeData[upgrade].autobuy()` — whether ant upgrade `upgrade` (0-15)
+/// may autobuy. 0-10: the per-upgrade achievement reward; 11 (Mortuus):
+/// `researches[145] > 0`; 12-15 (AntELO/WowCubes/AscensionScore/Mortuus2): a
+/// level milestone.
+fn ant_upgrade_autobuy_unlocked(state: &GameState, upgrade: u8) -> bool {
+    match upgrade {
+        0..=10 => {
+            let idx = ANT_UPGRADE_AUTOBUY_ACHIEVEMENTS[upgrade as usize];
+            state
+                .achievements
+                .achievements
+                .get(idx)
+                .is_some_and(|&v| v != 0)
+        }
+        11 => state.researches.researches[145] > 0.0,
+        12 => get_level_milestone(LevelMilestoneKey::AntSpeed2Autobuyer, state.level.level) > 0.5,
+        13 => get_level_milestone(LevelMilestoneKey::WowCubesAutobuyer, state.level.level) > 0.5,
+        14 => {
+            get_level_milestone(
+                LevelMilestoneKey::AscensionScoreAutobuyer,
+                state.level.level,
+            ) > 0.5
+        }
+        15 => get_level_milestone(LevelMilestoneKey::Mortuus2Autobuyer, state.level.level) > 0.5,
+        _ => false,
     }
 }
 
@@ -417,5 +476,227 @@ fn multiplier_input(state: &GameState) -> BuyMultiplierInput {
         ),
         in_transcension_challenge_4: state.challenges.current_transcension_challenge == 4,
         in_reincarnation_challenge_8: state.challenges.current_reincarnation_challenge == 8,
+    }
+}
+
+/// `buyTalismanLevelToRarityIncrease(t, true)` for every talisman — updateAll's
+/// talisman autobuyer (`Synergism.ts:4286`). Gated on `auto_fortify_toggle` +
+/// (`researches[130] > 0 || researches[135] > 0`). For each talisman it buys
+/// single levels toward the next rarity tier
+/// ([`levels_until_talisman_rarity_increase`]) while affordable — `dispatch_buy`
+/// returns no events when a level is unaffordable or the cap binds, ending the
+/// loop. Inert at default (`auto_fortify_toggle` false).
+fn talisman_autobuyer(state: &mut GameState, output: &mut TickOutput, ppg: Decimal) {
+    use crate::mechanics::talisman_costs::talisman_costs_for_level;
+    use crate::mechanics::talisman_levels::{
+        levels_until_talisman_rarity_increase, BuyTalismanLevelInput,
+        LevelsUntilTalismanRarityIncreaseInput, TALISMAN_MAX_LEVELS,
+    };
+
+    if !state.automation.auto_fortify_toggle {
+        return;
+    }
+    if !(state.researches.researches[130] > 0.0 || state.researches.researches[135] > 0.0) {
+        return;
+    }
+    let universal = universal_talisman_level_cap_increase(state);
+    for (t, &max_level) in TALISMAN_MAX_LEVELS.iter().enumerate() {
+        let level_cap = max_level + talisman_level_cap_increase(state, t, universal);
+        let levels_to_buy =
+            levels_until_talisman_rarity_increase(&LevelsUntilTalismanRarityIncreaseInput {
+                level: state.talismans.talisman_levels[t],
+                max_level,
+                current_rarity: state.talismans.talisman_rarity[t],
+                level_cap,
+            });
+        if levels_to_buy <= 0.0 {
+            continue;
+        }
+        // Bound by levelsToBuy; the dispatch ends the loop early (no events)
+        // once a level is unaffordable or `level_cap` binds.
+        for _ in 0..(levels_to_buy as u64) {
+            let level = state.talismans.talisman_levels[t];
+            let req = BuyRequest::TalismanLevel(BuyTalismanLevelInput {
+                index: t,
+                costs: talisman_costs_for_level(t, level),
+                level_cap,
+            });
+            let events = dispatch_buy(state, &req, ppg);
+            if events.is_empty() {
+                break;
+            }
+            output.events.extend(events);
+        }
+    }
+}
+
+/// `universalTalismanMaxLevelIncreasers()` (`Talismans.ts`) — the talisman
+/// level-cap bonus shared by most talismans. `0` at the default state.
+/// (`taxmanLastStand` talismanFreeLevel is deferred — a singularity challenge,
+/// inert until entered.)
+fn universal_talisman_level_cap_increase(state: &GameState) -> f64 {
+    use crate::mechanics::octeracts::{
+        octeract_talisman_level_cap_1_effect, octeract_talisman_level_cap_2_effect,
+        octeract_talisman_level_cap_3_effect, octeract_talisman_level_cap_4_effect,
+    };
+    use crate::state::octeract_upgrades::{
+        OCTERACT_TALISMAN_LEVEL_CAP_1, OCTERACT_TALISMAN_LEVEL_CAP_2,
+        OCTERACT_TALISMAN_LEVEL_CAP_3, OCTERACT_TALISMAN_LEVEL_CAP_4,
+    };
+    let oct = |i: usize| {
+        state.octeract_upgrades.upgrades[i].level + state.octeract_upgrades.upgrades[i].free_level
+    };
+    6.0 * calc_ecc(
+        ChallengeType::Ascension,
+        state.challenges.challenge_completions[13],
+    ) + (state.researches.researches[200] / 400.0).floor()
+        + octeract_talisman_level_cap_1_effect(oct(OCTERACT_TALISMAN_LEVEL_CAP_1))
+        + octeract_talisman_level_cap_2_effect(oct(OCTERACT_TALISMAN_LEVEL_CAP_2))
+        + octeract_talisman_level_cap_3_effect(oct(OCTERACT_TALISMAN_LEVEL_CAP_3))
+        + octeract_talisman_level_cap_4_effect(oct(OCTERACT_TALISMAN_LEVEL_CAP_4))
+}
+
+/// Per-talisman `levelCapIncrease()` (`Talismans.ts`): cookieGrandma `+54` /
+/// horseShoe `+88` (constants), achievement = the `achievementTalismanEnhancement`
+/// level milestone, everything else the universal increaser. The
+/// metaphysics/plastic/mortuus custom extras are deferred (0/small at the
+/// reachable state).
+fn talisman_level_cap_increase(state: &GameState, talisman: usize, universal: f64) -> f64 {
+    use crate::state::{TALISMAN_ACHIEVEMENT, TALISMAN_COOKIE_GRANDMA, TALISMAN_HORSE_SHOE};
+    match talisman {
+        TALISMAN_COOKIE_GRANDMA => 54.0,
+        TALISMAN_HORSE_SHOE => 88.0,
+        TALISMAN_ACHIEVEMENT => get_level_milestone(
+            LevelMilestoneKey::AchievementTalismanEnhancement,
+            state.level.level,
+        ),
+        _ => universal,
+    }
+}
+
+/// AMOUNT-mode tesseract-building autobuyer (`updateAll`, `Synergism.ts:4256`).
+/// Gated on `researches[190] > 0 && tesseract_auto_buyer_toggle && ascension_reset_mode == Amount`.
+/// Solves the cheapest-first distribution of `wow_tesseracts − reserve` across the
+/// auto-buy-enabled tiers ([`calculate_tess_buildings_in_budget`]) and dispatches
+/// the deltas highest-tier-first. The PERCENTAGE mode (on-ascension
+/// `autoBuyTesseracts`) is a separate call site and not driven here.
+fn tesseract_autobuyer(state: &mut GameState, output: &mut TickOutput, ppg: Decimal) {
+    use crate::mechanics::tesseract_buildings::{
+        calculate_tess_buildings_in_budget, BuyTesseractBuildingInput,
+    };
+    use crate::state::automation::AutoAscensionMode;
+
+    if state.researches.researches[190] <= 0.0
+        || !state.automation.tesseract_auto_buyer_toggle
+        || state.automation.ascension_reset_mode != AutoAscensionMode::Amount
+    {
+        return;
+    }
+    let owned: [Option<f64>; 5] = std::array::from_fn(|i| {
+        if state.automation.auto_tesseracts[i + 1] {
+            Some(state.tesseract_buildings.building((i + 1) as u8).owned)
+        } else {
+            None
+        }
+    });
+    let budget =
+        state.tesseract_buildings.wow_tesseracts - state.automation.tesseract_auto_buyer_amount;
+    let buy_to = calculate_tess_buildings_in_budget(owned, budget);
+    // Highest tier to lowest (matches the legacy order — guards float fuzz).
+    for i in (0..5).rev() {
+        if let (Some(from), Some(to)) = (owned[i], buy_to[i]) {
+            if to > from {
+                let req = BuyRequest::TesseractBuilding(BuyTesseractBuildingInput {
+                    index: (i + 1) as u8,
+                    amount: to - from,
+                });
+                output.events.extend(dispatch_buy(state, &req, ppg));
+            }
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn talisman_autobuyer_levels_toward_rarity_target() {
+        let mut state = GameState::default();
+        state.automation.auto_fortify_toggle = true;
+        state.researches.researches[130] = 1.0; // gate
+                                                // Exemption (idx 0) at rarity 1 (recompute runs earlier in the real
+                                                // tick; set directly since we exercise the autobuyer in isolation).
+        state.talismans.talisman_rarity[0] = 1.0;
+        state.talismans.talisman_shards = 1e9;
+        state.talismans.common_fragments = 1e9;
+        let mut output = TickOutput::default();
+        talisman_autobuyer(&mut state, &mut output, Decimal::zero());
+        // rarity 1, maxLevel 180 ⇒ buys toward ceil(180/6)=30 levels.
+        assert!(state.talismans.talisman_levels[0] > 0.0);
+        assert!(!output.events.is_empty());
+    }
+
+    #[test]
+    fn talisman_autobuyer_inert_without_toggle() {
+        let mut state = GameState::default();
+        state.researches.researches[130] = 1.0;
+        state.talismans.talisman_rarity[0] = 1.0;
+        state.talismans.talisman_shards = 1e9;
+        let mut output = TickOutput::default();
+        talisman_autobuyer(&mut state, &mut output, Decimal::zero());
+        assert_eq!(state.talismans.talisman_levels[0], 0.0);
+        assert!(output.events.is_empty());
+    }
+
+    #[test]
+    fn ant_upgrade_autobuy_gate_maps_correctly() {
+        let mut state = GameState::default();
+        assert!(!ant_upgrade_autobuy_unlocked(&state, 0));
+        // Achievement 176 (inceptus + fortunae) unlocks AntSpeed (0) + Coins (1).
+        state.achievements.achievements[176] = 1;
+        assert!(ant_upgrade_autobuy_unlocked(&state, 0));
+        assert!(ant_upgrade_autobuy_unlocked(&state, 1));
+        assert!(!ant_upgrade_autobuy_unlocked(&state, 2)); // Taxes needs 177
+                                                           // Mortuus (11) gates on research[145], not an achievement.
+        assert!(!ant_upgrade_autobuy_unlocked(&state, 11));
+        state.researches.researches[145] = 1.0;
+        assert!(ant_upgrade_autobuy_unlocked(&state, 11));
+    }
+
+    #[test]
+    fn ant_upgrade_autobuyer_buys_unlocked_upgrade() {
+        let mut state = GameState::default();
+        state.ants.toggles.autobuy_upgrades = true;
+        state.achievements.achievements[176] = 1; // unlock AntSpeed (0)
+        state.ants.crumbs = Decimal::from_mantissa_exponent(1.0, 20.0); // ample
+        let mut output = TickOutput::default();
+        run_auto_buy(&mut state, &AutomationPre::default(), &mut output);
+        assert!(state.ants.upgrades[0] > 0.0);
+    }
+
+    #[test]
+    fn tesseract_autobuyer_buys_within_budget() {
+        let mut state = GameState::default();
+        state.researches.researches[190] = 1.0;
+        state.automation.tesseract_auto_buyer_toggle = true; // ascension mode defaults Amount
+        state.automation.auto_tesseracts[1] = true; // enable tier 1
+        state.tesseract_buildings.wow_tesseracts = 1000.0;
+        let mut output = TickOutput::default();
+        tesseract_autobuyer(&mut state, &mut output, Decimal::zero());
+        assert!(state.tesseract_buildings.building(1).owned > 0.0);
+        assert!(!output.events.is_empty());
+    }
+
+    #[test]
+    fn tesseract_autobuyer_inert_without_toggle() {
+        let mut state = GameState::default();
+        state.researches.researches[190] = 1.0;
+        state.automation.auto_tesseracts[1] = true;
+        state.tesseract_buildings.wow_tesseracts = 1000.0;
+        let mut output = TickOutput::default();
+        tesseract_autobuyer(&mut state, &mut output, Decimal::zero());
+        assert_eq!(state.tesseract_buildings.building(1).owned, 0.0);
+        assert!(output.events.is_empty());
     }
 }

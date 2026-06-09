@@ -505,6 +505,16 @@ pub enum CoreEvent {
         /// reset — the execution is ungated).
         points_gained: Decimal,
     },
+    /// A singularity reset executed (legacy `singularity()`, `Reset.ts:1063`) —
+    /// the meta-layer above ascension: golden quarks were granted and the
+    /// singularity count advanced. Distinct from [`Self::ResetPerformed`], whose
+    /// `points_gained` is a prestige-family currency, not golden quarks.
+    SingularityPerformed {
+        /// Golden quarks granted by this reset (`calculateGoldenQuarks()`).
+        golden_quarks_gained: Decimal,
+        /// The new `singularityCount` after the reset.
+        singularity_count: f64,
+    },
     /// One of the four `automaticTools()` branches fired this tick.
     ///
     /// Emitted by the auto-tool state machine (tick-side, not yet

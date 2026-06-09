@@ -407,9 +407,9 @@ pub enum BuyRequest {
 
 /// Per-tier dispatcher for a manual reset, mirroring [`BuyRequest`].
 /// [`Self::Prestige`] / [`Self::Transcension`] / [`Self::Reincarnation`] /
-/// [`Self::Ascension`] are wired today; the singularity tier cascades on
-/// top and ports later.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// [`Self::Ascension`] / [`Self::Singularity`] are all wired. (`Eq` is not
+/// derived: [`Self::SingularityChallenge`] carries an `f64` target.)
+#[derive(Debug, Clone, Copy, PartialEq)]
 #[non_exhaustive]
 pub enum ResetRequest {
     /// Manual prestige reset — the always-runs base reset
@@ -432,6 +432,18 @@ pub enum ResetRequest {
     /// `current_transcension/reincarnation_challenge` slots are zeroed as
     /// part of the shared ascension block in [`reset::perform_ascension_reset`].
     AscensionChallenge,
+    /// Manual singularity reset (`singularity(-1)`, `Reset.ts:1063`) — the
+    /// meta-reset above ascension. Grants golden quarks, advances the
+    /// singularity count (auto-climb), and rebuilds the player from a blank save
+    /// preserving meta-progression. Gated on the antiquities rune (level > 0).
+    Singularity,
+    /// Singularity challenge enter/exit (`singularity(setSingNumber)`). Same
+    /// reconstruction, but jumps the count to `set_sing_number` and skips the
+    /// antiquities gate (matching the legacy `setSingNumber !== -1` path).
+    SingularityChallenge {
+        /// The target `singularityCount` to jump to.
+        set_sing_number: f64,
+    },
 }
 
 /// `forcedDailyReset` (Calculate.ts:1638) — the once-per-real-day bookkeeping
@@ -507,7 +519,17 @@ pub fn tack(state: &mut GameState, input: &TackInput) -> TickOutput {
     // (no caller bundle, no cross-mechanic cache). Built field-by-field below,
     // then handed to Phase 5.
     let mut automation_pre = AutomationPre::default();
+    // Refresh blueberry free levels (red-ambrosia `extraLevelCalc`) before the
+    // Phase 2 aggregators read `amb(i) = level + free_level` (cubes / luck /
+    // quark multipliers all depend on the effective level).
+    populate_ambrosia_free_levels(state);
     let aggregator_outputs = phase_global_state(state);
+    // Quark multiplier (legacy `calculateQuarkMultiplier` / `allQuarkStats`):
+    // cached as a percent so the `applyBonus` consumers (cube opening, challenge
+    // rewards, achievement awards) credit the full multiplier. The field carries
+    // `(mult - 1) * 100`, so `1 + quark_bonus / 100 == calculateQuarkMultiplier()`.
+    let quark_multiplier = compute_quark_multiplier(state);
+    state.quarks.quark_bonus = (quark_multiplier - 1.0) * 100.0;
     // Phase 2b: coin production + tax. Mirrors the legacy `calculatetax()`
     // call slot — runs after the aggregators (it needs the fresh coin
     // multipliers), writes `g_cache.taxdivisor` for the *next* tick's
@@ -632,10 +654,30 @@ pub fn tack(state: &mut GameState, input: &TackInput) -> TickOutput {
         input.dt * automation_pre.global_time_multiplier,
         &mut output,
     );
+    // Progress unlock flags that depend on finalized coins / prestige points
+    // (legacy per-tick checks, Synergism.ts:3976-3989 + Automation.ts:8).
+    update_progress_unlocks(state);
     phase_challenge_completion(state, &reset_gains, &mut output);
     phase_automation(state, &automation_pre, input, &mut output);
 
     output
+}
+
+/// Sticky per-tick progress-unlock flags that depend on finalized currencies:
+/// coin-producer gates (`coins` ≥ 500 / 1e4 / 1e5 / 4e6, Synergism.ts:3976-3989)
+/// and the generator gate (`prestigePoints` ≥ 1e12, Automation.ts:8). Each flag
+/// latches `true` and only resets on a singularity reset (Reset.ts:888). The
+/// `rrow1`-`rrow4` gates are singularity-milestone grants (handled by the
+/// singularity layer), so they are not set here.
+fn update_progress_unlocks(state: &mut GameState) {
+    let coins = state.upgrades.coins;
+    let prestige_points = state.upgrades.prestige_points;
+    let rc = &mut state.reset_counters;
+    rc.coin_one_unlocked |= coins >= Decimal::from_finite(500.0);
+    rc.coin_two_unlocked |= coins >= Decimal::from_finite(10_000.0);
+    rc.coin_three_unlocked |= coins >= Decimal::from_finite(100_000.0);
+    rc.coin_four_unlocked |= coins >= Decimal::from_finite(4e6);
+    rc.generation_unlocked |= prestige_points >= Decimal::from_finite(1e12);
 }
 
 /// Effective ant-upgrade level (legacy `calculateTrueAntLevel`): purchased
@@ -1517,23 +1559,9 @@ fn talisman_is_unlocked(state: &GameState, t: usize) -> bool {
 /// bonus) read this tick's value. Locked talismans collapse to rarity 0; an
 /// unlocked talisman is at least rarity 1 even at level 0.
 fn recompute_talisman_rarities(state: &mut GameState) {
-    use crate::mechanics::talisman_levels::{compute_talisman_rarity, ComputeTalismanRarityInput};
-    /// Per-talisman raw `maxLevel` (the data-table constant, **not** the cap
-    /// with `levelCapIncrease`). Drives the rarity-tier ratios. From the
-    /// legacy `talismans` data table.
-    const TALISMAN_MAX_LEVELS: [f64; TALISMAN_COUNT] = [
-        180.0, // exemption
-        180.0, // chronos
-        180.0, // midas
-        180.0, // metaphysics
-        180.0, // polymath
-        180.0, // mortuus
-        180.0, // plastic
-        210.0, // wowSquare
-        40.0,  // achievement
-        6.0,   // cookieGrandma
-        12.0,  // horseShoe
-    ];
+    use crate::mechanics::talisman_levels::{
+        compute_talisman_rarity, ComputeTalismanRarityInput, TALISMAN_MAX_LEVELS,
+    };
     for (t, &max_level) in TALISMAN_MAX_LEVELS.iter().enumerate() {
         let is_unlocked = talisman_is_unlocked(state, t);
         state.talismans.talisman_rarity[t] =
@@ -2483,6 +2511,224 @@ fn compute_octeract_per_second(state: &GameState) -> f64 {
     ])
 }
 
+/// Populate each blueberry upgrade's `free_level` from the red-ambrosia
+/// `freeLevels` upgrades (legacy `BlueberryUpgrade.extraLevelCalc`). Row map:
+/// tutorial (0) → `freeTutorialLevels`; row 2 (1-3: quarks1/cubes1/luck1) →
+/// `freeLevelsRow2`; row 3 (4-9: the cross `*Cube1`/`*Quark1`/`*Luck1`) →
+/// `freeLevelsRow3`; row 4 (10-12: quarks2/cubes2/luck2) → `freeLevelsRow4`;
+/// row 5 (13-16: quarks3/cubes3/luck3/luck4) → `freeLevelsRow5`. Indices 17+
+/// have `extraLevelCalc: () => 0`. Recomputed each tick (the field is a cache),
+/// so it stays the identity `0` at the default state.
+fn populate_ambrosia_free_levels(state: &mut GameState) {
+    use crate::mechanics::red_ambrosia_upgrades::{
+        free_levels_row_2_effect, free_levels_row_3_effect, free_levels_row_4_effect,
+        free_levels_row_5_effect, free_tutorial_levels_effect,
+    };
+    use crate::state::red_ambrosia::{
+        RED_AMBROSIA_FREE_LEVELS_ROW_2, RED_AMBROSIA_FREE_LEVELS_ROW_3,
+        RED_AMBROSIA_FREE_LEVELS_ROW_4, RED_AMBROSIA_FREE_LEVELS_ROW_5,
+        RED_AMBROSIA_FREE_TUTORIAL_LEVELS,
+    };
+
+    let upgrades = &state.red_ambrosia.upgrades;
+    let tutorial = free_tutorial_levels_effect(upgrades[RED_AMBROSIA_FREE_TUTORIAL_LEVELS].level);
+    let row2 = free_levels_row_2_effect(upgrades[RED_AMBROSIA_FREE_LEVELS_ROW_2].level);
+    let row3 = free_levels_row_3_effect(upgrades[RED_AMBROSIA_FREE_LEVELS_ROW_3].level);
+    let row4 = free_levels_row_4_effect(upgrades[RED_AMBROSIA_FREE_LEVELS_ROW_4].level);
+    let row5 = free_levels_row_5_effect(upgrades[RED_AMBROSIA_FREE_LEVELS_ROW_5].level);
+
+    for (i, upgrade) in state.ambrosia.upgrades.iter_mut().enumerate() {
+        upgrade.free_level = match i {
+            0 => tutorial,
+            1..=3 => row2,
+            4..=9 => row3,
+            10..=12 => row4,
+            13..=16 => row5,
+            _ => 0.0,
+        };
+    }
+}
+
+/// `calculateQuarkMultiplier()` — the global quark-gain multiplier
+/// (`allQuarkStats` product, original `Statistics.ts:1233` / `Calculate.ts:378`),
+/// self-derived from `&GameState`. Cached each tick into
+/// `state.quarks.quark_bonus` as `(mult - 1) * 100` (see [`tack`]) so the
+/// `applyBonus`-style consumers (cube opening, challenge rewards, achievement
+/// awards) credit the full multiplier — every such site reads
+/// `1 + quark_bonus / 100`, which equals this product.
+///
+/// Terms left at the multiplicative identity `1.0` are documented inline: the
+/// `quarkGain` achievement reward, the c15 quarks reward + quark-hepteract gate,
+/// `shopPanthema` / `infiniteAscent` (need their bonus-levels precompute /
+/// unlock gate), campaign bonus, and the UI/host-tier event + patreon
+/// (global / personal) bonuses. `favoriteUpgrade` passes a `0` maxed-sibling
+/// count (identity until that GQ upgrade is bought) and `ambrosiaCubeQuark1`
+/// passes a `0` `wow_cube_log_sum` — the same precedent as
+/// [`compute_ambrosia_luck_pre`]'s deferred cube-log terms.
+fn compute_quark_multiplier(state: &GameState) -> f64 {
+    use crate::mechanics::achievement_levels::achievement_level_from_points;
+    use crate::mechanics::ambrosia::{calculate_ambrosia_quark_mult, AmbrosiaMultInput};
+    use crate::mechanics::blueberry_upgrades::{
+        ambrosia_cube_quark_1_effect, ambrosia_luck_quark_1_effect, ambrosia_quarks_1_effect,
+        ambrosia_quarks_2_effect, ambrosia_quarks_3_effect, ambrosia_tutorial_effect,
+        AmbrosiaTutorialEffectKey,
+    };
+    use crate::mechanics::calculate::product_f64;
+    use crate::mechanics::golden_quark_upgrades::{
+        advanced_pack_effect, divine_pack_effect, expert_pack_effect, favorite_upgrade_effect,
+        intermediate_pack_effect, master_pack_effect, sing_quark_improver_1_effect,
+        AdvancedPackKey, DivinePackKey, ExpertPackKey, IntermediatePackKey, MasterPackKey,
+    };
+    use crate::mechanics::level_rewards::{get_level_reward, LevelRewardKey};
+    use crate::mechanics::octeract_bonuses::{
+        calculate_total_octeract_quark_bonus, CalculateTotalOcteractQuarkBonusInput,
+    };
+    use crate::mechanics::octeracts::{
+        octeract_quark_gain_2_effect, octeract_quark_gain_effect, octeract_starter_effect,
+        OcteractStarterKey,
+    };
+    use crate::mechanics::overflux_bonuses::calculate_quark_mult_from_powder;
+    use crate::mechanics::red_ambrosia_upgrades::{
+        viscount_effect, ViscountEffectKey, ViscountEffectValue,
+    };
+    use crate::mechanics::shop_upgrades::{shop_cash_grab_ultra_effect, ShopCashGrabUltraKey};
+    use crate::mechanics::singularity_challenges::{
+        limited_time_effect, sadistic_prequel_effect, LimitedTimeKey, SadisticPrequelKey,
+        SingularityEffectValue,
+    };
+    use crate::mechanics::singularity_milestones::calculate_singularity_quark_milestone_multiplier;
+    use crate::mechanics::talisman_effects::plastic_talisman_effects;
+
+    use crate::state::ambrosia::{
+        AMBROSIA_CUBE_QUARK_1, AMBROSIA_LUCK_QUARK_1, AMBROSIA_QUARKS_1, AMBROSIA_QUARKS_2,
+        AMBROSIA_QUARKS_3, AMBROSIA_TUTORIAL,
+    };
+    use crate::state::golden_quarks::{
+        GQ_ADVANCED_PACK, GQ_DIVINE_PACK, GQ_EXPERT_PACK, GQ_FAVORITE_UPGRADE,
+        GQ_INTERMEDIATE_PACK, GQ_MASTER_PACK, GQ_SING_QUARK_IMPROVER_1,
+    };
+    use crate::state::octeract_upgrades::{
+        OCTERACT_QUARK_GAIN, OCTERACT_QUARK_GAIN_2, OCTERACT_STARTER,
+    };
+    use crate::state::red_ambrosia::RED_AMBROSIA_VISCOUNT;
+    use crate::state::shop::SHOP_CASH_GRAB_ULTRA;
+    use crate::state::talismans::TALISMAN_PLASTIC;
+
+    // Legacy `player.cubeUpgrades[..]` indices (CookieUpgrade3 / CookieUpgrade18).
+    const CUBE_UPGRADE_QUARK_COOKIE_3: usize = 53;
+    const CUBE_UPGRADE_QUARK_COOKIE_18: usize = 68;
+
+    let sing = state.singularity.singularity_count;
+    let highest_sing = state.singularity.highest_singularity_count;
+    let shop = &state.shop.upgrades;
+    let cube = &state.cube_upgrade_levels.cube_upgrades;
+    let platonic = &state.cube_upgrade_levels.platonic_upgrades;
+    let achievement_level = achievement_level_from_points(state.achievements.achievement_points);
+    let lifetime_ambrosia = state.ambrosia.lifetime_ambrosia;
+    let ambrosia_luck = compute_ambrosia_luck_pre(state);
+    let gq = |i: usize| {
+        state.golden_quarks.upgrades[i].level + state.golden_quarks.upgrades[i].free_level
+    };
+    let oct = |i: usize| {
+        state.octeract_upgrades.upgrades[i].level + state.octeract_upgrades.upgrades[i].free_level
+    };
+    let amb = |i: usize| state.ambrosia.upgrades[i].level + state.ambrosia.upgrades[i].free_level;
+    let red = |i: usize| state.red_ambrosia.upgrades[i].level;
+
+    // Quark context → a missing singularity-challenge value is the multiplicative 1.
+    let scalar = |v: SingularityEffectValue| match v {
+        SingularityEffectValue::Scalar(s) => s,
+        SingularityEffectValue::Unlock(_) => 1.0,
+    };
+
+    // SingularityPacks: `1 + Σ packQuarkAdd` across the five GQ packs.
+    let singularity_packs = 1.0
+        + intermediate_pack_effect(gq(GQ_INTERMEDIATE_PACK), IntermediatePackKey::PackQuarkAdd)
+        + advanced_pack_effect(gq(GQ_ADVANCED_PACK), AdvancedPackKey::PackQuarkAdd)
+        + expert_pack_effect(gq(GQ_EXPERT_PACK), ExpertPackKey::PackQuarkAdd)
+        + master_pack_effect(gq(GQ_MASTER_PACK), MasterPackKey::PackQuarkAdd)
+        + divine_pack_effect(
+            gq(GQ_DIVINE_PACK),
+            DivinePackKey::PackQuarkAdd,
+            &state.corruptions.used.levels,
+        );
+
+    // Viscount red-ambrosia quark bonus → multiplicative scalar.
+    let viscount = match viscount_effect(red(RED_AMBROSIA_VISCOUNT), ViscountEffectKey::QuarkBonus)
+    {
+        ViscountEffectValue::Scalar(s) => s,
+        _ => 1.0,
+    };
+
+    product_f64(&[
+        1.0, // AchievementBonus — getAchievementReward('quarkGain') unported
+        get_level_reward(LevelRewardKey::Quarks, achievement_level),
+        plastic_talisman_effects(state.talismans.talisman_levels[TALISMAN_PLASTIC] as i32)
+            .quark_bonus,
+        if platonic[5] > 0.0 { 1.05 } else { 1.0 }, // PlatonicALPHA
+        if platonic[10] > 0.0 { 1.1 } else { 1.0 }, // PlatonicBETA
+        if platonic[15] > 0.0 { 1.15 } else { 1.0 }, // PlatonicOMEGA
+        1.0, // Jack (shopPanthema) — needs ShopPanthemaBonusLevels precompute
+        1.0, // Challenge15 — c15 quarks reward unported
+        1.0, // CampaignBonus — player.campaigns.quarkBonus unported
+        1.0, // InfiniteAscent — needs shop infiniteAscent unlock gate + rune
+        1.0, // QuarkHepteract — needs c15 hepteractsUnlocked gate + quark hepteract DR
+        calculate_quark_mult_from_powder(state.hepteracts.overflux_powder),
+        1.0 + sing / 10.0,                                     // SingularityCount
+        favorite_upgrade_effect(gq(GQ_FAVORITE_UPGRADE), 0.0), // siblings=0 until GQ bought
+        1.0 + 0.001 * cube[CUBE_UPGRADE_QUARK_COOKIE_3],       // CookieUpgrade3
+        1.0 + cube[CUBE_UPGRADE_QUARK_COOKIE_18] / 10_000.0
+            + 0.05 * (cube[CUBE_UPGRADE_QUARK_COOKIE_18] / 1_000.0).floor(), // CookieUpgrade18
+        calculate_singularity_quark_milestone_multiplier(sing),
+        if sing >= 200.0 {
+            (1.0 + (sing - 199.0) / 20.0).powi(2)
+        } else {
+            1.0
+        }, // skrauQ
+        calculate_total_octeract_quark_bonus(&CalculateTotalOcteractQuarkBonusInput {
+            exalt_4_enabled: state.singularity.no_octeracts.enabled,
+            total_wow_octeracts: state.cube_balances.total_wow_octeracts.to_number(),
+        }),
+        octeract_starter_effect(oct(OCTERACT_STARTER), OcteractStarterKey::QuarkMult),
+        octeract_quark_gain_effect(oct(OCTERACT_QUARK_GAIN)),
+        octeract_quark_gain_2_effect(
+            oct(OCTERACT_QUARK_GAIN_2),
+            oct(OCTERACT_QUARK_GAIN),
+            state.hepteracts.quark.bal,
+        ),
+        singularity_packs,
+        sing_quark_improver_1_effect(gq(GQ_SING_QUARK_IMPROVER_1)),
+        calculate_ambrosia_quark_mult(&AmbrosiaMultInput {
+            no_ambrosia_upgrades_enabled: state.singularity.no_ambrosia_upgrades.enabled,
+            lifetime_ambrosia,
+        }),
+        ambrosia_tutorial_effect(amb(AMBROSIA_TUTORIAL), AmbrosiaTutorialEffectKey::Quarks),
+        ambrosia_quarks_1_effect(amb(AMBROSIA_QUARKS_1)),
+        ambrosia_cube_quark_1_effect(amb(AMBROSIA_CUBE_QUARK_1), 0.0), // wow_cube_log_sum deferred
+        ambrosia_luck_quark_1_effect(amb(AMBROSIA_LUCK_QUARK_1), ambrosia_luck),
+        ambrosia_quarks_2_effect(amb(AMBROSIA_QUARKS_2), amb(AMBROSIA_QUARKS_1)),
+        ambrosia_quarks_3_effect(amb(AMBROSIA_QUARKS_3), amb(AMBROSIA_QUARKS_2)),
+        viscount,
+        shop_cash_grab_ultra_effect(
+            shop[SHOP_CASH_GRAB_ULTRA],
+            ShopCashGrabUltraKey::QuarkMult,
+            lifetime_ambrosia,
+        ),
+        scalar(limited_time_effect(
+            state.singularity.limited_time.completions,
+            LimitedTimeKey::QuarkMult,
+        )),
+        scalar(sadistic_prequel_effect(
+            state.singularity.sadistic_prequel.completions,
+            SadisticPrequelKey::QuarkMult,
+        )),
+        if highest_sing == 0.0 { 1.25 } else { 1.0 }, // FirstSingularityBonus
+        1.0,                                          // Event — UI-tier event calendar
+        1.0,                                          // GlobalSubscriber — patreon (host-tier)
+        1.0,                                          // AccountBonus — patreon (host-tier)
+    ])
+}
+
 /// `calculateAllCubeMultiplier()` — the GLOBAL cube-gain multiplier
 /// (`allCubeStats` product, original `Statistics.ts:172`), self-derived from
 /// `&GameState`. This is the shared base line multiplied into ALL five
@@ -3064,6 +3310,51 @@ fn compute_ascension_count(state: &GameState, effective_score: f64) -> f64 {
 
 /// `golden_quarks_multiplier_excluding_base` — self-derived from `&GameState`.
 ///
+/// `calculateGoldenQuarks()` (legacy `Calculate.ts`, granted on a singularity
+/// reset at `Reset.ts:1105`): the full `allGoldenQuarkMultiplierStats` product,
+/// i.e. `calculateBaseGoldenQuarks() × <the other 12 lines>`. The base reads
+/// quarks-this-singularity + the singularity / highest-singularity counts; the
+/// rest come from [`compute_golden_quarks_multiplier_excluding_base`].
+fn calculate_golden_quarks(state: &GameState) -> f64 {
+    use crate::mechanics::singularity_milestones::{
+        calculate_base_golden_quarks, CalculateBaseGoldenQuarksInput,
+    };
+    let base = calculate_base_golden_quarks(&CalculateBaseGoldenQuarksInput {
+        singularity: state.singularity.singularity_count,
+        quarks_this_singularity: state.golden_quarks.quarks_this_singularity,
+        highest_singularity_count: state.singularity.highest_singularity_count,
+    });
+    base * compute_golden_quarks_multiplier_excluding_base(state)
+}
+
+/// `calculateMaxSingularityLookahead(true)` — how many singularities the
+/// auto-climb advances per reset (legacy `Reset.ts:1108`). Self-derived from the
+/// fast-forward GQ / octeract upgrades; `1` at the default state.
+fn compute_singularity_lookahead(state: &GameState) -> f64 {
+    use crate::mechanics::golden_quark_upgrades::{
+        sing_fast_forward_2_effect, sing_fast_forward_effect,
+    };
+    use crate::mechanics::octeracts::octeract_fast_forward_effect;
+    use crate::mechanics::singularity_helpers::{
+        max_singularity_lookahead, MaxSingularityLookaheadInput,
+    };
+    use crate::state::golden_quarks::{GQ_SING_FAST_FORWARD, GQ_SING_FAST_FORWARD_2};
+    use crate::state::octeract_upgrades::OCTERACT_FAST_FORWARD;
+
+    let gq = |i: usize| {
+        state.golden_quarks.upgrades[i].level + state.golden_quarks.upgrades[i].free_level
+    };
+    let oct = |i: usize| {
+        state.octeract_upgrades.upgrades[i].level + state.octeract_upgrades.upgrades[i].free_level
+    };
+    max_singularity_lookahead(&MaxSingularityLookaheadInput {
+        non_zero: true,
+        sing_fast_forward_lookahead: sing_fast_forward_effect(gq(GQ_SING_FAST_FORWARD)),
+        sing_fast_forward_2_lookahead: sing_fast_forward_2_effect(gq(GQ_SING_FAST_FORWARD_2)),
+        octeract_fast_forward_lookahead: octeract_fast_forward_effect(oct(OCTERACT_FAST_FORWARD)),
+    })
+}
+
 /// Legacy Helper.ts `addTimers('goldenQuarks')` reduces
 /// `allGoldenQuarkMultiplierStats` (Statistics.ts:2337) but divides the `Base`
 /// line (`calculateBaseGoldenQuarks`) back out and applies it separately, so
@@ -5742,14 +6033,17 @@ fn complete_active_challenge(
     {
         state.challenges.highest_challenge_completions[q_idx] += 1.0;
         // Ascension-challenge unlock side-effects fired on highest[i] first rise
-        // (Synergism.ts:3796-3808 — inside the `resetCheck` ascensionChallenge block).
+        // (Synergism.ts:3692-3700 — inside the `resetCheck` reincarnation block).
         match q_idx {
-            // Reincarnation challenge 10 unlocks ascensions (legacy
-            // `player.unlocks.ascensions = true`, Synergism.ts:3700) — the entry
-            // gate for ascension challenge 11. Without it the c11-c15 ladder is
-            // unreachable in normal play. (c8 anthill / c9 talismans+blessings
-            // still need new `unlocks` fields — deferred to the schema-gated
-            // follow-up.)
+            // Reincarnation challenge 8 unlocks the ant hill (anthill);
+            // challenge 9 unlocks talismans + cube blessings; challenge 10
+            // unlocks ascensions — the entry gate for ascension challenge 11
+            // (without it the c11-c15 ladder is unreachable in normal play).
+            8 => state.reset_counters.anthill_unlocked = true,
+            9 => {
+                state.reset_counters.talismans_unlocked = true;
+                state.reset_counters.blessings_unlocked = true;
+            }
             10 => state.reset_counters.ascension_unlocked = true,
             11 => state.reset_counters.tesseracts_unlocked = true,
             12 => state.reset_counters.spirits_unlocked = true,
@@ -6757,6 +7051,78 @@ mod tests {
     fn compute_offerings_default_is_base_floor() {
         // prestige_counter = 0 ⇒ time multiplier 0 ⇒ max(base 1, mult·0) = 1.
         assert_eq!(compute_offerings(&GameState::default()).to_number(), 1.0);
+    }
+
+    #[test]
+    fn quark_multiplier_default_is_first_singularity_bonus() {
+        // Fresh save: every term is the identity except FirstSingularityBonus
+        // (highestSingularityCount == 0 ⇒ ×1.25). Verbatim allQuarkStats product.
+        let state = GameState::default();
+        assert!((compute_quark_multiplier(&state) - 1.25).abs() < 1e-9);
+    }
+
+    #[test]
+    fn quark_multiplier_neutral_after_first_singularity() {
+        // Once highestSingularityCount > 0 the first-singularity bonus drops and
+        // a fresh-otherwise state collapses to the identity 1.0.
+        let mut state = GameState::default();
+        state.singularity.highest_singularity_count = 1.0;
+        assert!((compute_quark_multiplier(&state) - 1.0).abs() < 1e-9);
+    }
+
+    #[test]
+    fn quark_multiplier_platonic_alpha_term() {
+        // PlatonicALPHA: platonicUpgrades[5] > 0 ⇒ ×1.05 (first-singularity off).
+        let mut state = GameState::default();
+        state.singularity.highest_singularity_count = 1.0;
+        state.cube_upgrade_levels.platonic_upgrades[5] = 1.0;
+        assert!((compute_quark_multiplier(&state) - 1.05).abs() < 1e-9);
+    }
+
+    #[test]
+    fn quark_multiplier_includes_blueberry_quarks_1() {
+        // AmbrosiaQuarks1 (1 + 0.01n) is now wired into the product: level 10 ⇒
+        // ×1.10. Regression for the previously-uncalled blueberry quark effect.
+        let mut state = GameState::default();
+        state.singularity.highest_singularity_count = 1.0;
+        state.ambrosia.upgrades[crate::state::ambrosia::AMBROSIA_QUARKS_1].level = 10.0;
+        assert!((compute_quark_multiplier(&state) - 1.1).abs() < 1e-9);
+    }
+
+    #[test]
+    fn tack_caches_quark_bonus_as_percent() {
+        // The tick caches `(calculateQuarkMultiplier() - 1) * 100` into
+        // quark_bonus, so applyBonus consumers see the full multiplier. Default
+        // multiplier 1.25 ⇒ quark_bonus 25.
+        let mut state = GameState::default();
+        let _ = tack(&mut state, &TackInput::default());
+        assert!((state.quarks.quark_bonus - 25.0).abs() < 1e-9);
+    }
+
+    #[test]
+    fn ambrosia_free_levels_populated_from_red_ambrosia() {
+        // Red-ambrosia freeLevelsRow2 grants free levels to blueberry row-2
+        // upgrades (quarks1/cubes1/luck1) only — not tutorial or row 4.
+        use crate::state::ambrosia::{AMBROSIA_QUARKS_1, AMBROSIA_QUARKS_2, AMBROSIA_TUTORIAL};
+        use crate::state::red_ambrosia::RED_AMBROSIA_FREE_LEVELS_ROW_2;
+        let mut state = GameState::default();
+        state.red_ambrosia.upgrades[RED_AMBROSIA_FREE_LEVELS_ROW_2].level = 5.0;
+        populate_ambrosia_free_levels(&mut state);
+        assert_eq!(state.ambrosia.upgrades[AMBROSIA_QUARKS_1].free_level, 5.0);
+        assert_eq!(state.ambrosia.upgrades[AMBROSIA_TUTORIAL].free_level, 0.0);
+        assert_eq!(state.ambrosia.upgrades[AMBROSIA_QUARKS_2].free_level, 0.0);
+    }
+
+    #[test]
+    fn ambrosia_free_levels_feed_quark_multiplier() {
+        // Red-ambrosia freeLevelsRow2 = 5 ⇒ ambrosiaQuarks1 effective level
+        // 0 + 5 ⇒ 1 + 0.01·5 = 1.05 (first-singularity bonus disabled).
+        use crate::state::red_ambrosia::RED_AMBROSIA_FREE_LEVELS_ROW_2;
+        let mut state = GameState::default();
+        state.singularity.highest_singularity_count = 1.0;
+        state.red_ambrosia.upgrades[RED_AMBROSIA_FREE_LEVELS_ROW_2].level = 5.0;
+        populate_ambrosia_free_levels(&mut state);
+        assert!((compute_quark_multiplier(&state) - 1.05).abs() < 1e-9);
     }
 
     #[test]
@@ -8417,6 +8783,86 @@ mod tests {
             state.reset_counters.ascension_unlocked,
             "completing reincarnation challenge 10 must unlock ascensions"
         );
+    }
+
+    #[test]
+    fn completing_reincarnation_challenge_8_unlocks_anthill() {
+        // Synergism.ts:3692 — highest[8] > 0 sets unlocks.anthill.
+        let mut state = GameState::default();
+        state.challenges.current_reincarnation_challenge = 8;
+        let gains = crate::mechanics::reset_currency::ResetCurrencyResult {
+            prestige_point_gain: Decimal::zero(),
+            transcend_point_gain: Decimal::zero(),
+            reincarnation_point_gain: Decimal::zero(),
+        };
+        let mut output = TickOutput::default();
+        let requirement = |_challenge: u32, _comp: f64| Decimal::zero();
+        complete_active_challenge(
+            &mut state,
+            8,
+            Decimal::one(),
+            5.0,
+            1.0,
+            &requirement,
+            true,
+            &gains,
+            &mut output,
+        );
+        assert!(state.reset_counters.anthill_unlocked);
+    }
+
+    #[test]
+    fn completing_reincarnation_challenge_9_unlocks_talismans_and_blessings() {
+        // Synergism.ts:3695-3696 — highest[9] > 0 sets talismans + blessings.
+        let mut state = GameState::default();
+        state.challenges.current_reincarnation_challenge = 9;
+        let gains = crate::mechanics::reset_currency::ResetCurrencyResult {
+            prestige_point_gain: Decimal::zero(),
+            transcend_point_gain: Decimal::zero(),
+            reincarnation_point_gain: Decimal::zero(),
+        };
+        let mut output = TickOutput::default();
+        let requirement = |_challenge: u32, _comp: f64| Decimal::zero();
+        complete_active_challenge(
+            &mut state,
+            9,
+            Decimal::one(),
+            5.0,
+            1.0,
+            &requirement,
+            true,
+            &gains,
+            &mut output,
+        );
+        assert!(state.reset_counters.talismans_unlocked);
+        assert!(state.reset_counters.blessings_unlocked);
+    }
+
+    #[test]
+    fn coin_unlocks_latch_on_coin_thresholds() {
+        // Synergism.ts:3976-3989 — coinone..four latch as coins cross thresholds.
+        let mut state = GameState::default();
+        state.upgrades.coins = Decimal::from_finite(600.0);
+        update_progress_unlocks(&mut state);
+        assert!(state.reset_counters.coin_one_unlocked);
+        assert!(!state.reset_counters.coin_two_unlocked);
+        state.upgrades.coins = Decimal::from_finite(5e6);
+        update_progress_unlocks(&mut state);
+        assert!(state.reset_counters.coin_two_unlocked);
+        assert!(state.reset_counters.coin_three_unlocked);
+        assert!(state.reset_counters.coin_four_unlocked);
+    }
+
+    #[test]
+    fn generation_unlocks_at_prestige_threshold() {
+        // Automation.ts:8 — generation unlocks at prestige points >= 1e12.
+        let mut state = GameState::default();
+        state.upgrades.prestige_points = Decimal::from_finite(1e11);
+        update_progress_unlocks(&mut state);
+        assert!(!state.reset_counters.generation_unlocked);
+        state.upgrades.prestige_points = Decimal::from_finite(1e12);
+        update_progress_unlocks(&mut state);
+        assert!(state.reset_counters.generation_unlocked);
     }
 
     #[test]

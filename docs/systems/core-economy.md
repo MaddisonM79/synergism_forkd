@@ -17,13 +17,13 @@ flowchart LR
   coinBldg["Coin buildings ×5"]:::ported
   coins["Coins"]:::ported
   coinUpg["Coin upgrades"]:::ported
-  crystals["Crystals ⚠H1"]:::bug
+  crystals["Crystals"]:::ported
   crystalUpg["Crystal upgrades"]:::ported
   bldgPower["Building power"]:::ported
   tax["Tax · cost scaling"]:::ported
   mult["Multipliers"]:::ported
   accel["Accelerators"]:::ported
-  accelBoost["Accelerator boosts"]:::stub
+  accelBoost["Accelerator boosts"]:::ported
   globalSpeed["Global speed mult"]:::ported
   research["Research grid ·200"]:::ported
   obtainium["Obtainium"]:::ported
@@ -69,23 +69,26 @@ flowchart LR
 |---|---|---|
 | Coin/diamond/mythos/particle buildings + currencies | 🟩 Ported | `mechanics/coin_production.rs`, `producers.rs`, `particle_buildings.rs` |
 | Coin/prestige/transcend/reincarnation upgrades | 🟩 Ported | `mechanics/upgrades.rs`, `state/upgrades.rs` |
-| Crystals / `prestige_shards` | 🟨 Partial ⚠**H1** | `state/crystal_upgrades.rs`, `mechanics/resource_gain.rs` |
+| Crystals / `prestige_shards` | 🟩 Ported | `state/crystal_upgrades.rs`, `mechanics/resource_gain.rs` (H1 fixed) |
 | Multipliers / accelerators | 🟩 Ported | `mechanics/multipliers.rs`, `accelerators.rs` |
-| Accelerator boosts | 🟧 Stub | `mechanics/accelerator_boosts.rs` — cost ported, **no buy handler** → stays 0 |
+| Accelerator boosts | 🟩 Ported | `mechanics/accelerator_boosts.rs` — both buy paths + autobuyer wired |
 | Global speed mult | 🟩 Ported | fixed in `tick/mod.rs:585` (was audit **C1**) |
 | Research + Obtainium | 🟩 Ported | `mechanics/researches.rs`, `resource_gain.rs` |
 | Building power / tax | 🟩 Ported | `mechanics/crystal_and_building_power.rs` |
 
 ## Porting notes / open bugs
 
-- ⚠ **H1 — crystals desync:** `prestige_shards` is read from `crystal_upgrades.prestige_shards`
-  (seeded right) but written to a different slice, so the crystal coin-multiplier is under-credited.
+- ✅ **H1 — crystals desync (FIXED):** `prestige_shards` is read *and* written on the same
+  `crystal_upgrades.prestige_shards` slice (seed `resource_gain.rs:385`, writeback `tick/mod.rs:5954`,
+  multiplier `tick/mod.rs:1170`). Covered by the regression test
+  `prestige_shards_accumulate_across_ticks` (`tick/mod.rs`). The old `reset_counters.prestige_shards`
+  field is vestigial (only ever zeroed, never read) — a candidate for cleanup.
 - **Accelerator boosts** are ported — `BuyRequest::AcceleratorBoost` runs the classic
   single-boost+prestige-reset path and the bulk solver, and the thrift rune-blessing
   `accelBoostCostDelay` now feeds the cost (the runes-page wire). The autobuyer path
   (`boostAccelerator(true)`) is now wired into the `updateAll` driver, and the `acceleratorBoosts`
   achievement group now awards.
-- **`updateAll` autobuyers now self-drive** (PR #269, `tick/auto_buy.rs`, Phase 5): producers
+- **`updateAll` autobuyers now self-drive** (`tick/auto_buy.rs`, Phase 5): producers
   (coin/diamond/mythos/particle), accelerator/multiplier/boost, crystal upgrades, the upgrade tab,
-  ascension constants, and ant producers/masteries — 10 of 13 families (ant-upgrades / talisman /
-  tesseract deferred behind prerequisites). A pure-idle Rust loop auto-buys once the toggles are on.
+  ascension constants, ant producers/masteries/upgrades, talismans, and tesseracts — **all 13
+  families**. A pure-idle Rust loop auto-buys once the toggles are on.

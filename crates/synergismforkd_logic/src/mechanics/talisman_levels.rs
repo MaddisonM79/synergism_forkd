@@ -13,7 +13,24 @@ use synergismforkd_bignum::Decimal;
 
 use super::talisman_costs::TalismanCraftCosts;
 use crate::events::CoreEvent;
-use crate::state::TalismansState;
+use crate::state::{TalismansState, TALISMAN_COUNT};
+
+/// Per-talisman base `maxLevel` (legacy `talismans[t].maxLevel`, Talismans.ts),
+/// in `TALISMAN_*` index order. The `getTalismanLevelCap` purchase cap adds
+/// `levelCapIncrease()` on top. Shared by the rarity recompute + the autobuyer.
+pub const TALISMAN_MAX_LEVELS: [f64; TALISMAN_COUNT] = [
+    180.0, // exemption
+    180.0, // chronos
+    180.0, // midas
+    180.0, // metaphysics
+    180.0, // polymath
+    180.0, // mortuus
+    180.0, // plastic
+    210.0, // wowSquare
+    40.0,  // achievement
+    6.0,   // cookieGrandma
+    12.0,  // horseShoe
+];
 
 // ─── Rarity value table ────────────────────────────────────────────────────
 

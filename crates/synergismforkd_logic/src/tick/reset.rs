@@ -117,6 +117,18 @@ pub(crate) fn perform_reset(
         ResetRequest::Reincarnation => perform_reincarnation_reset(state, gains),
         ResetRequest::Ascension => perform_ascension_reset(state, gains),
         ResetRequest::AscensionChallenge => perform_ascension_challenge_reset(state, gains),
+        ResetRequest::Singularity => {
+            // The antiquities-rune gate (Reset.ts:1064): the normal singularity
+            // path is a no-op without it (prevents the "double singularity bug").
+            if state.runes.rune_levels[crate::state::RUNE_ANTIQUITIES] > 0.0 {
+                perform_singularity_reset(state, -1.0)
+            } else {
+                SmallVec::new()
+            }
+        }
+        ResetRequest::SingularityChallenge { set_sing_number } => {
+            perform_singularity_reset(state, set_sing_number)
+        }
     }
 }
 
@@ -852,6 +864,166 @@ fn reset_talismans_ascension(talismans: &mut TalismansState) {
     talismans.mythical_fragments = 0.0;
 }
 
+/// `singularity(setSingNumber)` (`Reset.ts:1063-1285`) — the meta-reset above
+/// ascension. Grants golden quarks, advances the singularity count, and rebuilds
+/// the player from a blank save (`GameState::default()`) preserving only
+/// meta-progression. `set_sing_number < 0` is the normal auto-climb path;
+/// `>= 0` is the singularity-challenge enter/exit jump.
+///
+/// Survivors (the legacy `hold` copy, logic tier): achievements; golden quarks
+/// (balance + grant, all 80 upgrades, `total_quarks_ever`); the octeract /
+/// ambrosia-upgrade / red-ambrosia trees; shop; singularity challenge state +
+/// counts; automation prefs; the deterministic RNG and player level; the
+/// never-tier rune (horseShoe) and talismans (cookieGrandma, horseShoe); ant
+/// high-water marks (`highest_reborn_elo_ever`, per-mastery `highest_mastery`,
+/// `crumbs_ever_made`, sacrifice id); `cubeUpgrades[80]`; and the
+/// prestige/transcend/reincarnation counts once `highestSingularityCount >= 8`.
+/// Everything else resets to a fresh game.
+///
+/// Deferred (faithful for fresh saves): the elevator triad — the count advances
+/// `max(highest, count + lookahead)` (auto-climb), the only branch reachable
+/// while the elevator fields default to unlocked/non-slow. `worlds` (quarks)
+/// reset; the limitedTime `preserveQuarks` branch is inert until that
+/// singularity challenge is entered.
+pub(crate) fn perform_singularity_reset(
+    state: &mut GameState,
+    set_sing_number: f64,
+) -> SmallVec<[CoreEvent; 2]> {
+    use crate::state::golden_quarks::GQ_GOLDEN_QUARKS_3;
+    use crate::state::{
+        RUNE_ANTIQUITIES, RUNE_HORSE_SHOE, TALISMAN_COOKIE_GRANDMA, TALISMAN_HORSE_SHOE,
+    };
+
+    // ── Grant + new counts (read pre-reset state) ──
+    let gq_grant = Decimal::from_finite(super::calculate_golden_quarks(state));
+    let old_count = state.singularity.singularity_count;
+    let old_highest = state.singularity.highest_singularity_count;
+    let antiquities = state.runes.rune_levels[RUNE_ANTIQUITIES] > 0.0;
+
+    let (new_count, new_highest, increment_highest) = if set_sing_number < 0.0 {
+        // Normal path — auto-climb (elevator unlocked, not slow-climb).
+        let increment = old_count == old_highest;
+        let lookahead = super::compute_singularity_lookahead(state);
+        (
+            old_highest.max(old_count + lookahead),
+            old_highest,
+            increment,
+        )
+    } else {
+        // Challenge enter/exit jump.
+        let increment = old_count == old_highest && set_sing_number > old_count && antiquities;
+        (set_sing_number, old_highest, increment)
+    };
+    let new_highest = if increment_highest {
+        new_highest + 1.0
+    } else {
+        new_highest
+    };
+    // goldenQuarks3 free-level milestone bumps at highest 5 / 10 (Reset.ts:1128).
+    let gq3_free_bonus = if increment_highest {
+        match new_highest as i64 {
+            5 => 1.0,
+            10 => 2.0,
+            _ => 0.0,
+        }
+    } else {
+        0.0
+    };
+    let total_quarks_ever =
+        state.golden_quarks.total_quarks_ever + state.golden_quarks.quarks_this_singularity;
+
+    // ── Capture survivors (before the blank-save reconstruction) ──
+    let achievements = state.achievements.clone();
+    let octeract_upgrades = state.octeract_upgrades.clone();
+    let red_ambrosia = state.red_ambrosia.clone();
+    let shop = state.shop.clone();
+    let automation = state.automation.clone();
+    let rng = state.rng.clone();
+    let level = state.level.clone();
+    let singularity = state.singularity; // Copy — keeps challenge state
+    let ambrosia_upgrades = state.ambrosia.upgrades;
+    let spent_blueberries = state.ambrosia.spent_blueberries;
+    let mut golden_quarks = state.golden_quarks.clone();
+    let prestige_count = state.reset_counters.prestige_count;
+    let transcend_count = state.reset_counters.transcend_count;
+    let reincarnation_count = state.reset_counters.reincarnation_count;
+    let cube_upgrade_80 = state.cube_upgrade_levels.cube_upgrades[80];
+    let horseshoe_level = state.runes.rune_levels[RUNE_HORSE_SHOE];
+    let horseshoe_exp = state.runes.rune_exp[RUNE_HORSE_SHOE];
+    let talisman_survivors = [TALISMAN_COOKIE_GRANDMA, TALISMAN_HORSE_SHOE].map(|i| {
+        (
+            i,
+            state.talismans.talisman_levels[i],
+            state.talismans.talisman_rarity[i],
+        )
+    });
+    let crumbs_ever_made = state.ants.crumbs_ever_made;
+    let highest_reborn_elo_ever = state.ants.highest_reborn_elo_ever.clone();
+    let ant_highest_masteries: [u8; 9] =
+        std::array::from_fn(|i| state.ants.masteries[i].highest_mastery);
+    let next_sacrifice_id = state.ants.current_sacrifice_id + 1;
+
+    // ── Blank-save reconstruction ──
+    *state = GameState::default();
+
+    // ── Restore survivors ──
+    state.achievements = achievements;
+    state.octeract_upgrades = octeract_upgrades;
+    state.red_ambrosia = red_ambrosia;
+    state.shop = shop;
+    state.automation = automation;
+    state.rng = rng;
+    state.level = level;
+
+    // Singularity: challenge state survives; counts set; counters zeroed.
+    state.singularity = singularity;
+    state.singularity.singularity_count = new_count;
+    state.singularity.highest_singularity_count = new_highest;
+    state.singularity.singularity_counter = 0.0;
+    state.singularity.sing_challenge_timer = 0.0;
+
+    // Golden quarks: grant added; upgrades survive; quarks-this-singularity reset.
+    golden_quarks.golden_quarks += gq_grant;
+    golden_quarks.quarks_this_singularity = 0.0;
+    golden_quarks.golden_quarks_timer = 0.0;
+    golden_quarks.total_quarks_ever = total_quarks_ever;
+    golden_quarks.upgrades[GQ_GOLDEN_QUARKS_3].free_level += gq3_free_bonus;
+    state.golden_quarks = golden_quarks;
+
+    // Ambrosia: the upgrade tree + spent blueberries survive; currency resets.
+    state.ambrosia.upgrades = ambrosia_upgrades;
+    state.ambrosia.spent_blueberries = spent_blueberries;
+
+    // Prestige/transcend/reincarnation counts survive once highestSing >= 8.
+    if new_highest >= 8.0 {
+        state.reset_counters.prestige_count = prestige_count;
+        state.reset_counters.transcend_count = transcend_count;
+        state.reset_counters.reincarnation_count = reincarnation_count;
+    }
+    state.cube_upgrade_levels.cube_upgrades[80] = cube_upgrade_80;
+
+    // Never-tier runes / talismans.
+    state.runes.rune_levels[RUNE_HORSE_SHOE] = horseshoe_level;
+    state.runes.rune_exp[RUNE_HORSE_SHOE] = horseshoe_exp;
+    for (idx, lvl, rarity) in talisman_survivors {
+        state.talismans.talisman_levels[idx] = lvl;
+        state.talismans.talisman_rarity[idx] = rarity;
+    }
+
+    // Ant high-water marks.
+    state.ants.crumbs_ever_made = crumbs_ever_made;
+    state.ants.highest_reborn_elo_ever = highest_reborn_elo_ever;
+    for (mastery, highest) in state.ants.masteries.iter_mut().zip(ant_highest_masteries) {
+        mastery.highest_mastery = highest;
+    }
+    state.ants.current_sacrifice_id = next_sacrifice_id;
+
+    smallvec![CoreEvent::SingularityPerformed {
+        golden_quarks_gained: gq_grant,
+        singularity_count: new_count,
+    }]
+}
+
 /// Zero a contiguous run of `player.upgrades` slots (the `resetUpgrades`
 /// loops). Indices are the legacy 1-based positions, in range for the
 /// `[u8; UPGRADES_DEFAULT_LEN]` bitmap.
@@ -876,6 +1048,81 @@ mod tests {
             transcend_point_gain: Decimal::from_finite(transcend),
             reincarnation_point_gain: Decimal::from_finite(reincarnation),
         }
+    }
+
+    #[test]
+    fn singularity_reset_grants_gq_resets_economy_keeps_meta() {
+        let mut state = GameState::default();
+        state.runes.rune_levels[RUNE_ANTIQUITIES] = 1.0; // gate open
+        state.upgrades.coins = Decimal::from_finite(1e50);
+        state.coin_producers.tiers[0].owned = 99.0;
+        state.reset_counters.ascension_count = 5.0;
+        state.cube_balances.wow_cubes = Decimal::from_finite(1e10);
+        state.achievements.achievement_points = 777.0; // meta — must survive
+        let events = perform_reset(&mut state, ResetRequest::Singularity, &gains(0.0, 0.0, 0.0));
+        // Golden quarks granted (default base 100), count auto-climbs 0 -> 1.
+        assert!(state.golden_quarks.golden_quarks.to_number() >= 100.0);
+        assert_eq!(state.singularity.singularity_count, 1.0);
+        // Economy rebuilt from a fresh save (GameState::default, == reset_save()).
+        assert_eq!(state.upgrades.coins, GameState::default().upgrades.coins);
+        assert_eq!(state.coin_producers.tiers[0].owned, 0.0);
+        assert_eq!(state.reset_counters.ascension_count, 0.0);
+        assert_eq!(state.cube_balances.wow_cubes.to_number(), 0.0);
+        // Meta-progression preserved.
+        assert_eq!(state.achievements.achievement_points, 777.0);
+        assert!(matches!(
+            events.first(),
+            Some(CoreEvent::SingularityPerformed { .. })
+        ));
+    }
+
+    #[test]
+    fn singularity_reset_no_op_without_antiquities() {
+        let mut state = GameState::default();
+        state.upgrades.coins = Decimal::from_finite(1e50);
+        let events = perform_reset(&mut state, ResetRequest::Singularity, &gains(0.0, 0.0, 0.0));
+        assert!(events.is_empty());
+        assert_eq!(state.singularity.singularity_count, 0.0);
+        assert_eq!(state.upgrades.coins.to_number(), 1e50); // untouched
+    }
+
+    #[test]
+    fn singularity_reset_preserves_gq_upgrades_and_accumulates_total_quarks() {
+        use crate::state::golden_quarks::GQ_GOLDEN_QUARKS_1;
+        let mut state = GameState::default();
+        state.runes.rune_levels[RUNE_ANTIQUITIES] = 1.0;
+        state.golden_quarks.golden_quarks = Decimal::from_finite(500.0);
+        state.golden_quarks.upgrades[GQ_GOLDEN_QUARKS_1].level = 5.0;
+        state.golden_quarks.quarks_this_singularity = 3e5;
+        perform_singularity_reset(&mut state, -1.0);
+        assert!(state.golden_quarks.golden_quarks.to_number() > 500.0); // balance + grant
+        assert_eq!(state.golden_quarks.upgrades[GQ_GOLDEN_QUARKS_1].level, 5.0); // survives
+        assert_eq!(state.golden_quarks.quarks_this_singularity, 0.0); // reset
+        assert_eq!(state.golden_quarks.total_quarks_ever, 3e5); // accumulated
+    }
+
+    #[test]
+    fn singularity_first_climb_increments_highest() {
+        let mut state = GameState::default();
+        state.runes.rune_levels[RUNE_ANTIQUITIES] = 1.0;
+        perform_singularity_reset(&mut state, -1.0);
+        // count 0 == highest 0 ⇒ incrementHighest ⇒ highest 1.
+        assert_eq!(state.singularity.highest_singularity_count, 1.0);
+    }
+
+    #[test]
+    fn singularity_highest_five_grants_gq3_free_level() {
+        use crate::state::golden_quarks::GQ_GOLDEN_QUARKS_3;
+        let mut state = GameState::default();
+        state.runes.rune_levels[RUNE_ANTIQUITIES] = 1.0;
+        state.singularity.singularity_count = 4.0;
+        state.singularity.highest_singularity_count = 4.0; // count == highest ⇒ increment
+        perform_singularity_reset(&mut state, -1.0);
+        assert_eq!(state.singularity.highest_singularity_count, 5.0);
+        assert_eq!(
+            state.golden_quarks.upgrades[GQ_GOLDEN_QUARKS_3].free_level,
+            1.0
+        );
     }
 
     #[test]
