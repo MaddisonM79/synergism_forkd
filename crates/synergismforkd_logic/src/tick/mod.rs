@@ -66,7 +66,7 @@ use crate::mechanics::update_all_multiplier::{
 };
 use crate::mechanics::update_all_tick::{update_all_tick, UpdateAllTickPre, UpdateAllTickResult};
 use crate::mechanics::upgrades::{buy_upgrades, BuyUpgradeInput};
-use crate::state::{GameState, RngPurpose};
+use crate::state::{GameState, RngPurpose, RUNE_COUNT, TALISMAN_COUNT};
 
 mod ant_generation;
 mod ant_sacrifice;
@@ -794,7 +794,7 @@ fn rune_free_levels(state: &GameState, rune: usize) -> f64 {
 
     let bonus = match rune {
         RUNE_SPEED => bonus_rune_levels_speed(&BonusRuneLevelsSpeedInput {
-            talisman_bonus: 0.0, // getRuneBonusFromAllTalismans unported
+            talisman_bonus: get_rune_bonus_from_all_talismans(state, RUNE_SPEED),
             upgrade_27: upgrade(27),
             coin_log_1e10_floor: (coin_log10 / 10.0).floor(),
             coin_log_1e50_floor: (coin_log10 / 50.0).floor(),
@@ -802,14 +802,17 @@ fn rune_free_levels(state: &GameState, rune: usize) -> f64 {
             total_owned_coins_first_five,
         }),
         RUNE_DUPLICATION => bonus_rune_levels_duplication(&BonusRuneLevelsDuplicationInput {
-            talisman_bonus: 0.0, // getRuneBonusFromAllTalismans unported
+            talisman_bonus: get_rune_bonus_from_all_talismans(state, RUNE_DUPLICATION),
             upgrade_28: upgrade(28),
             total_owned_coins_first_five,
             upgrade_30: upgrade(30),
             coin_log_1e30_floor: (coin_log10 / 30.0).floor(),
             coin_log_1e300_floor: (coin_log10 / 300.0).floor(),
         }),
-        _ => 0.0, // prism/thrift/SI per-rune bonus aggregators unported
+        // prism/thrift/SI: the full per-rune free-level aggregators (coin/
+        // upgrade terms) are still unported, but the talisman→rune-level bonus
+        // term is now live for them.
+        _ => get_rune_bonus_from_all_talismans(state, rune),
     };
     shared + bonus
 }
@@ -1498,7 +1501,6 @@ fn talisman_is_unlocked(state: &GameState, t: usize) -> bool {
 /// unlocked talisman is at least rarity 1 even at level 0.
 fn recompute_talisman_rarities(state: &mut GameState) {
     use crate::mechanics::talisman_levels::{compute_talisman_rarity, ComputeTalismanRarityInput};
-    use crate::state::TALISMAN_COUNT;
     /// Per-talisman raw `maxLevel` (the data-table constant, **not** the cap
     /// with `levelCapIncrease`). Drives the rarity-tier ratios. From the
     /// legacy `talismans` data table.
@@ -1524,6 +1526,99 @@ fn recompute_talisman_rarities(state: &mut GameState) {
                 max_level,
             }));
     }
+}
+
+/// Per-talisman, per-rune base coefficient (`talismanBaseCoefficient`,
+/// `Talismans.ts`). Rows follow the `TALISMAN_*` order; columns the rune
+/// object-key order (speed, duplication, prism, thrift, superiorIntellect,
+/// infiniteAscent, antiquities, horseShoe, finiteDescent, topHat).
+const TALISMAN_BASE_COEFFICIENT: [[f64; RUNE_COUNT]; TALISMAN_COUNT] = [
+    [0.0, 1.5, 0.75, 0.75, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], // exemption
+    [1.5, 0.0, 0.0, 0.75, 0.75, 0.0, 0.0, 0.0, 0.0, 0.0], // chronos
+    [0.0, 0.75, 0.75, 1.5, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], // midas
+    [0.6, 0.6, 0.6, 0.6, 0.6, 0.0, 0.0, 0.0, 0.0, 0.0],   // metaphysics
+    [0.75, 0.75, 0.0, 0.0, 1.5, 0.0, 0.0, 0.0, 0.0, 0.0], // polymath
+    [0.6, 0.6, 0.6, 0.6, 0.6, 0.0, 0.0, 0.0, 0.0, 0.0],   // mortuus
+    [0.75, 0.0, 1.5, 0.0, 0.75, 0.005, 0.0, 0.0, 0.0, 0.0], // plastic
+    [0.0, 1.0, 1.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0],   // wowSquare
+    [1.4, 1.4, 1.4, 1.4, 1.4, 0.01, 0.0, 0.0, 0.0, 0.0],  // achievement
+    [1.0, 1.0, 1.0, 1.0, 1.0, 0.01, 0.0, 0.0, 0.0, 0.0],  // cookieGrandma
+    [1.2, 1.2, 1.2, 1.2, 1.2, 0.0, 0.0, 0.01, 0.0, 0.0],  // horseShoe
+];
+
+/// `getRuneBonusFromIndividualTalisman` (`Talismans.ts:764-780`):
+/// `coeff[t][rune] · bonusMult · level · rarityValues[rarity]`, gated on the
+/// talisman's unlock. `bonusMult` is 1 except for metaphysics (× its own
+/// `talismanEffect` × `extraTalismanEffect` — the talisman amplifier) and
+/// mortuus (× the Mortuus2 ant-upgrade `talismanEffectBuff`). Zero for a locked
+/// or level-0 talisman.
+fn rune_bonus_from_individual_talisman(state: &GameState, t: usize, rune: usize) -> f64 {
+    use crate::mechanics::ant_upgrades::mortuus_2_ant_upgrade_effect;
+    use crate::mechanics::talisman_effects::metaphysics_talisman_effects;
+    use crate::mechanics::talisman_levels::rarity_value;
+    use crate::state::{TALISMAN_METAPHYSICS, TALISMAN_MORTUUS};
+    const ANT_UPGRADE_MORTUUS_2: usize = 15;
+
+    if !talisman_is_unlocked(state, t) {
+        return 0.0;
+    }
+    let rarity = state.talismans.talisman_rarity[t] as u8;
+    let mut bonus_mult = 1.0;
+    if t == TALISMAN_METAPHYSICS {
+        let e = metaphysics_talisman_effects(i32::from(rarity));
+        bonus_mult *= e.talisman_effect * e.extra_talisman_effect;
+    }
+    if t == TALISMAN_MORTUUS {
+        bonus_mult *= mortuus_2_ant_upgrade_effect(true_ant_level(state, ANT_UPGRADE_MORTUUS_2))
+            .talisman_effect_buff;
+    }
+    TALISMAN_BASE_COEFFICIENT[t][rune]
+        * bonus_mult
+        * state.talismans.talisman_levels[t]
+        * rarity_value(rarity)
+}
+
+/// `allTalismanRuneBonusStatsSum` (`Statistics.ts:2754-2771`): the special
+/// multiplier on the summed talisman→rune bonus. The achievement `talismanPower`
+/// reward, the challenge-15 `talismanBonus`, and the `taxmanLastStand`
+/// singularity challenge are unported → neutral 0. Identity (1.0) at default.
+fn talisman_rune_bonus_stats_sum(state: &GameState) -> f64 {
+    use crate::mechanics::blueberry_upgrades::ambrosia_talisman_bonus_rune_level_effect;
+    use crate::mechanics::golden_quark_upgrades::{
+        sing_talisman_bonus_runes_1_effect, sing_talisman_bonus_runes_2_effect,
+        sing_talisman_bonus_runes_3_effect, sing_talisman_bonus_runes_4_effect,
+    };
+    use crate::state::ambrosia::AMBROSIA_TALISMAN_BONUS_RUNE_LEVEL;
+    use crate::state::golden_quarks::{
+        GQ_SING_TALISMAN_BONUS_RUNES_1, GQ_SING_TALISMAN_BONUS_RUNES_2,
+        GQ_SING_TALISMAN_BONUS_RUNES_3, GQ_SING_TALISMAN_BONUS_RUNES_4,
+    };
+    let research = &state.researches.researches;
+    let gq = |i: usize| {
+        state.golden_quarks.upgrades[i].level + state.golden_quarks.upgrades[i].free_level
+    };
+    let amb = |i: usize| state.ambrosia.upgrades[i].level + state.ambrosia.upgrades[i].free_level;
+    1.0 + research[106] / 1000.0
+        + research[107] / 1000.0
+        + 2.0 * research[118] / 1000.0
+        + 0.004 * (research[200] / 10_000.0).floor()
+        + 0.006 * (state.cube_upgrade_levels.cube_upgrades[50] / 10_000.0).floor()
+        + sing_talisman_bonus_runes_1_effect(gq(GQ_SING_TALISMAN_BONUS_RUNES_1))
+        + sing_talisman_bonus_runes_2_effect(gq(GQ_SING_TALISMAN_BONUS_RUNES_2))
+        + sing_talisman_bonus_runes_3_effect(gq(GQ_SING_TALISMAN_BONUS_RUNES_3))
+        + sing_talisman_bonus_runes_4_effect(gq(GQ_SING_TALISMAN_BONUS_RUNES_4))
+        + ambrosia_talisman_bonus_rune_level_effect(amb(AMBROSIA_TALISMAN_BONUS_RUNE_LEVEL))
+}
+
+/// `getRuneBonusFromAllTalismans` (`Talismans.ts:782-790`): the talisman→
+/// rune-level bonus, `allTalismanRuneBonusStatsSum · Σ_t individual(t, rune)`,
+/// added to the rune's free levels. Zero at default (no talisman both unlocked
+/// and leveled).
+fn get_rune_bonus_from_all_talismans(state: &GameState, rune: usize) -> f64 {
+    let total: f64 = (0..TALISMAN_COUNT)
+        .map(|t| rune_bonus_from_individual_talisman(state, t, rune))
+        .sum();
+    total * talisman_rune_bonus_stats_sum(state)
 }
 
 fn phase_global_state(state: &mut GameState) -> AggregatorOutputs {
@@ -9189,6 +9284,48 @@ mod tests {
         let _ = phase_global_state(&mut s);
         // The per-tick recompute runs inside phase_global_state.
         assert_eq!(s.talismans.talisman_rarity[TALISMAN_EXEMPTION], 1.0);
+    }
+
+    #[test]
+    fn talisman_rune_bonus_scales_with_coefficient_level_and_rarity() {
+        use crate::state::{RUNE_DUPLICATION, RUNE_SPEED, TALISMAN_EXEMPTION};
+        let mut s = GameState::default();
+        s.talismans.talisman_levels[TALISMAN_EXEMPTION] = 10.0;
+        s.talismans.talisman_rarity[TALISMAN_EXEMPTION] = 1.0;
+        // Locked → no bonus.
+        assert_eq!(get_rune_bonus_from_all_talismans(&s, RUNE_DUPLICATION), 0.0);
+
+        s.challenges.highest_challenge_completions[9] = 1.0; // unlock exemption
+                                                             // exemption→duplication coeff 1.5, rarity_value(1)=1, level 10,
+                                                             // statsSum 1.0 at default → 1.5 * 1 * 10 * 1.0 = 15.
+        let dup = get_rune_bonus_from_all_talismans(&s, RUNE_DUPLICATION);
+        assert!((dup - 15.0).abs() < 1e-9, "dup = {dup}");
+        // exemption→speed coeff is 0 → no speed bonus.
+        assert_eq!(get_rune_bonus_from_all_talismans(&s, RUNE_SPEED), 0.0);
+
+        // allTalismanRuneBonusStatsSum scales the total: researches[106] = 1000
+        // adds +1.0 → ×2.
+        s.researches.researches[106] = 1000.0;
+        let dup2 = get_rune_bonus_from_all_talismans(&s, RUNE_DUPLICATION);
+        assert!((dup2 - 30.0).abs() < 1e-9, "dup2 = {dup2}");
+    }
+
+    #[test]
+    fn talisman_bonus_feeds_rune_free_levels() {
+        use crate::state::{RUNE_DUPLICATION, TALISMAN_EXEMPTION};
+        let mut s = GameState::default();
+        s.talismans.talisman_levels[TALISMAN_EXEMPTION] = 10.0;
+        s.talismans.talisman_rarity[TALISMAN_EXEMPTION] = 1.0;
+        let without = rune_free_levels(&s, RUNE_DUPLICATION); // exemption locked
+        s.challenges.highest_challenge_completions[9] = 1.0; // unlock exemption
+        let with = rune_free_levels(&s, RUNE_DUPLICATION);
+        // The talisman adds exactly 1.5 * 1 * 10 * rarity_value(1) = 15 to the
+        // rune's free levels.
+        assert!(
+            (with - without - 15.0).abs() < 1e-9,
+            "delta = {}",
+            with - without
+        );
     }
 
     #[test]
