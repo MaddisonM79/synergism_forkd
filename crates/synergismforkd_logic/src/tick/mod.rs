@@ -1639,14 +1639,27 @@ fn get_rune_bonus_from_all_talismans(state: &GameState, rune: usize) -> f64 {
 
 fn phase_global_state(state: &mut GameState) -> AggregatorOutputs {
     update_progressive_achievements(state);
-    // Sweep the lifetime reset-count achievement groups (ascension / prestige /
-    // transcend / reincarnation). Monotonic counts → award on threshold crossing.
+    // Sweep the monotonic threshold-based achievement groups (reset counts,
+    // accelerator/multiplier/boost bought totals, speed-rune progression).
+    // Awards on threshold crossing.
+    let speed_free_level = rune_free_levels(state, crate::state::runes::RUNE_SPEED);
     let awarded = crate::mechanics::achievement_awards::reset_count_achievement_check(
         &mut state.achievements,
         state.reset_counters.prestige_count,
         state.reset_counters.transcend_count,
         state.reset_counters.reincarnation_count,
         state.reset_counters.ascension_count,
+    ) + crate::mechanics::achievement_awards::accelerator_achievement_check(
+        &mut state.achievements,
+        state.accelerator.accelerator_bought,
+        state.multiplier.multiplier_bought,
+        state.accelerator.accelerator_boost_bought,
+    ) + crate::mechanics::achievement_awards::rune_achievement_check(
+        &mut state.achievements,
+        state.runes.rune_levels[crate::state::runes::RUNE_SPEED],
+        speed_free_level,
+        state.runes.rune_blessing_levels[crate::state::runes::RUNE_SPEED],
+        state.runes.rune_spirit_levels[crate::state::runes::RUNE_SPEED],
     );
     credit_achievement_quarks(state, awarded);
     recompute_talisman_rarities(state);
@@ -6812,10 +6825,12 @@ mod tests {
         };
         tack(&mut state, &input);
         assert_eq!(state.achievements.progressive[0].cached_value, 2500.0);
-        assert_eq!(state.achievements.achievement_points, 3.0);
+        // 3 progressive points + the runeLevel *group* (speed level 2500 crosses
+        // thresholds 100/250/500/1000/2000 → idx 396..=400, points 2+4+6+8+10=30).
+        assert_eq!(state.achievements.achievement_points, 3.0 + 30.0);
         // Idempotent: a second identical tick re-takes the max → no double-count.
         tack(&mut state, &input);
-        assert_eq!(state.achievements.achievement_points, 3.0);
+        assert_eq!(state.achievements.achievement_points, 3.0 + 30.0);
     }
 
     #[test]

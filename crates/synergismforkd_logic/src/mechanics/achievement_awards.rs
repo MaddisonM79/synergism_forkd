@@ -543,6 +543,148 @@ pub fn reset_count_achievement_check(
         + award_threshold_group(ach, ascension_count, ASCENSION_COUNT)
 }
 
+// ─── Accelerator / multiplier / boost groups (lifetime bought counts) ───────
+
+/// `accelerators` group — `player.acceleratorBought`.
+const ACCELERATORS: &[ThresholdRow] = &[
+    (148, 5.0, 5.0),
+    (149, 25.0, 10.0),
+    (150, 100.0, 15.0),
+    (151, 666.0, 20.0),
+    (152, 2_000.0, 25.0),
+    (153, 12_500.0, 30.0),
+    (154, 100_000.0, 35.0),
+    (335, 1e6, 40.0),
+    (336, 1e7, 45.0),
+    (337, 1e8, 50.0),
+];
+
+/// `multipliers` group — `player.multiplierBought`.
+const MULTIPLIERS: &[ThresholdRow] = &[
+    (155, 2.0, 5.0),
+    (156, 20.0, 10.0),
+    (157, 100.0, 15.0),
+    (158, 500.0, 20.0),
+    (159, 2_000.0, 25.0),
+    (160, 12_500.0, 30.0),
+    (161, 100_000.0, 35.0),
+    (338, 3e6, 40.0),
+    (339, 3e7, 45.0),
+    (340, 3e8, 50.0),
+];
+
+/// `acceleratorBoosts` group — `player.acceleratorBoostBought`.
+const ACCELERATOR_BOOSTS: &[ThresholdRow] = &[
+    (162, 2.0, 5.0),
+    (163, 10.0, 10.0),
+    (164, 50.0, 15.0),
+    (165, 200.0, 20.0),
+    (166, 1_000.0, 25.0),
+    (167, 5_000.0, 30.0),
+    (168, 15_000.0, 35.0),
+    (341, 1e5, 40.0),
+    (342, 1e6, 45.0),
+    (343, 1e7, 50.0),
+];
+
+/// The accelerator / multiplier / accelerator-boost achievement groups —
+/// awarded from the lifetime bought counts. Returns the count newly awarded.
+pub fn accelerator_achievement_check(
+    ach: &mut AchievementsState,
+    accelerator_bought: f64,
+    multiplier_bought: f64,
+    accelerator_boost_bought: f64,
+) -> usize {
+    award_threshold_group(ach, accelerator_bought, ACCELERATORS)
+        + award_threshold_group(ach, multiplier_bought, MULTIPLIERS)
+        + award_threshold_group(ach, accelerator_boost_bought, ACCELERATOR_BOOSTS)
+}
+
+// ─── Speed-rune groups (level / free levels / blessing / spirit) ────────────
+
+/// `runeLevel` group — `runes.speed.level`.
+const RUNE_LEVEL: &[ThresholdRow] = &[
+    (396, 100.0, 2.0),
+    (397, 250.0, 4.0),
+    (398, 500.0, 6.0),
+    (399, 1_000.0, 8.0),
+    (400, 2_000.0, 10.0),
+    (401, 5_000.0, 12.0),
+    (402, 10_000.0, 14.0),
+    (403, 20_000.0, 16.0),
+    (404, 50_000.0, 18.0),
+    (405, 100_000.0, 20.0),
+    (406, 200_000.0, 22.0),
+    (407, 300_000.0, 24.0),
+    (408, 500_000.0, 26.0),
+    (409, 750_000.0, 28.0),
+    (410, 1_000_000.0, 30.0),
+];
+
+/// `runeFreeLevel` group — `runes.speed.freeLevels()`.
+const RUNE_FREE_LEVEL: &[ThresholdRow] = &[
+    (411, 10.0, 2.0),
+    (412, 40.0, 4.0),
+    (413, 125.0, 6.0),
+    (414, 250.0, 8.0),
+    (415, 500.0, 10.0),
+    (416, 1_000.0, 12.0),
+    (417, 2_000.0, 14.0),
+    (418, 4_000.0, 16.0),
+    (419, 7_500.0, 18.0),
+    (420, 12_500.0, 20.0),
+    (421, 25_000.0, 22.0),
+    (422, 37_500.0, 24.0),
+    (423, 50_000.0, 26.0),
+    (424, 75_000.0, 28.0),
+    (425, 100_000.0, 30.0),
+];
+
+/// `speedBlessing` group — `runeBlessings.speed.level`.
+const SPEED_BLESSING: &[ThresholdRow] = &[
+    (232, 20.0, 10.0),
+    (233, 40.0, 20.0),
+    (234, 80.0, 30.0),
+    (382, 200.0, 40.0),
+    (383, 400.0, 50.0),
+    (384, 800.0, 60.0),
+    (385, 1_000.0, 70.0),
+    (386, 1_200.0, 80.0),
+    (387, 1_500.0, 90.0),
+    (388, 2_000.0, 100.0),
+];
+
+/// `speedSpirit` group — `runeSpirits.speed.level`.
+const SPEED_SPIRIT: &[ThresholdRow] = &[
+    (235, 20.0, 10.0),
+    (236, 40.0, 20.0),
+    (237, 80.0, 30.0),
+    (389, 160.0, 40.0),
+    (390, 320.0, 50.0),
+    (391, 640.0, 60.0),
+    (392, 960.0, 70.0),
+    (393, 1_280.0, 80.0),
+    (394, 1_600.0, 90.0),
+    (395, 2_000.0, 100.0),
+];
+
+/// The four speed-rune achievement groups (`runeLevel`, `runeFreeLevel`,
+/// `speedBlessing`, `speedSpirit`) — all gated on the **speed** rune's
+/// level / free-levels / blessing-level / spirit-level. Returns the count
+/// newly awarded.
+pub fn rune_achievement_check(
+    ach: &mut AchievementsState,
+    speed_rune_level: f64,
+    speed_rune_free_level: f64,
+    speed_blessing_level: f64,
+    speed_spirit_level: f64,
+) -> usize {
+    award_threshold_group(ach, speed_rune_level, RUNE_LEVEL)
+        + award_threshold_group(ach, speed_rune_free_level, RUNE_FREE_LEVEL)
+        + award_threshold_group(ach, speed_blessing_level, SPEED_BLESSING)
+        + award_threshold_group(ach, speed_spirit_level, SPEED_SPIRIT)
+}
+
 /// Per-run "didn't buy X this run" flags read by the ungrouped no-reset
 /// achievements (the `awardUngroupedAchievement` calls in the legacy
 /// `resetAchievementCheck`). Each starts `true`, is cleared on the matching
@@ -980,6 +1122,25 @@ mod tests {
         assert_eq!(ach.achievements[183], 1);
         assert_eq!(ach.achievements[184], 1);
         assert_eq!(ach.achievements[185], 0);
+    }
+
+    #[test]
+    fn accelerator_and_rune_checks_award_by_threshold() {
+        let mut ach = AchievementsState::default();
+        // accel 30 → accelerators 5/25 (148/149); mult 2 → 155; boost 0 → none.
+        assert_eq!(accelerator_achievement_check(&mut ach, 30.0, 2.0, 0.0), 3);
+        assert_eq!(ach.achievements[148], 1);
+        assert_eq!(ach.achievements[149], 1);
+        assert_eq!(ach.achievements[150], 0); // 100 not reached
+        assert_eq!(ach.achievements[155], 1);
+        // speed rune level 600 → runeLevel 100/250/500 (396/397/398); free 50 →
+        // 10/40 (411/412); blessing 25 → 20 (232); spirit 0 → none.
+        assert_eq!(rune_achievement_check(&mut ach, 600.0, 50.0, 25.0, 0.0), 6);
+        assert_eq!(ach.achievements[398], 1);
+        assert_eq!(ach.achievements[399], 0); // 1000 not reached
+        assert_eq!(ach.achievements[412], 1);
+        assert_eq!(ach.achievements[232], 1);
+        assert_eq!(ach.achievements[235], 0); // spirit threshold 20 not met
     }
 
     #[test]
