@@ -437,6 +437,112 @@ pub fn building_achievement_check(ach: &mut AchievementsState, coin_owned: &[f64
         + award_threshold_group(ach, coin_owned[4], FIFTH_OWNED_COIN)
 }
 
+// ─── Reset-count groups (ascension / prestige / transcend / reincarnation) ──
+//
+// Awarded from the lifetime reset counts. Thresholds + pointValues are verbatim
+// from `legacy/original/src/Achievements.ts` (extracted in array order; the
+// 0-indexed positions align with the achievement bitmap). The counts only grow,
+// so a per-tick sweep awards each row the tick its threshold is first crossed.
+
+/// `ascensionCount` group.
+const ASCENSION_COUNT: &[ThresholdRow] = &[
+    (183, 1.0, 5.0),
+    (184, 2.0, 10.0),
+    (185, 10.0, 15.0),
+    (186, 100.0, 20.0),
+    (187, 1_000.0, 25.0),
+    (188, 14_142.0, 30.0),
+    (189, 141_421.0, 35.0),
+    (260, 1e7, 40.0),
+    (261, 1e8, 45.0),
+    (262, 2e9, 50.0),
+    (263, 4e10, 55.0),
+    (264, 8e11, 60.0),
+    (265, 1.6e13, 65.0),
+    (266, 1e14, 70.0),
+    (350, 1e16, 75.0),
+    (351, 1e20, 80.0),
+    (352, 1e25, 85.0),
+    (353, 1e35, 90.0),
+    (354, 1e50, 95.0),
+    (355, 1e75, 100.0),
+];
+
+/// `prestigeCount` group.
+const PRESTIGE_COUNT: &[ThresholdRow] = &[
+    (436, 1.0, 2.0),
+    (437, 10.0, 4.0),
+    (438, 100.0, 6.0),
+    (439, 1_000.0, 8.0),
+    (440, 10_000.0, 10.0),
+    (441, 100_000.0, 12.0),
+    (442, 1e6, 14.0),
+    (443, 1e7, 16.0),
+    (444, 1e8, 18.0),
+    (445, 1e9, 20.0),
+    (446, 1e11, 22.0),
+    (447, 1e13, 24.0),
+    (448, 1e15, 26.0),
+    (449, 1e17, 28.0),
+    (450, 1e20, 30.0),
+];
+
+/// `transcensionCount` group.
+const TRANSCENSION_COUNT: &[ThresholdRow] = &[
+    (451, 1.0, 3.0),
+    (452, 10.0, 6.0),
+    (453, 100.0, 9.0),
+    (454, 1_000.0, 12.0),
+    (455, 10_000.0, 15.0),
+    (456, 100_000.0, 18.0),
+    (457, 1e6, 21.0),
+    (458, 1e7, 24.0),
+    (459, 1e8, 27.0),
+    (460, 1e9, 30.0),
+    (461, 3e10, 33.0),
+    (462, 9e11, 36.0),
+    (463, 2.7e13, 39.0),
+    (464, 8.1e14, 42.0),
+    (465, 1e17, 45.0),
+];
+
+/// `reincarnationCount` group.
+const REINCARNATION_COUNT: &[ThresholdRow] = &[
+    (466, 1.0, 4.0),
+    (467, 10.0, 8.0),
+    (468, 100.0, 12.0),
+    (469, 1_000.0, 16.0),
+    (470, 10_000.0, 20.0),
+    (471, 100_000.0, 24.0),
+    (472, 1e6, 28.0),
+    (473, 1e7, 32.0),
+    (474, 1e8, 36.0),
+    (475, 1e9, 40.0),
+    (476, 8e9, 44.0),
+    (477, 1e11, 48.0),
+    (478, 1e12, 52.0),
+    (479, 13_131_313_131_313.0, 56.0),
+    (480, 2e14, 60.0),
+];
+
+/// The four reset-count achievement groups (`ascensionCount`, `prestigeCount`,
+/// `transcensionCount`, `reincarnationCount`) — awarded from the lifetime reset
+/// counters. Returns the count newly awarded (for the per-achievement quark
+/// reward). Safe to call every tick: the counts are monotonic and
+/// [`award_achievement`] is idempotent.
+pub fn reset_count_achievement_check(
+    ach: &mut AchievementsState,
+    prestige_count: f64,
+    transcend_count: f64,
+    reincarnation_count: f64,
+    ascension_count: f64,
+) -> usize {
+    award_threshold_group(ach, prestige_count, PRESTIGE_COUNT)
+        + award_threshold_group(ach, transcend_count, TRANSCENSION_COUNT)
+        + award_threshold_group(ach, reincarnation_count, REINCARNATION_COUNT)
+        + award_threshold_group(ach, ascension_count, ASCENSION_COUNT)
+}
+
 /// Per-run "didn't buy X this run" flags read by the ungrouped no-reset
 /// achievements (the `awardUngroupedAchievement` calls in the legacy
 /// `resetAchievementCheck`). Each starts `true`, is cleared on the matching
@@ -846,6 +952,34 @@ mod tests {
         building_achievement_check(&mut ach, &[100.0, 0.0, 0.0, 0.0, 0.0]); // +3 (pv15)
         assert_eq!(ach.achievement_points, 30.0);
         assert_eq!(ach.achievements[3], 1);
+    }
+
+    #[test]
+    fn reset_count_check_awards_by_threshold_and_is_idempotent() {
+        let mut ach = AchievementsState::default();
+        // prestige_count 150 → prestigeCount idx 436/437/438 (>=1/10/100); 439 (>=1000) not.
+        let awarded = reset_count_achievement_check(&mut ach, 150.0, 0.0, 0.0, 0.0);
+        assert_eq!(awarded, 3);
+        assert_eq!(ach.achievements[436], 1);
+        assert_eq!(ach.achievements[438], 1);
+        assert_eq!(ach.achievements[439], 0);
+        assert_eq!(ach.achievement_points, 2.0 + 4.0 + 6.0);
+        // Re-running at the same counts awards nothing more.
+        assert_eq!(
+            reset_count_achievement_check(&mut ach, 150.0, 0.0, 0.0, 0.0),
+            0
+        );
+    }
+
+    #[test]
+    fn reset_count_check_ascension_group_thresholds() {
+        let mut ach = AchievementsState::default();
+        // ascension_count 5 → ascensionCount idx 183 (>=1) + 184 (>=2); 185 (>=10) not.
+        let awarded = reset_count_achievement_check(&mut ach, 0.0, 0.0, 0.0, 5.0);
+        assert_eq!(awarded, 2);
+        assert_eq!(ach.achievements[183], 1);
+        assert_eq!(ach.achievements[184], 1);
+        assert_eq!(ach.achievements[185], 0);
     }
 
     #[test]

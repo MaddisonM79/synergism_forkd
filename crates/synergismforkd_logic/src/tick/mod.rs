@@ -1639,6 +1639,16 @@ fn get_rune_bonus_from_all_talismans(state: &GameState, rune: usize) -> f64 {
 
 fn phase_global_state(state: &mut GameState) -> AggregatorOutputs {
     update_progressive_achievements(state);
+    // Sweep the lifetime reset-count achievement groups (ascension / prestige /
+    // transcend / reincarnation). Monotonic counts → award on threshold crossing.
+    let awarded = crate::mechanics::achievement_awards::reset_count_achievement_check(
+        &mut state.achievements,
+        state.reset_counters.prestige_count,
+        state.reset_counters.transcend_count,
+        state.reset_counters.reincarnation_count,
+        state.reset_counters.ascension_count,
+    );
+    credit_achievement_quarks(state, awarded);
     recompute_talisman_rarities(state);
     let total_accelerator_boost = compute_total_accelerator_boost(state);
     let update_all_multiplier_pre =
@@ -9103,6 +9113,27 @@ mod tests {
         let _ = tack(&mut state, &input);
         assert_eq!(state.ants.masteries[0].mastery, 1);
         assert_eq!(state.ants.masteries[0].highest_mastery, 1);
+    }
+
+    #[test]
+    fn tack_awards_reset_count_achievements() {
+        // A tick with a non-zero lifetime reset count awards the matching
+        // count-group achievements (phase_global_state sweep) + their points.
+        let mut state = GameState::default();
+        state.reset_counters.prestige_count = 100.0; // crosses prestigeCount 1/10/100
+        let before = state.achievements.achievement_points;
+        let input = TackInput {
+            dt: 0.025,
+            ..TackInput::default()
+        };
+        let _ = tack(&mut state, &input);
+        assert_eq!(state.achievements.achievements[436], 1); // prestigeCount >= 1
+        assert_eq!(state.achievements.achievements[438], 1); // prestigeCount >= 100
+        assert_eq!(state.achievements.achievements[439], 0); // >= 1000 not reached
+        assert_eq!(
+            state.achievements.achievement_points,
+            before + 2.0 + 4.0 + 6.0
+        );
     }
 
     #[test]
