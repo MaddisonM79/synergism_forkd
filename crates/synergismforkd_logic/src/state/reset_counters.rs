@@ -63,6 +63,39 @@ pub struct ResetCountersState {
     /// `player.unlocks.platonics` — set when `highest[14] > 0`.
     /// Gates platonic-cube content.
     pub platonics_unlocked: bool,
+    /// `player.unlocks.coinone`..`coinfour` — coin-producer visibility gates,
+    /// set when `coins` cross `500 / 1e4 / 1e5 / 4e6` (Synergism.ts:3976-3989).
+    /// Reset to `false` only on singularity (Reset.ts:888).
+    pub coin_one_unlocked: bool,
+    /// See [`Self::coin_one_unlocked`].
+    pub coin_two_unlocked: bool,
+    /// See [`Self::coin_one_unlocked`].
+    pub coin_three_unlocked: bool,
+    /// See [`Self::coin_one_unlocked`].
+    pub coin_four_unlocked: bool,
+    /// `player.unlocks.generation` — generator-tab gate, set when buying
+    /// generator 1 (prestige points `>= 1e12`, Automation.ts:8). Singularity-only
+    /// reset.
+    pub generation_unlocked: bool,
+    /// `player.unlocks.rrow1`..`rrow4` — research-row visibility gates. In this
+    /// TS version they are granted at singularity milestones (Reset.ts:970+) and
+    /// reset on singularity; wired with the singularity layer.
+    pub research_row_1_unlocked: bool,
+    /// See [`Self::research_row_1_unlocked`].
+    pub research_row_2_unlocked: bool,
+    /// See [`Self::research_row_1_unlocked`].
+    pub research_row_3_unlocked: bool,
+    /// See [`Self::research_row_1_unlocked`].
+    pub research_row_4_unlocked: bool,
+    /// `player.unlocks.anthill` — ant feature gate, set on first `highest[8] > 0`
+    /// (Synergism.ts:3692). Singularity-only reset.
+    pub anthill_unlocked: bool,
+    /// `player.unlocks.talismans` — talisman feature gate, set on first
+    /// `highest[9] > 0` (Synergism.ts:3695). Singularity-only reset.
+    pub talismans_unlocked: bool,
+    /// `player.unlocks.blessings` — cube-blessing gate, set on first
+    /// `highest[9] > 0` (Synergism.ts:3696). Singularity-only reset.
+    pub blessings_unlocked: bool,
 }
 
 impl Default for ResetCountersState {
@@ -90,6 +123,18 @@ impl Default for ResetCountersState {
             spirits_unlocked: false,
             hypercubes_unlocked: false,
             platonics_unlocked: false,
+            coin_one_unlocked: false,
+            coin_two_unlocked: false,
+            coin_three_unlocked: false,
+            coin_four_unlocked: false,
+            generation_unlocked: false,
+            research_row_1_unlocked: false,
+            research_row_2_unlocked: false,
+            research_row_3_unlocked: false,
+            research_row_4_unlocked: false,
+            anthill_unlocked: false,
+            talismans_unlocked: false,
+            blessings_unlocked: false,
         }
     }
 }

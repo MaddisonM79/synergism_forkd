@@ -642,10 +642,30 @@ pub fn tack(state: &mut GameState, input: &TackInput) -> TickOutput {
         input.dt * automation_pre.global_time_multiplier,
         &mut output,
     );
+    // Progress unlock flags that depend on finalized coins / prestige points
+    // (legacy per-tick checks, Synergism.ts:3976-3989 + Automation.ts:8).
+    update_progress_unlocks(state);
     phase_challenge_completion(state, &reset_gains, &mut output);
     phase_automation(state, &automation_pre, input, &mut output);
 
     output
+}
+
+/// Sticky per-tick progress-unlock flags that depend on finalized currencies:
+/// coin-producer gates (`coins` ≥ 500 / 1e4 / 1e5 / 4e6, Synergism.ts:3976-3989)
+/// and the generator gate (`prestigePoints` ≥ 1e12, Automation.ts:8). Each flag
+/// latches `true` and only resets on a singularity reset (Reset.ts:888). The
+/// `rrow1`-`rrow4` gates are singularity-milestone grants (handled by the
+/// singularity layer), so they are not set here.
+fn update_progress_unlocks(state: &mut GameState) {
+    let coins = state.upgrades.coins;
+    let prestige_points = state.upgrades.prestige_points;
+    let rc = &mut state.reset_counters;
+    rc.coin_one_unlocked |= coins >= Decimal::from_finite(500.0);
+    rc.coin_two_unlocked |= coins >= Decimal::from_finite(10_000.0);
+    rc.coin_three_unlocked |= coins >= Decimal::from_finite(100_000.0);
+    rc.coin_four_unlocked |= coins >= Decimal::from_finite(4e6);
+    rc.generation_unlocked |= prestige_points >= Decimal::from_finite(1e12);
 }
 
 /// Effective ant-upgrade level (legacy `calculateTrueAntLevel`): purchased
@@ -5970,14 +5990,17 @@ fn complete_active_challenge(
     {
         state.challenges.highest_challenge_completions[q_idx] += 1.0;
         // Ascension-challenge unlock side-effects fired on highest[i] first rise
-        // (Synergism.ts:3796-3808 — inside the `resetCheck` ascensionChallenge block).
+        // (Synergism.ts:3692-3700 — inside the `resetCheck` reincarnation block).
         match q_idx {
-            // Reincarnation challenge 10 unlocks ascensions (legacy
-            // `player.unlocks.ascensions = true`, Synergism.ts:3700) — the entry
-            // gate for ascension challenge 11. Without it the c11-c15 ladder is
-            // unreachable in normal play. (c8 anthill / c9 talismans+blessings
-            // still need new `unlocks` fields — deferred to the schema-gated
-            // follow-up.)
+            // Reincarnation challenge 8 unlocks the ant hill (anthill);
+            // challenge 9 unlocks talismans + cube blessings; challenge 10
+            // unlocks ascensions — the entry gate for ascension challenge 11
+            // (without it the c11-c15 ladder is unreachable in normal play).
+            8 => state.reset_counters.anthill_unlocked = true,
+            9 => {
+                state.reset_counters.talismans_unlocked = true;
+                state.reset_counters.blessings_unlocked = true;
+            }
             10 => state.reset_counters.ascension_unlocked = true,
             11 => state.reset_counters.tesseracts_unlocked = true,
             12 => state.reset_counters.spirits_unlocked = true,
@@ -8717,6 +8740,86 @@ mod tests {
             state.reset_counters.ascension_unlocked,
             "completing reincarnation challenge 10 must unlock ascensions"
         );
+    }
+
+    #[test]
+    fn completing_reincarnation_challenge_8_unlocks_anthill() {
+        // Synergism.ts:3692 — highest[8] > 0 sets unlocks.anthill.
+        let mut state = GameState::default();
+        state.challenges.current_reincarnation_challenge = 8;
+        let gains = crate::mechanics::reset_currency::ResetCurrencyResult {
+            prestige_point_gain: Decimal::zero(),
+            transcend_point_gain: Decimal::zero(),
+            reincarnation_point_gain: Decimal::zero(),
+        };
+        let mut output = TickOutput::default();
+        let requirement = |_challenge: u32, _comp: f64| Decimal::zero();
+        complete_active_challenge(
+            &mut state,
+            8,
+            Decimal::one(),
+            5.0,
+            1.0,
+            &requirement,
+            true,
+            &gains,
+            &mut output,
+        );
+        assert!(state.reset_counters.anthill_unlocked);
+    }
+
+    #[test]
+    fn completing_reincarnation_challenge_9_unlocks_talismans_and_blessings() {
+        // Synergism.ts:3695-3696 — highest[9] > 0 sets talismans + blessings.
+        let mut state = GameState::default();
+        state.challenges.current_reincarnation_challenge = 9;
+        let gains = crate::mechanics::reset_currency::ResetCurrencyResult {
+            prestige_point_gain: Decimal::zero(),
+            transcend_point_gain: Decimal::zero(),
+            reincarnation_point_gain: Decimal::zero(),
+        };
+        let mut output = TickOutput::default();
+        let requirement = |_challenge: u32, _comp: f64| Decimal::zero();
+        complete_active_challenge(
+            &mut state,
+            9,
+            Decimal::one(),
+            5.0,
+            1.0,
+            &requirement,
+            true,
+            &gains,
+            &mut output,
+        );
+        assert!(state.reset_counters.talismans_unlocked);
+        assert!(state.reset_counters.blessings_unlocked);
+    }
+
+    #[test]
+    fn coin_unlocks_latch_on_coin_thresholds() {
+        // Synergism.ts:3976-3989 — coinone..four latch as coins cross thresholds.
+        let mut state = GameState::default();
+        state.upgrades.coins = Decimal::from_finite(600.0);
+        update_progress_unlocks(&mut state);
+        assert!(state.reset_counters.coin_one_unlocked);
+        assert!(!state.reset_counters.coin_two_unlocked);
+        state.upgrades.coins = Decimal::from_finite(5e6);
+        update_progress_unlocks(&mut state);
+        assert!(state.reset_counters.coin_two_unlocked);
+        assert!(state.reset_counters.coin_three_unlocked);
+        assert!(state.reset_counters.coin_four_unlocked);
+    }
+
+    #[test]
+    fn generation_unlocks_at_prestige_threshold() {
+        // Automation.ts:8 — generation unlocks at prestige points >= 1e12.
+        let mut state = GameState::default();
+        state.upgrades.prestige_points = Decimal::from_finite(1e11);
+        update_progress_unlocks(&mut state);
+        assert!(!state.reset_counters.generation_unlocked);
+        state.upgrades.prestige_points = Decimal::from_finite(1e12);
+        update_progress_unlocks(&mut state);
+        assert!(state.reset_counters.generation_unlocked);
     }
 
     #[test]
