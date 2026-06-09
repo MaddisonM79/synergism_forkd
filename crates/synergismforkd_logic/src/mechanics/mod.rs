@@ -7,6 +7,7 @@ pub mod accelerator_multipliers;
 pub mod accelerators;
 pub mod achievement_awards;
 pub mod achievement_levels;
+pub mod achievement_point_values;
 pub mod achievement_points;
 pub mod achievement_rewards;
 pub mod ambrosia;
