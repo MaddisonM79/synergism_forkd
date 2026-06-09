@@ -685,6 +685,61 @@ pub fn rune_achievement_check(
         + award_threshold_group(ach, speed_spirit_level, SPEED_SPIRIT)
 }
 
+// ─── Decimal-currency groups (constant = ascendShards, antCrumbs) ───────────
+//
+// Compared in log10 space — the gates run past f64 (`ascendShards.gte('1e1e8')`,
+// `crumbs.gte('1e1000000')`). The threshold column is `log10(gate)` at full f64
+// precision (so a fractional gate like `3.14` keeps its exact boundary).
+
+/// `constant` group — `player.ascendShards`.
+const CONSTANT: &[Log10Row] = &[
+    (190, 0.496_929_648_073_214_94, 5.0), // gate 3.14
+    (191, 6.0, 10.0),                     // gate 1e6
+    (192, 10.635_483_746_814_913, 15.0),  // gate 4.32e10
+    (193, 21.838_849_090_737_256, 20.0),  // gate 6.9e21
+    (194, 33.178_689_239_775_586, 25.0),  // gate 1.509e33
+    (195, 66.0, 30.0),                    // gate 1e66
+    (196, 308.255_272_505_103_3, 35.0),   // gate 1.8e308
+    (267, 1_000.0, 40.0),                 // gate 1e1000
+    (268, 5_000.0, 45.0),                 // gate 1e5000
+    (269, 15_000.0, 50.0),                // gate 1e15000
+    (270, 50_000.0, 55.0),                // gate 1e50000
+    (271, 100_000.0, 60.0),               // gate 1e100000
+    (272, 300_000.0, 65.0),               // gate 1e300000
+    (273, 1_000_000.0, 70.0),             // gate 1e1000000
+    (356, 2_000_000.0, 75.0),             // gate 1e2000000
+    (357, 5_000_000.0, 80.0),             // gate 1e5000000
+    (358, 10_000_000.0, 85.0),            // gate 1e10000000
+    (359, 25_000_000.0, 90.0),            // gate 1e25000000
+    (360, 50_000_000.0, 95.0),            // gate 1e50000000
+    (361, 100_000_000.0, 100.0),          // gate 1e100000000
+];
+
+/// `antCrumbs` group — `player.ants.crumbs`.
+const ANT_CRUMBS: &[Log10Row] = &[
+    (169, 0.477_121_254_719_662_44, 5.0), // gate 3
+    (170, 5.0, 10.0),                     // gate 1e5
+    (171, 8.823_908_740_510_024, 15.0),   // gate 666666666
+    (172, 20.0, 20.0),                    // gate 1e20
+    (173, 40.0, 25.0),                    // gate 1e40
+    (174, 250.0, 30.0),                   // gate 1e250
+    (175, 2_500.0, 35.0),                 // gate 1e2500
+    (344, 25_000.0, 40.0),                // gate 1e25000
+    (345, 125_000.0, 45.0),               // gate 1e125000
+    (346, 1_000_000.0, 50.0),             // gate 1e1000000
+];
+
+/// The two Decimal-currency achievement groups (`constant` = `ascendShards`,
+/// `antCrumbs` = ant crumbs) — compared in log10 space. Returns the count newly
+/// awarded.
+pub fn decimal_currency_achievement_check(
+    ach: &mut AchievementsState,
+    ascend_shards: Decimal,
+    crumbs: Decimal,
+) -> usize {
+    award_log10_group(ach, ascend_shards, CONSTANT) + award_log10_group(ach, crumbs, ANT_CRUMBS)
+}
+
 /// Per-run "didn't buy X this run" flags read by the ungrouped no-reset
 /// achievements (the `awardUngroupedAchievement` calls in the legacy
 /// `resetAchievementCheck`). Each starts `true`, is cleared on the matching
@@ -1141,6 +1196,29 @@ mod tests {
         assert_eq!(ach.achievements[412], 1);
         assert_eq!(ach.achievements[232], 1);
         assert_eq!(ach.achievements[235], 0); // spirit threshold 20 not met
+    }
+
+    #[test]
+    fn decimal_currency_check_awards_in_log10_space() {
+        let mut ach = AchievementsState::default();
+        // ascend_shards 1e7 → constant 3.14 / 1e6 (idx 190/191); crumbs 1e6 →
+        // antCrumbs 3 / 1e5 (idx 169/170).
+        let awarded = decimal_currency_achievement_check(
+            &mut ach,
+            Decimal::from_finite(1e7),
+            Decimal::from_finite(1e6),
+        );
+        assert_eq!(awarded, 4);
+        assert_eq!(ach.achievements[191], 1); // shards >= 1e6
+        assert_eq!(ach.achievements[192], 0); // 4.32e10 not reached
+        assert_eq!(ach.achievements[170], 1); // crumbs >= 1e5
+        assert_eq!(ach.achievements[171], 0); // 666666666 not reached
+                                              // Zero balances award nothing (the log10 guard).
+        let mut empty = AchievementsState::default();
+        assert_eq!(
+            decimal_currency_achievement_check(&mut empty, Decimal::zero(), Decimal::zero()),
+            0
+        );
     }
 
     #[test]

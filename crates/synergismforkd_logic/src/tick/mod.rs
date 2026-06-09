@@ -1660,6 +1660,10 @@ fn phase_global_state(state: &mut GameState) -> AggregatorOutputs {
         speed_free_level,
         state.runes.rune_blessing_levels[crate::state::runes::RUNE_SPEED],
         state.runes.rune_spirit_levels[crate::state::runes::RUNE_SPEED],
+    ) + crate::mechanics::achievement_awards::decimal_currency_achievement_check(
+        &mut state.achievements,
+        state.campaigns.ascend_shards,
+        state.ants.crumbs,
     );
     credit_achievement_quarks(state, awarded);
     recompute_talisman_rarities(state);
