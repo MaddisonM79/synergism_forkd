@@ -1216,10 +1216,11 @@ fn compute_global_multipliers_pre(state: &GameState) -> GlobalMultipliersPreEval
         // achievement awarding lands.
         const_upgrade_1_buff_achievement: 0.0,
         const_upgrade_2_buff_achievement: 0.0,
-        // `constantEX` shop upgrade (`getShopUpgradeEffects` = identity):
-        // the shop name→index map / buy-path is UI-tier and unported, so
-        // the level is 0 in logic-driven play → 0.
-        constant_ex_max_percent_increase: 0.0,
+        // `constantEX` shop upgrade — `getShopUpgradeEffects` is identity
+        // (`maxPercentIncrease = level`); the shop is ported, so read the level.
+        constant_ex_max_percent_increase: crate::mechanics::shop_upgrades::constant_ex_effect(
+            state.shop.upgrades[crate::state::shop::SHOP_CONSTANT_EX],
+        ),
         ascend_building_dr_value,
         // Placeholders — phase_global_state overwrites these five with the
         // aggregator outputs + the shared total_accelerator_boost.
@@ -9162,6 +9163,22 @@ mod tests {
         assert_eq!(
             state.achievements.achievement_points,
             before + 2.0 + 4.0 + 6.0
+        );
+    }
+
+    #[test]
+    fn constant_ex_shop_level_feeds_global_mult_pre() {
+        // The constantEX shop upgrade (identity effect) now feeds the global
+        // multiplier's constant-upgrade term instead of a frozen 0.
+        let mut state = GameState::default();
+        assert_eq!(
+            compute_global_multipliers_pre(&state).constant_ex_max_percent_increase,
+            0.0
+        );
+        state.shop.upgrades[crate::state::shop::SHOP_CONSTANT_EX] = 5.0;
+        assert_eq!(
+            compute_global_multipliers_pre(&state).constant_ex_max_percent_increase,
+            5.0
         );
     }
 

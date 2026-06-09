@@ -85,5 +85,14 @@ flowchart LR
   array), progressive slots 8–11 (exalt rewardAP + upgrade `maxLevel` tracking unported). The
   `getAchievementReward('quarkGain')` reward-reader is blocked on the unported quark-multiplier
   assembler (`allQuarkStats` → `quark_bonus` is currently a static cache).
-- Shop **bonus-level composition** + the ~76 ported-but-unwired shop effects are not yet modeled
-  (the larger remaining meta-economy gap).
+- **Shop: ~50 of 83 effects are wired** (chronometer→ascension-speed, season-pass→cube-mults,
+  offering/obtainium EX + cashGrab, the cube-blessing/quark-from-opening paths, costs + potions — all
+  done). The remaining ~33 are mostly **blocked or out of reachable scope**: the quark-conversion
+  family (`cubeToQuark*`/`improveQuarkHept*` — the `allQuarkStats`/`quark_bonus` multiplier is
+  unported), the `calculator` family (UI add-codes), daily/powder/warp + `improved_daily` (host-tier
+  daily reset), `shop_singularity_*` (paused), `infinite_shop_upgrades` (unported shop-tablet sum).
+  `constant_ex` is now wired. A few minor reachable wires remain (`challenge_tome` needs its
+  research + c10-gating component; `obtainium_auto`).
+- The **bonus-level composition** (effective shop level = raw `shopUpgrades[key]` + topHat-rune /
+  ambrosia / red-ambrosia / singularity-challenge free levels) is unmodeled, but it's **late-game-only**
+  (every free-level source needs singularity/ambrosia) and would route ~50 call sites — low current ROI.
