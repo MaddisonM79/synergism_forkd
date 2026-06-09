@@ -172,6 +172,18 @@ pub enum CoreEvent {
         /// Coins removed from the player's balance.
         spent: Decimal,
     },
+    /// Accelerator boosts were purchased — `after - before` boosts at a
+    /// `prestigePoints` cost of `spent`. In the legacy pre-upgrade path each
+    /// boost also triggers a prestige reset (surfaced as a separate
+    /// [`CoreEvent::ResetPerformed`]).
+    AcceleratorBoostsPurchased {
+        /// Boost count before the purchase ran.
+        before: f64,
+        /// Boost count after the purchase ran.
+        after: f64,
+        /// Prestige points removed from the player's balance.
+        spent: Decimal,
+    },
     /// Multipliers were purchased — same shape as
     /// [`CoreEvent::AcceleratorsPurchased`].
     MultipliersPurchased {

@@ -66,7 +66,7 @@ use crate::mechanics::update_all_multiplier::{
 };
 use crate::mechanics::update_all_tick::{update_all_tick, UpdateAllTickPre, UpdateAllTickResult};
 use crate::mechanics::upgrades::{buy_upgrades, BuyUpgradeInput};
-use crate::state::{GameState, RngPurpose};
+use crate::state::{GameState, RngPurpose, RUNE_COUNT, TALISMAN_COUNT};
 
 mod ant_generation;
 mod ant_sacrifice;
@@ -371,6 +371,13 @@ pub enum BuyRequest {
     Multiplier(BuyMultiplierInput),
     /// Routes to [`buy_accelerator`].
     Accelerator(BuyAcceleratorInput),
+    /// Buy accelerator boosts (legacy `boostAccelerator`). Takes no payload —
+    /// the path (single-boost-with-prestige-reset vs. bulk) is chosen from
+    /// `upgrades[46]`, the cost-delay comes from the thrift rune blessing, and
+    /// the spend currency is `prestigePoints`. Routes to [`buy_accelerator_boost`],
+    /// which receives the tick's prestige-point gain for the pre-upgrade path's
+    /// inline reset.
+    AcceleratorBoost,
     /// Routes to [`buy_crystal_upgrades`].
     CrystalUpgrade(BuyCrystalUpgradesInput),
     /// Routes to [`buy_cube_upgrade`].
@@ -794,7 +801,7 @@ fn rune_free_levels(state: &GameState, rune: usize) -> f64 {
 
     let bonus = match rune {
         RUNE_SPEED => bonus_rune_levels_speed(&BonusRuneLevelsSpeedInput {
-            talisman_bonus: 0.0, // getRuneBonusFromAllTalismans unported
+            talisman_bonus: get_rune_bonus_from_all_talismans(state, RUNE_SPEED),
             upgrade_27: upgrade(27),
             coin_log_1e10_floor: (coin_log10 / 10.0).floor(),
             coin_log_1e50_floor: (coin_log10 / 50.0).floor(),
@@ -802,14 +809,17 @@ fn rune_free_levels(state: &GameState, rune: usize) -> f64 {
             total_owned_coins_first_five,
         }),
         RUNE_DUPLICATION => bonus_rune_levels_duplication(&BonusRuneLevelsDuplicationInput {
-            talisman_bonus: 0.0, // getRuneBonusFromAllTalismans unported
+            talisman_bonus: get_rune_bonus_from_all_talismans(state, RUNE_DUPLICATION),
             upgrade_28: upgrade(28),
             total_owned_coins_first_five,
             upgrade_30: upgrade(30),
             coin_log_1e30_floor: (coin_log10 / 30.0).floor(),
             coin_log_1e300_floor: (coin_log10 / 300.0).floor(),
         }),
-        _ => 0.0, // prism/thrift/SI per-rune bonus aggregators unported
+        // prism/thrift/SI: the full per-rune free-level aggregators (coin/
+        // upgrade terms) are still unported, but the talisman→rune-level bonus
+        // term is now live for them.
+        _ => get_rune_bonus_from_all_talismans(state, rune),
     };
     shared + bonus
 }
@@ -856,6 +866,38 @@ fn rune_blessing_power(state: &GameState, rune: usize) -> f64 {
     state.runes.rune_blessing_levels[rune]
         * state.runes.rune_levels[rune]
         * other_blessing_multipliers(state)
+}
+
+/// Shared rune-spirit power multiplier — legacy `otherSpiritMultipliers`
+/// (`Statistics.ts:53-60`). The challenge-15 `spiritBonus` reward and the
+/// corruption difficulty multiplier are unported (neutral 1.0 — the latter is
+/// also 1.0 with no corruptions loaded), so this reduces to the four research
+/// terms. Identity at default (all researches 0, not inside an ascension).
+fn other_spirit_multipliers(state: &GameState) -> f64 {
+    let research = &state.researches.researches;
+    let in_ascension = state.challenges.current_ascension_challenge != 0;
+    (1.0 + 8.0 * research[164] / 100.0)
+        * if research[165] > 0.0 && in_ascension {
+            2.0
+        } else {
+            1.0
+        }
+        * (1.0 + 0.15 * (state.talismans.legendary_fragments + 1.0).log10() * research[189])
+        * (1.0 + 2.0 * research[194] / 100.0)
+}
+
+/// Rune-spirit power (legacy `getRuneSpiritPower` × `spiritMultiplier`,
+/// `RuneSpirits.ts:180-183` / `Statistics.ts:62-68`):
+/// `spirit.level · (rune.level + freeLevels()) · blessing.level ·
+/// otherSpiritMultipliers()`. Mirrors [`rune_blessing_power`] with the extra
+/// spirit-level factor; `freeLevels` is deferred (neutral 0, as there). Spirit
+/// levels exist only for the first five runes. Identity at default (spirit
+/// level 0 → power 0).
+fn rune_spirit_power(state: &GameState, rune: usize) -> f64 {
+    state.runes.rune_spirit_levels[rune]
+        * state.runes.rune_levels[rune]
+        * state.runes.rune_blessing_levels[rune]
+        * other_spirit_multipliers(state)
 }
 
 /// Build the shared achievement-reward input from `&GameState` — the
@@ -1090,14 +1132,18 @@ fn compute_global_multipliers_pre(state: &GameState) -> GlobalMultipliersPreEval
         calculate_building_power_coin_multiplier(building_power, total_coin_owned);
 
     // ─── Crystal coin multiplier (prestige-shards production) ─────────────
-    // `prism_spirit_crystal_caps` needs rune-spirit power (the unported
-    // `spiritMultiplier` chain); prism spirit level is 0 in current play,
-    // so the additive cap contribution is 0.
+    // `crystalCaps = getRuneSpiritEffect('prism').crystalCaps` — an additive
+    // cap bonus driven by the prism rune-spirit power. Identity (0) at default
+    // (prism spirit level 0 → power 0).
     let crystal_upgrade_4_max_exp =
         crystal_upgrade_4_max_exponent(&CrystalUpgrade4MaxExponentInput {
             research_129: state.researches.researches[129],
             common_fragments: Decimal::from_finite(state.talismans.common_fragments),
-            prism_spirit_crystal_caps: 0.0,
+            prism_spirit_crystal_caps:
+                crate::mechanics::rune_spirit_effects::prism_rune_spirit_effects(rune_spirit_power(
+                    state, RUNE_PRISM,
+                ))
+                .crystal_caps,
         });
     let crystal_exponent = calculate_crystal_exponent(&CalculateCrystalExponentInput {
         crystal_upgrade_3_max_exponent: crystal_upgrade_4_max_exp,
@@ -1422,8 +1468,169 @@ fn update_progressive_achievements(state: &mut GameState) {
     update_progressive_slot(ach, 11, 0.0, |_| 0.0); // redAmbrosiaUpgrades — maxLevel UI-tier
 }
 
+/// `talismans[t].isUnlocked()` — the per-talisman unlock predicate
+/// (`Talismans.ts`). Every gate is a pure function of `GameState`, so no
+/// persisted unlock flag is needed. Unported gates default to locked:
+/// chronos/midas/metaphysics/polymath read `getAchievementReward('*Talisman')`
+/// (achievement-reward table unported), `achievement` reads a level milestone
+/// (unported), and `horseShoe` reads the `taxmanLastStand` singularity
+/// challenge (singularity paused) — all neutral `false`. Shared with the
+/// talisman→rune-level bonus.
+fn talisman_is_unlocked(state: &GameState, t: usize) -> bool {
+    use crate::mechanics::ant_upgrades::mortuus_ant_upgrade_effect;
+    use crate::mechanics::shop_upgrades::shop_talisman_effect;
+    use crate::state::shop::SHOP_TALISMAN;
+    use crate::state::{
+        TALISMAN_COOKIE_GRANDMA, TALISMAN_EXEMPTION, TALISMAN_MORTUUS, TALISMAN_PLASTIC,
+        TALISMAN_WOW_SQUARE,
+    };
+    const ANT_UPGRADE_MORTUUS: usize = 11;
+    match t {
+        // unlocks.talismans ← highestchallengecompletions[9] > 0 (Synergism.ts:3136).
+        TALISMAN_EXEMPTION => state.challenges.highest_challenge_completions[9] > 0.0,
+        TALISMAN_MORTUUS => {
+            mortuus_ant_upgrade_effect(true_ant_level(state, ANT_UPGRADE_MORTUUS)).talisman_unlock
+        }
+        // shopTalisman: the PCoin instant-unlock-1 path is unported → false.
+        TALISMAN_PLASTIC => shop_talisman_effect(state.shop.upgrades[SHOP_TALISMAN], false),
+        TALISMAN_WOW_SQUARE => state.reset_counters.ascension_count >= 100.0,
+        TALISMAN_COOKIE_GRANDMA => state.cube_upgrade_levels.cube_upgrades[80] > 0.0,
+        // chronos/midas/metaphysics/polymath/achievement/horseShoe: gate unported → locked.
+        _ => false,
+    }
+}
+
+/// `updateTalismanRarities` (`Talismans.ts:670-676`): recompute every
+/// talisman's display rarity from its level + unlock state. Run first in
+/// [`phase_global_state`] so the rarity-indexed effects (midas blessing, the
+/// exemption/chronos/polymath/mortuus multipliers, and the talisman→rune-level
+/// bonus) read this tick's value. Locked talismans collapse to rarity 0; an
+/// unlocked talisman is at least rarity 1 even at level 0.
+fn recompute_talisman_rarities(state: &mut GameState) {
+    use crate::mechanics::talisman_levels::{compute_talisman_rarity, ComputeTalismanRarityInput};
+    /// Per-talisman raw `maxLevel` (the data-table constant, **not** the cap
+    /// with `levelCapIncrease`). Drives the rarity-tier ratios. From the
+    /// legacy `talismans` data table.
+    const TALISMAN_MAX_LEVELS: [f64; TALISMAN_COUNT] = [
+        180.0, // exemption
+        180.0, // chronos
+        180.0, // midas
+        180.0, // metaphysics
+        180.0, // polymath
+        180.0, // mortuus
+        180.0, // plastic
+        210.0, // wowSquare
+        40.0,  // achievement
+        6.0,   // cookieGrandma
+        12.0,  // horseShoe
+    ];
+    for (t, &max_level) in TALISMAN_MAX_LEVELS.iter().enumerate() {
+        let is_unlocked = talisman_is_unlocked(state, t);
+        state.talismans.talisman_rarity[t] =
+            f64::from(compute_talisman_rarity(&ComputeTalismanRarityInput {
+                is_unlocked,
+                level: state.talismans.talisman_levels[t],
+                max_level,
+            }));
+    }
+}
+
+/// Per-talisman, per-rune base coefficient (`talismanBaseCoefficient`,
+/// `Talismans.ts`). Rows follow the `TALISMAN_*` order; columns the rune
+/// object-key order (speed, duplication, prism, thrift, superiorIntellect,
+/// infiniteAscent, antiquities, horseShoe, finiteDescent, topHat).
+const TALISMAN_BASE_COEFFICIENT: [[f64; RUNE_COUNT]; TALISMAN_COUNT] = [
+    [0.0, 1.5, 0.75, 0.75, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], // exemption
+    [1.5, 0.0, 0.0, 0.75, 0.75, 0.0, 0.0, 0.0, 0.0, 0.0], // chronos
+    [0.0, 0.75, 0.75, 1.5, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], // midas
+    [0.6, 0.6, 0.6, 0.6, 0.6, 0.0, 0.0, 0.0, 0.0, 0.0],   // metaphysics
+    [0.75, 0.75, 0.0, 0.0, 1.5, 0.0, 0.0, 0.0, 0.0, 0.0], // polymath
+    [0.6, 0.6, 0.6, 0.6, 0.6, 0.0, 0.0, 0.0, 0.0, 0.0],   // mortuus
+    [0.75, 0.0, 1.5, 0.0, 0.75, 0.005, 0.0, 0.0, 0.0, 0.0], // plastic
+    [0.0, 1.0, 1.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0],   // wowSquare
+    [1.4, 1.4, 1.4, 1.4, 1.4, 0.01, 0.0, 0.0, 0.0, 0.0],  // achievement
+    [1.0, 1.0, 1.0, 1.0, 1.0, 0.01, 0.0, 0.0, 0.0, 0.0],  // cookieGrandma
+    [1.2, 1.2, 1.2, 1.2, 1.2, 0.0, 0.0, 0.01, 0.0, 0.0],  // horseShoe
+];
+
+/// `getRuneBonusFromIndividualTalisman` (`Talismans.ts:764-780`):
+/// `coeff[t][rune] · bonusMult · level · rarityValues[rarity]`, gated on the
+/// talisman's unlock. `bonusMult` is 1 except for metaphysics (× its own
+/// `talismanEffect` × `extraTalismanEffect` — the talisman amplifier) and
+/// mortuus (× the Mortuus2 ant-upgrade `talismanEffectBuff`). Zero for a locked
+/// or level-0 talisman.
+fn rune_bonus_from_individual_talisman(state: &GameState, t: usize, rune: usize) -> f64 {
+    use crate::mechanics::ant_upgrades::mortuus_2_ant_upgrade_effect;
+    use crate::mechanics::talisman_effects::metaphysics_talisman_effects;
+    use crate::mechanics::talisman_levels::rarity_value;
+    use crate::state::{TALISMAN_METAPHYSICS, TALISMAN_MORTUUS};
+    const ANT_UPGRADE_MORTUUS_2: usize = 15;
+
+    if !talisman_is_unlocked(state, t) {
+        return 0.0;
+    }
+    let rarity = state.talismans.talisman_rarity[t] as u8;
+    let mut bonus_mult = 1.0;
+    if t == TALISMAN_METAPHYSICS {
+        let e = metaphysics_talisman_effects(i32::from(rarity));
+        bonus_mult *= e.talisman_effect * e.extra_talisman_effect;
+    }
+    if t == TALISMAN_MORTUUS {
+        bonus_mult *= mortuus_2_ant_upgrade_effect(true_ant_level(state, ANT_UPGRADE_MORTUUS_2))
+            .talisman_effect_buff;
+    }
+    TALISMAN_BASE_COEFFICIENT[t][rune]
+        * bonus_mult
+        * state.talismans.talisman_levels[t]
+        * rarity_value(rarity)
+}
+
+/// `allTalismanRuneBonusStatsSum` (`Statistics.ts:2754-2771`): the special
+/// multiplier on the summed talisman→rune bonus. The achievement `talismanPower`
+/// reward, the challenge-15 `talismanBonus`, and the `taxmanLastStand`
+/// singularity challenge are unported → neutral 0. Identity (1.0) at default.
+fn talisman_rune_bonus_stats_sum(state: &GameState) -> f64 {
+    use crate::mechanics::blueberry_upgrades::ambrosia_talisman_bonus_rune_level_effect;
+    use crate::mechanics::golden_quark_upgrades::{
+        sing_talisman_bonus_runes_1_effect, sing_talisman_bonus_runes_2_effect,
+        sing_talisman_bonus_runes_3_effect, sing_talisman_bonus_runes_4_effect,
+    };
+    use crate::state::ambrosia::AMBROSIA_TALISMAN_BONUS_RUNE_LEVEL;
+    use crate::state::golden_quarks::{
+        GQ_SING_TALISMAN_BONUS_RUNES_1, GQ_SING_TALISMAN_BONUS_RUNES_2,
+        GQ_SING_TALISMAN_BONUS_RUNES_3, GQ_SING_TALISMAN_BONUS_RUNES_4,
+    };
+    let research = &state.researches.researches;
+    let gq = |i: usize| {
+        state.golden_quarks.upgrades[i].level + state.golden_quarks.upgrades[i].free_level
+    };
+    let amb = |i: usize| state.ambrosia.upgrades[i].level + state.ambrosia.upgrades[i].free_level;
+    1.0 + research[106] / 1000.0
+        + research[107] / 1000.0
+        + 2.0 * research[118] / 1000.0
+        + 0.004 * (research[200] / 10_000.0).floor()
+        + 0.006 * (state.cube_upgrade_levels.cube_upgrades[50] / 10_000.0).floor()
+        + sing_talisman_bonus_runes_1_effect(gq(GQ_SING_TALISMAN_BONUS_RUNES_1))
+        + sing_talisman_bonus_runes_2_effect(gq(GQ_SING_TALISMAN_BONUS_RUNES_2))
+        + sing_talisman_bonus_runes_3_effect(gq(GQ_SING_TALISMAN_BONUS_RUNES_3))
+        + sing_talisman_bonus_runes_4_effect(gq(GQ_SING_TALISMAN_BONUS_RUNES_4))
+        + ambrosia_talisman_bonus_rune_level_effect(amb(AMBROSIA_TALISMAN_BONUS_RUNE_LEVEL))
+}
+
+/// `getRuneBonusFromAllTalismans` (`Talismans.ts:782-790`): the talisman→
+/// rune-level bonus, `allTalismanRuneBonusStatsSum · Σ_t individual(t, rune)`,
+/// added to the rune's free levels. Zero at default (no talisman both unlocked
+/// and leveled).
+fn get_rune_bonus_from_all_talismans(state: &GameState, rune: usize) -> f64 {
+    let total: f64 = (0..TALISMAN_COUNT)
+        .map(|t| rune_bonus_from_individual_talisman(state, t, rune))
+        .sum();
+    total * talisman_rune_bonus_stats_sum(state)
+}
+
 fn phase_global_state(state: &mut GameState) -> AggregatorOutputs {
     update_progressive_achievements(state);
+    recompute_talisman_rarities(state);
     let total_accelerator_boost = compute_total_accelerator_boost(state);
     let update_all_multiplier_pre =
         compute_update_all_multiplier_pre(state, total_accelerator_boost);
@@ -1718,7 +1925,10 @@ fn compute_global_speed_mult_pre(state: &GameState) -> f64 {
         1.0 + 0.006 * researches[181],
         1.0 + 0.003 * researches[196],
         speed_rune_blessing_effects(rune_blessing_power(state, RUNE_SPEED)).global_speed,
-        1.0, // speed spirit: effective spirit power unported → 1.0
+        crate::mechanics::rune_spirit_effects::speed_rune_spirit_effects(rune_spirit_power(
+            state, RUNE_SPEED,
+        ))
+        .global_speed,
         chronos_cube,
         1.0 + cube_upgrades[CUBE_UPGRADE_2X8] / 5.0,
         mortuus_ant_upgrade_effect(true_ant_level(state, ANT_UPGRADE_MORTUUS)).global_speed,
@@ -2594,7 +2804,7 @@ fn compute_cube_multiplier(
         wow_cubes_ant_upgrade_effect(true_ant_level(state, ANT_UPGRADE_WOW_CUBES)),
         (1.0 + cube[1] / 6.0) * (1.0 + cube[11] / 11.0) * (1.0 + 0.4 * cube[30]), // CubeUpgrades
         constant_upgrade_10,
-        duplication_rune_spirit_effects(state.runes.rune_spirit_levels[RUNE_DUPLICATION]).wow_cubes,
+        duplication_rune_spirit_effects(rune_spirit_power(state, RUNE_DUPLICATION)).wow_cubes,
         calculate_cube_multiplier_platonic_blessing(&state.platonic_blessings),
         1.0 + 0.00009 * f64::from(total_corruption_levels) * platonic[1], // Platonic1x1
         antiquities_rune_effects(
@@ -3193,7 +3403,10 @@ fn compute_obtainium(
                 ChallengeType::Ascension,
                 state.challenges.challenge_completions[12],
             ),
-        1.0, // SpiritPower — effective rune-spirit power (spiritMultiplier chain) unported → 1.0
+        crate::mechanics::rune_spirit_effects::superior_intellect_rune_spirit_effects(
+            rune_spirit_power(state, RUNE_SUPERIOR_INTELLECT),
+        )
+        .obtainium,
         // Research6x19 — `1 + 0.03·log4(uncommonFragments + 1)·researches[144]`.
         1.0 + 0.03 * ((uncommon_fragments + 1.0).ln() / 4.0_f64.ln()) * researches[144],
         1.0 + 0.0002 * cube[50], // CubeUpgrade5x10
@@ -3549,13 +3762,18 @@ fn compute_offering_mult(state: &GameState, base_offerings: f64) -> Decimal {
         1.0, // TutorialBonus — campaign subsystem unported → 1.0
         1.0, // CampaignBonus — campaign subsystem unported → 1.0
         1.0 + 0.12 * calc_ecc(ChallengeType::Ascension, cc[12]), // Challenge12
-        1.0, // ThriftSpirit — getRuneSpiritEffect('thrift').offerings; spirit-power chain unported → 1.0
+        // ThriftSpirit — getRuneSpiritEffect('thrift').offerings.
+        crate::mechanics::rune_spirit_effects::thrift_rune_spirit_effects(rune_spirit_power(
+            state,
+            crate::state::RUNE_THRIFT,
+        ))
+        .offerings,
         1.0 + (0.01 / 100.0) * researches[200], // Research8x25
-        1.0 + 0.05 * cube[46], // CubeUpgrade5x6
-        1.0 + (0.02 / 100.0) * cube[50], // CubeUpgrade5x10
-        1.0 + platonic[5], // PlatonicALPHA
-        1.0 + 2.5 * platonic[10], // PlatonicBETA
-        1.0 + 5.0 * platonic[15], // PlatonicOMEGA
+        1.0 + 0.05 * cube[46],                  // CubeUpgrade5x6
+        1.0 + (0.02 / 100.0) * cube[50],        // CubeUpgrade5x10
+        1.0 + platonic[5],                      // PlatonicALPHA
+        1.0 + 2.5 * platonic[10],               // PlatonicBETA
+        1.0 + 5.0 * platonic[15],               // PlatonicOMEGA
         challenge_15_rewards::offering(state.challenges.challenge15_exponent), // Challenge15
         10.0_f64.powf(antiquities_rune_effects(
             state.runes.rune_levels[RUNE_ANTIQUITIES],
@@ -5060,7 +5278,9 @@ fn phase_player_input(
     for action in &input.player_actions {
         match action {
             PlayerAction::Buy(req) => {
-                output.events.extend(dispatch_buy(state, req));
+                output
+                    .events
+                    .extend(dispatch_buy(state, req, reset_gains.prestige_point_gain));
             }
             PlayerAction::Reset(req) => {
                 output
@@ -6209,7 +6429,83 @@ fn check_coin_building_achievements(state: &mut GameState) {
     credit_achievement_quarks(state, awarded);
 }
 
-fn dispatch_buy(state: &mut GameState, req: &BuyRequest) -> SmallVec<[CoreEvent; 4]> {
+/// Buy accelerator boosts — the legacy `boostAccelerator` (`Buy.ts:348`). With
+/// `upgrades[46] >= 1` this delegates to the pure bulk solver
+/// ([`buy_accelerator_boost_bulk`](crate::mechanics::accelerator_boosts::buy_accelerator_boost_bulk));
+/// otherwise it is the classic single-boost path that triggers a prestige reset
+/// (hence the `prestige_point_gain` argument and the GameState scope). The
+/// cost-delay is the thrift rune blessing — **this is the thrift-blessing
+/// production wire**. `awardAchievementGroup('acceleratorBoosts')` is unported
+/// → skipped. Identity at default (`prestigePoints` 0 → unaffordable).
+fn buy_accelerator_boost(
+    state: &mut GameState,
+    prestige_point_gain: Decimal,
+) -> SmallVec<[CoreEvent; 4]> {
+    use crate::mechanics::accelerator_boosts::{
+        buy_accelerator_boost_bulk, BuyAcceleratorBoostInput,
+    };
+    use crate::mechanics::rune_blessing_effects::thrift_rune_blessing_effects;
+    use crate::state::RUNE_THRIFT;
+
+    let delay = thrift_rune_blessing_effects(rune_blessing_power(state, RUNE_THRIFT))
+        .accel_boost_cost_delay;
+
+    // Bulk path (`upgrades[46] >= 1`): no reset, spends prestigePoints.
+    if state.upgrades.upgrades[46] >= 1 {
+        return buy_accelerator_boost_bulk(
+            &mut state.accelerator,
+            &mut state.upgrades.prestige_points,
+            BuyAcceleratorBoostInput {
+                accel_boost_cost_delay: delay,
+            },
+        );
+    }
+
+    // Classic path: buy one boost (if affordable), grow the running cost, then
+    // wipe upgrades 21..=40 and trigger a prestige reset (which zeroes the coin
+    // economy and re-awards prestigePoints — immediately discarded).
+    let mut events: SmallVec<[CoreEvent; 4]> = SmallVec::new();
+    if state.upgrades.prestige_points < state.accelerator.accelerator_boost_cost {
+        return events;
+    }
+    let before = state.accelerator.accelerator_boost_bought;
+    let starting_points = state.upgrades.prestige_points;
+    state.accelerator.accelerator_boost_bought += 1.0;
+    let bought = state.accelerator.accelerator_boost_bought;
+    // cost *= 1e10 * 10^bought, then the per-level quadratic kicker past the
+    // 1000 * delay threshold.
+    state.accelerator.accelerator_boost_cost *=
+        Decimal::from_finite(1e10) * Decimal::from_finite(10.0).pow(Decimal::from_finite(bought));
+    if bought > 1000.0 * delay {
+        let kicker = (bought - 1000.0 * delay).powi(2) / delay;
+        state.accelerator.accelerator_boost_cost *=
+            Decimal::from_finite(10.0).pow(Decimal::from_finite(kicker));
+    }
+    state.accelerator.transcend_no_accelerator = false;
+    state.accelerator.reincarnate_no_accelerator = false;
+
+    // `upgrades[46]` is 0 here (u8 `< 1`), so the legacy `< 0.5` reset path
+    // always fires.
+    for slot in 21..=40 {
+        state.upgrades.upgrades[slot] = 0;
+    }
+    let reset_events = reset::perform_prestige_reset(state, prestige_point_gain);
+    state.upgrades.prestige_points = Decimal::zero();
+
+    events.push(CoreEvent::AcceleratorBoostsPurchased {
+        before,
+        after: bought,
+        spent: starting_points - state.upgrades.prestige_points,
+    });
+    events.extend(reset_events);
+    events
+}
+
+fn dispatch_buy(
+    state: &mut GameState,
+    req: &BuyRequest,
+    prestige_point_gain: Decimal,
+) -> SmallVec<[CoreEvent; 4]> {
     // Each arm borrows disjoint `GameState` fields explicitly so the
     // borrow checker can verify the per-slice mutator and the canonical
     // `state.upgrades.*` currency don't alias. (A helper returning
@@ -6247,6 +6543,7 @@ fn dispatch_buy(state: &mut GameState, req: &BuyRequest) -> SmallVec<[CoreEvent;
         BuyRequest::Accelerator(inp) => {
             buy_accelerator(&mut state.accelerator, &mut state.upgrades.coins, *inp)
         }
+        BuyRequest::AcceleratorBoost => buy_accelerator_boost(state, prestige_point_gain),
         BuyRequest::CrystalUpgrade(inp) => buy_crystal_upgrades(&mut state.crystal_upgrades, *inp),
         BuyRequest::CubeUpgrade(inp) => buy_cube_upgrade(
             &mut state.cube_upgrade_levels,
@@ -6427,7 +6724,7 @@ mod tests {
             challengecompletions_4: 0.0,
             challengecompletions_8: 0.0,
         });
-        dispatch_buy(&mut state, &req);
+        dispatch_buy(&mut state, &req, Decimal::zero());
         assert_eq!(state.coin_producers.tiers[0].owned, 100.0);
         assert_eq!(state.achievements.achievements[1], 1);
         assert_eq!(state.achievements.achievements[2], 1);
@@ -8959,6 +9256,262 @@ mod tests {
         // researches[134] = 10 -> mult 1.69 -> 5 * 1000 * 1.69 = 8450.
         s.researches.researches[134] = 10.0;
         assert!((rune_blessing_power(&s, RUNE_SPEED) - 8450.0).abs() < 1e-9);
+    }
+
+    #[test]
+    fn rune_spirit_power_folds_spirit_rune_and_blessing() {
+        use crate::state::RUNE_SPEED;
+        // power = spirit.level * rune.level * blessing.level * otherSpiritMultipliers.
+        let mut s = GameState::default();
+        s.runes.rune_spirit_levels[RUNE_SPEED] = 5.0;
+        s.runes.rune_levels[RUNE_SPEED] = 1000.0;
+        s.runes.rune_blessing_levels[RUNE_SPEED] = 10.0;
+        // otherSpiritMultipliers = 1 at default -> 5 * 1000 * 10 * 1 = 50_000.
+        assert!((rune_spirit_power(&s, RUNE_SPEED) - 50_000.0).abs() < 1e-6);
+
+        // researches[164] = 25 -> (1 + 8*25/100) = 3.0 -> 50_000 * 3 = 150_000.
+        s.researches.researches[164] = 25.0;
+        assert!((rune_spirit_power(&s, RUNE_SPEED) - 150_000.0).abs() < 1e-6);
+    }
+
+    #[test]
+    fn other_spirit_multipliers_identity_at_default() {
+        let s = GameState::default();
+        assert!((other_spirit_multipliers(&s) - 1.0).abs() < 1e-12);
+    }
+
+    #[test]
+    fn speed_spirit_engages_global_speed_mult() {
+        use crate::state::RUNE_SPEED;
+        // Hold the rune + blessing levels fixed and toggle only the spirit
+        // level, so the delta isolates the speed-spirit wiring.
+        let mut s = GameState::default();
+        s.runes.rune_levels[RUNE_SPEED] = 1000.0;
+        s.runes.rune_blessing_levels[RUNE_SPEED] = 1000.0;
+        let without_spirit = compute_global_speed_mult_pre(&s);
+        // power = 1000 * 1000 * 1000 = 1e9 -> globalSpeed spirit factor = 2.0.
+        s.runes.rune_spirit_levels[RUNE_SPEED] = 1000.0;
+        let with_spirit = compute_global_speed_mult_pre(&s);
+        // The spirit is a clean multiplicative factor on the pre-DR product;
+        // the concave global-speed DR can only shrink it, so the boost is in
+        // (1, 2].
+        assert!(
+            with_spirit > without_spirit,
+            "speed spirit should raise the global-speed mult"
+        );
+        assert!(with_spirit <= 2.0 * without_spirit + 1e-6);
+    }
+
+    #[test]
+    fn talisman_unlock_gates_are_pure_state_functions() {
+        use crate::state::shop::SHOP_TALISMAN;
+        use crate::state::{
+            TALISMAN_CHRONOS, TALISMAN_COOKIE_GRANDMA, TALISMAN_COUNT, TALISMAN_EXEMPTION,
+            TALISMAN_MORTUUS, TALISMAN_PLASTIC, TALISMAN_WOW_SQUARE,
+        };
+        let mut s = GameState::default();
+        // Default: every talisman locked.
+        for t in 0..TALISMAN_COUNT {
+            assert!(
+                !talisman_is_unlocked(&s, t),
+                "talisman {t} should start locked"
+            );
+        }
+        // exemption ← reincarnation challenge 9 completed at least once.
+        s.challenges.highest_challenge_completions[9] = 1.0;
+        assert!(talisman_is_unlocked(&s, TALISMAN_EXEMPTION));
+        // mortuus ← Mortuus ant upgrade owned.
+        s.ants.upgrades[11] = 5.0;
+        assert!(talisman_is_unlocked(&s, TALISMAN_MORTUUS));
+        // plastic ← shopTalisman bought.
+        s.shop.upgrades[SHOP_TALISMAN] = 1.0;
+        assert!(talisman_is_unlocked(&s, TALISMAN_PLASTIC));
+        // wowSquare ← 100 ascensions.
+        s.reset_counters.ascension_count = 100.0;
+        assert!(talisman_is_unlocked(&s, TALISMAN_WOW_SQUARE));
+        // cookieGrandma ← cubeUpgrade 80.
+        s.cube_upgrade_levels.cube_upgrades[80] = 1.0;
+        assert!(talisman_is_unlocked(&s, TALISMAN_COOKIE_GRANDMA));
+        // chronos gate (getAchievementReward) is unported → still locked.
+        assert!(!talisman_is_unlocked(&s, TALISMAN_CHRONOS));
+    }
+
+    #[test]
+    fn recompute_talisman_rarities_reflects_level_and_unlock() {
+        use crate::state::{TALISMAN_CHRONOS, TALISMAN_EXEMPTION};
+        let mut s = GameState::default();
+        // Locked → rarity 0 even with a level.
+        s.talismans.talisman_levels[TALISMAN_EXEMPTION] = 90.0;
+        recompute_talisman_rarities(&mut s);
+        assert_eq!(s.talismans.talisman_rarity[TALISMAN_EXEMPTION], 0.0);
+
+        // Unlock exemption: level 90 / maxLevel 180 = ratio 0.5 → band 3 → rarity 4.
+        s.challenges.highest_challenge_completions[9] = 1.0;
+        recompute_talisman_rarities(&mut s);
+        assert_eq!(s.talismans.talisman_rarity[TALISMAN_EXEMPTION], 4.0);
+
+        // Unlocked at level 0 → rarity 1 (the floor for an unlocked talisman).
+        s.talismans.talisman_levels[TALISMAN_EXEMPTION] = 0.0;
+        recompute_talisman_rarities(&mut s);
+        assert_eq!(s.talismans.talisman_rarity[TALISMAN_EXEMPTION], 1.0);
+
+        // chronos stays locked (gate unported) → 0 regardless of level.
+        s.talismans.talisman_levels[TALISMAN_CHRONOS] = 180.0;
+        recompute_talisman_rarities(&mut s);
+        assert_eq!(s.talismans.talisman_rarity[TALISMAN_CHRONOS], 0.0);
+    }
+
+    #[test]
+    fn phase_global_state_brings_talisman_rarity_online() {
+        use crate::state::TALISMAN_EXEMPTION;
+        let mut s = GameState::default();
+        s.challenges.highest_challenge_completions[9] = 1.0; // unlocks exemption
+        assert_eq!(s.talismans.talisman_rarity[TALISMAN_EXEMPTION], 0.0);
+        let _ = phase_global_state(&mut s);
+        // The per-tick recompute runs inside phase_global_state.
+        assert_eq!(s.talismans.talisman_rarity[TALISMAN_EXEMPTION], 1.0);
+    }
+
+    #[test]
+    fn talisman_rune_bonus_scales_with_coefficient_level_and_rarity() {
+        use crate::state::{RUNE_DUPLICATION, RUNE_SPEED, TALISMAN_EXEMPTION};
+        let mut s = GameState::default();
+        s.talismans.talisman_levels[TALISMAN_EXEMPTION] = 10.0;
+        s.talismans.talisman_rarity[TALISMAN_EXEMPTION] = 1.0;
+        // Locked → no bonus.
+        assert_eq!(get_rune_bonus_from_all_talismans(&s, RUNE_DUPLICATION), 0.0);
+
+        s.challenges.highest_challenge_completions[9] = 1.0; // unlock exemption
+                                                             // exemption→duplication coeff 1.5, rarity_value(1)=1, level 10,
+                                                             // statsSum 1.0 at default → 1.5 * 1 * 10 * 1.0 = 15.
+        let dup = get_rune_bonus_from_all_talismans(&s, RUNE_DUPLICATION);
+        assert!((dup - 15.0).abs() < 1e-9, "dup = {dup}");
+        // exemption→speed coeff is 0 → no speed bonus.
+        assert_eq!(get_rune_bonus_from_all_talismans(&s, RUNE_SPEED), 0.0);
+
+        // allTalismanRuneBonusStatsSum scales the total: researches[106] = 1000
+        // adds +1.0 → ×2.
+        s.researches.researches[106] = 1000.0;
+        let dup2 = get_rune_bonus_from_all_talismans(&s, RUNE_DUPLICATION);
+        assert!((dup2 - 30.0).abs() < 1e-9, "dup2 = {dup2}");
+    }
+
+    #[test]
+    fn talisman_bonus_feeds_rune_free_levels() {
+        use crate::state::{RUNE_DUPLICATION, TALISMAN_EXEMPTION};
+        let mut s = GameState::default();
+        s.talismans.talisman_levels[TALISMAN_EXEMPTION] = 10.0;
+        s.talismans.talisman_rarity[TALISMAN_EXEMPTION] = 1.0;
+        let without = rune_free_levels(&s, RUNE_DUPLICATION); // exemption locked
+        s.challenges.highest_challenge_completions[9] = 1.0; // unlock exemption
+        let with = rune_free_levels(&s, RUNE_DUPLICATION);
+        // The talisman adds exactly 1.5 * 1 * 10 * rarity_value(1) = 15 to the
+        // rune's free levels.
+        assert!(
+            (with - without - 15.0).abs() < 1e-9,
+            "delta = {}",
+            with - without
+        );
+    }
+
+    #[test]
+    fn accelerator_boost_classic_path_buys_one_and_prestige_resets() {
+        let mut s = GameState::default();
+        // upgrades[46] = 0 (default) → classic path; default boost cost = 1e3.
+        s.upgrades.prestige_points = Decimal::from_finite(1e6);
+        s.upgrades.coins = Decimal::from_finite(1e9); // wiped by the prestige reset
+        s.upgrades.upgrades[25] = 1; // in the 21..=40 range the boost clears
+        let events = buy_accelerator_boost(&mut s, Decimal::zero());
+
+        assert_eq!(s.accelerator.accelerator_boost_bought, 1.0); // persists the reset
+        assert_eq!(s.upgrades.prestige_points, Decimal::zero()); // all spent
+                                                                 // The prestige reset ran: coins dropped from 1e9 to the 102-coin base.
+        assert_eq!(s.upgrades.coins, Decimal::from_finite(102.0));
+        assert_eq!(s.upgrades.upgrades[25], 0); // upgrades 21..=40 cleared
+        assert!(!s.accelerator.transcend_no_accelerator);
+        assert!(!s.accelerator.reincarnate_no_accelerator);
+        assert!(events.iter().any(|e| matches!(
+            e,
+            CoreEvent::AcceleratorBoostsPurchased { after, .. } if *after == 1.0
+        )));
+        assert!(events
+            .iter()
+            .any(|e| matches!(e, CoreEvent::ResetPerformed { .. })));
+    }
+
+    #[test]
+    fn accelerator_boost_bulk_path_spends_prestige_without_reset() {
+        let mut s = GameState::default();
+        s.upgrades.upgrades[46] = 1; // bulk path
+        s.upgrades.prestige_points = Decimal::from_finite(1e30);
+        s.upgrades.coins = Decimal::from_finite(1e9);
+        let events = buy_accelerator_boost(&mut s, Decimal::zero());
+
+        assert!(s.accelerator.accelerator_boost_bought > 0.0);
+        assert!(s.upgrades.prestige_points < Decimal::from_finite(1e30)); // spent some
+        assert_eq!(s.upgrades.coins, Decimal::from_finite(1e9)); // no reset
+        assert!(events
+            .iter()
+            .any(|e| matches!(e, CoreEvent::AcceleratorBoostsPurchased { .. })));
+        // The bulk path performs no prestige reset.
+        assert!(!events
+            .iter()
+            .any(|e| matches!(e, CoreEvent::ResetPerformed { .. })));
+    }
+
+    #[test]
+    fn thrift_blessing_pushes_accelerator_boost_cost_threshold() {
+        use crate::state::RUNE_THRIFT;
+        // Buying boost 1002 fires the quadratic kicker when 1002 > 1000*delay.
+        // Default delay = 1 → kicker fires; a thrift blessing lifting delay to 2
+        // pushes the threshold to 2000 → no kicker → a cheaper next cost. This
+        // is the thrift-rune-blessing production wire.
+        let post_buy_cost = |with_blessing: bool| {
+            let mut s = GameState::default();
+            s.accelerator.accelerator_boost_bought = 1001.0;
+            s.accelerator.accelerator_boost_cost = Decimal::from_finite(1e3);
+            s.upgrades.prestige_points = Decimal::from_finite(1e6); // affords the 1e3 gate
+            if with_blessing {
+                // power = blessing.level * rune.level * 1 = 1e6 → delay = 2.
+                s.runes.rune_blessing_levels[RUNE_THRIFT] = 1e6;
+                s.runes.rune_levels[RUNE_THRIFT] = 1.0;
+            }
+            let _ = buy_accelerator_boost(&mut s, Decimal::zero());
+            s.accelerator.accelerator_boost_cost
+        };
+        let cost_no_blessing = post_buy_cost(false); // delay 1 → kicker fires
+        let cost_with_blessing = post_buy_cost(true); // delay 2 → no kicker
+        assert!(
+            cost_no_blessing > cost_with_blessing,
+            "thrift blessing should lower the post-buy boost cost"
+        );
+    }
+
+    #[test]
+    fn tack_dispatches_accelerator_boost_action() {
+        let mut state = GameState::default();
+        state.upgrades.upgrades[46] = 1; // bulk path (no reset side effects)
+        state.upgrades.prestige_points = Decimal::from_finite(1e30);
+
+        let mut input = TackInput {
+            dt: 0.025,
+            ..TackInput::default()
+        };
+        input
+            .player_actions
+            .push(PlayerAction::Buy(BuyRequest::AcceleratorBoost));
+
+        let output = tack(&mut state, &input);
+
+        assert!(state.accelerator.accelerator_boost_bought > 0.0);
+        assert!(
+            output
+                .events
+                .iter()
+                .any(|e| matches!(e, CoreEvent::AcceleratorBoostsPurchased { .. })),
+            "expected AcceleratorBoostsPurchased, got {:?}",
+            output.events
+        );
     }
 
     #[test]

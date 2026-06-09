@@ -80,7 +80,9 @@ flowchart LR
 
 - ⚠ **H1 — crystals desync:** `prestige_shards` is read from `crystal_upgrades.prestige_shards`
   (seeded right) but written to a different slice, so the crystal coin-multiplier is under-credited.
-- **Accelerator boosts** have a ported cost formula but no `BuyRequest::AcceleratorBoost` handler, so
-  purchased boost stays 0 — this also blocks the thrift rune-blessing wire on the runes page.
+- **Accelerator boosts** are ported — `BuyRequest::AcceleratorBoost` runs the classic
+  single-boost+prestige-reset path and the bulk solver, and the thrift rune-blessing
+  `accelBoostCostDelay` now feeds the cost (the runes-page wire). The autobuyer path
+  (`boostAccelerator(true)`) and `awardAchievementGroup('acceleratorBoosts')` are still unported.
 - `updateAll` autobuyers (the monolith's separate 50 ms producer/crystal/cube buy loop) are **absent**,
   so a pure-idle Rust loop won't auto-buy producers yet.

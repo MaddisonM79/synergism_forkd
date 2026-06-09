@@ -13,10 +13,17 @@ use serde::{Deserialize, Serialize};
 
 use synergismforkd_bignum::Decimal;
 
-/// Number of rune slots. Legacy synergism has 7: speed,
-/// duplication, prism, thrift, superiorIntellect, antiquities,
-/// finiteDescent.
-pub const RUNE_COUNT: usize = 7;
+/// Number of rune slots. The current synergism build has 10 runes;
+/// index `i` is the i-th key of the legacy `runes` object
+/// (`legacy/core_split/packages/web_ui/src/Runes.ts`): speed,
+/// duplication, prism, thrift, superiorIntellect, infiniteAscent,
+/// antiquities, horseShoe, finiteDescent, topHat.
+///
+/// Rune blessings and spirits only exist for the first five runes
+/// (speed..superiorIntellect); the `rune_blessing_levels` /
+/// `rune_spirit_levels` arrays are still sized `RUNE_COUNT` for index
+/// parity, with the trailing slots unused.
+pub const RUNE_COUNT: usize = 10;
 
 /// Index of the Speed rune in [`RunesState::rune_levels`] etc.
 pub const RUNE_SPEED: usize = 0;
@@ -28,17 +35,23 @@ pub const RUNE_PRISM: usize = 2;
 pub const RUNE_THRIFT: usize = 3;
 /// Index of the Superior Intellect rune.
 pub const RUNE_SUPERIOR_INTELLECT: usize = 4;
-/// Index of the Antiquities rune (5th-prestige rune).
-pub const RUNE_ANTIQUITIES: usize = 5;
-/// Index of the Finite Descent rune (6th-prestige rune).
-pub const RUNE_FINITE_DESCENT: usize = 6;
+/// Index of the Infinite Ascent rune.
+pub const RUNE_INFINITE_ASCENT: usize = 5;
+/// Index of the Antiquities rune.
+pub const RUNE_ANTIQUITIES: usize = 6;
+/// Index of the Horse Shoe rune.
+pub const RUNE_HORSE_SHOE: usize = 7;
+/// Index of the Finite Descent rune (ascension-score rune).
+pub const RUNE_FINITE_DESCENT: usize = 8;
+/// Index of the Top Hat rune.
+pub const RUNE_TOP_HAT: usize = 9;
 
 /// Slice of `GameState` for rune levels + XP + blessings + spirits
 /// + the rune-shards spend resource.
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct RunesState {
-    /// Per-rune level. Indexed `0..=6` to match the legacy rune
-    /// enum order.
+    /// Per-rune level. Indexed `0..=9` to match the legacy rune
+    /// object key order.
     pub rune_levels: [f64; RUNE_COUNT],
     /// Per-rune EXP accumulator. Indices match `rune_levels`.
     pub rune_exp: [f64; RUNE_COUNT],
@@ -72,9 +85,20 @@ mod tests {
     use super::*;
 
     #[test]
-    fn default_has_7_rune_slots() {
+    fn default_has_10_rune_slots() {
         let s = RunesState::default();
-        assert_eq!(s.rune_levels.len(), 7);
-        assert_eq!(s.rune_blessing_levels.len(), 7);
+        assert_eq!(s.rune_levels.len(), 10);
+        assert_eq!(s.rune_blessing_levels.len(), 10);
+    }
+
+    #[test]
+    fn rune_index_convention_sentinels() {
+        // Indices follow the legacy `runes` object key order.
+        assert_eq!(RUNE_SPEED, 0);
+        assert_eq!(RUNE_SUPERIOR_INTELLECT, 4);
+        assert_eq!(RUNE_INFINITE_ASCENT, 5);
+        assert_eq!(RUNE_ANTIQUITIES, 6);
+        assert_eq!(RUNE_FINITE_DESCENT, 8);
+        assert_eq!(RUNE_TOP_HAT, RUNE_COUNT - 1);
     }
 }
