@@ -13,7 +13,12 @@
 //! the legacy `web_ui/Buy.ts` because it calls `reset('prestige')` inline;
 //! that part migrates with the reset-system overhaul.
 
+use smallvec::SmallVec;
 use synergismforkd_bignum::Decimal;
+
+use crate::events::CoreEvent;
+use crate::math::smallest_inc::smallest_inc;
+use crate::state::AcceleratorState;
 
 const BUYMAX: f64 = 1e15;
 
@@ -74,6 +79,127 @@ pub fn get_accelerator_boost_cost(level: f64, input: GetAcceleratorBoostCostInpu
     cost
 }
 
+/// Input to [`buy_accelerator_boost_bulk`].
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct BuyAcceleratorBoostInput {
+    /// `getRuneBlessingEffect('thrift').accelBoostCostDelay`, captured once per
+    /// buy (the thrift rune blessing pushes back the quadratic-cost threshold).
+    pub accel_boost_cost_delay: f64,
+}
+
+/// Bulk accelerator-boost purchase — the `player.upgrades[46] >= 1` path of the
+/// legacy `boostAccelerator` (`Buy.ts:386-457`). Spends `prestige_points`, with
+/// no per-click cap and no prestige reset (that is the pre-upgrade path, which
+/// stays in [`crate::tick`] because it calls `reset('prestige')`). Mirrors the
+/// structure of [`buy_accelerator`](super::accelerators::buy_accelerator): a
+/// high-end binary search past `BUYMAX`, otherwise a 4× bracket + stepdown
+/// refine + forward walk. Sets the transcend / reincarnate no-accelerator flags
+/// (a boost does **not** clear the prestige flag).
+#[must_use]
+pub fn buy_accelerator_boost_bulk(
+    state: &mut AcceleratorState,
+    prestige_points: &mut Decimal,
+    input: BuyAcceleratorBoostInput,
+) -> SmallVec<[CoreEvent; 4]> {
+    let cost_input = GetAcceleratorBoostCostInput {
+        accel_boost_cost_delay: input.accel_boost_cost_delay,
+    };
+    let mut events: SmallVec<[CoreEvent; 4]> = SmallVec::new();
+    let starting_points = *prestige_points;
+    let buy_start = state.accelerator_boost_bought;
+
+    // High-end binary-search path (buyStart >= 1e15): snap to the largest
+    // affordable count; the diminishing cost makes per-step accounting moot
+    // (no points are subtracted here, matching the legacy source).
+    if buy_start >= BUYMAX {
+        let diminishing_exponent = 1.0_f64 / 8.0;
+        let log10_resource = prestige_points.log10().to_number();
+        let log10_quadrillion_cost = get_accelerator_boost_cost(BUYMAX, cost_input)
+            .log10()
+            .to_number();
+
+        let mut hi = (BUYMAX
+            * (1.0_f64).max((log10_resource / log10_quadrillion_cost).powf(diminishing_exponent)))
+        .floor();
+        let mut lo = BUYMAX;
+        for _ in 0..128 {
+            if hi - lo <= 0.5 {
+                break;
+            }
+            let mid = (lo + (hi - lo) / 2.0).floor();
+            if mid == lo || mid == hi {
+                break;
+            }
+            if *prestige_points < get_accelerator_boost_cost(mid, cost_input) {
+                hi = mid;
+            } else {
+                lo = mid;
+            }
+        }
+        let buyable = lo;
+        state.accelerator_boost_bought = buyable;
+        state.accelerator_boost_cost = get_accelerator_boost_cost(buyable, cost_input);
+        if state.accelerator_boost_bought > buy_start {
+            events.push(CoreEvent::AcceleratorBoostsPurchased {
+                before: buy_start,
+                after: state.accelerator_boost_bought,
+                spent: starting_points - *prestige_points,
+            });
+        }
+        return events;
+    }
+
+    // Normal path: 4× bracket on buyInc, stepdown refine, then forward walk.
+    let buydefault = buy_start + smallest_inc(buy_start);
+    let mut buy_inc = 1.0_f64;
+    let mut cost = get_accelerator_boost_cost(buy_start + buy_inc, cost_input);
+    while *prestige_points >= cost {
+        buy_inc *= 4.0;
+        cost = get_accelerator_boost_cost(buy_start + buy_inc, cost_input);
+    }
+    let mut stepdown = (buy_inc / 8.0).floor();
+    while stepdown >= smallest_inc(buy_inc) {
+        if get_accelerator_boost_cost(buy_start + buy_inc - stepdown, cost_input)
+            <= *prestige_points
+        {
+            stepdown = (stepdown / 2.0).floor();
+        } else {
+            buy_inc -= smallest_inc(buy_inc).max(stepdown);
+        }
+    }
+
+    // Walk forward from ~6 below the bracket, paying `this_cost` (which starts
+    // at the cost of the current level — the legacy first-step undercharge).
+    let mut buy_from = (buy_start + buy_inc - 6.0 - smallest_inc(buy_inc)).max(buydefault);
+    let mut this_cost = get_accelerator_boost_cost(buy_start, cost_input);
+    while buy_from <= buy_start + buy_inc
+        && *prestige_points >= get_accelerator_boost_cost(buy_from, cost_input)
+    {
+        *prestige_points -= this_cost;
+        if buy_from >= BUYMAX {
+            buy_from = BUYMAX;
+        }
+        state.accelerator_boost_bought = buy_from;
+        buy_from += smallest_inc(buy_from);
+        this_cost = get_accelerator_boost_cost(buy_from, cost_input);
+        state.accelerator_boost_cost = this_cost;
+        state.transcend_no_accelerator = false;
+        state.reincarnate_no_accelerator = false;
+        if buy_from >= BUYMAX {
+            break;
+        }
+    }
+
+    if state.accelerator_boost_bought > buy_start {
+        events.push(CoreEvent::AcceleratorBoostsPurchased {
+            before: buy_start,
+            after: state.accelerator_boost_bought,
+            spent: starting_points - *prestige_points,
+        });
+    }
+    events
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -132,5 +258,37 @@ mod tests {
         let cost_d1 = get_accelerator_boost_cost(1500.0, input(1.0));
         let cost_d2 = get_accelerator_boost_cost(1500.0, input(2.0));
         assert!(cost_d2 < cost_d1);
+    }
+
+    // ─── buy_accelerator_boost_bulk ───────────────────────────────────────
+
+    fn bulk_input() -> BuyAcceleratorBoostInput {
+        BuyAcceleratorBoostInput {
+            accel_boost_cost_delay: 1.0,
+        }
+    }
+
+    #[test]
+    fn bulk_buy_is_noop_when_broke() {
+        let mut state = AcceleratorState::default();
+        let mut points = Decimal::zero();
+        let events = buy_accelerator_boost_bulk(&mut state, &mut points, bulk_input());
+        assert_eq!(state.accelerator_boost_bought, 0.0);
+        assert!(events.is_empty());
+        assert!(state.transcend_no_accelerator); // flag untouched when nothing bought
+    }
+
+    #[test]
+    fn bulk_buy_spends_prestige_points_and_buys() {
+        let mut state = AcceleratorState::default();
+        let mut points = Decimal::from_finite(1e30);
+        let events = buy_accelerator_boost_bulk(&mut state, &mut points, bulk_input());
+        assert!(state.accelerator_boost_bought > 0.0);
+        assert!(points < Decimal::from_finite(1e30)); // spent something
+        assert_eq!(events.len(), 1);
+        // The boost clears the transcend / reincarnate flags (not prestige).
+        assert!(!state.transcend_no_accelerator);
+        assert!(!state.reincarnate_no_accelerator);
+        assert!(state.prestige_no_accelerator);
     }
 }

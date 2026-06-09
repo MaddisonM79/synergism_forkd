@@ -359,6 +359,7 @@ mod tests {
         AcceleratorState {
             accelerator_bought: 0.0,
             accelerator_boost_bought: 0.0,
+            accelerator_boost_cost: Decimal::from_finite(1e3),
             accelerator_cost: get_cost_accelerator(1.0, baseline()),
             prestige_no_accelerator: true,
             transcend_no_accelerator: true,

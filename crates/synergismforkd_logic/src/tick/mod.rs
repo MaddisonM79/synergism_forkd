@@ -371,6 +371,13 @@ pub enum BuyRequest {
     Multiplier(BuyMultiplierInput),
     /// Routes to [`buy_accelerator`].
     Accelerator(BuyAcceleratorInput),
+    /// Buy accelerator boosts (legacy `boostAccelerator`). Takes no payload —
+    /// the path (single-boost-with-prestige-reset vs. bulk) is chosen from
+    /// `upgrades[46]`, the cost-delay comes from the thrift rune blessing, and
+    /// the spend currency is `prestigePoints`. Routes to [`buy_accelerator_boost`],
+    /// which receives the tick's prestige-point gain for the pre-upgrade path's
+    /// inline reset.
+    AcceleratorBoost,
     /// Routes to [`buy_crystal_upgrades`].
     CrystalUpgrade(BuyCrystalUpgradesInput),
     /// Routes to [`buy_cube_upgrade`].
@@ -5271,7 +5278,9 @@ fn phase_player_input(
     for action in &input.player_actions {
         match action {
             PlayerAction::Buy(req) => {
-                output.events.extend(dispatch_buy(state, req));
+                output
+                    .events
+                    .extend(dispatch_buy(state, req, reset_gains.prestige_point_gain));
             }
             PlayerAction::Reset(req) => {
                 output
@@ -6420,7 +6429,83 @@ fn check_coin_building_achievements(state: &mut GameState) {
     credit_achievement_quarks(state, awarded);
 }
 
-fn dispatch_buy(state: &mut GameState, req: &BuyRequest) -> SmallVec<[CoreEvent; 4]> {
+/// Buy accelerator boosts — the legacy `boostAccelerator` (`Buy.ts:348`). With
+/// `upgrades[46] >= 1` this delegates to the pure bulk solver
+/// ([`buy_accelerator_boost_bulk`](crate::mechanics::accelerator_boosts::buy_accelerator_boost_bulk));
+/// otherwise it is the classic single-boost path that triggers a prestige reset
+/// (hence the `prestige_point_gain` argument and the GameState scope). The
+/// cost-delay is the thrift rune blessing — **this is the thrift-blessing
+/// production wire**. `awardAchievementGroup('acceleratorBoosts')` is unported
+/// → skipped. Identity at default (`prestigePoints` 0 → unaffordable).
+fn buy_accelerator_boost(
+    state: &mut GameState,
+    prestige_point_gain: Decimal,
+) -> SmallVec<[CoreEvent; 4]> {
+    use crate::mechanics::accelerator_boosts::{
+        buy_accelerator_boost_bulk, BuyAcceleratorBoostInput,
+    };
+    use crate::mechanics::rune_blessing_effects::thrift_rune_blessing_effects;
+    use crate::state::RUNE_THRIFT;
+
+    let delay = thrift_rune_blessing_effects(rune_blessing_power(state, RUNE_THRIFT))
+        .accel_boost_cost_delay;
+
+    // Bulk path (`upgrades[46] >= 1`): no reset, spends prestigePoints.
+    if state.upgrades.upgrades[46] >= 1 {
+        return buy_accelerator_boost_bulk(
+            &mut state.accelerator,
+            &mut state.upgrades.prestige_points,
+            BuyAcceleratorBoostInput {
+                accel_boost_cost_delay: delay,
+            },
+        );
+    }
+
+    // Classic path: buy one boost (if affordable), grow the running cost, then
+    // wipe upgrades 21..=40 and trigger a prestige reset (which zeroes the coin
+    // economy and re-awards prestigePoints — immediately discarded).
+    let mut events: SmallVec<[CoreEvent; 4]> = SmallVec::new();
+    if state.upgrades.prestige_points < state.accelerator.accelerator_boost_cost {
+        return events;
+    }
+    let before = state.accelerator.accelerator_boost_bought;
+    let starting_points = state.upgrades.prestige_points;
+    state.accelerator.accelerator_boost_bought += 1.0;
+    let bought = state.accelerator.accelerator_boost_bought;
+    // cost *= 1e10 * 10^bought, then the per-level quadratic kicker past the
+    // 1000 * delay threshold.
+    state.accelerator.accelerator_boost_cost *=
+        Decimal::from_finite(1e10) * Decimal::from_finite(10.0).pow(Decimal::from_finite(bought));
+    if bought > 1000.0 * delay {
+        let kicker = (bought - 1000.0 * delay).powi(2) / delay;
+        state.accelerator.accelerator_boost_cost *=
+            Decimal::from_finite(10.0).pow(Decimal::from_finite(kicker));
+    }
+    state.accelerator.transcend_no_accelerator = false;
+    state.accelerator.reincarnate_no_accelerator = false;
+
+    // `upgrades[46]` is 0 here (u8 `< 1`), so the legacy `< 0.5` reset path
+    // always fires.
+    for slot in 21..=40 {
+        state.upgrades.upgrades[slot] = 0;
+    }
+    let reset_events = reset::perform_prestige_reset(state, prestige_point_gain);
+    state.upgrades.prestige_points = Decimal::zero();
+
+    events.push(CoreEvent::AcceleratorBoostsPurchased {
+        before,
+        after: bought,
+        spent: starting_points - state.upgrades.prestige_points,
+    });
+    events.extend(reset_events);
+    events
+}
+
+fn dispatch_buy(
+    state: &mut GameState,
+    req: &BuyRequest,
+    prestige_point_gain: Decimal,
+) -> SmallVec<[CoreEvent; 4]> {
     // Each arm borrows disjoint `GameState` fields explicitly so the
     // borrow checker can verify the per-slice mutator and the canonical
     // `state.upgrades.*` currency don't alias. (A helper returning
@@ -6458,6 +6543,7 @@ fn dispatch_buy(state: &mut GameState, req: &BuyRequest) -> SmallVec<[CoreEvent;
         BuyRequest::Accelerator(inp) => {
             buy_accelerator(&mut state.accelerator, &mut state.upgrades.coins, *inp)
         }
+        BuyRequest::AcceleratorBoost => buy_accelerator_boost(state, prestige_point_gain),
         BuyRequest::CrystalUpgrade(inp) => buy_crystal_upgrades(&mut state.crystal_upgrades, *inp),
         BuyRequest::CubeUpgrade(inp) => buy_cube_upgrade(
             &mut state.cube_upgrade_levels,
@@ -6638,7 +6724,7 @@ mod tests {
             challengecompletions_4: 0.0,
             challengecompletions_8: 0.0,
         });
-        dispatch_buy(&mut state, &req);
+        dispatch_buy(&mut state, &req, Decimal::zero());
         assert_eq!(state.coin_producers.tiers[0].owned, 100.0);
         assert_eq!(state.achievements.achievements[1], 1);
         assert_eq!(state.achievements.achievements[2], 1);
@@ -9325,6 +9411,106 @@ mod tests {
             (with - without - 15.0).abs() < 1e-9,
             "delta = {}",
             with - without
+        );
+    }
+
+    #[test]
+    fn accelerator_boost_classic_path_buys_one_and_prestige_resets() {
+        let mut s = GameState::default();
+        // upgrades[46] = 0 (default) → classic path; default boost cost = 1e3.
+        s.upgrades.prestige_points = Decimal::from_finite(1e6);
+        s.upgrades.coins = Decimal::from_finite(1e9); // wiped by the prestige reset
+        s.upgrades.upgrades[25] = 1; // in the 21..=40 range the boost clears
+        let events = buy_accelerator_boost(&mut s, Decimal::zero());
+
+        assert_eq!(s.accelerator.accelerator_boost_bought, 1.0); // persists the reset
+        assert_eq!(s.upgrades.prestige_points, Decimal::zero()); // all spent
+                                                                 // The prestige reset ran: coins dropped from 1e9 to the 102-coin base.
+        assert_eq!(s.upgrades.coins, Decimal::from_finite(102.0));
+        assert_eq!(s.upgrades.upgrades[25], 0); // upgrades 21..=40 cleared
+        assert!(!s.accelerator.transcend_no_accelerator);
+        assert!(!s.accelerator.reincarnate_no_accelerator);
+        assert!(events.iter().any(|e| matches!(
+            e,
+            CoreEvent::AcceleratorBoostsPurchased { after, .. } if *after == 1.0
+        )));
+        assert!(events
+            .iter()
+            .any(|e| matches!(e, CoreEvent::ResetPerformed { .. })));
+    }
+
+    #[test]
+    fn accelerator_boost_bulk_path_spends_prestige_without_reset() {
+        let mut s = GameState::default();
+        s.upgrades.upgrades[46] = 1; // bulk path
+        s.upgrades.prestige_points = Decimal::from_finite(1e30);
+        s.upgrades.coins = Decimal::from_finite(1e9);
+        let events = buy_accelerator_boost(&mut s, Decimal::zero());
+
+        assert!(s.accelerator.accelerator_boost_bought > 0.0);
+        assert!(s.upgrades.prestige_points < Decimal::from_finite(1e30)); // spent some
+        assert_eq!(s.upgrades.coins, Decimal::from_finite(1e9)); // no reset
+        assert!(events
+            .iter()
+            .any(|e| matches!(e, CoreEvent::AcceleratorBoostsPurchased { .. })));
+        // The bulk path performs no prestige reset.
+        assert!(!events
+            .iter()
+            .any(|e| matches!(e, CoreEvent::ResetPerformed { .. })));
+    }
+
+    #[test]
+    fn thrift_blessing_pushes_accelerator_boost_cost_threshold() {
+        use crate::state::RUNE_THRIFT;
+        // Buying boost 1002 fires the quadratic kicker when 1002 > 1000*delay.
+        // Default delay = 1 → kicker fires; a thrift blessing lifting delay to 2
+        // pushes the threshold to 2000 → no kicker → a cheaper next cost. This
+        // is the thrift-rune-blessing production wire.
+        let post_buy_cost = |with_blessing: bool| {
+            let mut s = GameState::default();
+            s.accelerator.accelerator_boost_bought = 1001.0;
+            s.accelerator.accelerator_boost_cost = Decimal::from_finite(1e3);
+            s.upgrades.prestige_points = Decimal::from_finite(1e6); // affords the 1e3 gate
+            if with_blessing {
+                // power = blessing.level * rune.level * 1 = 1e6 → delay = 2.
+                s.runes.rune_blessing_levels[RUNE_THRIFT] = 1e6;
+                s.runes.rune_levels[RUNE_THRIFT] = 1.0;
+            }
+            let _ = buy_accelerator_boost(&mut s, Decimal::zero());
+            s.accelerator.accelerator_boost_cost
+        };
+        let cost_no_blessing = post_buy_cost(false); // delay 1 → kicker fires
+        let cost_with_blessing = post_buy_cost(true); // delay 2 → no kicker
+        assert!(
+            cost_no_blessing > cost_with_blessing,
+            "thrift blessing should lower the post-buy boost cost"
+        );
+    }
+
+    #[test]
+    fn tack_dispatches_accelerator_boost_action() {
+        let mut state = GameState::default();
+        state.upgrades.upgrades[46] = 1; // bulk path (no reset side effects)
+        state.upgrades.prestige_points = Decimal::from_finite(1e30);
+
+        let mut input = TackInput {
+            dt: 0.025,
+            ..TackInput::default()
+        };
+        input
+            .player_actions
+            .push(PlayerAction::Buy(BuyRequest::AcceleratorBoost));
+
+        let output = tack(&mut state, &input);
+
+        assert!(state.accelerator.accelerator_boost_bought > 0.0);
+        assert!(
+            output
+                .events
+                .iter()
+                .any(|e| matches!(e, CoreEvent::AcceleratorBoostsPurchased { .. })),
+            "expected AcceleratorBoostsPurchased, got {:?}",
+            output.events
         );
     }
 

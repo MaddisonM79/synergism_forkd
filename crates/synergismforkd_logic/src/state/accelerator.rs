@@ -29,9 +29,12 @@ pub struct AcceleratorState {
     pub accelerator_bought: f64,
     /// `player.acceleratorBoostBought` — accelerator-boosts purchased.
     /// Feeds `calculate_total_accelerator_boost` (the `bought + free`
-    /// total). Defaults to 0; set by the (not-yet-ported) buy-boost
-    /// action.
+    /// total). Set by [`crate::tick`]'s accelerator-boost buy.
     pub accelerator_boost_bought: f64,
+    /// `player.acceleratorBoostCost` — running `prestigePoints` cost of the
+    /// next accelerator boost. Grown incrementally by the pre-upgrade buy
+    /// path and snapped to the closed form by the bulk path.
+    pub accelerator_boost_cost: Decimal,
     /// Cost of the next accelerator (cached so the UI can render without
     /// recomputing).
     pub accelerator_cost: Decimal,
@@ -51,6 +54,7 @@ impl Default for AcceleratorState {
         Self {
             accelerator_bought: 0.0,
             accelerator_boost_bought: 0.0,
+            accelerator_boost_cost: Decimal::from_finite(1e3),
             accelerator_cost: Decimal::zero(),
             prestige_no_accelerator: true,
             transcend_no_accelerator: true,
