@@ -15,12 +15,9 @@
 //!
 //! **Deferred families** (each needs an unported prerequisite, all dormant at
 //! default): the **ant-upgrade** autobuyer (its 16 per-upgrade `autobuy()`
-//! conditions are distinct unported achievement rewards / level milestones),
-//! the **talisman** autobuyer (`buyTalismanLevelToRarityIncrease` is a
-//! rarity-target purchase loop — `levelsUntilRarityIncrease` + the budget /
-//! affordability walk — not the single-level `buy_talisman_level`), and the
-//! **tesseract** autobuyer (needs the `resetToggleModes.ascension` mode, absent
-//! from the Rust schema, plus the budget-driven multi-building purchase).
+//! conditions are distinct unported achievement rewards / level milestones).
+//! The **talisman** autobuyer (Family 11, `buyTalismanLevelToRarityIncrease`)
+//! and the **tesseract** autobuyer (Family 12) are now wired.
 
 use crate::events::{ProducerType, UpgradeTier};
 use crate::mechanics::accelerators::BuyAcceleratorInput;
@@ -48,6 +45,7 @@ use crate::mechanics::rune_effects::{
 use crate::mechanics::upgrades::{buy_upgrades, BuyUpgradeInput};
 use crate::state::runes::{RUNE_PRISM, RUNE_THRIFT};
 use crate::state::{BuyAmount, GameState};
+use synergismforkd_bignum::Decimal;
 
 use super::{dispatch_buy, AutomationPre, BuyRequest, TickOutput};
 
@@ -160,6 +158,9 @@ pub(crate) fn run_auto_buy(state: &mut GameState, pre: &AutomationPre, output: &
             output.events.extend(dispatch_buy(state, &req, ppg));
         }
     }
+
+    // ── Family 11: talismans (buyTalismanLevelToRarityIncrease) ──────
+    talisman_autobuyer(state, output, ppg);
 
     // ── Family 13 (producers + masteries): ant autobuyers ────────────
     // Gated on the ant autobuy toggles + getAchievementReward('antAutobuyers').
@@ -417,5 +418,134 @@ fn multiplier_input(state: &GameState) -> BuyMultiplierInput {
         ),
         in_transcension_challenge_4: state.challenges.current_transcension_challenge == 4,
         in_reincarnation_challenge_8: state.challenges.current_reincarnation_challenge == 8,
+    }
+}
+
+/// `buyTalismanLevelToRarityIncrease(t, true)` for every talisman — updateAll's
+/// talisman autobuyer (`Synergism.ts:4286`). Gated on `auto_fortify_toggle` +
+/// (`researches[130] > 0 || researches[135] > 0`). For each talisman it buys
+/// single levels toward the next rarity tier
+/// ([`levels_until_talisman_rarity_increase`]) while affordable — `dispatch_buy`
+/// returns no events when a level is unaffordable or the cap binds, ending the
+/// loop. Inert at default (`auto_fortify_toggle` false).
+fn talisman_autobuyer(state: &mut GameState, output: &mut TickOutput, ppg: Decimal) {
+    use crate::mechanics::talisman_costs::talisman_costs_for_level;
+    use crate::mechanics::talisman_levels::{
+        levels_until_talisman_rarity_increase, BuyTalismanLevelInput,
+        LevelsUntilTalismanRarityIncreaseInput, TALISMAN_MAX_LEVELS,
+    };
+
+    if !state.automation.auto_fortify_toggle {
+        return;
+    }
+    if !(state.researches.researches[130] > 0.0 || state.researches.researches[135] > 0.0) {
+        return;
+    }
+    let universal = universal_talisman_level_cap_increase(state);
+    for (t, &max_level) in TALISMAN_MAX_LEVELS.iter().enumerate() {
+        let level_cap = max_level + talisman_level_cap_increase(state, t, universal);
+        let levels_to_buy =
+            levels_until_talisman_rarity_increase(&LevelsUntilTalismanRarityIncreaseInput {
+                level: state.talismans.talisman_levels[t],
+                max_level,
+                current_rarity: state.talismans.talisman_rarity[t],
+                level_cap,
+            });
+        if levels_to_buy <= 0.0 {
+            continue;
+        }
+        // Bound by levelsToBuy; the dispatch ends the loop early (no events)
+        // once a level is unaffordable or `level_cap` binds.
+        for _ in 0..(levels_to_buy as u64) {
+            let level = state.talismans.talisman_levels[t];
+            let req = BuyRequest::TalismanLevel(BuyTalismanLevelInput {
+                index: t,
+                costs: talisman_costs_for_level(t, level),
+                level_cap,
+            });
+            let events = dispatch_buy(state, &req, ppg);
+            if events.is_empty() {
+                break;
+            }
+            output.events.extend(events);
+        }
+    }
+}
+
+/// `universalTalismanMaxLevelIncreasers()` (`Talismans.ts`) — the talisman
+/// level-cap bonus shared by most talismans. `0` at the default state.
+/// (`taxmanLastStand` talismanFreeLevel is deferred — a singularity challenge,
+/// inert until entered.)
+fn universal_talisman_level_cap_increase(state: &GameState) -> f64 {
+    use crate::mechanics::octeracts::{
+        octeract_talisman_level_cap_1_effect, octeract_talisman_level_cap_2_effect,
+        octeract_talisman_level_cap_3_effect, octeract_talisman_level_cap_4_effect,
+    };
+    use crate::state::octeract_upgrades::{
+        OCTERACT_TALISMAN_LEVEL_CAP_1, OCTERACT_TALISMAN_LEVEL_CAP_2,
+        OCTERACT_TALISMAN_LEVEL_CAP_3, OCTERACT_TALISMAN_LEVEL_CAP_4,
+    };
+    let oct = |i: usize| {
+        state.octeract_upgrades.upgrades[i].level + state.octeract_upgrades.upgrades[i].free_level
+    };
+    6.0 * calc_ecc(
+        ChallengeType::Ascension,
+        state.challenges.challenge_completions[13],
+    ) + (state.researches.researches[200] / 400.0).floor()
+        + octeract_talisman_level_cap_1_effect(oct(OCTERACT_TALISMAN_LEVEL_CAP_1))
+        + octeract_talisman_level_cap_2_effect(oct(OCTERACT_TALISMAN_LEVEL_CAP_2))
+        + octeract_talisman_level_cap_3_effect(oct(OCTERACT_TALISMAN_LEVEL_CAP_3))
+        + octeract_talisman_level_cap_4_effect(oct(OCTERACT_TALISMAN_LEVEL_CAP_4))
+}
+
+/// Per-talisman `levelCapIncrease()` (`Talismans.ts`): cookieGrandma `+54` /
+/// horseShoe `+88` (constants), achievement = the `achievementTalismanEnhancement`
+/// level milestone, everything else the universal increaser. The
+/// metaphysics/plastic/mortuus custom extras are deferred (0/small at the
+/// reachable state).
+fn talisman_level_cap_increase(state: &GameState, talisman: usize, universal: f64) -> f64 {
+    use crate::state::{TALISMAN_ACHIEVEMENT, TALISMAN_COOKIE_GRANDMA, TALISMAN_HORSE_SHOE};
+    match talisman {
+        TALISMAN_COOKIE_GRANDMA => 54.0,
+        TALISMAN_HORSE_SHOE => 88.0,
+        TALISMAN_ACHIEVEMENT => get_level_milestone(
+            LevelMilestoneKey::AchievementTalismanEnhancement,
+            state.level.level,
+        ),
+        _ => universal,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn talisman_autobuyer_levels_toward_rarity_target() {
+        let mut state = GameState::default();
+        state.automation.auto_fortify_toggle = true;
+        state.researches.researches[130] = 1.0; // gate
+                                                // Exemption (idx 0) at rarity 1 (recompute runs earlier in the real
+                                                // tick; set directly since we exercise the autobuyer in isolation).
+        state.talismans.talisman_rarity[0] = 1.0;
+        state.talismans.talisman_shards = 1e9;
+        state.talismans.common_fragments = 1e9;
+        let mut output = TickOutput::default();
+        talisman_autobuyer(&mut state, &mut output, Decimal::zero());
+        // rarity 1, maxLevel 180 ⇒ buys toward ceil(180/6)=30 levels.
+        assert!(state.talismans.talisman_levels[0] > 0.0);
+        assert!(!output.events.is_empty());
+    }
+
+    #[test]
+    fn talisman_autobuyer_inert_without_toggle() {
+        let mut state = GameState::default();
+        state.researches.researches[130] = 1.0;
+        state.talismans.talisman_rarity[0] = 1.0;
+        state.talismans.talisman_shards = 1e9;
+        let mut output = TickOutput::default();
+        talisman_autobuyer(&mut state, &mut output, Decimal::zero());
+        assert_eq!(state.talismans.talisman_levels[0], 0.0);
+        assert!(output.events.is_empty());
     }
 }

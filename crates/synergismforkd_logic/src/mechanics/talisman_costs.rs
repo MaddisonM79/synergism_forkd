@@ -128,6 +128,41 @@ pub fn exponential_cost_progression(
     }
 }
 
+/// Per-talisman cost map for the *next* level — dispatches the legacy
+/// `talismans[t].costs(baseMult, level)` data table (Talismans.ts): the regular
+/// (cubic) progression for talismans 0-6 (exemption..plastic), exponential for
+/// 7-10 (wowSquare/achievement/cookieGrandma/horseShoe). Base multipliers + the
+/// exponential ratios are the per-talisman constants. Used by the talisman
+/// autobuyer to evaluate [`buy_talisman_level`](super::talisman_levels::buy_talisman_level)'s
+/// `costs` input. Index via the `TALISMAN_*` constants.
+#[must_use]
+pub fn talisman_costs_for_level(talisman: usize, level: f64) -> TalismanCraftCosts {
+    let base = |m: f64| Decimal::from_finite(m);
+    let base_exp = |e: f64| Decimal::from_mantissa_exponent(1.0, e);
+    match talisman {
+        0 => regular_cost_progression(base(1.0), level),
+        1 => regular_cost_progression(base(10.0), level),
+        2 => regular_cost_progression(base(1e4), level),
+        3 => regular_cost_progression(base(1e8), level),
+        4 => regular_cost_progression(base(1e16), level),
+        5 => regular_cost_progression(base(100.0), level),
+        6 => regular_cost_progression(base(1e5), level),
+        7 => exponential_cost_progression(base(1e5), level, 2.0),
+        8 => exponential_cost_progression(base(1e30), level, 10.0),
+        9 => exponential_cost_progression(base_exp(1000.0), level, 1e8), // baseMult 1e1000
+        10 => exponential_cost_progression(base_exp(1200.0), level, 1e5), // baseMult 1e1200
+        _ => TalismanCraftCosts {
+            shard: Decimal::zero(),
+            common_fragment: Decimal::zero(),
+            uncommon_fragment: Decimal::zero(),
+            rare_fragment: Decimal::zero(),
+            epic_fragment: Decimal::zero(),
+            legendary_fragment: Decimal::zero(),
+            mythical_fragment: Decimal::zero(),
+        },
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

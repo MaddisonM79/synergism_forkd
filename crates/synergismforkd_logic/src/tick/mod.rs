@@ -1559,23 +1559,9 @@ fn talisman_is_unlocked(state: &GameState, t: usize) -> bool {
 /// bonus) read this tick's value. Locked talismans collapse to rarity 0; an
 /// unlocked talisman is at least rarity 1 even at level 0.
 fn recompute_talisman_rarities(state: &mut GameState) {
-    use crate::mechanics::talisman_levels::{compute_talisman_rarity, ComputeTalismanRarityInput};
-    /// Per-talisman raw `maxLevel` (the data-table constant, **not** the cap
-    /// with `levelCapIncrease`). Drives the rarity-tier ratios. From the
-    /// legacy `talismans` data table.
-    const TALISMAN_MAX_LEVELS: [f64; TALISMAN_COUNT] = [
-        180.0, // exemption
-        180.0, // chronos
-        180.0, // midas
-        180.0, // metaphysics
-        180.0, // polymath
-        180.0, // mortuus
-        180.0, // plastic
-        210.0, // wowSquare
-        40.0,  // achievement
-        6.0,   // cookieGrandma
-        12.0,  // horseShoe
-    ];
+    use crate::mechanics::talisman_levels::{
+        compute_talisman_rarity, ComputeTalismanRarityInput, TALISMAN_MAX_LEVELS,
+    };
     for (t, &max_level) in TALISMAN_MAX_LEVELS.iter().enumerate() {
         let is_unlocked = talisman_is_unlocked(state, t);
         state.talismans.talisman_rarity[t] =
