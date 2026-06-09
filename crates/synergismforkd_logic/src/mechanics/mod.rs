@@ -18,6 +18,7 @@ pub mod ant_sacrifice_rewards;
 pub mod ant_upgrade_levels;
 pub mod ant_upgrades;
 pub mod ascensions;
+pub mod auto_upgrades;
 pub mod blueberry_upgrades;
 pub mod calculate;
 pub mod campaign_token_rewards;
