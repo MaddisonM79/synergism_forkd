@@ -24,6 +24,7 @@ pub mod campaign_token_rewards;
 pub mod challenge_15_rewards;
 pub mod challenges;
 pub mod coin_production;
+pub mod constant_upgrades;
 pub mod corruptions;
 pub mod crystal_and_building_power;
 pub mod crystal_upgrades;

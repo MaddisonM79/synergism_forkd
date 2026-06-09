@@ -419,6 +419,19 @@ pub enum CoreEvent {
         /// `wow_tesseracts` removed from the player's balance.
         spent: f64,
     },
+    /// One ascension constant upgrade gained levels (`buyConstantUpgrades`).
+    /// `spent` is in ascend shards — `Decimal::zero()` on the free autobuyer
+    /// path (`researches[175] > 0`).
+    ConstantUpgradePurchased {
+        /// Constant-upgrade index, `1..=10`.
+        index: u8,
+        /// Level before the purchase.
+        before: f64,
+        /// Level after the purchase.
+        after: f64,
+        /// Ascend shards removed from the player's balance (zero when free).
+        spent: Decimal,
+    },
     /// An achievement group should be checked/awarded. The UI tier maps
     /// the group identifier to its `awardAchievementGroup()` call.
     AchievementGroupAwarded {

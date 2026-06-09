@@ -41,6 +41,7 @@ use crate::mechanics::ant_producers::{buy_ant_producer, BuyAntProducerInput};
 use crate::mechanics::ant_upgrades::{buy_ant_upgrade, BuyAntUpgradeInput};
 use crate::mechanics::blueberry_upgrades::{buy_ambrosia_upgrade, BuyAmbrosiaUpgradeInput};
 use crate::mechanics::challenge_15_rewards;
+use crate::mechanics::constant_upgrades::{buy_constant_upgrade, BuyConstantUpgradeInput};
 use crate::mechanics::crystal_upgrades::{buy_crystal_upgrades, BuyCrystalUpgradesInput};
 use crate::mechanics::cube_upgrades::{buy_cube_upgrade, BuyCubeUpgradeInput};
 use crate::mechanics::global_multipliers::{
@@ -388,6 +389,9 @@ pub enum BuyRequest {
     ParticleBuilding(BuyParticleBuildingInput),
     /// Routes to [`buy_tesseract_building`].
     TesseractBuilding(BuyTesseractBuildingInput),
+    /// Routes to [`buy_constant_upgrade`] — ascension constant upgrade `i`,
+    /// paid in `ascendShards` (free when `researches[175] > 0`).
+    ConstantUpgrade(BuyConstantUpgradeInput),
     /// Routes to [`buy_max`] — buy-as-many-as-affordable across the
     /// producer family selected by `input.producer_type`.
     ProducerMax(BuyMaxInput),
@@ -6565,6 +6569,15 @@ fn dispatch_buy(
         BuyRequest::TesseractBuilding(inp) => {
             buy_tesseract_building(&mut state.tesseract_buildings, *inp)
         }
+        BuyRequest::ConstantUpgrade(inp) => {
+            let researches_175 = state.researches.researches[175];
+            buy_constant_upgrade(
+                &mut state.campaigns.constant_upgrades,
+                &mut state.campaigns.ascend_shards,
+                inp.index,
+                researches_175,
+            )
+        }
         BuyRequest::ProducerMax(inp) => match inp.producer_type {
             ProducerType::Coin => {
                 let events = buy_max(&mut state.coin_producers, &mut state.upgrades.coins, *inp);
@@ -9037,6 +9050,26 @@ mod tests {
         let _ = tack(&mut state, &input);
         // Bought at least one of tier-1 Coin producer.
         assert!(state.coin_producers.tiers[0].owned > 0.0);
+    }
+
+    #[test]
+    fn dispatch_buy_routes_constant_upgrade() {
+        let mut state = GameState::default();
+        state.campaigns.ascend_shards = Decimal::from_finite(1e3);
+        // researches[175] == 0 -> the buy deducts ascend shards.
+        let mut input = TackInput {
+            dt: 0.025,
+            ..TackInput::default()
+        };
+        input
+            .player_actions
+            .push(PlayerAction::Buy(BuyRequest::ConstantUpgrade(
+                BuyConstantUpgradeInput { index: 1 },
+            )));
+        let _ = tack(&mut state, &input);
+        // i=1 (base 1), 1000 shards: toBuy = floor(1 + log10(1000)) = 4.
+        assert_eq!(state.campaigns.constant_upgrades[1], 4.0);
+        assert_eq!(state.campaigns.ascend_shards.to_number(), 0.0);
     }
 
     #[test]
