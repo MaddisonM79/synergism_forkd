@@ -72,6 +72,7 @@ use crate::state::{GameState, RngPurpose, RUNE_COUNT, TALISMAN_COUNT};
 
 mod ant_generation;
 mod ant_sacrifice;
+mod auto_buy;
 mod auto_research;
 mod auto_reset;
 mod automatic_tools;
@@ -6279,6 +6280,10 @@ fn phase_automation(
             },
         );
         output.events.extend(auto_research_events);
+
+        // 5. updateAll autobuyer pass — buy producers / accelerators /
+        //    upgrades / ants / cubes the way the legacy 50 ms loop does.
+        auto_buy::run_auto_buy(state, pre, output);
     }
 
     // ─── Tail (tackTail) — runs unconditionally, even under time-warp
@@ -9098,6 +9103,45 @@ mod tests {
         let _ = tack(&mut state, &input);
         assert_eq!(state.ants.masteries[0].mastery, 1);
         assert_eq!(state.ants.masteries[0].highest_mastery, 1);
+    }
+
+    #[test]
+    fn auto_buy_purchases_coin_producers_when_enabled() {
+        // The idle loop self-purchases once the per-building autobuy toggle is
+        // on and its unlock upgrade is owned — the updateAll autobuyer gap.
+        let mut state = GameState::default();
+        state.automation.toggles[1] = true; // player.toggles[1] — coin tier-1 autobuy
+        state.upgrades.upgrades[81] = 1; // the autobuy-unlock upgrade
+        state.upgrades.coins = Decimal::from_finite(1e6);
+        let input = TackInput {
+            dt: 0.025,
+            ..TackInput::default()
+        };
+        let output = tack(&mut state, &input);
+        assert!(state.coin_producers.tiers[0].owned > 0.0);
+        assert!(output
+            .events
+            .iter()
+            .any(|e| matches!(e, CoreEvent::ProducersPurchased { .. })));
+    }
+
+    #[test]
+    fn auto_buy_inert_when_toggles_off() {
+        // Default save: every autobuy toggle off → the driver buys nothing and
+        // the tick still emits only the single obtainium-recompute request.
+        let mut state = GameState::default();
+        state.upgrades.coins = Decimal::from_finite(1e30);
+        state.upgrades.upgrades[81] = 1; // unlock owned, but toggle is off
+        let input = TackInput {
+            dt: 0.025,
+            ..TackInput::default()
+        };
+        let output = tack(&mut state, &input);
+        assert_eq!(state.coin_producers.tiers[0].owned, 0.0);
+        assert!(!output
+            .events
+            .iter()
+            .any(|e| matches!(e, CoreEvent::ProducersPurchased { .. })));
     }
 
     #[test]
