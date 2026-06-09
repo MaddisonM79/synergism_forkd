@@ -91,6 +91,9 @@ OOM bonuses; finiteDescent → ascension score.
   the metaphysics amplifier is unreachable until its gate ports; the prism/thrift/SI per-rune coin/upgrade
   free-level aggregators are still unported (only their talisman-bonus term is live). The deprecated
   per-rune `rune_assignments` slots are documented dead state.
-- **Thrift blessing** remains the one carve-out — blocked on the accelerator-boost (`boostAccelerator`)
-  buy (see [core-economy.md](core-economy.md)). Its effect (`accelBoostCostDelay`) is a 1-line wire once
-  that buy lands.
+- **Thrift blessing — ported.** The `boostAccelerator` buy is now ported (`BuyRequest::AcceleratorBoost`:
+  the classic single-boost+prestige-reset path and the bulk solver), and its cost is fed the thrift
+  blessing's `accelBoostCostDelay` (`thrift_rune_blessing_effects(rune_blessing_power(state, RUNE_THRIFT))`)
+  — so the blessing now scales the accelerator-boost cost. This was the node's last carve-out; the whole
+  runes/blessings/spirits/talismans surface is ported. (`awardAchievementGroup('acceleratorBoosts')` is
+  still unported → skipped.)
