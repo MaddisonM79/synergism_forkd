@@ -17,11 +17,11 @@ flowchart LR
 
   offerGen["Offering generators"]:::ported
   offerings["Offerings"]:::ported
-  runes["Runes ×7 +finiteDescent"]:::ported
+  runes["Runes ×10"]:::ported
   runeBless["Rune blessings"]:::ported
-  runeSpirits["Rune spirits"]:::partial
-  talismans["Talismans ×7"]:::partial
-  fragments["Rarity fragments"]:::partial
+  runeSpirits["Rune spirits"]:::ported
+  talismans["Talismans ×11"]:::ported
+  fragments["Rarity fragments"]:::ported
 
   resets["Resets award ↗ reset-cascade"]:::ext
   antSac["Ant sacrifice ↗ ants"]:::ext
@@ -50,11 +50,12 @@ flowchart LR
 
 ## The roster
 
-Seven indexed runes — **speed, duplication, prism, thrift, superiorIntellect, infiniteAscent,
-antiquities** — plus a special **finiteDescent** (ascension-score). Effects (per `Runes.ts`): speed →
-accelerator power + global speed; duplication → multiplier boosts + tax reduction; prism → production
-+ cost divisor; thrift → cost delay + salvage; superiorIntellect → offerings + obtainium;
-infiniteAscent / antiquities → late-game OOM bonuses; finiteDescent → ascension score.
+Ten indexed runes (the current `Runes.ts` roster) — **speed, duplication, prism, thrift,
+superiorIntellect, infiniteAscent, antiquities, horseShoe, finiteDescent, topHat**. The first five
+carry blessings + spirits; the rest are late-game. Effects: speed → accelerator power + global speed;
+duplication → multiplier boosts + tax reduction; prism → production + cost divisor; thrift → cost
+delay + salvage; superiorIntellect → offerings + obtainium; infiniteAscent / antiquities → late-game
+OOM bonuses; finiteDescent → ascension score.
 
 ## Port status
 
@@ -63,8 +64,8 @@ infiniteAscent / antiquities → late-game OOM bonuses; finiteDescent → ascens
 | Offerings | 🟩 Ported | `mechanics/resource_gain.rs` (awarded on every reset tier) |
 | Runes | 🟩 Ported | `state/runes.rs`, `mechanics/rune_*.rs` — effective-level pipeline now wired (was H3) |
 | Rune blessings | 🟩 Ported | `mechanics/rune_blessing_effects.rs` — fed `rune_blessing_power(…)` (was H4) |
-| Rune spirits | 🟨 Partial | `mechanics/rune_spirit_effects.rs` (several inert at default) |
-| Talismans + fragments | 🟨 Partial | `state/talismans.rs`, `mechanics/talisman_*.rs` |
+| Rune spirits | 🟩 Ported | `mechanics/rune_spirit_effects.rs` — all 5 fed `rune_spirit_power(…)`; inert until spirit levels exist (late-game) |
+| Talismans + fragments | 🟩 Ported | `state/talismans.rs`, `mechanics/talisman_*.rs` — rarity recompute + talisman→rune-level bonus live |
 
 ## Porting notes / open bugs
 
@@ -74,6 +75,22 @@ infiniteAscent / antiquities → late-game OOM bonuses; finiteDescent → ascens
   cut before #265.)
 - **H4 — blessing power: fixed (PR #265).** Blessing effects are now fed `rune_blessing_power(state, …)`
   rather than the raw level, so they scale instead of pinning near 1.0×.
-- **Talismans (still partial):** rarity is never recomputed → stays 0, which zeroes all rarity-indexed
-  effects. Rune assignment still maps the legacy-deprecated schema.
-- **Thrift blessing** is blocked on the accelerator-boost buy (see [core-economy.md](core-economy.md)).
+- **Schema grown to the current roster.** State is now 10 runes / 11 talismans (was 7 / 7), matching
+  `Runes.ts` / `Talismans.ts`. Both reset paths (`reset.rs`) are tier-faithful: an ascension keeps the
+  singularity/never-tier runes (infiniteAscent, antiquities, horseShoe, topHat) and talismans
+  (achievement, cookieGrandma, horseShoe).
+- **Rune spirits — ported.** `rune_spirit_power(state, rune) = spirit.level · rune.level · blessing.level
+  · otherSpiritMultipliers` (the `spiritMultiplier` chain, mirroring `rune_blessing_power`) now feeds all
+  five spirit effects (speed/duplication/prism/thrift/SI). Inert at reachable play (spirit levels need
+  late-game unlocks); challenge-15 `spiritBonus` + corruption difficulty mult are neutral 1.0.
+- **Talismans — ported.** Per-tick `recompute_talisman_rarities` drives `talisman_rarity` from level +
+  unlock, lighting the rarity-indexed effects (was frozen 0); `get_rune_bonus_from_all_talismans` ports
+  the talisman→rune-level bonus (11×10 coefficient table + stat-sum + metaphysics/mortuus amplifiers).
+  Residual neutral-defaults: the chronos/midas/metaphysics/polymath/achievement/horseShoe **unlock gates**
+  read unported subsystems (achievement rewards, level milestones, singularity) → those stay locked, so
+  the metaphysics amplifier is unreachable until its gate ports; the prism/thrift/SI per-rune coin/upgrade
+  free-level aggregators are still unported (only their talisman-bonus term is live). The deprecated
+  per-rune `rune_assignments` slots are documented dead state.
+- **Thrift blessing** remains the one carve-out — blocked on the accelerator-boost (`boostAccelerator`)
+  buy (see [core-economy.md](core-economy.md)). Its effect (`accelBoostCostDelay`) is a 1-line wire once
+  that buy lands.
