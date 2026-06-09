@@ -239,6 +239,10 @@ pub struct GoldenQuarksState {
     /// `player.goldenQuarksTimer` — GQ-export accumulator (seconds);
     /// disabled when `export_gq_per_hour == 0`, else clamped to 168 h.
     pub golden_quarks_timer: f64,
+    /// `player.totalQuarksEver` — lifetime quarks across all singularities.
+    /// Accumulated by the singularity reset (`Reset.ts:1143`,
+    /// `+= quarksThisSingularity`); read by the quark statistics line.
+    pub total_quarks_ever: f64,
     /// Per-upgrade state. Indexed by the `GQ_*` constants (index =
     /// legacy `goldenQuarkUpgrades` key order).
     #[serde(with = "BigArray")]
@@ -839,6 +843,7 @@ impl Default for GoldenQuarksState {
             golden_quarks: Decimal::zero(),
             quarks_this_singularity: 0.0,
             golden_quarks_timer: 0.0,
+            total_quarks_ever: 0.0,
             upgrades,
         }
     }
