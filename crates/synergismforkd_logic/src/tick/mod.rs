@@ -858,6 +858,38 @@ fn rune_blessing_power(state: &GameState, rune: usize) -> f64 {
         * other_blessing_multipliers(state)
 }
 
+/// Shared rune-spirit power multiplier — legacy `otherSpiritMultipliers`
+/// (`Statistics.ts:53-60`). The challenge-15 `spiritBonus` reward and the
+/// corruption difficulty multiplier are unported (neutral 1.0 — the latter is
+/// also 1.0 with no corruptions loaded), so this reduces to the four research
+/// terms. Identity at default (all researches 0, not inside an ascension).
+fn other_spirit_multipliers(state: &GameState) -> f64 {
+    let research = &state.researches.researches;
+    let in_ascension = state.challenges.current_ascension_challenge != 0;
+    (1.0 + 8.0 * research[164] / 100.0)
+        * if research[165] > 0.0 && in_ascension {
+            2.0
+        } else {
+            1.0
+        }
+        * (1.0 + 0.15 * (state.talismans.legendary_fragments + 1.0).log10() * research[189])
+        * (1.0 + 2.0 * research[194] / 100.0)
+}
+
+/// Rune-spirit power (legacy `getRuneSpiritPower` × `spiritMultiplier`,
+/// `RuneSpirits.ts:180-183` / `Statistics.ts:62-68`):
+/// `spirit.level · (rune.level + freeLevels()) · blessing.level ·
+/// otherSpiritMultipliers()`. Mirrors [`rune_blessing_power`] with the extra
+/// spirit-level factor; `freeLevels` is deferred (neutral 0, as there). Spirit
+/// levels exist only for the first five runes. Identity at default (spirit
+/// level 0 → power 0).
+fn rune_spirit_power(state: &GameState, rune: usize) -> f64 {
+    state.runes.rune_spirit_levels[rune]
+        * state.runes.rune_levels[rune]
+        * state.runes.rune_blessing_levels[rune]
+        * other_spirit_multipliers(state)
+}
+
 /// Build the shared achievement-reward input from `&GameState` — the
 /// earned-flag array plus the cross-state values the reward formulas
 /// read (coin-producer owned counts, prestige points).
@@ -1090,14 +1122,18 @@ fn compute_global_multipliers_pre(state: &GameState) -> GlobalMultipliersPreEval
         calculate_building_power_coin_multiplier(building_power, total_coin_owned);
 
     // ─── Crystal coin multiplier (prestige-shards production) ─────────────
-    // `prism_spirit_crystal_caps` needs rune-spirit power (the unported
-    // `spiritMultiplier` chain); prism spirit level is 0 in current play,
-    // so the additive cap contribution is 0.
+    // `crystalCaps = getRuneSpiritEffect('prism').crystalCaps` — an additive
+    // cap bonus driven by the prism rune-spirit power. Identity (0) at default
+    // (prism spirit level 0 → power 0).
     let crystal_upgrade_4_max_exp =
         crystal_upgrade_4_max_exponent(&CrystalUpgrade4MaxExponentInput {
             research_129: state.researches.researches[129],
             common_fragments: Decimal::from_finite(state.talismans.common_fragments),
-            prism_spirit_crystal_caps: 0.0,
+            prism_spirit_crystal_caps:
+                crate::mechanics::rune_spirit_effects::prism_rune_spirit_effects(rune_spirit_power(
+                    state, RUNE_PRISM,
+                ))
+                .crystal_caps,
         });
     let crystal_exponent = calculate_crystal_exponent(&CalculateCrystalExponentInput {
         crystal_upgrade_3_max_exponent: crystal_upgrade_4_max_exp,
@@ -1718,7 +1754,10 @@ fn compute_global_speed_mult_pre(state: &GameState) -> f64 {
         1.0 + 0.006 * researches[181],
         1.0 + 0.003 * researches[196],
         speed_rune_blessing_effects(rune_blessing_power(state, RUNE_SPEED)).global_speed,
-        1.0, // speed spirit: effective spirit power unported → 1.0
+        crate::mechanics::rune_spirit_effects::speed_rune_spirit_effects(rune_spirit_power(
+            state, RUNE_SPEED,
+        ))
+        .global_speed,
         chronos_cube,
         1.0 + cube_upgrades[CUBE_UPGRADE_2X8] / 5.0,
         mortuus_ant_upgrade_effect(true_ant_level(state, ANT_UPGRADE_MORTUUS)).global_speed,
@@ -2594,7 +2633,7 @@ fn compute_cube_multiplier(
         wow_cubes_ant_upgrade_effect(true_ant_level(state, ANT_UPGRADE_WOW_CUBES)),
         (1.0 + cube[1] / 6.0) * (1.0 + cube[11] / 11.0) * (1.0 + 0.4 * cube[30]), // CubeUpgrades
         constant_upgrade_10,
-        duplication_rune_spirit_effects(state.runes.rune_spirit_levels[RUNE_DUPLICATION]).wow_cubes,
+        duplication_rune_spirit_effects(rune_spirit_power(state, RUNE_DUPLICATION)).wow_cubes,
         calculate_cube_multiplier_platonic_blessing(&state.platonic_blessings),
         1.0 + 0.00009 * f64::from(total_corruption_levels) * platonic[1], // Platonic1x1
         antiquities_rune_effects(
@@ -3193,7 +3232,10 @@ fn compute_obtainium(
                 ChallengeType::Ascension,
                 state.challenges.challenge_completions[12],
             ),
-        1.0, // SpiritPower — effective rune-spirit power (spiritMultiplier chain) unported → 1.0
+        crate::mechanics::rune_spirit_effects::superior_intellect_rune_spirit_effects(
+            rune_spirit_power(state, RUNE_SUPERIOR_INTELLECT),
+        )
+        .obtainium,
         // Research6x19 — `1 + 0.03·log4(uncommonFragments + 1)·researches[144]`.
         1.0 + 0.03 * ((uncommon_fragments + 1.0).ln() / 4.0_f64.ln()) * researches[144],
         1.0 + 0.0002 * cube[50], // CubeUpgrade5x10
@@ -3549,13 +3591,18 @@ fn compute_offering_mult(state: &GameState, base_offerings: f64) -> Decimal {
         1.0, // TutorialBonus — campaign subsystem unported → 1.0
         1.0, // CampaignBonus — campaign subsystem unported → 1.0
         1.0 + 0.12 * calc_ecc(ChallengeType::Ascension, cc[12]), // Challenge12
-        1.0, // ThriftSpirit — getRuneSpiritEffect('thrift').offerings; spirit-power chain unported → 1.0
+        // ThriftSpirit — getRuneSpiritEffect('thrift').offerings.
+        crate::mechanics::rune_spirit_effects::thrift_rune_spirit_effects(rune_spirit_power(
+            state,
+            crate::state::RUNE_THRIFT,
+        ))
+        .offerings,
         1.0 + (0.01 / 100.0) * researches[200], // Research8x25
-        1.0 + 0.05 * cube[46], // CubeUpgrade5x6
-        1.0 + (0.02 / 100.0) * cube[50], // CubeUpgrade5x10
-        1.0 + platonic[5], // PlatonicALPHA
-        1.0 + 2.5 * platonic[10], // PlatonicBETA
-        1.0 + 5.0 * platonic[15], // PlatonicOMEGA
+        1.0 + 0.05 * cube[46],                  // CubeUpgrade5x6
+        1.0 + (0.02 / 100.0) * cube[50],        // CubeUpgrade5x10
+        1.0 + platonic[5],                      // PlatonicALPHA
+        1.0 + 2.5 * platonic[10],               // PlatonicBETA
+        1.0 + 5.0 * platonic[15],               // PlatonicOMEGA
         challenge_15_rewards::offering(state.challenges.challenge15_exponent), // Challenge15
         10.0_f64.powf(antiquities_rune_effects(
             state.runes.rune_levels[RUNE_ANTIQUITIES],
@@ -8959,6 +9006,50 @@ mod tests {
         // researches[134] = 10 -> mult 1.69 -> 5 * 1000 * 1.69 = 8450.
         s.researches.researches[134] = 10.0;
         assert!((rune_blessing_power(&s, RUNE_SPEED) - 8450.0).abs() < 1e-9);
+    }
+
+    #[test]
+    fn rune_spirit_power_folds_spirit_rune_and_blessing() {
+        use crate::state::RUNE_SPEED;
+        // power = spirit.level * rune.level * blessing.level * otherSpiritMultipliers.
+        let mut s = GameState::default();
+        s.runes.rune_spirit_levels[RUNE_SPEED] = 5.0;
+        s.runes.rune_levels[RUNE_SPEED] = 1000.0;
+        s.runes.rune_blessing_levels[RUNE_SPEED] = 10.0;
+        // otherSpiritMultipliers = 1 at default -> 5 * 1000 * 10 * 1 = 50_000.
+        assert!((rune_spirit_power(&s, RUNE_SPEED) - 50_000.0).abs() < 1e-6);
+
+        // researches[164] = 25 -> (1 + 8*25/100) = 3.0 -> 50_000 * 3 = 150_000.
+        s.researches.researches[164] = 25.0;
+        assert!((rune_spirit_power(&s, RUNE_SPEED) - 150_000.0).abs() < 1e-6);
+    }
+
+    #[test]
+    fn other_spirit_multipliers_identity_at_default() {
+        let s = GameState::default();
+        assert!((other_spirit_multipliers(&s) - 1.0).abs() < 1e-12);
+    }
+
+    #[test]
+    fn speed_spirit_engages_global_speed_mult() {
+        use crate::state::RUNE_SPEED;
+        // Hold the rune + blessing levels fixed and toggle only the spirit
+        // level, so the delta isolates the speed-spirit wiring.
+        let mut s = GameState::default();
+        s.runes.rune_levels[RUNE_SPEED] = 1000.0;
+        s.runes.rune_blessing_levels[RUNE_SPEED] = 1000.0;
+        let without_spirit = compute_global_speed_mult_pre(&s);
+        // power = 1000 * 1000 * 1000 = 1e9 -> globalSpeed spirit factor = 2.0.
+        s.runes.rune_spirit_levels[RUNE_SPEED] = 1000.0;
+        let with_spirit = compute_global_speed_mult_pre(&s);
+        // The spirit is a clean multiplicative factor on the pre-DR product;
+        // the concave global-speed DR can only shrink it, so the boost is in
+        // (1, 2].
+        assert!(
+            with_spirit > without_spirit,
+            "speed spirit should raise the global-speed mult"
+        );
+        assert!(with_spirit <= 2.0 * without_spirit + 1e-6);
     }
 
     #[test]
