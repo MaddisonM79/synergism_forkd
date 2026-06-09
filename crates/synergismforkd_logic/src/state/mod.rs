@@ -75,8 +75,9 @@ pub use researches::{AutoResearchMode, ResearchesState};
 pub use reset_counters::ResetCountersState;
 pub use rng::{RngPurpose, RngState};
 pub use runes::{
-    RunesState, RUNE_ANTIQUITIES, RUNE_COUNT, RUNE_DUPLICATION, RUNE_FINITE_DESCENT, RUNE_PRISM,
-    RUNE_SPEED, RUNE_SUPERIOR_INTELLECT, RUNE_THRIFT,
+    RunesState, RUNE_ANTIQUITIES, RUNE_COUNT, RUNE_DUPLICATION, RUNE_FINITE_DESCENT,
+    RUNE_HORSE_SHOE, RUNE_INFINITE_ASCENT, RUNE_PRISM, RUNE_SPEED, RUNE_SUPERIOR_INTELLECT,
+    RUNE_THRIFT, RUNE_TOP_HAT,
 };
 pub use shop::{ShopBuyMaxMode, ShopState};
 pub use singularity::{SingularityChallengeState, SingularityState};
