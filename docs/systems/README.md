@@ -34,7 +34,7 @@ porting notes.
 | [runes-talismans.md](runes-talismans.md) | offerings, the 10 runes, blessings, spirits, talismans, fragments | 🟩 |
 | [ants.md](ants.md) | ant producers / masteries / upgrades / sacrifice / crumbs / true-level | 🟩 |
 | [challenges-corruptions.md](challenges-corruptions.md) | challenges 1–15, corruptions, campaign, constants, auto-challenge | 🟩 |
-| [singularity-ambrosia.md](singularity-ambrosia.md) | singularity reset, golden quarks, octeracts, perks; ambrosia / blueberry / red-ambrosia | 🟧 / 🟨 |
+| [singularity-ambrosia.md](singularity-ambrosia.md) | singularity reset, golden quarks, octeracts, perks; ambrosia / blueberry / red-ambrosia | 🟩 mostly |
 | [meta-economy.md](meta-economy.md) | quarks, shop, potions, purchases, codes, achievements, statistics/history | 🟩 mostly |
 | [infrastructure.md](infrastructure.md) | game loop, calculate engine, state schema, events, save, UI, automation, RNG | 🟨 |
 
@@ -60,8 +60,8 @@ flowchart LR
   challenges["Challenges / Corruptions"]:::ported
   ascension["Ascension / Cubes"]:::partial
   hepteracts["Hepteracts / Overflux"]:::partial
-  singularity["Singularity"]:::stub
-  ambrosia["Ambrosia"]:::partial
+  singularity["Singularity"]:::partial
+  ambrosia["Ambrosia"]:::ported
   meta["Quarks / Shop"]:::ported
   achievements["Achievements"]:::ported
 
@@ -103,9 +103,12 @@ fixed in code, the map had simply gone stale:
   levels + extinction divisor) through every ant-production site, not just two.
 
 > **Baseline caveat.** Reflects `main` *after* PR #265 + branch `claude/nifty-colden-ef7278`
-> (PR #269). **No HIGH parity bugs remain open.** Remaining porting work is feature breadth, not
-> bugs: the singularity layer, three deferred autobuyer families, and the `unlocks` schema keys
-> (tracked on their pages).
+> (PR #269), plus branch `claude/close-unmigrated-systems`: the quark multiplier
+> (`calculateQuarkMultiplier`) + blueberry quark/free-levels are ported, the 21 `unlocks` keys are
+> complete, and **the singularity layer is live** (reset + GQ grant + seeded metadata). **No HIGH
+> parity bugs remain open.** Remaining: the three deferred autobuyer families (talisman / ant-upgrade
+> / tesseract — each needs a prerequisite), the singularity elevator triad + challenge entry, and the
+> UI tree.
 
 ## Appendix: full single-canvas map
 

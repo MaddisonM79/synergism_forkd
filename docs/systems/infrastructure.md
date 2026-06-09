@@ -57,7 +57,7 @@ flowchart LR
 |---|---|---|
 | Tick / game loop | 🟩 Mostly | `tick/mod.rs` + `tick/auto_buy.rs` (10/13 `updateAll` autobuyer families self-drive; ant-upgrades / talisman / tesseract deferred — each needs an unported prerequisite) |
 | Calculate engine | 🟩 Ported | `mechanics/calculate.rs`, `math/*` (leaf math faithful; golden-vector coverage thin) |
-| State schema | 🟨 Partial | `state/` (~80%; `unlocks` only 8/21 keys; some rune-blessing type divergence) |
+| State schema | 🟨 Partial | `state/` (~85%; `unlocks` now 21/21 keys; + `total_quarks_ever`; some rune-blessing type divergence) |
 | Events enum | 🟩 Ported | `events/mod.rs` |
 | Save / Import-Export | 🟨 Partial | `crates/synergismforkd_save/` (postcard round-trip + versioned envelope + base64 export/import string + on-load achievement recompute; persistent storage + save-on-tick are host-tier) |
 | UI render | 🟧 Stub | `synergismforkd_ui*` (scaffold) |

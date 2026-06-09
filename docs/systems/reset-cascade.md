@@ -20,7 +20,7 @@ flowchart LR
   transReset["Transcension reset"]:::ported
   reincReset["Reincarnation reset"]:::ported
   ascReset["Ascension reset"]:::ported
-  singReset["Singularity reset · paused"]:::stub
+  singReset["Singularity reset · live"]:::ported
 
   prestigePts["Prestige points"]:::ported
   transPts["Transcend pts · Mythos"]:::ported
@@ -55,7 +55,7 @@ flowchart LR
 | **Transcension** | Transcend points (Mythos) | the above + prestige layer | mythos buildings, crystals, challenges 1–5 |
 | **Reincarnation** | Reincarnation points (Particles) | + transcension layer | particle buildings, obtainium, research, runes, ants, challenges 6–10 |
 | **Ascension** | Wow cubes → platonic cubes, ascend shards, offerings | + reincarnation layer (coins…particles, runes, research) | ascend buildings, challenges 11–15, the whole cube tree |
-| **Singularity** | Golden quarks | essentially everything except persistent shop/GQ unlocks | golden-quark + octeract + ambrosia trees. **Paused in Rust** |
+| **Singularity** | Golden quarks | essentially everything except persistent shop/GQ unlocks | golden-quark + octeract + ambrosia trees. **Live in Rust** |
 
 ## Port status
 
@@ -63,12 +63,14 @@ flowchart LR
 |---|---|---|
 | Prestige / Transcension / Reincarnation | 🟩 Ported | `tick/reset.rs:117-460` |
 | Ascension (reset + `CalcCorruptionStuff` award) | 🟩 Ported | `tick/reset.rs:460-650` |
-| Singularity | 🟧 Stub (paused) | `tick/mod.rs:5600+` — `singularity_count` never increments, so the whole layer is inert |
+| Singularity | 🟩 Ported (live) | `tick/reset.rs::perform_singularity_reset` — increments `singularity_count`, grants golden quarks, rebuilds from a blank save preserving meta |
 
 ## Porting notes
 
 - The reset cascade through **ascension is complete and faithful**, including the corruption-effects
   and extinction divisor used by the ascension award.
-- **Singularity is paused by design**: golden-quark / octeract / perk machinery is ported but never
-  fires because nothing increments `singularity_count`. See [singularity-ambrosia.md](singularity-ambrosia.md).
+- ✅ **Singularity is live**: `perform_singularity_reset` (`ResetRequest::Singularity`, gated on the
+  antiquities rune) grants `calculateGoldenQuarks` and rebuilds the player from `GameState::default()`
+  preserving meta-progression. Auto-climb count advance; elevator triad + challenge entry deferred.
+  See [singularity-ambrosia.md](singularity-ambrosia.md).
 - Counts increment by a flat `+1` rather than `floor(multiplier)` (medium finding **P1.6**).

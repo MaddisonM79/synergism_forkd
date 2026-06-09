@@ -61,7 +61,7 @@ flowchart LR
 
 | System | Status | Rust |
 |---|---|---|
-| Quarks (incl. per-achievement reward) | 🟩 Ported | `state/quarks.rs`, `mechanics/quarks.rs` |
+| Quarks (gain + `calculateQuarkMultiplier`) | 🟩 Ported | `state/quarks.rs`, `mechanics/quarks.rs`, `compute_quark_multiplier` (tick) |
 | Shop upgrades + costs | 🟩 Ported | `mechanics/shop_upgrades.rs`, `shop_costs.rs` |
 | Potions / consumables | 🟩 Ported | `state/shop.rs` |
 | Purchases / cosmetics / codes | ⬜ Absent | monetization + backend parked — see [`BACKEND_API_PLAN.md`](../../BACKEND_API_PLAN.md) |
@@ -80,17 +80,26 @@ flowchart LR
   reincarnation), accelerators/multipliers/acceleratorBoosts, speed-rune level/freeLevel/blessing/
   spirit, constant (ascendShards), antCrumbs, ascensionScore — on top of the pre-existing building /
   point-gain / challenge / sacrifice / no-reset groups.
+- ✅ **Quark multiplier ported.** `compute_quark_multiplier` now assembles `allQuarkStats`
+  (`Statistics.ts:1233`) and caches it into `quark_bonus` each tick as `(mult − 1)·100` — it was
+  **never written** (always `0` ⇒ every quark gain credited at ×1). ~28 terms ported (achievements
+  level, talisman, platonic, powder, singularity count, octeract bonuses, GQ packs, ambrosia incl. the
+  blueberry quark upgrades, viscount, cash-grab, first-singularity); ~7 left at identity and documented
+  (`quarkGain` achievement reward, c15 quark reward + quark-hepteract gate, shopPanthema, infiniteAscent,
+  campaign, patreon).
 - **Still blocked** (each needs an unported prerequisite): `campaignTokens` (the running token total
-  isn't a Rust state field), `singularityCount` (singularity paused), `addCodesUsed` (UI-tier code
-  array), progressive slots 8–11 (exalt rewardAP + upgrade `maxLevel` tracking unported). The
-  `getAchievementReward('quarkGain')` reward-reader is blocked on the unported quark-multiplier
-  assembler (`allQuarkStats` → `quark_bonus` is currently a static cache).
+  isn't a Rust state field), `addCodesUsed` (UI-tier code array), progressive slots 8–11 (exalt
+  rewardAP + upgrade `maxLevel` tracking unported). `singularityCount` now increments (the layer is
+  live — see [singularity-ambrosia](singularity-ambrosia.md)), so its award group is unblocked; the
+  `getAchievementReward('quarkGain')` term is the one quark-multiplier identity still pending a
+  per-reward port.
 - **Shop: ~50 of 83 effects are wired** (chronometer→ascension-speed, season-pass→cube-mults,
   offering/obtainium EX + cashGrab, the cube-blessing/quark-from-opening paths, costs + potions — all
   done). The remaining ~33 are mostly **blocked or out of reachable scope**: the quark-conversion
-  family (`cubeToQuark*`/`improveQuarkHept*` — the `allQuarkStats`/`quark_bonus` multiplier is
-  unported), the `calculator` family (UI add-codes), daily/powder/warp + `improved_daily` (host-tier
-  daily reset), `shop_singularity_*` (paused), `infinite_shop_upgrades` (unported shop-tablet sum).
+  family (`cubeToQuark*`/`improveQuarkHept*` feed the quark-hepteract term that
+  `compute_quark_multiplier` still leaves neutral pending its c15 gate), the `calculator` family (UI
+  add-codes), daily/powder/warp + `improved_daily` (host-tier daily reset), `shop_singularity_*`,
+  `infinite_shop_upgrades` (unported shop-tablet sum).
   `constant_ex` is now wired. A few minor reachable wires remain (`challenge_tome` needs its
   research + c10-gating component; `obtainium_auto`).
 - The **bonus-level composition** (effective shop level = raw `shopUpgrades[key]` + topHat-rune /
