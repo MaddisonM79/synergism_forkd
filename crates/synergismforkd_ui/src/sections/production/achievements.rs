@@ -14,11 +14,38 @@ use synergismforkd_logic::state::achievements::ACHIEVEMENTS_LEN;
 use synergismforkd_logic::PlayerAction;
 
 use crate::bridge::{use_bridge, use_slice};
-use crate::components::{Num, Progress};
+use crate::components::{Collapsible, Num, Progress};
 use crate::format::format_value;
 use crate::i18n::t;
 
 use super::achievements_text;
+
+/// Discrete Synergism-Level milestone unlocks: `(level, name key)`, in
+/// ascending order. These mirror the logic tier's `LevelMilestoneKey`
+/// level gates (`level_milestones.rs`) — the level at which each feature
+/// unlocks. Continuous per-level rewards (salvage/quark/offering scaling)
+/// aren't listed; they have no discrete unlock event.
+const LEVEL_MILESTONES: &[(u32, &str)] = &[
+    (5, "achievements.milestone.offering_timer"),
+    (6, "achievements.milestone.crystal_autobuy_1"),
+    (7, "achievements.milestone.auto_prestige"),
+    (9, "achievements.milestone.crystal_autobuy_2"),
+    (12, "achievements.milestone.crystal_autobuy_3"),
+    (15, "achievements.milestone.crystal_autobuy_4"),
+    (20, "achievements.milestone.crystal_autobuy_5"),
+    (20, "achievements.milestone.speed_rune"),
+    (40, "achievements.milestone.duplication_rune"),
+    (60, "achievements.milestone.prism_rune"),
+    (65, "achievements.milestone.ant_speed_2"),
+    (80, "achievements.milestone.thrift_rune"),
+    (80, "achievements.milestone.wow_cubes_auto"),
+    (80, "achievements.milestone.ascension_score_auto"),
+    (100, "achievements.milestone.si_rune"),
+    (100, "achievements.milestone.achievement_talisman"),
+    (130, "achievements.milestone.rune_autobuy_dx"),
+    (160, "achievements.milestone.talisman_enhancement"),
+    (225, "achievements.milestone.mortuus_2"),
+];
 
 /// Total achievement points available (sum of the per-achievement table).
 fn max_points() -> f64 {
@@ -66,6 +93,7 @@ pub fn Achievements() -> Element {
             }
         }
         LevelBar { points: points() }
+        LevelRewards { points: points() }
         AchievementDetail { focused: focused(), earned: focused().map(|i| earned()[i] != 0) }
         div { class: "sf-ach-grid",
             for i in 0..ACHIEVEMENTS_LEN {
@@ -113,6 +141,53 @@ fn LevelBar(points: f64) -> Element {
                 }
             }
             Progress { fraction }
+            NextReward { level }
+        }
+    }
+}
+
+/// The next milestone unlock above the current level (if any).
+#[component]
+fn NextReward(level: f64) -> Element {
+    let next = LEVEL_MILESTONES
+        .iter()
+        .find(|&&(lv, _)| f64::from(lv) > level);
+    rsx! {
+        if let Some(&(lv, key)) = next {
+            div { class: "sf-ach-next-reward",
+                span { class: "sf-ach-req-label", {t("achievements.next_reward")} ": " }
+                span { class: "sf-ach-next-lv", {t("achievements.level")} " {lv}" }
+                " — "
+                {t(key)}
+            }
+        }
+    }
+}
+
+/// Collapsible roadmap of all level-milestone unlocks — earned ones lit,
+/// upcoming ones muted. Doubles as "what previous levels unlocked".
+#[component]
+fn LevelRewards(points: f64) -> Element {
+    let level = achievement_level_from_points(points);
+    rsx! {
+        Collapsible { title: t("achievements.level_rewards").to_string(), open: false,
+            div { class: "sf-ach-rewards-list",
+                for (i, &(lv, key)) in LEVEL_MILESTONES.iter().enumerate() {
+                    {
+                        let unlocked = level >= f64::from(lv);
+                        let cls = if unlocked { "sf-ach-reward-row unlocked" } else { "sf-ach-reward-row" };
+                        rsx! {
+                            div { key: "{i}", class: cls,
+                                span { class: "sf-ach-reward-lv", {t("achievements.level")} " {lv}" }
+                                span { class: "sf-ach-reward-name", {t(key)} }
+                                span { class: "sf-ach-reward-state",
+                                    if unlocked { "✓" } else { "🔒" }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
 }

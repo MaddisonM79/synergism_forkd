@@ -79,6 +79,60 @@
   font-variant-numeric: tabular-nums;
 }
 
+.sf-ach-next-reward {
+  margin-top: var(--space-2);
+  font-size: var(--fs-sm);
+}
+
+.sf-ach-next-lv {
+  color: var(--accent-production);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Level-rewards roadmap list. */
+.sf-ach-rewards-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  max-width: 560px;
+}
+
+.sf-ach-reward-row {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-3);
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-sm);
+  font-size: var(--fs-sm);
+  color: var(--text-muted);
+}
+
+.sf-ach-reward-row.unlocked {
+  color: var(--text);
+}
+
+.sf-ach-reward-lv {
+  min-width: 96px;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-muted);
+}
+
+.sf-ach-reward-row.unlocked .sf-ach-reward-lv {
+  color: var(--accent-production);
+}
+
+.sf-ach-reward-name {
+  flex: 1;
+}
+
+.sf-ach-reward-state {
+  font-size: var(--fs-xs);
+}
+
+.sf-ach-reward-row.unlocked .sf-ach-reward-state {
+  color: var(--ok);
+}
+
 .sf-ach-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(34px, 1fr));
