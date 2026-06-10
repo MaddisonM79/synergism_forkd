@@ -63,6 +63,9 @@ web-sys = { version = "0.3", features = [
     "Clipboard",
 ] }
 wasm-bindgen-futures = "0.4"
+# Panics print a real message + Rust backtrace to the console instead of
+# an opaque `unreachable` trap.
+console_error_panic_hook = "0.1"
 # UiPrefs round-trip through localStorage as JSON.
 serde_json = { workspace = true }
 

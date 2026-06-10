@@ -12,5 +12,11 @@ asset_dir = "assets"
 title = "Synergism Forkd"
 
 [web.watcher]
-watch_path = ["src", "../synergismforkd_ui/src", "../synergismforkd_ui/assets"]
+watch_path = [
+    "src",
+    "../synergismforkd_ui/src",
+    "../synergismforkd_ui/assets",
+    # en.json is include_str!-embedded by the ui crate
+    "../../assets/translations",
+]
 reload_html = true

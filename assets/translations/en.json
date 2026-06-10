@@ -63,6 +63,7 @@
   "dialogs.cancel": "Cancel",
   "dialogs.confirm_prestige.title": "Prestige?",
   "dialogs.confirm_prestige.body": "Reset your coin progress in exchange for diamonds.",
+  "dialogs.export_fallback.title": "Copy your save (clipboard unavailable)",
   "dialogs.import.title": "Import save",
   "dialogs.import.body": "Paste an exported save string below.",
   "dialogs.hard_reset.title": "Hard reset?",

@@ -40,5 +40,6 @@ pub use save_host::{BootOutcome, SaveHost, SaveStorage, AUTOSAVE_INTERVAL_S, SAV
 /// Mount the app in the browser. Called by the `dx` binary entry (`main.rs`).
 #[cfg(target_arch = "wasm32")]
 pub fn run() {
+    console_error_panic_hook::set_once();
     dioxus::launch(root::WebRoot);
 }

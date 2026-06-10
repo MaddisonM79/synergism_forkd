@@ -6,9 +6,10 @@ use std::time::Duration;
 
 use dioxus::prelude::*;
 use synergismforkd_logic::TackInput;
-use synergismforkd_ui::bridge::{DerivedStats, GameBridge, HostCommand};
+use synergismforkd_ui::bridge::{DerivedStats, DialogKind, DialogRequest, GameBridge, HostCommand};
 use synergismforkd_ui::events_map;
 use synergismforkd_ui::gating::Route;
+use synergismforkd_ui::i18n::t;
 
 use crate::catch_up::{self, CatchUpHandles};
 use crate::platform;
@@ -120,10 +121,21 @@ async fn handle_host_commands(bridge: &GameBridge, host: &mut SaveHost<LocalStor
                     host.export(&mut state, platform::now_ms()).1
                 };
                 match blob {
-                    Some(blob) if platform::clipboard_write(&blob).await => {
-                        bridge.toast_success("toasts.export_ok");
+                    Some(blob) => {
+                        if platform::clipboard_write(&blob).await {
+                            bridge.toast_success("toasts.export_ok");
+                        } else {
+                            // Clipboard denied (permissions / no user
+                            // activation) — surface the blob for manual copy
+                            // instead of just failing.
+                            bridge.open_dialog(DialogRequest {
+                                title: t("dialogs.export_fallback.title").to_string(),
+                                body: blob,
+                                kind: DialogKind::Alert,
+                            });
+                        }
                     }
-                    _ => bridge.toast_warn("toasts.export_fail"),
+                    None => bridge.toast_warn("toasts.export_fail"),
                 }
             }
             HostCommand::ImportSave(blob) => match host.import(&blob, platform::now_ms()) {
@@ -131,8 +143,12 @@ async fn handle_host_commands(bridge: &GameBridge, host: &mut SaveHost<LocalStor
                     let mut state = bridge.state;
                     state.set(new_state);
                     // An earlier-progression import may have regressed
-                    // visibility — re-clamp wherever the player is.
-                    bridge.navigate(*bridge.route.peek());
+                    // visibility — re-clamp wherever the player is. The
+                    // peek guard MUST drop before navigate() writes the
+                    // route signal (inlining it in the call panics with
+                    // AlreadyBorrowed).
+                    let current = *bridge.route.peek();
+                    bridge.navigate(current);
                     bridge.toast_success("toasts.import_ok");
                 }
                 None => bridge.toast_warn("toasts.import_bad"),

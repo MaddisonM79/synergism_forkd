@@ -14,6 +14,7 @@ use synergismforkd_ui as _;
 use synergismforkd_ui_web as _;
 #[cfg(target_arch = "wasm32")]
 mod wasm_dep_silencers {
+    use console_error_panic_hook as _;
     use getrandom as _;
     use gloo_timers as _;
     use js_sys as _;
