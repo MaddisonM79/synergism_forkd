@@ -1472,14 +1472,21 @@ fn compute_update_all_tick_pre(
 /// live state. Runs first in [`phase_global_state`] so the crystal/mythos
 /// exponents (which read `achievement_points`) see the fresh total.
 ///
-/// Neutral-defaulted to `0` (faithful — input not in logic / subsystem inert):
-/// `exalts` (singularity-challenge `rewardAP`, singularity paused) and the
-/// three maxed-upgrade families (`maxLevel` is UI-tier data, `0` in logic, so
-/// "maxed" can't be told apart). They contribute once that data lands.
+/// All 12 slots are live. The `exalts` slot derives each singularity
+/// challenge's `rewardAP` (= `achievementPointValue(completions)`, a getter
+/// in the legacy class) from the tracked completion counts; the three
+/// maxed-upgrade families count `level >= maxLevel` against the seeded GQ
+/// metadata / the static octeract + red-ambrosia max-level tables. Their
+/// legacy `updateValue()` closures return `0`, so the cached value stays `0`
+/// and the points come entirely from live state (`useCachedValue: false`).
 fn update_progressive_achievements(state: &mut GameState) {
     use crate::mechanics::achievement_awards::update_progressive_slot;
     use crate::mechanics::achievement_points as ap;
     use crate::mechanics::ant_reborn_elo::calculate_leaderboard_value;
+    use crate::mechanics::golden_quark_upgrades::count_maxed_golden_quark_upgrades;
+    use crate::mechanics::octeracts::count_maxed_octeract_upgrades;
+    use crate::mechanics::red_ambrosia_upgrades::count_maxed_red_ambrosia_upgrades;
+    use crate::mechanics::singularity_challenges as sc;
     use crate::state::runes::RUNE_COUNT;
 
     // Gather every live value that needs a state read before the `&mut` borrow.
@@ -1500,6 +1507,31 @@ fn update_progressive_achievements(state: &mut GameState) {
     let lifetime_ambrosia = state.ambrosia.lifetime_ambrosia;
     let lifetime_red = state.red_ambrosia.lifetime_red_ambrosia;
     let rarity_sum: f64 = state.talismans.talisman_rarity.iter().sum();
+    // exalts: Σ rewardAP = Σ achievementPointValue(completions) per challenge.
+    let s = &state.singularity;
+    let exalt_ap = ap::exalt_points(&[
+        sc::no_singularity_upgrades_achievement_point_value(s.no_singularity_upgrades.completions),
+        sc::one_challenge_cap_achievement_point_value(s.one_challenge_cap.completions),
+        sc::no_octeracts_achievement_point_value(s.no_octeracts.completions),
+        sc::limited_ascensions_achievement_point_value(s.limited_ascensions.completions),
+        sc::no_ambrosia_upgrades_achievement_point_value(s.no_ambrosia_upgrades.completions),
+        sc::no_quark_upgrades_achievement_point_value(s.no_quark_upgrades.completions),
+        sc::limited_time_achievement_point_value(s.limited_time.completions),
+        sc::sadistic_prequel_achievement_point_value(s.sadistic_prequel.completions),
+        sc::taxman_last_stand_achievement_point_value(s.taxman_last_stand.completions),
+    ]);
+    let gq_maxed_points = ap::maxed_upgrade_family_points(
+        count_maxed_golden_quark_upgrades(&state.golden_quarks),
+        5.0,
+    );
+    let oct_maxed_points = ap::maxed_upgrade_family_points(
+        count_maxed_octeract_upgrades(&state.octeract_upgrades),
+        8.0,
+    );
+    let red_maxed_points = ap::maxed_upgrade_family_points(
+        count_maxed_red_ambrosia_upgrades(&state.red_ambrosia),
+        10.0,
+    );
 
     let ach = &mut state.achievements;
     // useCachedValue: true → score from the cached Math.max value.
@@ -1514,10 +1546,12 @@ fn update_progressive_achievements(state: &mut GameState) {
         ap::reborn_elo_points(leaderboard_elo)
     });
     update_progressive_slot(ach, 4, sing, |_| ap::singularity_count_points(sing));
-    update_progressive_slot(ach, 8, 0.0, |_| 0.0); // exalts — rewardAP untracked (sing paused)
-    update_progressive_slot(ach, 9, 0.0, |_| 0.0); // singularityUpgrades — maxLevel UI-tier
-    update_progressive_slot(ach, 10, 0.0, |_| 0.0); // octeractUpgrades — maxLevel UI-tier
-    update_progressive_slot(ach, 11, 0.0, |_| 0.0); // redAmbrosiaUpgrades — maxLevel UI-tier
+    // Slots 8-11 mirror the legacy `updateValue: () => 0` — live value 0,
+    // points from live state.
+    update_progressive_slot(ach, 8, 0.0, |_| exalt_ap);
+    update_progressive_slot(ach, 9, 0.0, |_| gq_maxed_points);
+    update_progressive_slot(ach, 10, 0.0, |_| oct_maxed_points);
+    update_progressive_slot(ach, 11, 0.0, |_| red_maxed_points);
 }
 
 /// `talismans[t].isUnlocked()` — the per-talisman unlock predicate
@@ -7279,6 +7313,46 @@ mod tests {
         with_hept.hepteracts.quark.bal = 1500.0;
         let ratio = compute_quark_multiplier(&with_hept) / compute_quark_multiplier(&base);
         assert!((ratio - 1.96).abs() < 1e-9);
+    }
+
+    #[test]
+    fn progressive_slots_8_to_11_score_from_live_state() {
+        // Slot 8 (exalts): noSingularityUpgrades rewardAP = 15·completions.
+        let mut s = GameState::default();
+        s.singularity.no_singularity_upgrades.completions = 2.0;
+        // Slot 9 (singularityUpgrades): max one capped GQ upgrade → +5.
+        // GQ_GOLDEN_QUARKS_1 has max_level 15 (seeded metadata).
+        let gq1 = crate::state::golden_quarks::GQ_GOLDEN_QUARKS_1;
+        s.golden_quarks.upgrades[gq1].level = s.golden_quarks.upgrades[gq1].max_level;
+        // Slot 10 (octeractUpgrades): octeractStarter caps at 1 → +8.
+        s.octeract_upgrades.upgrades[crate::state::octeract_upgrades::OCTERACT_STARTER].level = 1.0;
+        // Slot 11 (redAmbrosiaUpgrades): viscount caps at 1 → +10.
+        s.red_ambrosia.upgrades[crate::state::red_ambrosia::RED_AMBROSIA_VISCOUNT].level = 1.0;
+
+        update_progressive_achievements(&mut s);
+        assert_eq!(s.achievements.progressive[8].cached_points, 30.0);
+        assert_eq!(s.achievements.progressive[9].cached_points, 5.0);
+        assert_eq!(s.achievements.progressive[10].cached_points, 8.0);
+        assert_eq!(s.achievements.progressive[11].cached_points, 10.0);
+        assert_eq!(s.achievements.achievement_points, 53.0);
+
+        // Free levels alone don't count a GQ upgrade as maxed (purchased
+        // level only, mirroring `upgrade.level >= upgrade.maxLevel`).
+        let mut free_only = GameState::default();
+        let max = free_only.golden_quarks.upgrades[gq1].max_level;
+        free_only.golden_quarks.upgrades[gq1].free_level = max;
+        update_progressive_achievements(&mut free_only);
+        assert_eq!(free_only.achievements.progressive[9].cached_points, 0.0);
+    }
+
+    #[test]
+    fn progressive_slots_8_to_11_inert_at_default() {
+        let mut s = GameState::default();
+        update_progressive_achievements(&mut s);
+        for slot in 8..=11 {
+            assert_eq!(s.achievements.progressive[slot].cached_points, 0.0);
+        }
+        assert_eq!(s.achievements.achievement_points, 0.0);
     }
 
     #[test]
