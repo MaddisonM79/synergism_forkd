@@ -18,6 +18,8 @@ synergismforkd_bignum = { path = "../synergismforkd_bignum" }
 dioxus = { workspace = true, features = ["lib"] }
 # i18n: en.json is embedded via include_str! and parsed once at startup.
 serde_json = { workspace = true }
+# UiPrefs / Theme round-trip through the host's preferences storage.
+serde = { workspace = true }
 
 [lints]
 workspace = true

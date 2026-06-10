@@ -6,11 +6,11 @@
 //! `wasm-bindgen`, no `web-sys`, no renderer; the shells pick those.
 
 use synergismforkd_common as _;
-use synergismforkd_logic as _;
-// Consumed as modules land (bridge/components); silence until then.
-use dioxus as _;
-use serde_json as _;
 
+pub mod bridge;
 pub mod format;
+pub mod gating;
+pub mod i18n;
+pub mod theme;
 
 pub fn placeholder() {}

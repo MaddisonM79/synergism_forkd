@@ -21,11 +21,12 @@ mod time;
 
 pub use time::format_time_short;
 
+use serde::{Deserialize, Serialize};
 use synergismforkd_bignum::Decimal;
 
 /// Player-selected number notation (a UI preference, persisted by the host —
 /// never part of `GameState`).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 pub enum Notation {
     /// Suffixes to `1e18`, then scientific. The default.
     #[default]
