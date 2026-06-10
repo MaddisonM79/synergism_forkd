@@ -118,6 +118,12 @@ fixed in code, the map had simply gone stale:
 > save wiring** (`ui_web::SaveHost`: localStorage + 5 s autosave + load-on-boot, over a
 > `saved_at_ms`-stamped envelope) — remaining non-UI work is offline-progress catch-up and the
 > parked backend; otherwise the UI tree.
+>
+> **Update 2026-06-10 (UI vertical slice):** the UI tree has STARTED — Dioxus 0.7 (no Tauri;
+> ratified), grouped-nav shell + HUD + design-token themes, our own modern number formatter,
+> playable Buildings (coin family) + saves UI, 20 Hz loop driver, and **offline catch-up is
+> DONE** (`ui_web/src/catch_up.rs`: chunked `time_warp` ticks, 24 h cap, progress dialog).
+> Remaining: the other sections (M2–M6), the desktop shell (M7), and the parked backend.
 
 ## Appendix: full single-canvas map
 
