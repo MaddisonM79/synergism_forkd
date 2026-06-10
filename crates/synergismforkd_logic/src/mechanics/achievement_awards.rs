@@ -798,6 +798,32 @@ pub fn singularity_achievement_check(
     award_threshold_group(ach, highest_singularity_count, SINGULARITY_COUNT)
 }
 
+// ─── Campaign-token group ───────────────────────────────────────────────────
+
+/// `campaignTokens` group — the derived campaign-token total (the legacy
+/// `updateTokens()` awards this group right after recomputing the total).
+const CAMPAIGN_TOKENS: &[ThresholdRow] = &[
+    (426, 10.0, 5.0),
+    (427, 20.0, 10.0),
+    (428, 40.0, 15.0),
+    (429, 80.0, 20.0),
+    (430, 160.0, 25.0),
+    (431, 320.0, 30.0),
+    (432, 1_000.0, 35.0),
+    (433, 2_000.0, 40.0),
+    (434, 4_000.0, 45.0),
+    (435, 9_000.0, 50.0),
+];
+
+/// `campaignTokens` achievement group — awarded from the campaign-token
+/// total (`compute_campaign_tokens`). Returns the count newly awarded.
+pub fn campaign_tokens_achievement_check(
+    ach: &mut AchievementsState,
+    campaign_tokens: f64,
+) -> usize {
+    award_threshold_group(ach, campaign_tokens, CAMPAIGN_TOKENS)
+}
+
 /// Per-run "didn't buy X this run" flags read by the ungrouped no-reset
 /// achievements (the `awardUngroupedAchievement` calls in the legacy
 /// `resetAchievementCheck`). Each starts `true`, is cleared on the matching

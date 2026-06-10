@@ -1679,6 +1679,7 @@ fn phase_global_state(state: &mut GameState) -> AggregatorOutputs {
     } else {
         0.0
     };
+    let campaign_tokens = compute_campaign_tokens(state);
     let awarded = crate::mechanics::achievement_awards::reset_count_achievement_check(
         &mut state.achievements,
         state.reset_counters.prestige_count,
@@ -1706,6 +1707,9 @@ fn phase_global_state(state: &mut GameState) -> AggregatorOutputs {
     ) + crate::mechanics::achievement_awards::singularity_achievement_check(
         &mut state.achievements,
         state.singularity.highest_singularity_count,
+    ) + crate::mechanics::achievement_awards::campaign_tokens_achievement_check(
+        &mut state.achievements,
+        campaign_tokens,
     )
         // thousandSuns (#250) / thousandMoons (#251) — ungrouped, checked at
         // updateAll cadence in the legacy tick (Synergism.ts:3994). The legacy
@@ -1905,9 +1909,9 @@ fn phase_tax(state: &mut GameState, agg: &AggregatorOutputs) -> TaxOutputs {
         )
         .tax_reduction,
         challenge_15_taxes_reward: challenge_15_rewards::taxes(challenges.challenge15_exponent),
-        // Campaign-token subsystem unported → 0 tokens → multiplier 1
-        // (`campaignTaxMultiplier` returns 1 below 250 tokens).
-        campaign_tax_multiplier: campaign_token_rewards::campaign_tax_multiplier(0.0),
+        campaign_tax_multiplier: campaign_token_rewards::campaign_tax_multiplier(
+            compute_campaign_tokens(state),
+        ),
         ascend_shards: state.campaigns.ascend_shards,
         rare_fragments: Decimal::from_finite(state.talismans.rare_fragments),
         fortunae_formicidae_coin_multiplier: coins_ant.coin_multiplier,
@@ -2244,8 +2248,9 @@ fn compute_ascension_speed_mult_raw(state: &GameState) -> f64 {
 /// (each `AscensionScore` line), and the ascension cube award
 /// (`calc_corruption_stuff`).
 ///
-/// Bonus-subsystem neutral-defaults (faithful): campaign mult (campaign
-/// subsystem unported → 1) and event buff (UI-tier calendar → 0).
+/// The campaign multiplier is wired (`campaign_ascension_score_multiplier`
+/// of the derived token total); the event buff stays a faithful neutral 0
+/// (UI-tier calendar).
 fn compute_ascension_score_result(
     state: &GameState,
 ) -> crate::mechanics::calculate::CalculateAscensionScoreResult {
@@ -2287,7 +2292,10 @@ fn compute_ascension_score_result(
             platonic_blessing_mult: calculate_ascension_score_platonic_blessing(
                 &state.platonic_blessings,
             ),
-            campaign_ascension_score_mult: 1.0, // campaign subsystem unported → neutral
+            campaign_ascension_score_mult:
+                crate::mechanics::campaign_token_rewards::campaign_ascension_score_multiplier(
+                    compute_campaign_tokens(state),
+                ),
             finite_descent_ascension_score: finite_descent_rune_effects(
                 state.runes.rune_levels[RUNE_FINITE_DESCENT],
                 FiniteDescentRuneKey::AscensionScore,
@@ -2460,7 +2468,9 @@ fn compute_octeract_per_second(state: &GameState) -> f64 {
         ascension_score_line,
         1.0, // PseudoCoins — PCoin meta layer (unported)
         get_level_reward(LevelRewardKey::WowOcteracts, achievement_level),
-        1.0, // Campaign — player.campaigns.octeractBonus (unported)
+        crate::mechanics::campaign_token_rewards::campaign_octeract_bonus(compute_campaign_tokens(
+            state,
+        )), // Campaign — player.campaigns.octeractBonus
         season_pass_3_effect(shop[SHOP_SEASON_PASS_3]),
         season_pass_y_effect(shop[SHOP_SEASON_PASS_Y]),
         season_pass_z_effect(shop[SHOP_SEASON_PASS_Z], sing),
@@ -2569,6 +2579,80 @@ fn populate_ambrosia_free_levels(state: &mut GameState) {
     }
 }
 
+/// `updateTokens()` — the campaign-token total (`Campaign.ts:489`),
+/// self-derived from `&GameState`: every campaign's `computeTokenValue()`
+/// summed, plus `inheritanceTokens()` and the GQ `singBonusTokens4` /
+/// octeract `octeractBonusTokens4` initial-token grants. The legacy keeps
+/// this in a module global recomputed on campaign/upgrade changes; logic
+/// derives it live wherever a `campaign_token_rewards::*` bonus needs it.
+///
+/// `0` at default state (no completions, no singularity), so every
+/// token-derived bonus stays at its identity. Tokens flow without the
+/// campaign runner once `highestSingularityCount ≥ 5` (the inheritance
+/// floor) — the runner itself (picking a campaign, completing c10 under
+/// its corruptions) is UI-tier and writes `campaign_completions`.
+fn compute_campaign_tokens(state: &GameState) -> f64 {
+    use crate::mechanics::campaign_token_rewards::{
+        campaign_token_value, inheritance_tokens, singularity_bonus_token_mult,
+        CampaignTokenBonuses, CAMPAIGN_IS_META, CAMPAIGN_TOKEN_LIMITS,
+    };
+    use crate::mechanics::golden_quark_upgrades::{
+        sing_bonus_tokens_1_effect, sing_bonus_tokens_2_effect, sing_bonus_tokens_3_effect,
+        sing_bonus_tokens_4_effect,
+    };
+    use crate::mechanics::octeracts::{
+        octeract_bonus_tokens_1_effect, octeract_bonus_tokens_2_effect,
+        octeract_bonus_tokens_3_effect, octeract_bonus_tokens_4_effect,
+    };
+    use crate::state::campaigns::CAMPAIGNS_LEN;
+    use crate::state::golden_quarks::{
+        GQ_SING_BONUS_TOKENS_1, GQ_SING_BONUS_TOKENS_2, GQ_SING_BONUS_TOKENS_3,
+        GQ_SING_BONUS_TOKENS_4,
+    };
+    use crate::state::octeract_upgrades::{
+        OCTERACT_BONUS_TOKENS_1, OCTERACT_BONUS_TOKENS_2, OCTERACT_BONUS_TOKENS_3,
+        OCTERACT_BONUS_TOKENS_4,
+    };
+
+    let highest_sing = state.singularity.highest_singularity_count;
+    let gq = |i: usize| {
+        state.golden_quarks.upgrades[i].level + state.golden_quarks.upgrades[i].free_level
+    };
+    let oct = |i: usize| {
+        state.octeract_upgrades.upgrades[i].level + state.octeract_upgrades.upgrades[i].free_level
+    };
+
+    let first_milestone = if highest_sing >= 16.0 { 5.0 } else { 0.0 };
+    let last_milestone = if highest_sing >= 69.0 { 10.0 } else { 0.0 };
+    let bonuses = CampaignTokenBonuses {
+        first_completion_bonus: first_milestone
+            + sing_bonus_tokens_1_effect(gq(GQ_SING_BONUS_TOKENS_1))
+            + octeract_bonus_tokens_3_effect(oct(OCTERACT_BONUS_TOKENS_3)),
+        last_completion_bonus: last_milestone
+            + sing_bonus_tokens_3_effect(gq(GQ_SING_BONUS_TOKENS_3))
+            + octeract_bonus_tokens_1_effect(oct(OCTERACT_BONUS_TOKENS_1)),
+        token_multiplier: singularity_bonus_token_mult(highest_sing)
+            * sing_bonus_tokens_2_effect(gq(GQ_SING_BONUS_TOKENS_2))
+            * octeract_bonus_tokens_2_effect(oct(OCTERACT_BONUS_TOKENS_2)),
+    };
+
+    let campaign_sum: f64 = (0..CAMPAIGNS_LEN)
+        .map(|i| {
+            campaign_token_value(
+                state.campaigns.campaign_completions[i],
+                CAMPAIGN_TOKEN_LIMITS[i],
+                CAMPAIGN_IS_META[i],
+                &bonuses,
+            )
+        })
+        .sum();
+
+    campaign_sum
+        + inheritance_tokens(highest_sing)
+        + sing_bonus_tokens_4_effect(gq(GQ_SING_BONUS_TOKENS_4))
+        + octeract_bonus_tokens_4_effect(oct(OCTERACT_BONUS_TOKENS_4))
+}
+
 /// `calculateQuarkMultiplier()` — the global quark-gain multiplier
 /// (`allQuarkStats` product, original `Statistics.ts:1233` / `Calculate.ts:378`),
 /// self-derived from `&GameState`. Cached each tick into
@@ -2578,10 +2662,11 @@ fn populate_ambrosia_free_levels(state: &mut GameState) {
 /// `1 + quark_bonus / 100`, which equals this product.
 ///
 /// The `quarkGain` achievement reward (#250/#251/#266), the Challenge-15
-/// `quarks` reward, and the quark-hepteract bonus are now wired (each identity
-/// at default). The terms still left at the multiplicative identity `1.0` are
-/// documented inline: `shopPanthema` / `infiniteAscent` (need their bonus-levels
-/// precompute / unlock gate), campaign bonus, and the UI/host-tier event +
+/// `quarks` reward, the quark-hepteract bonus, and the campaign bonus (of the
+/// derived token total) are now wired (each identity at default). The terms
+/// still left at the multiplicative identity `1.0` are documented inline:
+/// `shopPanthema` / `infiniteAscent` (need their bonus-levels precompute /
+/// unlock gate) and the UI/host-tier event +
 /// patreon (global / personal) bonuses. `favoriteUpgrade` passes a `0`
 /// maxed-sibling count (identity until that GQ upgrade is bought) and
 /// `ambrosiaCubeQuark1` passes a `0` `wow_cube_log_sum` — the same precedent as
@@ -2715,7 +2800,9 @@ fn compute_quark_multiplier(state: &GameState) -> f64 {
         1.0, // Jack (shopPanthema) — needs ShopPanthemaBonusLevels precompute
         // Challenge15 — c15 `quarks` reward, gated on `challenge15Exponent`.
         crate::mechanics::challenge_15_rewards::quarks(state.challenges.challenge15_exponent),
-        1.0, // CampaignBonus — player.campaigns.quarkBonus unported
+        crate::mechanics::campaign_token_rewards::campaign_quark_bonus(compute_campaign_tokens(
+            state,
+        )), // CampaignBonus — player.campaigns.quarkBonus
         1.0, // InfiniteAscent — needs shop infiniteAscent unlock gate + rune
         quark_hepteract,
         calculate_quark_mult_from_powder(state.hepteracts.overflux_powder),
@@ -2785,9 +2872,9 @@ fn compute_quark_multiplier(state: &GameState) -> f64 {
 /// zeroes it; the award block in `apply_ascension_layer` therefore calls this
 /// before the counter reset (Reset.ts ordering).
 ///
-/// Neutral-defaulted lines (faithful — unported / paused / UI-tier):
-/// PseudoCoins (PCoin meta), CampaignTutorial + Campaign (campaign subsystem
-/// unported), InfiniteAscent (the infiniteAscent rune is outside the 7-rune
+/// CampaignTutorial + Campaign are wired to the derived campaign-token
+/// total. Neutral-defaulted lines (faithful — unported / paused / UI-tier):
+/// PseudoCoins (PCoin meta), InfiniteAscent (the infiniteAscent rune is outside the 7-rune
 /// `rune_levels` model → level 0 → `1 + 0/100`), SingDebuff
 /// (`1 / calculateSingularityDebuff('Cubes')` — the singularity layer is paused
 /// and has no production debuff-input builder; `= 1` at `singularityCount 0`,
@@ -2868,10 +2955,15 @@ fn compute_all_cube_multiplier(state: &GameState) -> f64 {
     let amb = |i: usize| state.ambrosia.upgrades[i].level + state.ambrosia.upgrades[i].free_level;
     let red = |i: usize| state.red_ambrosia.upgrades[i].level;
 
+    let campaign_tokens = compute_campaign_tokens(state);
+
     // AscensionTime: `min(1, counter/threshold)^2`, times `(1 + overflow)` once
     // the `ascensionRewardScaling` achievement (#204) is earned.
     let reset_threshold = reset_time_threshold(&ResetTimeThresholdInput {
-        campaign_time_threshold_reduction: 0.0, // campaign subsystem unported → 0
+        campaign_time_threshold_reduction:
+            crate::mechanics::campaign_token_rewards::campaign_time_threshold_reduction(
+                campaign_tokens,
+            ),
     });
     let frac = state.reset_counters.ascension_counter / reset_threshold;
     let ascension_time_base = frac.min(1.0).powi(2);
@@ -2933,8 +3025,8 @@ fn compute_all_cube_multiplier(state: &GameState) -> f64 {
     product_f64(&[
         1.0, // PseudoCoins — PCoin meta layer (unported)
         ascension_time,
-        1.0, // CampaignTutorial — campaign subsystem (unported)
-        1.0, // Campaign — campaign subsystem (unported)
+        crate::mechanics::campaign_token_rewards::tutorial_bonus(campaign_tokens).cube_bonus, // CampaignTutorial
+        crate::mechanics::campaign_token_rewards::campaign_cube_bonus(campaign_tokens), // Campaign
         challenge_15_cubes,
         1.0, // InfiniteAscent — rune outside the 7-rune model → level 0 → 1
         1.0 + platonic[PLATONIC_UPGRADE_BETA], // Beta
@@ -3468,7 +3560,9 @@ fn compute_golden_quarks_multiplier_excluding_base(state: &GameState) -> f64 {
 
     product_f64(&[
         1.0, // PseudoCoins — PCoin meta layer (unported)
-        1.0, // Campaign — player.campaigns.goldenQuarkBonus (unported)
+        crate::mechanics::campaign_token_rewards::campaign_golden_quark_bonus(
+            compute_campaign_tokens(state),
+        ), // Campaign — player.campaigns.goldenQuarkBonus
         // Challenge15: 1 + max(0, log10(challenge15Exponent + 1) − 20) / 2.
         1.0 + 0.0_f64.max((state.challenges.challenge15_exponent + 1.0).log10() - 20.0) / 2.0,
         golden_quarks_1_effect(gq(GQ_GOLDEN_QUARKS_1)),
@@ -3546,9 +3640,9 @@ fn compute_base_obtainium(state: &GameState) -> f64 {
 /// blessing also appears as the `CubeBonus` line, so it is applied twice,
 /// verbatim with the legacy `calculateObtainiumDecimal`.
 ///
-/// Neutral-defaulted lines (faithful — no logic state source / inert at the
-/// current state): campaign `TutorialBonus`/`CampaignBonus` (campaign
-/// subsystem unported → 1), `Event` (UI-tier event calendar → 1),
+/// `TutorialBonus`/`CampaignBonus` are wired to the derived campaign-token
+/// total. Neutral-defaulted lines (faithful — no logic state source / inert
+/// at the current state): `Event` (UI-tier event calendar → 1),
 /// `ReincarnationUpgrade14` (reads `maxOfferings`, untracked → 1; its branch
 /// is `1` at `maxOfferings 0` anyway), `Jack`/`shopPanthema` (needs the
 /// unported `ShopPanthemaBonusLevels` → 1), `SpiritPower` (effective
@@ -3682,18 +3776,20 @@ fn compute_obtainium(
     // CubeUpgradeCx21 — `1.04 ^ (cubeUpgrades[71] · ΣtalismanRarities)`.
     let talisman_rarities = state.talismans.talisman_rarity.map(|r| r as u8);
 
+    let campaign_tokens = compute_campaign_tokens(state);
+
     // immaculate = Π allObtainiumIgnoreDRStats (line 1 = calculateBaseObtainium).
     let immaculate = product_f64(&[
-        base_obtainium,                                                         // Base
-        1.0 + 0.04 * cube[42],                                                  // CubeUpgrade4x2
-        1.0 + 0.03 * cube[43],                                                  // CubeUpgrade4x3
-        1.0, // TutorialBonus — campaign subsystem unported → 1
-        1.0, // CampaignBonus — campaign subsystem unported → 1
+        base_obtainium,        // Base
+        1.0 + 0.04 * cube[42], // CubeUpgrade4x2
+        1.0 + 0.03 * cube[43], // CubeUpgrade4x3
+        crate::mechanics::campaign_token_rewards::tutorial_bonus(campaign_tokens).obtainium_bonus, // TutorialBonus
+        crate::mechanics::campaign_token_rewards::campaign_obtainium_bonus(campaign_tokens), // CampaignBonus
         challenge_15_rewards::obtainium(state.challenges.challenge15_exponent), // ChallengeBonus
-        1.0 + platonic[5], // PlatonicALPHA
-        1.0 + 1.5 * platonic[9], // PlatonicUpgrade9
-        1.0 + 2.5 * platonic[10], // PlatonicBETA
-        1.0 + 5.0 * platonic[15], // PlatonicOMEGA
+        1.0 + platonic[5],                                                      // PlatonicALPHA
+        1.0 + 1.5 * platonic[9],                                                // PlatonicUpgrade9
+        1.0 + 2.5 * platonic[10],                                               // PlatonicBETA
+        1.0 + 5.0 * platonic[15],                                               // PlatonicOMEGA
         10.0_f64.powf(antiquities_rune_effects(
             state.runes.rune_levels[RUNE_ANTIQUITIES],
             AntiquitiesRuneKey::ObtainiumLog10,
@@ -3701,7 +3797,7 @@ fn compute_obtainium(
                 singularity_count: sing,
             },
         )), // Antiquities
-        1.0 + cube[55] / 100.0, // CubeUpgradeCx5
+        1.0 + cube[55] / 100.0,                                                 // CubeUpgradeCx5
         if cube[62] > 0.0 && state.challenges.current_ascension_challenge == 15 {
             8.0
         } else {
@@ -3725,7 +3821,7 @@ fn compute_obtainium(
         } else {
             1.0
         }, // Exalt6Penalty
-        1.0, // Event — UI-tier event calendar → 1 + 0
+        1.0,                                             // Event — UI-tier event calendar → 1 + 0
     ]);
 
     // base_mults = Π allObtainiumStats × calculateObtainiumCubeBlessing(),
@@ -3862,8 +3958,8 @@ fn compute_obtainium(
 /// resets faster than the threshold), `TimeMultiplier` (`max(1, t/threshold)`
 /// when `time_mult_check`, else 1, rewarding longer resets), and `HalfMind`
 /// (`globalSpeedMult / 10` when the half-mind GQ upgrade is unlocked, else 1).
-/// `threshold` uses `campaignTimeThresholdReduction = 0` (campaign subsystem
-/// unported → threshold 10).
+/// `threshold` folds the campaign time-threshold reduction of the derived
+/// token total (10 at zero tokens).
 fn offering_obtainium_time_multiplier(state: &GameState, time: f64, time_mult_check: bool) -> f64 {
     use crate::mechanics::golden_quark_upgrades::half_mind_effect;
     use crate::mechanics::reset_time_and_auto_obtainium::{
@@ -3872,7 +3968,10 @@ fn offering_obtainium_time_multiplier(state: &GameState, time: f64, time_mult_ch
     use crate::state::golden_quarks::GQ_HALF_MIND;
 
     let threshold = reset_time_threshold(&ResetTimeThresholdInput {
-        campaign_time_threshold_reduction: 0.0,
+        campaign_time_threshold_reduction:
+            crate::mechanics::campaign_token_rewards::campaign_time_threshold_reduction(
+                compute_campaign_tokens(state),
+            ),
     });
     let ratio = time / threshold;
 
@@ -3984,13 +4083,13 @@ fn compute_base_offerings(state: &GameState) -> f64 {
 /// caller's `calculateBaseOfferings()` (the `Base` line). Reduced in Decimal
 /// space to survive the 1e300 cap.
 ///
-/// Neutral-defaulted lines (faithful — no logic-state source / inert at the
-/// current state): `AchievementBonus` (achievement awarding unported, P3.1/H5
-/// → 1.0; the lone contributor is the `prestigeCount ≥ 1000` achievement),
-/// `ParticleUpgrade3x5` (`maxObtainium` untracked → the `min(maxObtainium, …)`
-/// term is 0, so the line is 1.0), `TutorialBonus`/`CampaignBonus` (campaign
-/// subsystem unported → 1.0), `ThriftSpirit` (rune-spirit power chain unported
-/// → 1.0), `Jack`/`shopPanthema` (needs the unported `ShopPanthemaBonusLevels`
+/// `TutorialBonus`/`CampaignBonus` are wired to the derived campaign-token
+/// total. Neutral-defaulted lines (faithful — no logic-state source / inert
+/// at the current state): `AchievementBonus` (the `offeringBonus` reward
+/// *reader* is unported → 1.0; its lone contributor is the
+/// `prestigeCount ≥ 1000` achievement), `ParticleUpgrade3x5` (`maxObtainium`
+/// untracked → the `min(maxObtainium, …)` term is 0, so the line is 1.0),
+/// `Jack`/`shopPanthema` (needs the unported `ShopPanthemaBonusLevels`
 /// → 1.0), `SingularityDebuff` (`1/calculateSingularityDebuff`; singularity
 /// layer paused → 1.0), and `Event` (UI-tier event calendar → 1.0).
 fn compute_offering_mult(state: &GameState, base_offerings: f64) -> Decimal {
@@ -4142,8 +4241,11 @@ fn compute_offering_mult(state: &GameState, base_offerings: f64) -> Decimal {
         1.0 + 0.02 * state.campaigns.constant_upgrades[3], // ConstantUpgrade3
         // ResearchTalismans — 1 + 0.0003·midas·research[149] + 0.0004·midas·research[179].
         1.0 + 0.0003 * midas_level * researches[149] + 0.0004 * midas_level * researches[179],
-        1.0, // TutorialBonus — campaign subsystem unported → 1.0
-        1.0, // CampaignBonus — campaign subsystem unported → 1.0
+        crate::mechanics::campaign_token_rewards::tutorial_bonus(compute_campaign_tokens(state))
+            .offering_bonus, // TutorialBonus
+        crate::mechanics::campaign_token_rewards::campaign_offering_bonus(compute_campaign_tokens(
+            state,
+        )), // CampaignBonus
         1.0 + 0.12 * calc_ecc(ChallengeType::Ascension, cc[12]), // Challenge12
         // ThriftSpirit — getRuneSpiritEffect('thrift').offerings.
         crate::mechanics::rune_spirit_effects::thrift_rune_spirit_effects(rune_spirit_power(
@@ -4253,8 +4355,8 @@ fn compute_offerings(state: &GameState) -> Decimal {
 /// ant-sacrifice obtainium source (a `max()` alternative gated by
 /// `cubeUpgrades[47] > 0`) is now wired to `calculateAntSacrificeObtainium` via
 /// the ported `ant_sacrifice::compute_ant_sacrifice_multiplier`; it stays inert
-/// at the current state (`cubeUpgrades[47] == 0`). The reset-time divisor uses
-/// `campaignTimeThresholdReduction = 0` (campaign subsystem unported).
+/// at the current state (`cubeUpgrades[47] == 0`). The reset-time divisor folds
+/// the campaign time-threshold reduction of the derived token total.
 fn compute_obtainium_gain(
     state: &GameState,
     dt: f64,
@@ -4270,7 +4372,10 @@ fn compute_obtainium_gain(
     // Auto-research path: legacy `calculateObtainium(false)` ⇒ timeMult 1.0.
     let resource_mult = compute_obtainium(state, base_obtainium, reincarnation_point_gain, 1.0);
     let reset_time_divisor = reset_time_threshold(&ResetTimeThresholdInput {
-        campaign_time_threshold_reduction: 0.0, // campaign subsystem unported → 0
+        campaign_time_threshold_reduction:
+            crate::mechanics::campaign_token_rewards::campaign_time_threshold_reduction(
+                compute_campaign_tokens(state),
+            ),
     });
 
     // Ant-sacrifice obtainium alternative source (gated by cubeUpgrades[47]):
@@ -5174,7 +5279,9 @@ fn compute_ambrosia_luck_pre(state: &GameState) -> f64 {
             LevelRewardKey::AmbrosiaLuck,
             achievement_level_from_points(state.achievements.achievement_points),
         ),
-        0.0, // Campaign — player.campaigns.ambrosiaLuckBonus (unported)
+        crate::mechanics::campaign_token_rewards::campaign_ambrosia_luck_bonus(
+            compute_campaign_tokens(state),
+        ), // Campaign — player.campaigns.ambrosiaLuckBonus
         calculate_singularity_ambrosia_luck_milestone_bonus(highest_sing),
         shop_ambrosia_luck_1_effect(shop[SHOP_AMBROSIA_LUCK_1]),
         shop_ambrosia_luck_2_effect(shop[SHOP_AMBROSIA_LUCK_2]),
@@ -5259,10 +5366,11 @@ fn compute_ambrosia_luck_pre(state: &GameState) -> f64 {
 /// so this is exactly `0` at the default state (ambrosia locked) — matching
 /// the old default.
 ///
+/// The campaign blueberry-speed bonus is wired to the derived token total.
 /// Multiplicative lines whose context is unported are neutral `1.0`
-/// (planar-coin, campaign bonus [campaign-token total not tracked], shop
-/// `panthema`, patreon [quark-bonus arg], event); the additive blueberry
-/// lines neutral `0`. All are inert at the current play state.
+/// (planar-coin, shop `panthema`, patreon [quark-bonus arg], event); the
+/// additive blueberry lines neutral `0`. All are inert at the current play
+/// state.
 fn compute_ambrosia_generation_speed_pre(state: &GameState) -> f64 {
     use crate::mechanics::ambrosia::{
         calculate_number_of_thresholds, calculate_singularity_milestone_blueberries,
@@ -5332,7 +5440,9 @@ fn compute_ambrosia_generation_speed_pre(state: &GameState) -> f64 {
     let raw_speed = product_f64(&[
         if no_sing > 0.0 { 1.0 } else { 0.0 }, // Default gate
         1.0,                                   // PseudoCoins (planar, unported)
-        1.0,                                   // Campaign (token total not tracked)
+        crate::mechanics::campaign_token_rewards::campaign_blueberry_speed_bonus(
+            compute_campaign_tokens(state),
+        ), // Campaign — player.campaigns.blueberrySpeedBonus
         shop_ambrosia_generation_1_effect(shop[SHOP_AMBROSIA_GENERATION_1]),
         shop_ambrosia_generation_2_effect(shop[SHOP_AMBROSIA_GENERATION_2]),
         shop_ambrosia_generation_3_effect(shop[SHOP_AMBROSIA_GENERATION_3]),
@@ -5980,9 +6090,9 @@ fn phase_challenge_completion(
     if qa == 15 && state.shop.upgrades[SHOP_CHALLENGE_15_AUTO] > 0.0 {
         // challenge15ScoreMultiplier(): campaign · challenge-hepteract · OMEGA.
         let c15_sm = challenge_15_score_multiplier(&Challenge15ScoreMultiplierInput {
-            // Campaign subsystem unported → neutral (mirrors the `campaign_*` legs
-            // elsewhere in the tick, e.g. `campaign_ascension_score_mult`).
-            c15_bonus: 1.0,
+            c15_bonus: crate::mechanics::campaign_token_rewards::campaign_c15_bonus(
+                compute_campaign_tokens(state),
+            ),
             // `hepteractEffective('challenge')` — challenge craft LIMIT 1000, DR 1/6,
             // DR_INCREASE 0 (Hepteracts.ts:190-192).
             challenge_hepteract_effective: hepteract_effective_bal(
@@ -7169,6 +7279,54 @@ mod tests {
         with_hept.hepteracts.quark.bal = 1500.0;
         let ratio = compute_quark_multiplier(&with_hept) / compute_quark_multiplier(&base);
         assert!((ratio - 1.96).abs() < 1e-9);
+    }
+
+    #[test]
+    fn campaign_tokens_default_is_zero() {
+        assert_eq!(compute_campaign_tokens(&GameState::default()), 0.0);
+    }
+
+    #[test]
+    fn campaign_tokens_flow_from_inheritance_and_completions() {
+        // Inheritance alone: highestSingularityCount 16 sits in the
+        // `levels[2] = 10` tier → 25 tokens.
+        let mut state = GameState::default();
+        state.singularity.highest_singularity_count = 16.0;
+        assert_eq!(compute_campaign_tokens(&state), 25.0);
+
+        // One full campaign (first: limit 10, not meta): additive
+        // 10 + 5 (first-completion, sing ≥ 16) + 0 (last needs sing ≥ 69),
+        // multiplier 1 → 15. Total 25 + 15 = 40.
+        state.campaigns.campaign_completions[0] = 10.0;
+        assert_eq!(compute_campaign_tokens(&state), 40.0);
+
+        // A meta campaign doubles its own value: second (limit 10, meta)
+        // at 1 completion → (1 + 5)·2 = 12. Total 52.
+        state.campaigns.campaign_completions[1] = 1.0;
+        assert_eq!(compute_campaign_tokens(&state), 52.0);
+    }
+
+    #[test]
+    fn phase_global_state_awards_campaign_token_achievements() {
+        // 40 tokens (sing 16 + a full first campaign) crosses the 10/20/40
+        // gates (#426/#427/#428) but not 80 (#429).
+        let mut s = GameState::default();
+        s.singularity.highest_singularity_count = 16.0;
+        s.campaigns.campaign_completions[0] = 10.0;
+        let _ = phase_global_state(&mut s);
+        assert_eq!(s.achievements.achievements[426], 1);
+        assert_eq!(s.achievements.achievements[428], 1);
+        assert_eq!(s.achievements.achievements[429], 0);
+    }
+
+    #[test]
+    fn quark_multiplier_includes_campaign_bonus() {
+        // highestSingularityCount 50 → inheritance 150 tokens →
+        // campaignQuarkBonus = 1 + 0.05·min(50, 100)/100 = 1.025. Every
+        // other term stays identity (singularityCount itself is 0).
+        let mut state = GameState::default();
+        state.singularity.highest_singularity_count = 50.0;
+        assert!((compute_quark_multiplier(&state) - 1.025).abs() < 1e-9);
     }
 
     #[test]
