@@ -121,11 +121,17 @@ flowchart LR
   not modeled" gap. The module header tags each perk's effect-wiring: the big multiplicative perks
   (`goldenCoins` / `skrauQ` / `goldenRevolution2` / `primalPower` / `derpSmiths` / `immaculateAlchemy`
   / salvage / token / ELO / blueberry) are already **WIRED** (mostly via the meta-economy sweep). The
-  remainder is **DEFERRED on a consumer**: the ant-production perks (`forTheLoveOfTheAntGod`,
-  `antGodsCornucopia`, `irishAnt`/`irishAnt2`) sit in `calculateActualAntSpeedMult`, whose Rust
-  `ant_speed_mult` input is still a neutral `1.0` placeholder — not dropped terms, an unported host
-  assembly. The `goldenRevolution` GQ-per-second family belongs to the export-reward flow; the rest
-  are UI/external.
+  four **ant** perks resolved as: `antGodsCornucopia` **WIRED** (the `SingularityPerk` term of the
+  fully-ported `compute_ant_speed_mult`); `forTheLoveOfTheAntGod` **WIRED** (reset-time regrants, see
+  below); `irishAnt` / `irishAnt2` are **NONE** — they exist only in the `singularityPerks` table with
+  no mechanical consumer anywhere in TS, so the faithful port leaves them no-ops. The
+  `goldenRevolution` GQ-per-second family belongs to the export-reward flow; the rest are UI/external.
+- ✅ **`forTheLoveOfTheAntGod` ported** (`apply_for_the_love_ant_regrants`): the
+  `highestSingularityCount >= 10/15/20` producer / upgrade / crumb regrants that run at the tail of
+  every ant reset (`Features/Ants/.../player/reset.ts`, outside the tier gate) — Workers 20→40 +
+  Breeders + MetaBreeders, AntSpeed/Mortuus `max`-merged, crumbs 1e50 at sing 20. Applied on all
+  three ant-reset paths (sacrifice / ascension / singularity); the singularity path uses the
+  pre-increment `old_highest` (`resetAnts(singularity)` runs at Reset.ts:1103, before the count bump).
 - ✅ **Export-reward claim ported** (`claim_export_rewards`, `ImportExport.ts:254-273`): the
   `goldenQuarksTimer` → golden-quarks (gated on `goldenQuarks3`, × the `highestSing ≥ 100` export
   bonus) and `quarkstimer` → `worlds` + `quarksThisSingularity` (× the full quark multiplier)
