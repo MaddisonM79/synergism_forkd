@@ -14,20 +14,26 @@
 //! its current Rust status:
 //!
 //! - **WIRED** — the effect is already ported at the cited site.
-//! - **DEFERRED(assembly)** — the perk's host stat-assembly is itself a neutral
-//!   placeholder in Rust (e.g. `calculateActualAntSpeedMult` → the tick's
-//!   `ant_speed_mult` input defaults to `1.0`), so the term has nowhere to land
-//!   yet. Not a dropped term — the whole assembly is unported.
 //! - **DEFERRED(export)** — GQ-per-second export generation, claimed in the
 //!   export/offline reward flow (the `goldenRevolution` family).
 //! - **UI** — display, automation-cadence, or unlock-gate only; no logic effect.
 //! - **EXTERNAL** — depends on a service outside the fork (PseudoCoins, add-codes).
+//! - **NONE** — the perk has a `description` but the TS source never applies a
+//!   mechanical effect for it anywhere (designed-but-unwired in the original).
+//!   The faithful port leaves it a no-op — adding an effect would *diverge*.
 //!
 //! The big multiplicative perks (`goldenCoins`, `skrauQ`, `goldenRevolution2`,
 //! `primalPower`, `derpSmithsCornucopia`, `immaculateAlchemy`, the salvage /
 //! token / ELO / blueberry perks) are all WIRED — most by the meta-economy
-//! sweep. What remains DEFERRED is gated on a *consumer* that isn't ported yet,
-//! not on the perk itself.
+//! sweep.
+//!
+//! The four ant-related perks resolved as: `antGodsCornucopia` is WIRED (the
+//! `SingularityPerk` term of `compute_ant_speed_mult`, tick); `forTheLoveOfTheAntGod`
+//! is WIRED (the `highestSingularityCount >= 10/15/20` producer/upgrade/crumb
+//! regrants that `apply_for_the_love_ant_regrants` runs at the tail of every ant
+//! reset — `Features/Ants/.../player/reset.ts`); and `irishAnt` / `irishAnt2` are
+//! **NONE** — they appear *only* in the `singularityPerks` table and have no
+//! mechanical consumer anywhere in the TS source, so they stay no-ops.
 
 /// A singularity perk, in `singularityPerks` declaration order
 /// (`welcometoSingularity` = 0 … `taxReduction` = 52). `ID` order is stable

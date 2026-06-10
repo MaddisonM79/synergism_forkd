@@ -377,9 +377,10 @@ pub(super) fn perform_ant_sacrifice(
 /// reborn-ELO leaderboards persist (they clear at singularity / save-reset).
 ///
 /// The `highestSingularityCount >= 10/15/20` crumb / producer / upgrade regrants
-/// and the `sacCount` group award + `antSacrificeToReincarnation` bump are
-/// omitted — the singularity layer is paused and the group awards belong to the
-/// achievement-awarding workstream. All are inert at every non-singularity state.
+/// (`forTheLoveOfTheAntGod`) run at the tail via
+/// [`super::reset::apply_for_the_love_ant_regrants`], reachable now that the
+/// singularity layer is live. The `antSacrificeToReincarnation` bump remains
+/// omitted (inert at every non-singularity state).
 fn reset_ants_for_sacrifice(state: &mut GameState) {
     // Ant upgrades whose `minimumResetTier` is `sacrifice` (0) — reset on every
     // sacrifice. Salvage(7) / Mortuus(11) / Mortuus2(13) / AscensionScore(14)
@@ -425,6 +426,10 @@ fn reset_ants_for_sacrifice(state: &mut GameState) {
     // Timers reset.
     state.ants.ant_sacrifice_timer = 0.0;
     state.ants.ant_sacrifice_timer_real = 0.0;
+
+    // forTheLoveOfTheAntGod regrants (the tier-independent tail of resetAnts).
+    let highest_singularity_count = state.singularity.highest_singularity_count;
+    super::reset::apply_for_the_love_ant_regrants(&mut state.ants, highest_singularity_count);
 }
 
 // ─── Reborn-ELO activation + leaderboard ──────────────────────────────────────
