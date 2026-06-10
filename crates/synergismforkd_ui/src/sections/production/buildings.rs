@@ -71,6 +71,7 @@ pub fn Buildings() -> Element {
         }
         match subsection {
             0 => rsx! { CoinBuildings {} },
+            1 => rsx! { DiamondBuildings {} },
             _ => rsx! { div { class: "sf-placeholder", {t("nav.placeholder")} } },
         }
     }
@@ -226,6 +227,57 @@ fn CoinProducerCard(index: u8) -> Element {
                     }
                 }
             }
+            div { class: "sf-card-actions",
+                button { disabled: !affordable(), onclick: buy, {t("buildings.buy")} }
+            }
+        }
+    }
+}
+
+/// Diamond (prestige-tier) producers. Spend prestige points (diamonds);
+/// all five tiers reveal together once prestige is unlocked (the legacy
+/// `prestigeunlock` class — no per-tier gate). Bought via the same
+/// `BuyRequest::Producer` path, routed to `diamond_producers` by
+/// `ProducerType::Diamonds`.
+#[component]
+fn DiamondBuildings() -> Element {
+    rsx! {
+        div { class: "sf-card-grid",
+            for index in 1..=5u8 {
+                DiamondProducerCard { key: "{index}", index }
+            }
+        }
+    }
+}
+
+#[component]
+fn DiamondProducerCard(index: u8) -> Element {
+    let bridge = use_bridge();
+    let owned = use_slice(move |s| s.diamond_producers.owned(index));
+    let generated = use_slice(move |s| s.diamond_producers.tiers[(index - 1) as usize].generated);
+    let cost = use_slice(move |s| s.diamond_producers.cost(index));
+    let affordable =
+        use_slice(move |s| s.upgrades.prestige_points >= s.diamond_producers.cost(index));
+    let name_key = match index {
+        1 => "buildings.diamond.1",
+        2 => "buildings.diamond.2",
+        3 => "buildings.diamond.3",
+        4 => "buildings.diamond.4",
+        _ => "buildings.diamond.5",
+    };
+
+    let buy = move |_| {
+        let amount = bridge.prefs.peek().buy_amount;
+        let action =
+            derive::producer_buy(&bridge.state.peek(), ProducerType::Diamonds, index, amount);
+        bridge.dispatch(action);
+    };
+
+    rsx! {
+        div { class: "sf-card",
+            div { class: "sf-card-title", {t(name_key)} }
+            OwnedRow { owned: owned(), generated: generated() }
+            CostRow { cost: cost(), resource: Resource::Diamonds }
             div { class: "sf-card-actions",
                 button { disabled: !affordable(), onclick: buy, {t("buildings.buy")} }
             }
