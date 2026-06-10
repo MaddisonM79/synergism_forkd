@@ -312,6 +312,14 @@ pub enum PlayerAction {
         /// Open the entire balance.
         max: bool,
     },
+    /// Toggle a singularity (Exalt) challenge (legacy
+    /// `SingularityChallenge.challengeEntryHandler`): enter it when its flag
+    /// is clear (jumping to the tier's required singularity), otherwise exit —
+    /// succeeding iff the antiquities rune was purchased inside.
+    ToggleSingularityChallenge {
+        /// Which Exalt to toggle.
+        challenge: crate::events::SingularityChallengeId,
+    },
 }
 
 /// Selects the automation flag a [`PlayerAction::ToggleAuto`] sets.
@@ -5832,6 +5840,11 @@ fn phase_player_input(
                     state, *tier, *value, *max,
                 ));
             }
+            PlayerAction::ToggleSingularityChallenge { challenge } => {
+                output
+                    .events
+                    .extend(reset::toggle_singularity_challenge(state, *challenge));
+            }
         }
     }
 }
@@ -7353,6 +7366,42 @@ mod tests {
             assert_eq!(s.achievements.progressive[slot].cached_points, 0.0);
         }
         assert_eq!(s.achievements.achievement_points, 0.0);
+    }
+
+    #[test]
+    fn exalt_toggle_dispatches_through_tack_and_lights_the_progressive() {
+        use crate::events::SingularityChallengeId as Id;
+        // Enter via the player action…
+        let mut s = GameState::default();
+        s.singularity.highest_singularity_count = 25.0;
+        s.singularity.singularity_count = 25.0;
+        let mut input = TackInput::default();
+        input
+            .player_actions
+            .push(PlayerAction::ToggleSingularityChallenge {
+                challenge: Id::NoSingularityUpgrades,
+            });
+        let out = tack(&mut s, &input);
+        assert!(s.singularity.no_singularity_upgrades.enabled);
+        assert_eq!(s.singularity.singularity_count, 1.0);
+        assert!(out
+            .events
+            .iter()
+            .any(|e| matches!(e, CoreEvent::SingularityChallengeEntered { .. })));
+
+        // …complete it (antiquities re-acquired) and exit via the same action.
+        s.runes.rune_levels[crate::state::RUNE_ANTIQUITIES] = 1.0;
+        let out = tack(&mut s, &input);
+        assert!(!s.singularity.no_singularity_upgrades.enabled);
+        assert_eq!(s.singularity.no_singularity_upgrades.completions, 1.0);
+        assert!(out.events.iter().any(|e| matches!(
+            e,
+            CoreEvent::SingularityChallengeExited { success: true, .. }
+        )));
+        // The exalt progressive (slot 8) sees the completion on the next tick:
+        // noSingularityUpgrades rewardAP = 15·1.
+        let _ = tack(&mut s, &TackInput::default());
+        assert_eq!(s.achievements.progressive[8].cached_points, 15.0);
     }
 
     #[test]
