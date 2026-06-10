@@ -27,8 +27,10 @@ pub enum HostCommand {
     ImportSave(String),
     /// Persist immediately (settings actions that shouldn't wait 5 s).
     ForceSave,
-    /// Wipe the save and start over.
+    /// Wipe the save (game state) and start over. UI prefs survive.
     HardReset,
+    /// Wipe the save AND the UI prefs — the full danger-zone reset.
+    ResetEverything,
 }
 
 /// Toast severity → styling + auto-dismiss behavior.

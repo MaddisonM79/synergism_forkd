@@ -6,7 +6,9 @@ use std::time::Duration;
 
 use dioxus::prelude::*;
 use synergismforkd_logic::TackInput;
-use synergismforkd_ui::bridge::{DerivedStats, DialogKind, DialogRequest, GameBridge, HostCommand};
+use synergismforkd_ui::bridge::{
+    DerivedStats, DialogKind, DialogRequest, GameBridge, HostCommand, UiPrefs,
+};
 use synergismforkd_ui::events_map;
 use synergismforkd_ui::gating::Route;
 use synergismforkd_ui::i18n::t;
@@ -162,6 +164,17 @@ async fn handle_host_commands(bridge: &GameBridge, host: &mut SaveHost<LocalStor
                 state.set(fresh);
                 bridge.navigate(Route::default());
                 bridge.toast_info("toasts.hard_reset_done");
+            }
+            HostCommand::ResetEverything => {
+                let fresh = host.reset();
+                let mut state = bridge.state;
+                state.set(fresh);
+                // Defaulting the prefs signal re-themes immediately; the
+                // root's persistence effect overwrites the stored prefs.
+                let mut prefs = bridge.prefs;
+                prefs.set(UiPrefs::default());
+                bridge.navigate(Route::default());
+                bridge.toast_info("toasts.reset_all_done");
             }
         }
     }
