@@ -48,7 +48,10 @@ pub use currency::{Coins, Multiplier, PrestigePoints, ReincarnationPoints, Trans
 
 // ─── Tick orchestrator ───────────────────────────────────────────────────
 
-pub use tick::{daily_reset, tack, AutomationPre, BuyRequest, PlayerAction, TackInput, TickOutput};
+pub use tick::{
+    claim_export_rewards, daily_reset, tack, AutomationPre, BuyRequest, ExportRewardClaim,
+    PlayerAction, TackInput, TickOutput,
+};
 
 // Host seam: rebuild the achievement-points total from a loaded bitmap (H5).
 pub use mechanics::achievement_points::recompute_achievement_points;

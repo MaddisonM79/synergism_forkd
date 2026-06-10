@@ -3513,6 +3513,96 @@ fn compute_ascension_count(state: &GameState, effective_score: f64) -> f64 {
     })
 }
 
+/// The currencies banked by an export-reward claim (the return of
+/// [`claim_export_rewards`]). Both are post-multiplier amounts already added
+/// to the player's balances.
+#[derive(Debug, Clone, Copy, PartialEq, Default)]
+pub struct ExportRewardClaim {
+    /// Golden quarks credited from the `goldenQuarksTimer` window.
+    pub golden_quarks: f64,
+    /// Quarks (worlds) credited from the `quarkstimer` window, after the
+    /// in-game quark multiplier.
+    pub quarks: f64,
+}
+
+/// `exportSynergism`'s reward claim (`ImportExport.ts:254-273`) — the
+/// timer→currency conversion run on a *real* export (the
+/// `shouldSetLastSaveSoWeStopFuckingBotheringPeople` branch). Triggered by an
+/// explicit player/host export, **not** the 5-second autosave: the host calls
+/// this before serializing an export. The `offlinetick` / `lastExportedSave`
+/// wall-clock stamps are host-tier (logic has no time-of-day) and live in the
+/// save envelope.
+///
+/// Golden quarks: when `goldenQuarks3` is owned (`exportGQPerHour > 0`), the
+/// whole-window count `floor(timer / (3600/perHour))` is credited times
+/// `bonusGQMultiplier` and the timer keeps its remainder. Quarks: when the
+/// `quarkHandler` gain is `>= 1`, `gain × calculateQuarkMultiplier()` is added
+/// to `worlds` and `quarksThisSingularity` and the timer keeps its remainder.
+///
+/// `bonusGQMultiplier`'s external subscriber term (`1 + getQuarkBonus()/100`)
+/// is neutral in the fork — the global/personal quark bonus is a parked RMT
+/// seam — so only the `highestSingularityCount >= 100` export bonus applies,
+/// matching how [`compute_quark_multiplier`] treats event/patreon as neutral.
+pub fn claim_export_rewards(state: &mut GameState) -> ExportRewardClaim {
+    use crate::mechanics::golden_quark_upgrades::golden_quarks_3_effect;
+    use crate::mechanics::octeracts::octeract_export_quarks_effect;
+    use crate::mechanics::quarks::{quark_handler, QuarkHandlerInput};
+    use crate::state::golden_quarks::GQ_GOLDEN_QUARKS_3;
+    use crate::state::octeract_upgrades::OCTERACT_EXPORT_QUARKS;
+
+    let highest_sing = state.singularity.highest_singularity_count;
+
+    // bonusGQMultiplier: external subscriber bonus neutral (× 1) in the fork;
+    // only the highestSingularityCount >= 100 export bonus is live.
+    let bonus_gq_multiplier = if highest_sing >= 100.0 {
+        1.0 + highest_sing / 50.0
+    } else {
+        1.0
+    };
+
+    // Golden quarks: gated on the goldenQuarks3 upgrade's export rate.
+    let gq3 = &state.golden_quarks.upgrades[GQ_GOLDEN_QUARKS_3];
+    let gq_per_hour = golden_quarks_3_effect(gq3.level + gq3.free_level);
+    let mut golden_quarks_awarded = 0.0;
+    if gq_per_hour > 0.0 {
+        let window = 3600.0 / gq_per_hour;
+        golden_quarks_awarded =
+            (state.golden_quarks.golden_quarks_timer / window).floor() * bonus_gq_multiplier;
+        state.golden_quarks.golden_quarks += Decimal::from_finite(golden_quarks_awarded);
+        state.golden_quarks.golden_quarks_timer %= window;
+    }
+
+    // Quarks (worlds): gated on a whole-quark gain. The award uses the full
+    // in-game quark multiplier (`worlds.add(gain, true, true)`).
+    let oct_export = &state.octeract_upgrades.upgrades[OCTERACT_EXPORT_QUARKS];
+    let researches = &state.researches.researches;
+    let quark = quark_handler(&QuarkHandlerInput {
+        research_195: researches[195],
+        researches_sum: researches[99]
+            + researches[100]
+            + researches[125]
+            + researches[180]
+            + researches[195],
+        export_quark_mult: octeract_export_quarks_effect(oct_export.level + oct_export.free_level),
+        quarks_timer: state.quarks.quarks_timer,
+        // cube_mult is a pass-through in `quark_handler` and does not enter the
+        // `gain` used here, so the `1.0` placeholder is faithful.
+        cube_mult: 1.0,
+    });
+    let mut quarks_awarded = 0.0;
+    if quark.gain >= 1.0 {
+        quarks_awarded = quark.gain * compute_quark_multiplier(state);
+        state.quarks.worlds += Decimal::from_finite(quarks_awarded);
+        state.golden_quarks.quarks_this_singularity += quarks_awarded;
+        state.quarks.quarks_timer %= 3600.0 / quark.per_hour;
+    }
+
+    ExportRewardClaim {
+        golden_quarks: golden_quarks_awarded,
+        quarks: quarks_awarded,
+    }
+}
+
 /// `golden_quarks_multiplier_excluding_base` — self-derived from `&GameState`.
 ///
 /// `calculateGoldenQuarks()` (legacy `Calculate.ts`, granted on a singularity
@@ -8695,6 +8785,72 @@ mod tests {
             3
         );
         assert_eq!(state.campaigns.campaign_completions, [0.0; 50]);
+    }
+
+    #[test]
+    fn claim_export_rewards_banks_golden_quarks_and_quarks() {
+        use crate::state::golden_quarks::GQ_GOLDEN_QUARKS_3;
+        use crate::state::GoldenQuarkUpgrade;
+
+        let mut state = GameState::default();
+        // goldenQuarks3 level 1 → exportGQPerHour = 1·2/2 = 1/hr → window 3600s.
+        state.golden_quarks.upgrades[GQ_GOLDEN_QUARKS_3] = GoldenQuarkUpgrade {
+            level: 1.0,
+            ..GoldenQuarkUpgrade::default()
+        };
+        state.golden_quarks.golden_quarks_timer = 7400.0; // 2 whole windows + 200s
+                                                          // Quark timer: base 5/hr (no researches). 7400s · 5/3600 = floor(10.27) = 10.
+        state.quarks.quarks_timer = 7400.0;
+
+        let claim = claim_export_rewards(&mut state);
+
+        // 2 golden quarks at the default (sing < 100 ⇒ bonus mult 1).
+        assert_eq!(claim.golden_quarks, 2.0);
+        assert_eq!(state.golden_quarks.golden_quarks.to_number(), 2.0);
+        assert_eq!(state.golden_quarks.golden_quarks_timer, 200.0); // remainder
+
+        // Quark gain 10 × quark multiplier (≥ 1). At default the multiplier is 1.
+        assert!(claim.quarks >= 10.0);
+        assert_eq!(state.quarks.worlds.to_number(), claim.quarks);
+        assert_eq!(state.golden_quarks.quarks_this_singularity, claim.quarks);
+        // quarkstimer keeps remainder of 7400 % (3600/5 = 720) = 7400 - 10·720.
+        assert!((state.quarks.quarks_timer - 200.0).abs() < 1e-9);
+    }
+
+    #[test]
+    fn claim_export_rewards_noop_without_goldenquarks3_or_quark_gain() {
+        let mut state = GameState::default();
+        // No goldenQuarks3 ⇒ exportGQPerHour 0 ⇒ GQ timer untouched.
+        state.golden_quarks.golden_quarks_timer = 5000.0;
+        // Sub-1-quark window: 600s · 5/3600 = floor(0.83) = 0 ⇒ no quark claim.
+        state.quarks.quarks_timer = 600.0;
+
+        let claim = claim_export_rewards(&mut state);
+
+        assert_eq!(claim, ExportRewardClaim::default());
+        assert_eq!(state.golden_quarks.golden_quarks_timer, 5000.0);
+        assert_eq!(state.quarks.quarks_timer, 600.0);
+        assert_eq!(state.quarks.worlds.to_number(), 0.0);
+    }
+
+    #[test]
+    fn claim_export_rewards_applies_sing100_export_bonus() {
+        use crate::state::golden_quarks::GQ_GOLDEN_QUARKS_3;
+        use crate::state::GoldenQuarkUpgrade;
+
+        let mut state = GameState::default();
+        state.singularity.highest_singularity_count = 200.0; // bonus = 1 + 200/50 = 5
+        state.golden_quarks.upgrades[GQ_GOLDEN_QUARKS_3] = GoldenQuarkUpgrade {
+            level: 1.0,
+            ..GoldenQuarkUpgrade::default()
+        };
+        state.golden_quarks.golden_quarks_timer = 3600.0; // exactly one window
+
+        let claim = claim_export_rewards(&mut state);
+
+        // 1 whole window × bonus 5 = 5 golden quarks.
+        assert_eq!(claim.golden_quarks, 5.0);
+        assert_eq!(state.golden_quarks.golden_quarks.to_number(), 5.0);
     }
 
     #[test]
