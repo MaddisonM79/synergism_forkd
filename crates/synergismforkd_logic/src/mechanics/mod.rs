@@ -23,6 +23,7 @@ pub mod auto_upgrades;
 pub mod blueberry_upgrades;
 pub mod calculate;
 pub mod campaign_token_rewards;
+pub mod campaigns;
 pub mod challenge_15_rewards;
 pub mod challenges;
 pub mod coin_production;

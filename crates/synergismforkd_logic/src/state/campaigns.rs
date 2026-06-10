@@ -24,12 +24,17 @@ pub const CONSTANT_UPGRADES_LEN: usize = 11;
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct CampaignsState {
     /// Per-campaign `c10Completions` count, in `campaignDatas` key order
-    /// (`first` = 0 … `fiftieth` = 49). The campaign *runner* (choosing a
-    /// campaign, completing c10 under its corruptions) is UI-tier, so logic
-    /// only ever reads these; the token total derives from them via
-    /// [`crate::mechanics::campaign_token_rewards`].
+    /// (`first` = 0 … `fiftieth` = 49). Written by the ascension layer's
+    /// campaign sweep (auto-complete at `highestSingularityCount >= 4` +
+    /// the active-campaign bank, Reset.ts:762-784); the token total derives
+    /// from them via [`crate::mechanics::campaign_token_rewards`].
     #[serde(with = "BigArray")]
     pub campaign_completions: [f64; CAMPAIGNS_LEN],
+    /// `player.campaigns.currentCampaign` — the active campaign's index
+    /// (`campaignDatas` key order), or `None` outside a campaign. Set by
+    /// `PlayerAction::SelectCampaign`; cleared — after banking completions —
+    /// by the ascension layer (Reset.ts:782-784).
+    pub current_campaign: Option<u8>,
     /// `player.campaigns.tokensSpent` — total tokens spent across
     /// all campaigns.
     pub tokens_spent: f64,
@@ -47,6 +52,7 @@ impl Default for CampaignsState {
     fn default() -> Self {
         Self {
             campaign_completions: [0.0; CAMPAIGNS_LEN],
+            current_campaign: None,
             tokens_spent: 0.0,
             ascension_score_multiplier: 1.0,
             constant_upgrades: [0.0; CONSTANT_UPGRADES_LEN],

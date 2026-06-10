@@ -599,8 +599,12 @@ pub(crate) fn perform_ascension_challenge_reset(
 /// - the `autoChallengeIndex` / `roombaResearchIndex` / `autoResearch` UI
 ///   cursors (no logic field / UI-tier);
 /// - the C15 corruption override (needs the `c15Corruptions` constant) and
-///   every `highestSingularityCount`-gated convenience (campaigns, hepteract
+///   the remaining `highestSingularityCount`-gated conveniences (hepteract
 ///   auto-craft, tesseract auto-buyer, auto-open) — inert at default.
+///
+/// The campaign sweep (Reset.ts:762-784) is **live**: the singularity-4
+/// auto-complete and the active-campaign bank both run just before the
+/// `used ← next` corruption swap.
 fn apply_ascension_layer(state: &mut GameState) -> Decimal {
     use crate::mechanics::calculate::{calc_corruption_stuff, CalcCorruptionStuffInput};
     use crate::mechanics::challenge_15_rewards;
@@ -648,6 +652,10 @@ fn apply_ascension_layer(state: &mut GameState) -> Decimal {
     } else {
         None
     };
+
+    // Campaign completion source (Reset.ts:684): captured before the
+    // challenge-completion wipe below zeroes it.
+    let c10_completions = state.challenges.challenge_completions[10];
 
     // Clear the lower auto-challenge gates (Reset.ts:633-634). The ascension
     // challenge gate itself is intentionally left untouched.
@@ -777,14 +785,62 @@ fn apply_ascension_layer(state: &mut GameState) -> Decimal {
         state.upgrades.upgrades[100] = 1;
     }
 
-    // Campaign reset (762-784) and the sing-gated conveniences block
-    // (796-877): DEFERRED — `highestSingularityCount`-gated, inert at default.
+    // Campaign sweep (Reset.ts:762-784) — runs before the `used ← next` swap,
+    // so the difficulty comparison reads the loadout of the ascension that
+    // just ended. Auto-complete (`highestSingularityCount >= 4`): every
+    // *unlocked* campaign whose loadout difficulty (live `bonusLevels` on
+    // both sides) is <= the used-loadout difficulty banks the captured c10
+    // (`setC10ToArbitrary`). Then an active campaign banks the same c10 and
+    // clears (`resetCampaign`). The legacy `updateTokens()` / HTML refresh
+    // have no logic mirror — tokens derive live in the tick.
+    {
+        use crate::mechanics::campaigns::{
+            campaign_loadout_difficulty, campaign_unlocked, record_campaign_completion,
+            CAMPAIGNS_LEN,
+        };
+        use crate::mechanics::corruptions::corruption_loadout_difficulty_score;
+
+        if state.singularity.highest_singularity_count >= 4.0 {
+            let bonus_levels = super::corruption_bonus_levels(state);
+            let current_difficulty =
+                corruption_loadout_difficulty_score(&state.corruptions.used.levels, bonus_levels);
+            let max_corruption = super::current_max_corruption_level(state);
+            let cube_50 = state.cube_upgrade_levels.cube_upgrades[50];
+            for index in 0..CAMPAIGNS_LEN {
+                if !campaign_unlocked(index, max_corruption, cube_50) {
+                    continue;
+                }
+                if campaign_loadout_difficulty(index, bonus_levels) <= current_difficulty {
+                    record_campaign_completion(
+                        &mut state.campaigns.campaign_completions,
+                        index,
+                        c10_completions,
+                    );
+                }
+            }
+        }
+        if let Some(active) = state.campaigns.current_campaign {
+            record_campaign_completion(
+                &mut state.campaigns.campaign_completions,
+                usize::from(active),
+                c10_completions,
+            );
+            state.campaigns.current_campaign = None;
+        }
+    }
 
     // Corruption loadout swap `used ← next` (Reset.ts:785). `CorruptionLoadout`
-    // is `Copy`, so this is a plain assignment. The C15 override (788-790) is
+    // is `Copy`, so this is a plain assignment; the fresh legacy loadout's
+    // score mult re-derives lazily on first read, so the cache recomputes
+    // eagerly here with the live bonus terms. The C15 override (788-790) is
     // deferred (needs `c15Corruptions`; inert unless inside ascension
-    // challenge 15).
+    // challenge 15). The sing-gated conveniences block (Reset.ts:796-877:
+    // hepteract auto-craft, tesseract auto-buyer, auto-open) stays DEFERRED —
+    // inert at default.
     state.corruptions.used = state.corruptions.next;
+    let used_levels = state.corruptions.used.levels;
+    state.corruptions.used.total_corruption_ascension_multiplier =
+        super::corruption_score_mult_for(state, used_levels);
 
     wow_cubes_gained
 }
@@ -1999,15 +2055,88 @@ mod tests {
         let mut state = GameState::default();
         state.corruptions.used.levels[2] = 1;
         state.corruptions.next.levels[2] = 7;
+        // Stale sentinel: the swap must NOT carry this cache. The legacy swap
+        // constructs a fresh `CorruptionLoadout`, whose score mult re-derives
+        // lazily on first read — the port recomputes it eagerly post-swap.
         state.corruptions.next.total_corruption_ascension_multiplier = 2.5;
 
         perform_ascension_reset(&mut state, &gains(0.0, 0.0, 0.0));
 
         assert_eq!(state.corruptions.used.levels[2], 7);
+        let expected =
+            super::super::corruption_score_mult_for(&state, state.corruptions.used.levels);
         assert_eq!(
+            state.corruptions.used.total_corruption_ascension_multiplier,
+            expected
+        );
+        assert_ne!(
             state.corruptions.used.total_corruption_ascension_multiplier,
             2.5
         );
+    }
+
+    #[test]
+    fn ascension_reset_banks_active_campaign_and_clears_it() {
+        let mut state = GameState::default();
+        state.campaigns.current_campaign = Some(0);
+        state.challenges.challenge_completions[10] = 6.0;
+
+        perform_ascension_reset(&mut state, &gains(0.0, 0.0, 0.0));
+
+        // `resetCampaign` (Reset.ts:782-784) runs at any singularity count.
+        assert_eq!(state.campaigns.campaign_completions[0], 6.0);
+        assert_eq!(state.campaigns.current_campaign, None);
+        // The c10 source itself is wiped by the reset.
+        assert_eq!(state.challenges.challenge_completions[10], 0.0);
+    }
+
+    #[test]
+    fn ascension_reset_campaign_bank_clamps_to_limit_and_never_decreases() {
+        let mut state = GameState::default();
+        state.campaigns.current_campaign = Some(0); // first: limit 10
+        state.campaigns.campaign_completions[0] = 4.0;
+        state.challenges.challenge_completions[10] = 25.0;
+
+        perform_ascension_reset(&mut state, &gains(0.0, 0.0, 0.0));
+        assert_eq!(state.campaigns.campaign_completions[0], 10.0);
+
+        // A later, lower-c10 run of the same campaign can't reduce the bank.
+        state.campaigns.current_campaign = Some(0);
+        state.challenges.challenge_completions[10] = 3.0;
+        perform_ascension_reset(&mut state, &gains(0.0, 0.0, 0.0));
+        assert_eq!(state.campaigns.campaign_completions[0], 10.0);
+    }
+
+    #[test]
+    fn ascension_reset_auto_completes_easier_campaigns_at_singularity_4() {
+        let mut state = GameState::default();
+        state.singularity.highest_singularity_count = 4.0;
+        state.challenges.challenge_completions[10] = 8.0;
+        // Used loadout = the seventh campaign's exact corruptions
+        // (viscosity 5 / drought 5) — difficulty covers cardinals 1-7.
+        state.corruptions.used.levels[crate::state::VISCOSITY_INDEX] = 5;
+        state.corruptions.used.levels[crate::state::DROUGHT_INDEX] = 5;
+
+        perform_ascension_reset(&mut state, &gains(0.0, 0.0, 0.0));
+
+        // first..=seventh auto-complete (their difficulty <= used difficulty).
+        assert_eq!(state.campaigns.campaign_completions[0], 8.0);
+        assert_eq!(state.campaigns.campaign_completions[6], 8.0);
+        // eighth needs maxCorruptionLevel() >= 7 — locked at default state.
+        assert_eq!(state.campaigns.campaign_completions[7], 0.0);
+    }
+
+    #[test]
+    fn ascension_reset_no_auto_complete_below_singularity_4() {
+        let mut state = GameState::default();
+        state.singularity.highest_singularity_count = 3.0;
+        state.challenges.challenge_completions[10] = 8.0;
+        state.corruptions.used.levels[crate::state::VISCOSITY_INDEX] = 5;
+        state.corruptions.used.levels[crate::state::DROUGHT_INDEX] = 5;
+
+        perform_ascension_reset(&mut state, &gains(0.0, 0.0, 0.0));
+
+        assert_eq!(state.campaigns.campaign_completions, [0.0; 50]);
     }
 
     #[test]

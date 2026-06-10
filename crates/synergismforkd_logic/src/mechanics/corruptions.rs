@@ -419,6 +419,19 @@ pub fn calculate_corruption_difficulty_score(total_levels: &[f64]) -> f64 {
     base_points
 }
 
+/// `CorruptionLoadout.totalCorruptionDifficultyScore` (Corruptions.ts:251-254)
+/// for a stored loadout: the difficulty over the 8 real corruptions at
+/// `level + bonusLevels` each (the bonus applies to every corruption,
+/// including zero-level ones).
+#[must_use]
+pub fn corruption_loadout_difficulty_score(levels: &[u32], bonus_levels: f64) -> f64 {
+    let mut totals = [0.0_f64; 8];
+    for (total, &level) in totals.iter_mut().zip(levels.iter().take(8)) {
+        *total = f64::from(level) + bonus_levels;
+    }
+    calculate_corruption_difficulty_score(&totals)
+}
+
 // ─── Level clipping / validation ───────────────────────────────────────────
 
 /// Clip a single corruption level to a valid stored value. Returns
