@@ -423,7 +423,12 @@ fn auto_upgrades(state: &mut GameState, output: &mut TickOutput) {
 /// The challenge-state flags + reduction value the producer cost solver reads.
 /// `cost_divisor` is the legacy `r` (`getReductionValue()`), **not**
 /// `G.costDivisor` (which is always `1` and lives in the solver).
-fn producer_cost_input(state: &GameState) -> GetProducerCostInput {
+///
+/// Public (re-exported from the crate root): the UI builds its manual
+/// `BuyRequest::ProducerMax` inputs through this same function so manual
+/// and autobuyer cost math can never drift.
+#[must_use]
+pub fn producer_cost_input(state: &GameState) -> GetProducerCostInput {
     GetProducerCostInput {
         cost_divisor: reduction_value(state),
         in_transcension_challenge_4: state.challenges.current_transcension_challenge == 4,
@@ -435,7 +440,11 @@ fn producer_cost_input(state: &GameState) -> GetProducerCostInput {
 }
 
 /// `getReductionValue()` (`Buy.ts:16`) — the producer-cost reduction `r`.
-fn reduction_value(state: &GameState) -> f64 {
+///
+/// Public (re-exported from the crate root) for the UI's manual
+/// `BuyRequest::Producer` inputs; see [`producer_cost_input`].
+#[must_use]
+pub fn reduction_value(state: &GameState) -> f64 {
     let researches_sum: f64 = (56..=60).map(|i| state.researches.researches[i]).sum();
     let ant_building_cost_scale =
         building_cost_scale_ant_upgrade_effect(state.ants.upgrades[6]).building_cost_scale;

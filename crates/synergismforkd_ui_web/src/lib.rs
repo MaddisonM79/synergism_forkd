@@ -1,8 +1,9 @@
-//! Synergism Forkd — WASM entry point.
+//! Synergism Forkd — browser shell.
 //!
-//! Built as `cdylib` for `wasm32-unknown-unknown`; mounts the
-//! `synergismforkd_ui` Dioxus root component into the page. Also built
-//! as `rlib` so the desktop crate can depend on it.
+//! The `dx`-built bin target (`main.rs`) calls [`run`] on
+//! `wasm32-unknown-unknown` to mount the `synergismforkd_ui` Dioxus tree.
+//! The lib form exists for native unit tests (SaveHost) and any host that
+//! wants the persistence seam.
 //!
 //! Hosts the [`save_host`] seam: `localStorage` persistence + the autosave
 //! loop that drives the headless game logic and the fresh save format on the
@@ -18,8 +19,27 @@ use synergismforkd_ui as _;
 #[cfg(target_arch = "wasm32")]
 use getrandom as _;
 
+// On native, `dioxus` is present only so the renderer-free feature set
+// unifies with `synergismforkd_ui`; the launch path below is wasm-only.
+#[cfg(not(target_arch = "wasm32"))]
+use dioxus as _;
+
 pub mod save_host;
+
+#[cfg(target_arch = "wasm32")]
+pub mod catch_up;
+#[cfg(target_arch = "wasm32")]
+pub mod loop_driver;
+#[cfg(target_arch = "wasm32")]
+pub mod platform;
+#[cfg(target_arch = "wasm32")]
+pub mod root;
 
 pub use save_host::{BootOutcome, SaveHost, SaveStorage, AUTOSAVE_INTERVAL_S, SAVE_KEY};
 
-pub fn placeholder() {}
+/// Mount the app in the browser. Called by the `dx` binary entry (`main.rs`).
+#[cfg(target_arch = "wasm32")]
+pub fn run() {
+    console_error_panic_hook::set_once();
+    dioxus::launch(root::WebRoot);
+}

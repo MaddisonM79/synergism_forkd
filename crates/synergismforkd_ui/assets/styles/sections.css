@@ -1,0 +1,349 @@
+/* Per-section layout. Density target: Buildings fully visible without
+ * scrolling at 1280×800. */
+
+.sf-section-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  margin-bottom: var(--space-4);
+}
+
+.sf-section-head h1 {
+  margin: 0;
+  font-size: var(--fs-xl);
+  flex: 1;
+}
+
+/* Buildings: producer cards + the accelerator/multiplier/prestige row. */
+
+.sf-buildings-meta {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 280px));
+  gap: var(--space-4);
+  margin-top: var(--space-5);
+}
+
+.sf-prestige-btn {
+  background: var(--accent-production);
+  border-color: var(--accent-production);
+  color: var(--text-inverse);
+  font-weight: 700;
+}
+
+/* Cascade-generated (+free) counts and contribution percentages. */
+.sf-free {
+  color: var(--text-muted);
+  font-size: var(--fs-xs);
+}
+
+/* Achievements: summary line + dense earned/locked grid. */
+.sf-ach-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-5);
+  align-items: baseline;
+  margin-bottom: var(--space-4);
+  font-size: var(--fs-sm);
+}
+
+.sf-ach-points {
+  color: var(--accent-production);
+}
+
+/* Synergism Level + progress-to-next bar. */
+.sf-ach-level {
+  margin-bottom: var(--space-5);
+  max-width: 560px;
+}
+
+.sf-ach-level-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: var(--space-2);
+  font-size: var(--fs-sm);
+}
+
+.sf-ach-level-name {
+  font-weight: 600;
+}
+
+.sf-ach-level-num {
+  color: var(--accent-production);
+  font-variant-numeric: tabular-nums;
+}
+
+.sf-ach-level-to-next {
+  color: var(--text-muted);
+  font-size: var(--fs-xs);
+  font-variant-numeric: tabular-nums;
+}
+
+.sf-ach-next-reward {
+  margin-top: var(--space-2);
+  font-size: var(--fs-sm);
+}
+
+.sf-ach-next-lv {
+  color: var(--accent-production);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Level-rewards roadmap list. */
+.sf-ach-rewards-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  max-width: 560px;
+}
+
+.sf-ach-reward-row {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-3);
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-sm);
+  font-size: var(--fs-sm);
+  color: var(--text-muted);
+}
+
+.sf-ach-reward-row.unlocked {
+  color: var(--text);
+}
+
+.sf-ach-reward-lv {
+  min-width: 96px;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-muted);
+}
+
+.sf-ach-reward-row.unlocked .sf-ach-reward-lv {
+  color: var(--accent-production);
+}
+
+.sf-ach-reward-name {
+  flex: 1;
+}
+
+.sf-ach-reward-state {
+  font-size: var(--fs-xs);
+}
+
+.sf-ach-reward-row.unlocked .sf-ach-reward-state {
+  color: var(--ok);
+}
+
+.sf-ach-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(34px, 1fr));
+  gap: var(--space-2);
+}
+
+.sf-ach-cell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  aspect-ratio: 1;
+  border: var(--bw) solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-surface);
+  color: var(--text-muted);
+  font-size: var(--fs-xs);
+  font-variant-numeric: tabular-nums;
+  cursor: default;
+  transition: background var(--t-fast), border-color var(--t-fast);
+}
+
+.sf-ach-cell:hover,
+.sf-ach-cell:focus-visible {
+  border-color: var(--accent-production);
+  outline: none;
+}
+
+.sf-ach-cell.earned {
+  background: var(--accent-production);
+  border-color: var(--accent-production);
+  color: var(--text-inverse);
+  font-weight: 700;
+}
+
+/* Persistent detail box above the grid (replaces per-cell tooltips). */
+.sf-ach-detail {
+  min-height: 56px;
+  margin-bottom: var(--space-4);
+  padding: var(--space-3) var(--space-4);
+  border: var(--bw) solid var(--border);
+  border-left: 3px solid var(--accent-production);
+  border-radius: var(--radius-sm);
+  background: var(--bg-surface);
+}
+
+.sf-ach-detail.muted {
+  border-left-color: var(--border);
+  color: var(--text-muted);
+  font-size: var(--fs-sm);
+  display: flex;
+  align-items: center;
+}
+
+.sf-ach-detail-head {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-3);
+  margin-bottom: var(--space-1);
+}
+
+.sf-ach-detail-num {
+  font-variant-numeric: tabular-nums;
+  color: var(--text-muted);
+  font-weight: 700;
+}
+
+.sf-ach-detail-name {
+  font-weight: 700;
+}
+
+.sf-ach-status {
+  font-size: var(--fs-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+}
+
+.sf-ach-status.earned {
+  color: var(--ok);
+  font-weight: 700;
+}
+
+.sf-ach-detail-pts {
+  margin-left: auto;
+  color: var(--accent-production);
+  font-weight: 600;
+}
+
+.sf-ach-detail-req {
+  font-size: var(--fs-sm);
+  margin-bottom: var(--space-1);
+}
+
+.sf-ach-req-label {
+  color: var(--text-muted);
+}
+
+.sf-ach-detail-progress {
+  font-size: var(--fs-xs);
+}
+
+.sf-ach-progress-done {
+  color: var(--ok);
+}
+
+.sf-ach-progress-pending {
+  color: var(--text-muted);
+}
+
+.sf-ach-progress-count {
+  color: var(--accent-production);
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+
+/* The wealth-tax banner. */
+.sf-tax-line {
+  margin-top: var(--space-4);
+  padding: var(--space-3) var(--space-4);
+  border: var(--bw) solid var(--warn);
+  border-radius: var(--radius-sm);
+  color: var(--warn);
+  font-size: var(--fs-sm);
+}
+
+/* Settings */
+
+.sf-settings-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  max-width: 560px;
+}
+
+.sf-settings-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  background: var(--bg-surface);
+  border: var(--bw) solid var(--border);
+  border-radius: var(--radius-md);
+  padding: var(--space-4);
+}
+
+.sf-settings-row .text {
+  flex: 1;
+}
+
+.sf-settings-row .hint {
+  color: var(--text-muted);
+  font-size: var(--fs-xs);
+}
+
+/* A titled block within the consolidated Settings page. */
+.sf-settings-block {
+  max-width: 560px;
+  margin-bottom: var(--space-6);
+}
+
+.sf-settings-block h2 {
+  margin: 0 0 var(--space-3);
+  font-size: var(--fs-md);
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.sf-settings-block .sf-settings-row {
+  margin-bottom: var(--space-3);
+}
+
+/* Danger zone: visually quarantined destructive actions. */
+
+.sf-danger-zone {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  max-width: 560px;
+  margin-top: var(--space-6);
+  border: var(--bw) solid var(--danger);
+  border-radius: var(--radius-md);
+  padding: var(--space-4);
+}
+
+.sf-danger-zone h2 {
+  margin: 0;
+  font-size: var(--fs-md);
+  color: var(--danger);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.sf-danger-zone .sf-settings-row {
+  background: transparent;
+  border: none;
+  padding: var(--space-2) 0;
+}
+
+.sf-danger-zone .sf-settings-row + .sf-settings-row {
+  border-top: var(--bw) solid var(--border);
+}
+
+.sf-danger-btn {
+  background: transparent;
+  border-color: var(--danger);
+  color: var(--danger);
+  min-width: 88px;
+}
+
+.sf-danger-btn:hover:not(:disabled) {
+  background: var(--danger);
+  border-color: var(--danger);
+  color: var(--text-inverse);
+}

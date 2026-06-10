@@ -57,6 +57,40 @@ const MYTHOS_BASE_COSTS: [f64; 5] = [1.0, 1e2, 1e4, 1e8, 1e16];
 /// (`player.{first..fifth}CostParticles`, Reset.ts:666-670).
 const PARTICLE_BASE_COSTS: [f64; 5] = [1.0, 100.0, 1e4, 1e8, 1e16];
 
+/// Seed a default (all-zero) [`GameState`] with the legacy `blankSave`
+/// starting economy (Synergism.ts:307-345): 100 starting coins (and the
+/// matching per-tier coin counters), the four producer families' base
+/// costs, and the accelerator/multiplier base costs.
+///
+/// `GameState::default()` stays deliberately neutral (zeroed) — mechanics
+/// tests build on it — so every host-facing fresh save must pass through
+/// here (`synergismforkd_save::reset_save` does). Without this seeding a
+/// fresh game is soft-locked: no coins, every cost zero.
+pub fn seed_blank_save(state: &mut GameState) {
+    state.upgrades.coins = Decimal::from_finite(100.0);
+    state.coin_counters.coins_this_prestige = Decimal::from_finite(100.0);
+    state.coin_counters.coins_this_transcension = Decimal::from_finite(100.0);
+    state.coin_counters.coins_this_reincarnation = Decimal::from_finite(100.0);
+    state.coin_counters.coins_total = Decimal::from_finite(100.0);
+
+    let families = [
+        (&mut state.coin_producers, COIN_BASE_COSTS),
+        (&mut state.diamond_producers, DIAMOND_BASE_COSTS),
+        (&mut state.mythos_producers, MYTHOS_BASE_COSTS),
+        (&mut state.particle_producers, PARTICLE_BASE_COSTS),
+    ];
+    for (family, costs) in families {
+        for (tier, cost) in family.tiers.iter_mut().zip(costs) {
+            tier.cost = Decimal::from_finite(cost);
+        }
+    }
+
+    // `acceleratorCost: 5e2`, `multiplierCost: 1e4` (Synergism.ts:451-452).
+    // `acceleratorBoostCost` is already seeded by its slice default.
+    state.accelerator.accelerator_cost = Decimal::from_finite(500.0);
+    state.multiplier.multiplier_cost = Decimal::from_finite(10_000.0);
+}
+
 /// `coinsThisTranscension` floor for a transcension to credit a count
 /// (`transcensionCheck`, Reset.ts:416).
 const TRANSCEND_COUNT_THRESHOLD: f64 = 1e100;

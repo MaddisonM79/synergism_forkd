@@ -2,6 +2,15 @@
 
 **Date:** 2026-06-10 · **Baseline:** `main` @ `0a9230eb` (incl. PRs #265, #269, #272, #273)
 
+> **Status update (2026-06-10, UI vertical slice):** the work this audit recommended has started
+> landing. The Dioxus 0.7 app shell (grouped nav + HUD + theme tokens), the number formatter, a
+> playable Buildings section, saves UI, the 20 Hz loop driver, and **the offline catch-up gap
+> below is CLOSED** (`crates/synergismforkd_ui_web/src/catch_up.rs` — chunked `time_warp` ticks
+> off `saved_at_ms`, 24 h cap, progress dialog). `SaveHost` is now persistence-only (state lives
+> in the UI signal) and `TickOutput` carries `DerivedTickStats` for HUD rates/previews. Desktop
+> shell decision ratified: **Dioxus only, no Tauri** (CLAUDE.md amendment due at the desktop
+> milestone).
+
 A source-verified assessment of whether the Rust logic tier is complete enough to start building
 the Dioxus UI tree. Every claim below was checked against `crates/` source, **not** against status
 docs (two of three audit passes for this report were initially misled by stale docs — see

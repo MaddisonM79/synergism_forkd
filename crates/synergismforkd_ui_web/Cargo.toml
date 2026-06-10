@@ -8,11 +8,16 @@ license.workspace = true
 repository.workspace = true
 publish = false
 
+# rlib only: `dx` builds the bin target (src/main.rs) for the browser, and
+# a cdylib here would collide with the bin's wasm output filename.
 [lib]
-crate-type = ["cdylib", "rlib"]
+crate-type = ["rlib"]
 
 [dependencies]
 synergismforkd_ui = { path = "../synergismforkd_ui" }
+# Renderer-free feature set for native builds (tests, clippy --all-targets);
+# the wasm32 section below adds the web renderer + launch.
+dioxus = { workspace = true, features = ["lib"] }
 # Host-tier save wiring (localStorage persistence + the autosave loop) drives
 # the headless logic and the fresh save format directly. The `SaveHost`
 # orchestration is platform-agnostic and unit-tested on native; only the
@@ -32,9 +37,37 @@ synergismforkd_save = { path = "../synergismforkd_save" }
 # `web-sys` (localStorage) + `js-sys` (Date.now wall-clock) back the wasm-only
 # `SaveStorage` impl and `now_ms()`; both stay out of the native build.
 [target.'cfg(target_arch = "wasm32")'.dependencies]
+# Browser shell: dioxus-web renderer + launch, wasm-only so the native
+# build (unit tests on SaveHost / loop orchestration) never compiles the
+# renderer stack.
+dioxus = { workspace = true, features = ["lib", "web", "launch", "logger"] }
+# Drives the 20 Hz game loop (`sleep` future between ticks). worker-timers
+# semantics (keeps firing in background tabs) are NOT needed — a throttled
+# tab just produces a large dt that the catch-up chunker absorbs.
+gloo-timers = { version = "0.3", features = ["futures"] }
 getrandom = { version = "0.4", features = ["wasm_js"] }
 js-sys = "0.3"
-web-sys = { version = "0.3", features = ["Window", "Storage"] }
+web-sys = { version = "0.3", features = [
+    "Window",
+    "Storage",
+    # performance.now() drives tick dt
+    "Performance",
+    # document.hidden gates the on-hide force-save
+    "Document",
+    # NOT used here: newest web-sys 0.3.x gates window.location() behind
+    # this feature while dioxus-web 0.7.9 still expects it ungated —
+    # feature unification supplies it on dioxus-web's behalf.
+    "Location",
+    # navigator.clipboard for save export
+    "Navigator",
+    "Clipboard",
+] }
+wasm-bindgen-futures = "0.4"
+# Panics print a real message + Rust backtrace to the console instead of
+# an opaque `unreachable` trap.
+console_error_panic_hook = "0.1"
+# UiPrefs round-trip through localStorage as JSON.
+serde_json = { workspace = true }
 
 [lints]
 workspace = true

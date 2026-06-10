@@ -1,0 +1,77 @@
+/* Color tokens per theme. Adding a theme = one new block + one Theme enum
+ * variant; no component changes. */
+
+/* Dark = "pastel goth": a deep plum-tinted background (a lighter, modern
+ * take on the original Synergism purple) with soft lavender text and
+ * pastel accents. */
+.sf-app[data-theme="dark"] {
+  --bg-app: #1a1325;
+  --bg-surface: #241a33;
+  --bg-raised: #2e2240;
+  --bg-hover: #3a2b50;
+  --border: #3d2f54;
+  --border-strong: #564170;
+  --text: #ece6f5;
+  --text-muted: #ab9dc4;
+  --text-inverse: #1a1325;
+
+  --ok: #79d3a3;
+  --warn: #e7be5f;
+  --danger: #ec7a8f;
+  --info: #9a8cf0;
+
+  /* Group accents (pastel) */
+  --accent-production: #e6c45c;
+  --accent-mystic: #c19af0;
+  --accent-ascension: #84c5f2;
+  --accent-singularity: #f291bf;
+  --accent-shop: #88d39a;
+  --accent-achievements: #e6c45c;
+  --accent-settings: #b3a6cf;
+
+  /* Resource colors (ResourceIcon + chips) */
+  --res-coin: #ecc95c;
+  --res-diamond: #84dbe8;
+  --res-mythos: #c39bf0;
+  --res-particle: #f2a877;
+  --res-offering: #ee8f86;
+  --res-obtainium: #ee8cc6;
+  --res-quark: #79dede;
+  --res-golden-quark: #f5d674;
+  --res-ambrosia: #9ab6f5;
+}
+
+.sf-app[data-theme="light"] {
+  --bg-app: #f2f4f8;
+  --bg-surface: #ffffff;
+  --bg-raised: #eef1f6;
+  --bg-hover: #e3e8f0;
+  --border: #d4dae4;
+  --border-strong: #b8c0ce;
+  --text: #1c2430;
+  --text-muted: #5d6778;
+  --text-inverse: #ffffff;
+
+  --ok: #2e8b57;
+  --warn: #b07d1a;
+  --danger: #c43d3d;
+  --info: #2f6fae;
+
+  --accent-production: #a87a14;
+  --accent-mystic: #7a4fc0;
+  --accent-ascension: #2278bd;
+  --accent-singularity: #c23a68;
+  --accent-shop: #2f8a3a;
+  --accent-achievements: #a87a14;
+  --accent-settings: #5d6778;
+
+  --res-coin: #b8901a;
+  --res-diamond: #1f96aa;
+  --res-mythos: #8455c8;
+  --res-particle: #c96637;
+  --res-offering: #c2554a;
+  --res-obtainium: #b83d8a;
+  --res-quark: #1a9a9a;
+  --res-golden-quark: #b8961f;
+  --res-ambrosia: #3a66c2;
+}

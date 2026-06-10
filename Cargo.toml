@@ -30,6 +30,12 @@ rand = { version = "0.10", default-features = false, features = ["thread_rng"] }
 rand_xoshiro = { version = "0.8", default-features = false, features = ["serde"] }
 smallvec = { version = "1", default-features = false, features = ["serde"] }
 base64 = { version = "0.22", default-features = false, features = ["std"] }
+# UI tier (decision 2026-06-10): Dioxus only — dioxus-web in the browser,
+# dioxus-desktop for the compiled app. No Tauri. Feature selection happens
+# per crate: `ui` takes the renderer-free `lib` set, the shells add their
+# renderer + launch features.
+dioxus = { version = "0.7.9", default-features = false }
+serde_json = { version = "1", default-features = false, features = ["alloc"] }
 
 [workspace.lints.rust]
 unused_crate_dependencies = "warn"

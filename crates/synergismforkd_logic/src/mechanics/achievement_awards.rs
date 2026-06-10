@@ -426,6 +426,52 @@ fn award_log10_group(ach: &mut AchievementsState, gain: Decimal, table: &[Log10R
     awarded
 }
 
+/// Live progress toward a threshold-group achievement: `(current, target)`,
+/// or `None` for achievements that aren't backed by a simple monotonic
+/// state value (ungrouped conditions, log10 reset-gain groups, and groups
+/// whose source is a per-tick computed value like ascension score or
+/// campaign tokens). The UI shows `current / target` when `Some`.
+///
+/// Covers the high-frequency counter groups: coin buildings, the four
+/// reset counts, accelerators / multipliers / accelerator-boosts,
+/// singularity count, and ant-sacrifice count — all read straight from
+/// `GameState`, so the displayed `current` exactly matches what the award
+/// sweep compares against the table threshold.
+#[must_use]
+pub fn achievement_progress(state: &crate::state::GameState, index: usize) -> Option<(f64, f64)> {
+    let coin = &state.coin_producers.tiers;
+    let rc = &state.reset_counters;
+    // (table, live source value) pairs — same tables the award sweep uses.
+    let groups: &[(&[ThresholdRow], f64)] = &[
+        (FIRST_OWNED_COIN, coin[0].owned),
+        (SECOND_OWNED_COIN, coin[1].owned),
+        (THIRD_OWNED_COIN, coin[2].owned),
+        (FOURTH_OWNED_COIN, coin[3].owned),
+        (FIFTH_OWNED_COIN, coin[4].owned),
+        (ASCENSION_COUNT, rc.ascension_count),
+        (PRESTIGE_COUNT, rc.prestige_count),
+        (TRANSCENSION_COUNT, rc.transcend_count),
+        (REINCARNATION_COUNT, rc.reincarnation_count),
+        (ACCELERATORS, state.accelerator.accelerator_bought),
+        (MULTIPLIERS, state.multiplier.multiplier_bought),
+        (
+            ACCELERATOR_BOOSTS,
+            state.accelerator.accelerator_boost_bought,
+        ),
+        (
+            SINGULARITY_COUNT,
+            state.singularity.highest_singularity_count,
+        ),
+        (SAC_COUNT, state.ants.ant_sacrifice_count),
+    ];
+    for &(table, current) in groups {
+        if let Some(&(_, threshold, _)) = table.iter().find(|(i, _, _)| *i == index) {
+            return Some((current, threshold));
+        }
+    }
+    None
+}
+
 /// `buildingAchievementCheck()` — award the five `*OwnedCoin` groups from the
 /// owned coin-producer counts (`coin_owned[0..5]` = first..fifth owned coin).
 /// Called after a coin-producer buy.
@@ -1208,6 +1254,21 @@ mod tests {
         // Unmet condition: no award.
         assert!(!award_achievement(&mut ach, 4, false, 20.0));
         assert_eq!(ach.achievements[4], 0);
+    }
+
+    #[test]
+    fn achievement_progress_reports_current_over_threshold() {
+        let mut state = crate::state::GameState::default();
+        state.coin_producers.tiers[0].owned = 34.0;
+        // First-coin group: index 3 is the "100 Workers" row.
+        assert_eq!(achievement_progress(&state, 3), Some((34.0, 100.0)));
+        // Index 1 is the "1 Worker" row (already met).
+        assert_eq!(achievement_progress(&state, 1), Some((34.0, 1.0)));
+        // Prestige-count group: index 437 = "10 prestiges".
+        state.reset_counters.prestige_count = 7.0;
+        assert_eq!(achievement_progress(&state, 437), Some((7.0, 10.0)));
+        // Achievement 0 (Achievement Hunter) isn't threshold-backed.
+        assert_eq!(achievement_progress(&state, 0), None);
     }
 
     #[test]

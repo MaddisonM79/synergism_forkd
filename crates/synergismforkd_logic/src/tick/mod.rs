@@ -76,6 +76,9 @@ use crate::state::{GameState, RngPurpose, RUNE_COUNT, TALISMAN_COUNT};
 mod ant_generation;
 mod ant_sacrifice;
 mod auto_buy;
+
+pub use auto_buy::{producer_cost_input, reduction_value};
+pub use reset::seed_blank_save;
 mod auto_research;
 mod auto_reset;
 mod automatic_tools;
@@ -348,6 +351,11 @@ pub enum PlayerAction {
         /// Campaign index (`campaignDatas` key order; `first` = 0).
         campaign: usize,
     },
+    /// The player opened the Achievements screen. Awards the
+    /// "Achievement Hunter" / `participationTrophy` achievement (ID 0,
+    /// `displayCondition: () => true`), the legacy `awardUngroupedAchievement`
+    /// fired on showing the tab (`Tabs.ts`). Idempotent.
+    OpenedAchievements,
 }
 
 /// Selects the automation flag a [`PlayerAction::ToggleAuto`] sets.
@@ -513,15 +521,92 @@ pub fn daily_reset(state: &mut GameState) {
     state.ants.quarks_gained_from_ants = 0.0;
 }
 
-/// Result of [`tack`]. The accumulated event stream is the only output
-/// the UI tier reads from a tick today; derived stats and dirty flags
-/// land here once Phase 2 acquires a `state.g_cache` slice to read from.
+/// Result of [`tack`]: the event stream the UI dispatches, plus per-tick
+/// derived display numbers.
 #[derive(Debug, Clone, Default)]
 pub struct TickOutput {
     /// CoreEvent stream for the UI tier to dispatch. Inline capacity of
     /// 16 covers the typical worst-case tick (purchases × N + 1
     /// achievement + up to 5 challenge auto-completions).
     pub events: SmallVec<[CoreEvent; 16]>,
+    /// Display values `tack` already computed this tick (gain previews,
+    /// rates). NOT persisted — pure tick output for the HUD.
+    pub derived: DerivedTickStats,
+}
+
+/// Per-tick derived display numbers. Sourced from values the tick already
+/// computes (`ResetCurrencyGains`, `ResourceGainPre`, the Phase-2
+/// aggregators); display-only, never persisted.
+#[derive(Debug, Clone, Copy, Default, PartialEq)]
+pub struct DerivedTickStats {
+    /// Coins gained per real second at this tick's production + speed
+    /// multiplier (tax-capped).
+    pub coins_per_sec: Decimal,
+    /// Prestige points the next prestige would award (`G.prestigePointGain`).
+    pub prestige_point_gain: Decimal,
+    /// Transcend points the next transcension would award.
+    pub transcend_point_gain: Decimal,
+    /// Reincarnation points the next reincarnation would award.
+    pub reincarnation_point_gain: Decimal,
+    /// The Buildings screen's per-row numbers.
+    pub buildings: BuildingsDerived,
+}
+
+/// Display numbers for the Buildings (coin) screen — the legacy `G.*`
+/// surface that `visualUpdateBuildings` read (UpdateVisuals.ts:206-330).
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct BuildingsDerived {
+    /// Per-tier per-base-tick output, post-noise-clamp
+    /// (`G.produceFirst..Fifth`). Per-second display = `value /
+    /// tax_divisor × 40`.
+    pub coin_produce: [Decimal; 5],
+    /// Pre-clamp tier sum (`G.produceTotal`) — the %-contribution divisor.
+    pub coin_produce_total: Decimal,
+    /// `G.taxdivisor` — the "wealth tax" production divisor.
+    pub tax_divisor: Decimal,
+    /// Tax-capped coins/sec ceiling (the "caps your Coin gain at X/s"
+    /// line), at this tick's speed multiplier.
+    pub coins_per_sec_cap: Decimal,
+    /// `G.freeAccelerator`.
+    pub free_accelerator: f64,
+    /// `(G.acceleratorPower - 1) × 100` — the "Acceleration Power" percent.
+    pub accelerator_power_percent: f64,
+    /// `G.acceleratorEffect` — the "Acceleration Multiplier".
+    pub accelerator_effect: Decimal,
+    /// `G.freeMultiplier`.
+    pub free_multiplier: f64,
+    /// `G.multiplierPower`.
+    pub multiplier_power: f64,
+    /// `G.multiplierEffect`.
+    pub multiplier_effect: Decimal,
+    /// `G.freeAcceleratorBoost`.
+    pub free_accelerator_boost: f64,
+    /// Acceleration-power percent one boost adds
+    /// (`100 × 0.01 × tuSevenMulti × (1 + ECC(transcend, cc2)/20)`).
+    pub boost_power_percent: f64,
+    /// Free accelerators one boost grants
+    /// (`5 + 2·r18 + 2·r19 + 3·r20 + cube blessing`).
+    pub accelerators_per_boost: f64,
+}
+
+impl Default for BuildingsDerived {
+    fn default() -> Self {
+        Self {
+            coin_produce: [Decimal::zero(); 5],
+            coin_produce_total: Decimal::zero(),
+            tax_divisor: Decimal::one(),
+            coins_per_sec_cap: Decimal::zero(),
+            free_accelerator: 0.0,
+            accelerator_power_percent: 0.0,
+            accelerator_effect: Decimal::one(),
+            free_multiplier: 0.0,
+            multiplier_power: 0.0,
+            multiplier_effect: Decimal::one(),
+            free_accelerator_boost: 0.0,
+            boost_power_percent: 0.0,
+            accelerators_per_boost: 5.0,
+        }
+    }
 }
 
 /// Captured outputs of the three Phase 2 aggregators, so downstream
@@ -531,17 +616,16 @@ pub struct TickOutput {
 ///
 /// `global_multipliers` feeds [`compute_resource_gain_pre`] + [`phase_tax`];
 /// `update_all_tick.accelerator_effect` feeds [`compute_reset_currency_gains`]
-/// (the upgrade-16 prestige multiplier). `update_all_multiplier` is captured
-/// for symmetry / future downstream reads.
+/// (the upgrade-16 prestige multiplier). `update_all_multiplier` and
+/// `free_accelerator_boost` feed the end-of-tick [`DerivedTickStats`]
+/// display block.
 #[derive(Debug, Clone, Copy)]
 struct AggregatorOutputs {
     global_multipliers: GlobalMultipliersResult,
-    #[expect(
-        dead_code,
-        reason = "captured for downstream phase migration; the lint will flip on as soon as a later phase reads it"
-    )]
     update_all_multiplier: UpdateAllMultiplierResult,
     update_all_tick: UpdateAllTickResult,
+    /// `G.freeAcceleratorBoost` — display-only downstream.
+    free_accelerator_boost: f64,
 }
 
 /// Run one tick.
@@ -696,7 +780,74 @@ pub fn tack(state: &mut GameState, input: &TackInput) -> TickOutput {
     phase_challenge_completion(state, &reset_gains, &mut output);
     phase_automation(state, &automation_pre, input, &mut output);
 
+    // HUD/buildings display numbers, from values this tick already computed.
+    // The coin rate composes the base-tick gain (`resource_gain`'s `addcoin`
+    // per 0.025 s) with the same speed multiplier phase_generation ran on.
+    let per_sec_scale = Decimal::from_finite(40.0 * automation_pre.global_time_multiplier);
+    output.derived = DerivedTickStats {
+        coins_per_sec: crate::mechanics::resource_gain::coin_gain_per_base_tick(&resource_gain_pre)
+            * per_sec_scale,
+        prestige_point_gain: reset_gains.prestige_point_gain,
+        transcend_point_gain: reset_gains.transcend_point_gain,
+        reincarnation_point_gain: reset_gains.reincarnation_point_gain,
+        buildings: derive_buildings_display(
+            state,
+            &aggregator_outputs,
+            &resource_gain_pre,
+            per_sec_scale,
+        ),
+    };
+
     output
+}
+
+/// Assemble the Buildings screen's display block from this tick's
+/// aggregator outputs (see [`BuildingsDerived`]). Pure reads — runs after
+/// every phase so it reflects the state the player sees.
+fn derive_buildings_display(
+    state: &GameState,
+    agg: &AggregatorOutputs,
+    pre: &crate::mechanics::resource_gain::ResourceGainPre,
+    per_sec_scale: Decimal,
+) -> BuildingsDerived {
+    use crate::mechanics::challenges::{calc_ecc, ChallengeType};
+
+    let production = coin_production(state, &agg.global_multipliers);
+    let ten = Decimal::from_finite(10.0);
+    let cap_exponent = pre.maxexponent - pre.taxdivisorcheck.log(ten).to_number();
+    let researches = &state.researches.researches;
+    let transcend_ecc_2 = calc_ecc(
+        ChallengeType::Transcend,
+        state.challenges.challenge_completions[2],
+    );
+
+    BuildingsDerived {
+        coin_produce: [
+            production.first,
+            production.second,
+            production.third,
+            production.fourth,
+            production.fifth,
+        ],
+        coin_produce_total: production.total,
+        tax_divisor: pre.taxdivisor,
+        coins_per_sec_cap: ten.pow(Decimal::from_finite(cap_exponent)) * per_sec_scale,
+        free_accelerator: agg.update_all_tick.free_accelerator,
+        accelerator_power_percent: (agg.update_all_tick.accelerator_power - 1.0) * 100.0,
+        accelerator_effect: agg.update_all_tick.accelerator_effect,
+        free_multiplier: agg.update_all_multiplier.free_multiplier,
+        multiplier_power: agg.update_all_multiplier.multiplier_power,
+        multiplier_effect: agg.update_all_multiplier.multiplier_effect,
+        free_accelerator_boost: agg.free_accelerator_boost,
+        // UpdateVisuals.ts:318-330 — the boost row's effect line.
+        boost_power_percent: 100.0
+            * (0.01 * agg.update_all_tick.tu_seven_multi * (1.0 + transcend_ecc_2 / 20.0)),
+        accelerators_per_boost: 5.0
+            + 2.0 * researches[18]
+            + 2.0 * researches[19]
+            + 3.0 * researches[20]
+            + accelerator_cube_blessing_chain(state),
+    }
 }
 
 /// Sticky per-tick progress-unlock flags that depend on finalized currencies:
@@ -1050,7 +1201,9 @@ fn compute_accelerator_multiplier(state: &GameState) -> f64 {
 /// researches / runes / ant + hepteract effects, then `+ bought`).
 /// Pure function of `&GameState`. Consumed by the global-state
 /// aggregators in [`phase_global_state`].
-fn compute_total_accelerator_boost(state: &GameState) -> f64 {
+fn compute_total_accelerator_boost(
+    state: &GameState,
+) -> crate::mechanics::accelerator_multipliers::CalculateTotalAcceleratorBoostResult {
     use crate::mechanics::accelerator_multipliers::{
         calculate_total_accelerator_boost, CalculateTotalAcceleratorBoostInput,
     };
@@ -1109,7 +1262,6 @@ fn compute_total_accelerator_boost(state: &GameState) -> f64 {
         in_reincarnation_challenge: state.challenges.current_reincarnation_challenge != 0,
         accelerator_boost_bought: state.accelerator.accelerator_boost_bought,
     })
-    .total_accelerator_boost
 }
 
 /// State-derive `G.buildingPower` via the legacy `calculateBuildingPower`.
@@ -1412,6 +1564,36 @@ fn compute_update_all_multiplier_pre(
     }
 }
 
+/// The cube→tesseract→hypercube→platonic accelerator blessing chain
+/// (legacy `calculateAcceleratorCubeBlessing()` and its upstream
+/// amplifiers). Shared by [`compute_update_all_tick_pre`] and the
+/// end-of-tick display block (accelerators-per-boost line).
+fn accelerator_cube_blessing_chain(state: &GameState) -> f64 {
+    use crate::mechanics::cube_blessings::calculate_accelerator_cube_blessing;
+    use crate::mechanics::hypercube_blessings::calculate_accelerator_hypercube_blessing;
+    use crate::mechanics::platonic_blessings::calculate_hypercube_blessing_multiplier_platonic_blessing;
+    use crate::mechanics::tesseract_blessings::calculate_accelerator_tesseract_blessing;
+
+    /// Cube-upgrade index gating the cube-accelerator blessing's
+    /// diminishing-return increase. Legacy `player.cubeUpgrades[45]`.
+    const CUBE_UPGRADE_ACCELERATOR_BLESSING: usize = 45;
+
+    // Cube-blessing chain (same shape as the multiplier chain in
+    // [`compute_update_all_multiplier_pre`]; the platonic amplifier
+    // is shared between the two tracks).
+    let platonic_amplifier =
+        calculate_hypercube_blessing_multiplier_platonic_blessing(&state.platonic_blessings);
+    let hypercube_blessing =
+        calculate_accelerator_hypercube_blessing(&state.hypercube_blessings, platonic_amplifier);
+    let tesseract_blessing =
+        calculate_accelerator_tesseract_blessing(&state.tesseract_blessings, hypercube_blessing);
+    calculate_accelerator_cube_blessing(
+        &state.cube_blessings,
+        tesseract_blessing,
+        state.cube_upgrade_levels.cube_upgrades[CUBE_UPGRADE_ACCELERATOR_BLESSING],
+    )
+}
+
 /// State-derive the [`UpdateAllTickPre`] fields whose upstream is a
 /// pure function of [`GameState`].
 ///
@@ -1433,17 +1615,9 @@ fn compute_update_all_tick_pre(
     total_accelerator_boost: f64,
 ) -> UpdateAllTickPre {
     use crate::mechanics::corruptions::viscosity_power_at_level;
-    use crate::mechanics::cube_blessings::calculate_accelerator_cube_blessing;
     use crate::mechanics::hepteract_effects::accelerator_hepteract_effects;
-    use crate::mechanics::hypercube_blessings::calculate_accelerator_hypercube_blessing;
-    use crate::mechanics::platonic_blessings::calculate_hypercube_blessing_multiplier_platonic_blessing;
     use crate::mechanics::rune_effects::{speed_rune_effects, SpeedRuneKey};
-    use crate::mechanics::tesseract_blessings::calculate_accelerator_tesseract_blessing;
     use crate::state::{RUNE_SPEED, VISCOSITY_INDEX};
-
-    /// Cube-upgrade index gating the cube-accelerator blessing's
-    /// diminishing-return increase. Legacy `player.cubeUpgrades[45]`.
-    const CUBE_UPGRADE_ACCELERATOR_BLESSING: usize = 45;
 
     let speed_level = first_five_effective_rune_level(state, RUNE_SPEED);
     let hept_acc = accelerator_hepteract_effects(hepteract_effective_bal(
@@ -1451,20 +1625,7 @@ fn compute_update_all_tick_pre(
         1.0 / 5.0,
     ));
     let viscosity_level = state.corruptions.used.levels[VISCOSITY_INDEX];
-    // Cube-blessing chain (same shape as the multiplier chain in
-    // [`compute_update_all_multiplier_pre`]; the platonic amplifier
-    // is shared between the two tracks).
-    let platonic_amplifier =
-        calculate_hypercube_blessing_multiplier_platonic_blessing(&state.platonic_blessings);
-    let hypercube_blessing =
-        calculate_accelerator_hypercube_blessing(&state.hypercube_blessings, platonic_amplifier);
-    let tesseract_blessing =
-        calculate_accelerator_tesseract_blessing(&state.tesseract_blessings, hypercube_blessing);
-    let cube_blessing = calculate_accelerator_cube_blessing(
-        &state.cube_blessings,
-        tesseract_blessing,
-        state.cube_upgrade_levels.cube_upgrades[CUBE_UPGRADE_ACCELERATOR_BLESSING],
-    );
+    let cube_blessing = accelerator_cube_blessing_chain(state);
     let ach = achievement_reward_input(state);
     let accelerator_multiplier = compute_accelerator_multiplier(state);
 
@@ -1800,7 +1961,8 @@ fn phase_global_state(state: &mut GameState) -> AggregatorOutputs {
         );
     credit_achievement_quarks(state, awarded);
     recompute_talisman_rarities(state);
-    let total_accelerator_boost = compute_total_accelerator_boost(state);
+    let accelerator_boost = compute_total_accelerator_boost(state);
+    let total_accelerator_boost = accelerator_boost.total_accelerator_boost;
     let update_all_multiplier_pre =
         compute_update_all_multiplier_pre(state, total_accelerator_boost);
     let update_all_tick_pre = compute_update_all_tick_pre(state, total_accelerator_boost);
@@ -1831,6 +1993,7 @@ fn phase_global_state(state: &mut GameState) -> AggregatorOutputs {
         global_multipliers,
         update_all_multiplier: update_all_multiplier_result,
         update_all_tick: update_all_tick_result,
+        free_accelerator_boost: accelerator_boost.free_accelerator_boost,
     }
 }
 
@@ -1869,14 +2032,39 @@ const COIN_PRODUCE_SCALARS: [f64; 5] = [0.25, 2.5, 25.0, 250.0, 2500.0];
 /// The legacy `shouldAwardOvertaxed` flag is a UI-tier achievement side
 /// effect (`awardUngroupedAchievement('overtaxed')`) with no `CoreEvent`
 /// variant yet — deferred, not wired here.
+/// Per-tier coin production from the Phase-2 multipliers (legacy
+/// `G.produceFirst..Fifth` + `G.produceTotal`/`per_second`). Shared by
+/// [`phase_tax`] and the end-of-tick [`DerivedTickStats`] display block so
+/// the two can't drift.
+fn coin_production(
+    state: &GameState,
+    g: &GlobalMultipliersResult,
+) -> crate::mechanics::coin_production::CalculateCoinProductionResult {
+    use crate::mechanics::coin_production::{
+        calculate_coin_production, CalculateCoinProductionInput, PerCoinTierInput,
+    };
+    let coin = &state.coin_producers.tiers;
+    let tier = |i: usize, coin_multi: Decimal| PerCoinTierInput {
+        generated: coin[i].generated,
+        owned: coin[i].owned,
+        coin_multi,
+        produce_coin: COIN_PRODUCE_SCALARS[i],
+    };
+    calculate_coin_production(CalculateCoinProductionInput {
+        first: tier(0, g.coin_one_multi),
+        second: tier(1, g.coin_two_multi),
+        third: tier(2, g.coin_three_multi),
+        fourth: tier(3, g.coin_four_multi),
+        fifth: tier(4, g.coin_five_multi),
+        global_coin_multiplier: g.global_coin_multiplier,
+    })
+}
+
 fn phase_tax(state: &mut GameState, agg: &AggregatorOutputs) -> TaxOutputs {
     use crate::mechanics::ant_upgrades::{
         coins_ant_upgrade_effect, taxes_ant_upgrade_effect, CoinsAntUpgradeInput,
     };
     use crate::mechanics::calculate::{calculate_total_coin_owned, CalculateTotalCoinOwnedInput};
-    use crate::mechanics::coin_production::{
-        calculate_coin_production, CalculateCoinProductionInput, PerCoinTierInput,
-    };
     use crate::mechanics::crystal_and_building_power::calculate_building_power_coin_multiplier;
     use crate::mechanics::platonic_blessings::calculate_tax_platonic_blessing;
     use crate::mechanics::rune_effects::{
@@ -1897,21 +2085,7 @@ fn phase_tax(state: &mut GameState, agg: &AggregatorOutputs) -> TaxOutputs {
     let researches = &state.researches.researches;
 
     // ─── G.produceTotal via the five coin tiers ──────────────────────────
-    let tier = |i: usize, coin_multi: Decimal| PerCoinTierInput {
-        generated: coin[i].generated,
-        owned: coin[i].owned,
-        coin_multi,
-        produce_coin: COIN_PRODUCE_SCALARS[i],
-    };
-    let produce_total = calculate_coin_production(CalculateCoinProductionInput {
-        first: tier(0, g.coin_one_multi),
-        second: tier(1, g.coin_two_multi),
-        third: tier(2, g.coin_three_multi),
-        fourth: tier(3, g.coin_four_multi),
-        fifth: tier(4, g.coin_five_multi),
-        global_coin_multiplier: g.global_coin_multiplier,
-    })
-    .total;
+    let produce_total = coin_production(state, g).total;
 
     // ─── flat_max_exponent_increase inputs (ant Coins + building power) ───
     let total_coin_owned = calculate_total_coin_owned(&CalculateTotalCoinOwnedInput {
@@ -5981,6 +6155,17 @@ fn phase_player_input(
             }
             PlayerAction::TeleportToSingularity => {
                 output.events.extend(reset::teleport_to_singularity(state));
+            }
+            PlayerAction::OpenedAchievements => {
+                // participationTrophy = achievement ID 0, 5 AP, always
+                // unlockable. Idempotent; credits quarks on first award.
+                let awarded = crate::mechanics::achievement_awards::award_ungrouped_achievement(
+                    &mut state.achievements,
+                    0,
+                    crate::mechanics::achievement_point_values::ACHIEVEMENT_POINT_VALUES[0],
+                    true,
+                );
+                credit_achievement_quarks(state, awarded);
             }
         }
     }
