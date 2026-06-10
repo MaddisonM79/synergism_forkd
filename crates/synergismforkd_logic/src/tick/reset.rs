@@ -599,8 +599,12 @@ pub(crate) fn perform_ascension_challenge_reset(
 /// - the `autoChallengeIndex` / `roombaResearchIndex` / `autoResearch` UI
 ///   cursors (no logic field / UI-tier);
 /// - the C15 corruption override (needs the `c15Corruptions` constant) and
-///   every `highestSingularityCount`-gated convenience (campaigns, hepteract
+///   the remaining `highestSingularityCount`-gated conveniences (hepteract
 ///   auto-craft, tesseract auto-buyer, auto-open) — inert at default.
+///
+/// The campaign sweep (Reset.ts:762-784) is **live**: the singularity-4
+/// auto-complete and the active-campaign bank both run just before the
+/// `used ← next` corruption swap.
 fn apply_ascension_layer(state: &mut GameState) -> Decimal {
     use crate::mechanics::calculate::{calc_corruption_stuff, CalcCorruptionStuffInput};
     use crate::mechanics::challenge_15_rewards;
@@ -649,6 +653,10 @@ fn apply_ascension_layer(state: &mut GameState) -> Decimal {
         None
     };
 
+    // Campaign completion source (Reset.ts:684): captured before the
+    // challenge-completion wipe below zeroes it.
+    let c10_completions = state.challenges.challenge_completions[10];
+
     // Clear the lower auto-challenge gates (Reset.ts:633-634). The ascension
     // challenge gate itself is intentionally left untouched.
     state.challenges.current_transcension_challenge = 0;
@@ -674,7 +682,8 @@ fn apply_ascension_layer(state: &mut GameState) -> Decimal {
     }
 
     // resetAnts(AntSacrificeTiers.ascension) (Reset.ts:650).
-    reset_ants_ascension(&mut state.ants);
+    let highest_singularity_count = state.singularity.highest_singularity_count;
+    reset_ants_ascension(&mut state.ants, highest_singularity_count);
 
     // resetTalismanData('ascension') (Reset.ts:651).
     reset_talismans_ascension(&mut state.talismans);
@@ -777,28 +786,111 @@ fn apply_ascension_layer(state: &mut GameState) -> Decimal {
         state.upgrades.upgrades[100] = 1;
     }
 
-    // Campaign reset (762-784) and the sing-gated conveniences block
-    // (796-877): DEFERRED — `highestSingularityCount`-gated, inert at default.
+    // Campaign sweep (Reset.ts:762-784) — runs before the `used ← next` swap,
+    // so the difficulty comparison reads the loadout of the ascension that
+    // just ended. Auto-complete (`highestSingularityCount >= 4`): every
+    // *unlocked* campaign whose loadout difficulty (live `bonusLevels` on
+    // both sides) is <= the used-loadout difficulty banks the captured c10
+    // (`setC10ToArbitrary`). Then an active campaign banks the same c10 and
+    // clears (`resetCampaign`). The legacy `updateTokens()` / HTML refresh
+    // have no logic mirror — tokens derive live in the tick.
+    {
+        use crate::mechanics::campaigns::{
+            campaign_loadout_difficulty, campaign_unlocked, record_campaign_completion,
+            CAMPAIGNS_LEN,
+        };
+        use crate::mechanics::corruptions::corruption_loadout_difficulty_score;
+
+        if state.singularity.highest_singularity_count >= 4.0 {
+            let bonus_levels = super::corruption_bonus_levels(state);
+            let current_difficulty =
+                corruption_loadout_difficulty_score(&state.corruptions.used.levels, bonus_levels);
+            let max_corruption = super::current_max_corruption_level(state);
+            let cube_50 = state.cube_upgrade_levels.cube_upgrades[50];
+            for index in 0..CAMPAIGNS_LEN {
+                if !campaign_unlocked(index, max_corruption, cube_50) {
+                    continue;
+                }
+                if campaign_loadout_difficulty(index, bonus_levels) <= current_difficulty {
+                    record_campaign_completion(
+                        &mut state.campaigns.campaign_completions,
+                        index,
+                        c10_completions,
+                    );
+                }
+            }
+        }
+        if let Some(active) = state.campaigns.current_campaign {
+            record_campaign_completion(
+                &mut state.campaigns.campaign_completions,
+                usize::from(active),
+                c10_completions,
+            );
+            state.campaigns.current_campaign = None;
+        }
+    }
 
     // Corruption loadout swap `used ← next` (Reset.ts:785). `CorruptionLoadout`
-    // is `Copy`, so this is a plain assignment. The C15 override (788-790) is
+    // is `Copy`, so this is a plain assignment; the fresh legacy loadout's
+    // score mult re-derives lazily on first read, so the cache recomputes
+    // eagerly here with the live bonus terms. The C15 override (788-790) is
     // deferred (needs `c15Corruptions`; inert unless inside ascension
-    // challenge 15).
+    // challenge 15). The sing-gated conveniences block (Reset.ts:796-877:
+    // hepteract auto-craft, tesseract auto-buyer, auto-open) stays DEFERRED —
+    // inert at default.
     state.corruptions.used = state.corruptions.next;
+    let used_levels = state.corruptions.used.levels;
+    state.corruptions.used.total_corruption_ascension_multiplier =
+        super::corruption_score_mult_for(state, used_levels);
 
     wow_cubes_gained
+}
+
+/// `forTheLoveOfTheAntGod` singularity-perk regrants — the tier-independent
+/// tail every `resetAnts` runs (`Features/Ants/{AntProducers,AntUpgrades,
+/// Crumbs}/player/reset.ts`, the `player.highestSingularityCount >= N` blocks
+/// outside the tier gate). Sequential `>=` so the producer grants stack
+/// (Workers `20 → 40`, Breeders, MetaBreeders) and the upgrade / crumb grants
+/// `max`-merge with whatever survived the reset. Inert below sing 10.
+pub(crate) fn apply_for_the_love_ant_regrants(
+    ants: &mut AntsState,
+    highest_singularity_count: f64,
+) {
+    // AntProducers enum: Workers = 0, Breeders = 1, MetaBreeders = 2.
+    const WORKERS: usize = 0;
+    const BREEDERS: usize = 1;
+    const META_BREEDERS: usize = 2;
+    // AntUpgrades enum: AntSpeed = 0, Mortuus = 11.
+    const ANT_UPGRADE_ANT_SPEED: usize = 0;
+    const ANT_UPGRADE_MORTUUS: usize = 11;
+
+    if highest_singularity_count >= 10.0 {
+        ants.producers[WORKERS].purchased = 20.0;
+        ants.upgrades[ANT_UPGRADE_ANT_SPEED] = ants.upgrades[ANT_UPGRADE_ANT_SPEED].max(10.0);
+    }
+    if highest_singularity_count >= 15.0 {
+        ants.producers[WORKERS].purchased = 40.0;
+        ants.producers[BREEDERS].purchased = 20.0;
+    }
+    if highest_singularity_count >= 20.0 {
+        ants.producers[META_BREEDERS].purchased = 25.0;
+        ants.upgrades[ANT_UPGRADE_MORTUUS] = ants.upgrades[ANT_UPGRADE_MORTUUS].max(1.0);
+        ants.upgrades[ANT_UPGRADE_ANT_SPEED] = ants.upgrades[ANT_UPGRADE_ANT_SPEED].max(25.0);
+        ants.crumbs = Decimal::from_finite(1e50);
+    }
 }
 
 /// `resetAnts(AntSacrificeTiers.ascension)`
 /// (`Features/Ants/player/reset.ts`) — the ant sub-reset an ascension runs.
 /// Tier ordering is `sacrifice=0 < ascension=1 < singularity=2 < never=3`;
-/// each ant feature resets when `ascension >= its minimum reset tier`.
+/// each ant feature resets when `ascension >= its minimum reset tier`. The
+/// `forTheLoveOfTheAntGod` regrants ([`apply_for_the_love_ant_regrants`]) run
+/// at the tail, reachable now that the singularity layer is live.
 ///
-/// Deferred (inert at default): the `highestSingularityCount >= 10/15/20`
-/// crumb / producer / upgrade regrants, and the `preserveAnthillCount`
-/// achievement that would keep `ant_sacrifice_count` (no achievement is held
-/// at default, so the count resets — faithful).
-fn reset_ants_ascension(ants: &mut AntsState) {
+/// Deferred (inert at default): the `preserveAnthillCount` achievement that
+/// would keep `ant_sacrifice_count` (no achievement is held at default, so the
+/// count resets — faithful).
+fn reset_ants_ascension(ants: &mut AntsState, highest_singularity_count: f64) {
     // Crumbs reset to their default `1`; `crumbs_ever_made` is never-tier and
     // survives (Crumbs/reset.ts).
     ants.crumbs = Decimal::from_finite(1.0);
@@ -837,6 +929,9 @@ fn reset_ants_ascension(ants: &mut AntsState) {
     // Sacrifice timers (the `resetAnts` wrapper, reset.ts).
     ants.ant_sacrifice_timer = 0.0;
     ants.ant_sacrifice_timer_real = 0.0;
+
+    // forTheLoveOfTheAntGod regrants (the tier-independent tail of resetAnts).
+    apply_for_the_love_ant_regrants(ants, highest_singularity_count);
 }
 
 /// `resetTalismanData('ascension')` (`Talismans.ts:1067-1086`): an ascension
@@ -1041,6 +1136,11 @@ pub(crate) fn perform_singularity_reset(
     }
     state.ants.current_sacrifice_id = next_sacrifice_id;
 
+    // `resetAnts(AntSacrificeTiers.singularity)` (Reset.ts:1103) runs *before*
+    // the count increment (1109+), so its `forTheLoveOfTheAntGod` regrants read
+    // the pre-singularity `old_highest`, not `new_highest`.
+    apply_for_the_love_ant_regrants(&mut state.ants, old_highest);
+
     // Quarks survive under the limitedTime `preserveQuarks` reward; the
     // default rebuild already mirrors `player.worlds.reset()` (→ 0).
     if preserve_quarks {
@@ -1231,6 +1331,79 @@ mod tests {
             transcend_point_gain: Decimal::from_finite(transcend),
             reincarnation_point_gain: Decimal::from_finite(reincarnation),
         }
+    }
+
+    #[test]
+    fn for_the_love_regrants_climb_the_singularity_staircase() {
+        // Below sing 10: nothing.
+        let mut ants = AntsState::default();
+        apply_for_the_love_ant_regrants(&mut ants, 9.0);
+        assert_eq!(ants.producers[0].purchased, 0.0);
+        assert_eq!(ants.upgrades[0], 0.0);
+
+        // Sing 10: Workers 20, AntSpeed ≥ 10; no Breeders yet.
+        let mut ants = AntsState::default();
+        apply_for_the_love_ant_regrants(&mut ants, 10.0);
+        assert_eq!(ants.producers[0].purchased, 20.0);
+        assert_eq!(ants.upgrades[0], 10.0);
+        assert_eq!(ants.producers[1].purchased, 0.0);
+
+        // Sing 15: Workers overwritten to 40, Breeders 20.
+        let mut ants = AntsState::default();
+        apply_for_the_love_ant_regrants(&mut ants, 15.0);
+        assert_eq!(ants.producers[0].purchased, 40.0);
+        assert_eq!(ants.producers[1].purchased, 20.0);
+
+        // Sing 20: + MetaBreeders 25, Mortuus ≥ 1, AntSpeed ≥ 25, crumbs 1e50.
+        let mut ants = AntsState::default();
+        apply_for_the_love_ant_regrants(&mut ants, 20.0);
+        assert_eq!(ants.producers[0].purchased, 40.0);
+        assert_eq!(ants.producers[1].purchased, 20.0);
+        assert_eq!(ants.producers[2].purchased, 25.0);
+        assert_eq!(ants.upgrades[11], 1.0); // Mortuus
+        assert_eq!(ants.upgrades[0], 25.0); // AntSpeed: max(10, 25) = 25
+        assert_eq!(ants.crumbs.to_number(), 1e50);
+    }
+
+    #[test]
+    fn for_the_love_regrants_max_merge_never_lowers_surviving_levels() {
+        let mut ants = AntsState::default();
+        ants.upgrades[0] = 30.0; // AntSpeed survived the reset above the grant
+        apply_for_the_love_ant_regrants(&mut ants, 20.0);
+        assert_eq!(ants.upgrades[0], 30.0); // max(30, 25) = 30, not lowered
+    }
+
+    #[test]
+    fn ascension_reset_applies_for_the_love_regrants() {
+        let mut state = GameState::default();
+        state.singularity.highest_singularity_count = 15.0;
+        // Producers/upgrades the ascension wipes are regranted at the tail.
+        perform_ascension_reset(&mut state, &gains(0.0, 0.0, 0.0));
+        assert_eq!(state.ants.producers[0].purchased, 40.0);
+        assert_eq!(state.ants.producers[1].purchased, 20.0);
+    }
+
+    #[test]
+    fn singularity_reset_regrants_use_pre_increment_highest() {
+        // count === highest (19) forces the highest to climb to 20 this
+        // singularity. The regrant must read the PRE-increment 19 (Reset.ts:1103
+        // runs before the 1109+ bump): Workers 40 + Breeders (sing-15 tier) but
+        // NOT the sing-20 tier. If it wrongly used the post-climb 20, MetaBreeders
+        // would be 25 and crumbs 1e50 — so this distinguishes old vs new.
+        let mut state = GameState::default();
+        state.runes.rune_levels[RUNE_ANTIQUITIES] = 1.0; // gate open
+        state.singularity.singularity_count = 19.0;
+        state.singularity.highest_singularity_count = 19.0;
+        perform_reset(&mut state, ResetRequest::Singularity, &gains(0.0, 0.0, 0.0));
+        assert!(
+            state.singularity.highest_singularity_count >= 20.0,
+            "highest should climb past the pre-increment 19, got {}",
+            state.singularity.highest_singularity_count
+        );
+        assert_eq!(state.ants.producers[0].purchased, 40.0); // sing-15 tier
+        assert_eq!(state.ants.producers[1].purchased, 20.0);
+        assert_eq!(state.ants.producers[2].purchased, 0.0); // sing-20 tier NOT applied
+        assert_ne!(state.ants.crumbs.to_number(), 1e50);
     }
 
     #[test]
@@ -1999,15 +2172,88 @@ mod tests {
         let mut state = GameState::default();
         state.corruptions.used.levels[2] = 1;
         state.corruptions.next.levels[2] = 7;
+        // Stale sentinel: the swap must NOT carry this cache. The legacy swap
+        // constructs a fresh `CorruptionLoadout`, whose score mult re-derives
+        // lazily on first read — the port recomputes it eagerly post-swap.
         state.corruptions.next.total_corruption_ascension_multiplier = 2.5;
 
         perform_ascension_reset(&mut state, &gains(0.0, 0.0, 0.0));
 
         assert_eq!(state.corruptions.used.levels[2], 7);
+        let expected =
+            super::super::corruption_score_mult_for(&state, state.corruptions.used.levels);
         assert_eq!(
+            state.corruptions.used.total_corruption_ascension_multiplier,
+            expected
+        );
+        assert_ne!(
             state.corruptions.used.total_corruption_ascension_multiplier,
             2.5
         );
+    }
+
+    #[test]
+    fn ascension_reset_banks_active_campaign_and_clears_it() {
+        let mut state = GameState::default();
+        state.campaigns.current_campaign = Some(0);
+        state.challenges.challenge_completions[10] = 6.0;
+
+        perform_ascension_reset(&mut state, &gains(0.0, 0.0, 0.0));
+
+        // `resetCampaign` (Reset.ts:782-784) runs at any singularity count.
+        assert_eq!(state.campaigns.campaign_completions[0], 6.0);
+        assert_eq!(state.campaigns.current_campaign, None);
+        // The c10 source itself is wiped by the reset.
+        assert_eq!(state.challenges.challenge_completions[10], 0.0);
+    }
+
+    #[test]
+    fn ascension_reset_campaign_bank_clamps_to_limit_and_never_decreases() {
+        let mut state = GameState::default();
+        state.campaigns.current_campaign = Some(0); // first: limit 10
+        state.campaigns.campaign_completions[0] = 4.0;
+        state.challenges.challenge_completions[10] = 25.0;
+
+        perform_ascension_reset(&mut state, &gains(0.0, 0.0, 0.0));
+        assert_eq!(state.campaigns.campaign_completions[0], 10.0);
+
+        // A later, lower-c10 run of the same campaign can't reduce the bank.
+        state.campaigns.current_campaign = Some(0);
+        state.challenges.challenge_completions[10] = 3.0;
+        perform_ascension_reset(&mut state, &gains(0.0, 0.0, 0.0));
+        assert_eq!(state.campaigns.campaign_completions[0], 10.0);
+    }
+
+    #[test]
+    fn ascension_reset_auto_completes_easier_campaigns_at_singularity_4() {
+        let mut state = GameState::default();
+        state.singularity.highest_singularity_count = 4.0;
+        state.challenges.challenge_completions[10] = 8.0;
+        // Used loadout = the seventh campaign's exact corruptions
+        // (viscosity 5 / drought 5) — difficulty covers cardinals 1-7.
+        state.corruptions.used.levels[crate::state::VISCOSITY_INDEX] = 5;
+        state.corruptions.used.levels[crate::state::DROUGHT_INDEX] = 5;
+
+        perform_ascension_reset(&mut state, &gains(0.0, 0.0, 0.0));
+
+        // first..=seventh auto-complete (their difficulty <= used difficulty).
+        assert_eq!(state.campaigns.campaign_completions[0], 8.0);
+        assert_eq!(state.campaigns.campaign_completions[6], 8.0);
+        // eighth needs maxCorruptionLevel() >= 7 — locked at default state.
+        assert_eq!(state.campaigns.campaign_completions[7], 0.0);
+    }
+
+    #[test]
+    fn ascension_reset_no_auto_complete_below_singularity_4() {
+        let mut state = GameState::default();
+        state.singularity.highest_singularity_count = 3.0;
+        state.challenges.challenge_completions[10] = 8.0;
+        state.corruptions.used.levels[crate::state::VISCOSITY_INDEX] = 5;
+        state.corruptions.used.levels[crate::state::DROUGHT_INDEX] = 5;
+
+        perform_ascension_reset(&mut state, &gains(0.0, 0.0, 0.0));
+
+        assert_eq!(state.campaigns.campaign_completions, [0.0; 50]);
     }
 
     #[test]

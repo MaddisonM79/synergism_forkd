@@ -664,6 +664,15 @@ pub enum CoreEvent {
         /// The clamped new level written to `corruptions.next`.
         level: u32,
     },
+    /// A campaign was started (legacy start-campaign button →
+    /// `CampaignManager.set campaign`): the full ascension reset ran (its
+    /// own `ResetPerformed` precedes this event), `current_campaign` now
+    /// points at the chosen campaign, and its corruption loadout was applied
+    /// to `corruptions.used`.
+    CampaignStarted {
+        /// Campaign index (`campaignDatas` key order; `first` = 0).
+        campaign: usize,
+    },
     /// A challenge was entered (legacy `toggleChallenges`): the
     /// `current_*_challenge` slot was set and the tier reset ran. `challenge`
     /// is `0..=15` (`0` exits the transcension slot). The accompanying

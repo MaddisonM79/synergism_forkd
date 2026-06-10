@@ -44,10 +44,29 @@ pub const CURRENT_VERSION: u16 = 1;
 
 /// Wire-format envelope. The first thing serialized in every save; the
 /// `version` field is how a reader knows which `SaveV<N>` shape follows.
+///
+/// `saved_at_ms` is the host-stamped wall-clock (Unix epoch milliseconds) at
+/// save time — the Rust analogue of the legacy `player.offlinetick` /
+/// `lastExportedSave`. It lives on the envelope, not in [`GameState`], because
+/// the logic crate has no time-of-day: the host (which owns the clock) passes
+/// it in via [`save_at`] / [`export_to_string_at`] and reads it back via
+/// [`load_with_meta`] to compute offline-elapsed on load. `None` when the save
+/// was written without a timestamp (the plain [`save`] path).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct SaveEnvelope {
     version: u16,
     payload: SaveV1,
+    saved_at_ms: Option<u64>,
+}
+
+/// Transport-level metadata recovered from a save, independent of the
+/// versioned [`GameState`] payload.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct SaveMeta {
+    /// Host wall-clock at save time (Unix epoch milliseconds), or `None` if
+    /// the save was written without a timestamp. The host diffs this against
+    /// "now" to size offline progress.
+    pub saved_at_ms: Option<u64>,
 }
 
 /// Save schema version 1 — today, equal to [`GameState`] verbatim.
@@ -126,11 +145,25 @@ impl From<base64::DecodeError> for SaveError {
 /// `Serialize` impl on a state field — the happy-path GameState shape
 /// is always encodable.
 pub fn save(state: &GameState) -> Result<Vec<u8>, SaveError> {
+    save_at(state, None)
+}
+
+/// Encode a [`GameState`] with a host-stamped save timestamp (Unix epoch
+/// milliseconds). The timestamp rides on the envelope, not the state, and is
+/// recovered with [`load_with_meta`]. Use this on the host save path where the
+/// wall-clock is available; [`save`] is the `None`-timestamp shorthand.
+///
+/// # Errors
+///
+/// Returns [`SaveError::Postcard`] if the underlying postcard encoder fails
+/// (see [`save`]).
+pub fn save_at(state: &GameState, saved_at_ms: Option<u64>) -> Result<Vec<u8>, SaveError> {
     let envelope = SaveEnvelope {
         version: CURRENT_VERSION,
         payload: SaveV1 {
             state: state.clone(),
         },
+        saved_at_ms,
     };
     Ok(to_allocvec(&envelope)?)
 }
@@ -149,13 +182,30 @@ pub fn save(state: &GameState) -> Result<Vec<u8>, SaveError> {
 /// - [`SaveError::UnknownVersion`] if the header reports a version
 ///   greater than [`CURRENT_VERSION`] (a save written by a newer build).
 pub fn load(bytes: &[u8]) -> Result<GameState, SaveError> {
+    Ok(load_with_meta(bytes)?.0)
+}
+
+/// Decode a postcard byte stream into a [`GameState`] **and** its transport
+/// [`SaveMeta`] (the host-stamped save timestamp). The host uses the meta to
+/// compute offline-elapsed; [`load`] is the meta-dropping shorthand.
+///
+/// # Errors
+///
+/// - [`SaveError::Postcard`] if the bytes are not a well-formed postcard
+///   stream or the encoded shape does not match the current envelope.
+/// - [`SaveError::UnknownVersion`] if the header reports a version greater than
+///   [`CURRENT_VERSION`] (a save written by a newer build).
+pub fn load_with_meta(bytes: &[u8]) -> Result<(GameState, SaveMeta), SaveError> {
     let envelope: SaveEnvelope = from_bytes(bytes)?;
     if envelope.version > CURRENT_VERSION {
         return Err(SaveError::UnknownVersion(envelope.version));
     }
     // Single-arm dispatch today; the migration chain ladder lives here
     // when v2+ lands.
-    Ok(envelope.payload.state)
+    let meta = SaveMeta {
+        saved_at_ms: envelope.saved_at_ms,
+    };
+    Ok((envelope.payload.state, meta))
 }
 
 /// Encode a [`GameState`] to a portable base64 string — the user-facing export
@@ -170,6 +220,20 @@ pub fn export_to_string(state: &GameState) -> Result<String, SaveError> {
     Ok(BASE64_STANDARD.encode(save(state)?))
 }
 
+/// Like [`export_to_string`] but stamps the host wall-clock (Unix epoch
+/// milliseconds) into the envelope, recoverable with
+/// [`import_from_string_with_meta`].
+///
+/// # Errors
+///
+/// [`SaveError::Postcard`] if encoding the state fails (see [`save`]).
+pub fn export_to_string_at(
+    state: &GameState,
+    saved_at_ms: Option<u64>,
+) -> Result<String, SaveError> {
+    Ok(BASE64_STANDARD.encode(save_at(state, saved_at_ms)?))
+}
+
 /// Decode a base64 export blob back into a [`GameState`], then rebuild the
 /// achievement-points total from the loaded bitmap. A loaded save must not
 /// trust a possibly-drifted running points field, so
@@ -180,10 +244,23 @@ pub fn export_to_string(state: &GameState) -> Result<String, SaveError> {
 /// - [`SaveError::Base64`] if the string is not valid standard base64.
 /// - [`SaveError::Postcard`] / [`SaveError::UnknownVersion`] from [`load`].
 pub fn import_from_string(s: &str) -> Result<GameState, SaveError> {
+    Ok(import_from_string_with_meta(s)?.0)
+}
+
+/// Like [`import_from_string`] but also returns the transport [`SaveMeta`] (the
+/// host-stamped save timestamp), for offline-progress sizing on load. The
+/// achievement-points recompute (audit H5) runs here too.
+///
+/// # Errors
+///
+/// - [`SaveError::Base64`] if the string is not valid standard base64.
+/// - [`SaveError::Postcard`] / [`SaveError::UnknownVersion`] from
+///   [`load_with_meta`].
+pub fn import_from_string_with_meta(s: &str) -> Result<(GameState, SaveMeta), SaveError> {
     let bytes = BASE64_STANDARD.decode(s)?;
-    let mut state = load(&bytes)?;
+    let (mut state, meta) = load_with_meta(&bytes)?;
     recompute_achievement_points(&mut state);
-    Ok(state)
+    Ok((state, meta))
 }
 
 /// A fresh-start game state — the "reset save" operation (TS `resetGame`'s
@@ -304,6 +381,34 @@ mod tests {
 
         // The loaded total is rebuilt from the bitmap, discarding the drift.
         assert_eq!(restored.achievements.achievement_points, 30.0);
+    }
+
+    #[test]
+    fn save_timestamp_round_trips_through_envelope() {
+        let state = GameState::default();
+        // Stamped save carries the timestamp back out via the meta path.
+        let bytes = save_at(&state, Some(1_700_000_000_000)).expect("save_at");
+        let (_restored, meta) = load_with_meta(&bytes).expect("load_with_meta");
+        assert_eq!(meta.saved_at_ms, Some(1_700_000_000_000));
+
+        // The plain save path leaves the timestamp absent.
+        let plain = save(&state).expect("save");
+        let (_s, meta) = load_with_meta(&plain).expect("load_with_meta plain");
+        assert_eq!(meta.saved_at_ms, None);
+    }
+
+    #[test]
+    fn export_string_carries_timestamp_and_recomputes_points() {
+        let mut state = GameState::default();
+        state.achievements.achievements[0] = 1; // 5 pts
+        state.achievements.achievement_points = 999.0; // drift
+
+        let blob = export_to_string_at(&state, Some(42)).expect("export_at");
+        let (restored, meta) = import_from_string_with_meta(&blob).expect("import_with_meta");
+
+        assert_eq!(meta.saved_at_ms, Some(42));
+        // H5 recompute still runs on the meta import path.
+        assert_eq!(restored.achievements.achievement_points, 5.0);
     }
 
     #[test]

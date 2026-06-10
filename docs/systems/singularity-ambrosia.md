@@ -28,7 +28,7 @@ flowchart LR
   octeracts["Octeracts"]:::ported
   octUpg["Octeract upgrades"]:::ported
   singChal["Singularity challenges"]:::ported
-  singPerks["Perks · milestones"]:::partial
+  singPerks["Perks · milestones · table"]:::ported
 
   asc["Ascension ↗ ascension-cubes"]:::ext
   quarks["Quarks ↗ meta-economy"]:::ext
@@ -85,7 +85,7 @@ flowchart LR
 | Golden quarks + GQ upgrades | 🟩 Ported | `state/golden_quarks.rs` (80-entry metadata seeded), `mechanics/golden_quark_upgrades.rs` |
 | Octeracts + upgrades | 🟩 Ported | `state/octeract_upgrades.rs`, `mechanics/octeracts.rs` |
 | Singularity challenges (Exalts) | 🟩 Ported | enter/exit loop (`reset.rs::toggle_singularity_challenge`), 9-row meta + requirement ladder (`mechanics/singularity_challenges.rs`), completions drive the effect readers + the exalt progressive |
-| Singularity perks / milestones | 🟨 Partial | milestone formulas ported (`singularity_milestones.rs`); the full perk list is not modeled |
+| Singularity perks / milestones | 🟩 Mostly | milestone formulas (`singularity_milestones.rs`) + the **53-perk table** (`singularity_perks.rs`: roster + `levels[]` ladders + `getLastUpgradeInfo` helpers). Effect-wiring documented per-perk: the multiplicative perks are WIRED; the rest are DEFERRED on an unported *consumer* (ant-speed stat product) or are export-flow / UI / external |
 | Ambrosia | 🟩 Ported | `state/ambrosia.rs`, `mechanics/ambrosia.rs` |
 | Blueberry upgrades | 🟩 Ported | `mechanics/blueberry_upgrades.rs`; effective levels populated (`populate_ambrosia_free_levels`), quark upgrades wired |
 | Red ambrosia + upgrades | 🟩 Ported | `state/red_ambrosia.rs`, `mechanics/red_ambrosia_*.rs` |
@@ -114,3 +114,26 @@ flowchart LR
   (verbatim quirk).
 - ✅ **`preserveQuarks` ported:** `worlds` resets with the rebuild unless the limitedTime reward is
   active, in which case the balance carries across (Reset.ts:1190).
+- ✅ **Perk table modeled.** `mechanics/singularity_perks.rs` ports `singularityPerks`
+  (`singularity.ts:2303-3156`) as data — the `SingularityPerkId` enum + the 53-row roster with each
+  perk's exact `levels[]` ladder (extracted mechanically) + the `getLastUpgradeInfo` helpers
+  (`level_at` / `is_active` / `next_threshold`) + `active_perk_count`. Closes the "full perk list is
+  not modeled" gap. The module header tags each perk's effect-wiring: the big multiplicative perks
+  (`goldenCoins` / `skrauQ` / `goldenRevolution2` / `primalPower` / `derpSmiths` / `immaculateAlchemy`
+  / salvage / token / ELO / blueberry) are already **WIRED** (mostly via the meta-economy sweep). The
+  four **ant** perks resolved as: `antGodsCornucopia` **WIRED** (the `SingularityPerk` term of the
+  fully-ported `compute_ant_speed_mult`); `forTheLoveOfTheAntGod` **WIRED** (reset-time regrants, see
+  below); `irishAnt` / `irishAnt2` are **NONE** — they exist only in the `singularityPerks` table with
+  no mechanical consumer anywhere in TS, so the faithful port leaves them no-ops. The
+  `goldenRevolution` GQ-per-second family belongs to the export-reward flow; the rest are UI/external.
+- ✅ **`forTheLoveOfTheAntGod` ported** (`apply_for_the_love_ant_regrants`): the
+  `highestSingularityCount >= 10/15/20` producer / upgrade / crumb regrants that run at the tail of
+  every ant reset (`Features/Ants/.../player/reset.ts`, outside the tier gate) — Workers 20→40 +
+  Breeders + MetaBreeders, AntSpeed/Mortuus `max`-merged, crumbs 1e50 at sing 20. Applied on all
+  three ant-reset paths (sacrifice / ascension / singularity); the singularity path uses the
+  pre-increment `old_highest` (`resetAnts(singularity)` runs at Reset.ts:1103, before the count bump).
+- ✅ **Export-reward claim ported** (`claim_export_rewards`, `ImportExport.ts:254-273`): the
+  `goldenQuarksTimer` → golden-quarks (gated on `goldenQuarks3`, × the `highestSing ≥ 100` export
+  bonus) and `quarkstimer` → `worlds` + `quarksThisSingularity` (× the full quark multiplier)
+  conversions, each keeping its window remainder. The host calls it on a real export; previously the
+  timers accrued with nowhere to land. The external subscriber term is a parked RMT seam → neutral.

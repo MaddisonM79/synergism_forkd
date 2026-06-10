@@ -58,6 +58,7 @@ use crate::mechanics::particle_buildings::{buy_particle_building, BuyParticleBui
 use crate::mechanics::platonic_upgrade_costs::{buy_platonic_upgrade, BuyPlatonicUpgradeInput};
 use crate::mechanics::producers::{buy_max, buy_producer, BuyMaxInput, BuyProducerInput};
 use crate::mechanics::researches::{buy_research, BuyResearchInput};
+use crate::mechanics::reset_currency::ResetCurrencyResult;
 use crate::mechanics::resource_gain::{resource_gain, ResourceGainPre};
 use crate::mechanics::rune_levels::{buy_rune_levels, BuyRuneLevelsInput};
 use crate::mechanics::shop_costs::{buy_shop, BuyShopInput};
@@ -337,6 +338,14 @@ pub enum PlayerAction {
     /// singularity to the target; descending just sets the count — no reset.
     /// Gated on a valid target and on not being inside an Exalt.
     TeleportToSingularity,
+    /// Start a campaign (legacy start-campaign button): rejected while
+    /// inside an ascension challenge; otherwise runs a full ascension reset
+    /// (banking any active campaign's completions first) and applies the
+    /// chosen campaign's corruption loadout to `corruptions.used`.
+    SelectCampaign {
+        /// Campaign index (`campaignDatas` key order; `first` = 0).
+        campaign: usize,
+    },
 }
 
 /// Selects the automation flag a [`PlayerAction::ToggleAuto`] sets.
@@ -3504,6 +3513,96 @@ fn compute_ascension_count(state: &GameState, effective_score: f64) -> f64 {
     })
 }
 
+/// The currencies banked by an export-reward claim (the return of
+/// [`claim_export_rewards`]). Both are post-multiplier amounts already added
+/// to the player's balances.
+#[derive(Debug, Clone, Copy, PartialEq, Default)]
+pub struct ExportRewardClaim {
+    /// Golden quarks credited from the `goldenQuarksTimer` window.
+    pub golden_quarks: f64,
+    /// Quarks (worlds) credited from the `quarkstimer` window, after the
+    /// in-game quark multiplier.
+    pub quarks: f64,
+}
+
+/// `exportSynergism`'s reward claim (`ImportExport.ts:254-273`) — the
+/// timer→currency conversion run on a *real* export (the
+/// `shouldSetLastSaveSoWeStopFuckingBotheringPeople` branch). Triggered by an
+/// explicit player/host export, **not** the 5-second autosave: the host calls
+/// this before serializing an export. The `offlinetick` / `lastExportedSave`
+/// wall-clock stamps are host-tier (logic has no time-of-day) and live in the
+/// save envelope.
+///
+/// Golden quarks: when `goldenQuarks3` is owned (`exportGQPerHour > 0`), the
+/// whole-window count `floor(timer / (3600/perHour))` is credited times
+/// `bonusGQMultiplier` and the timer keeps its remainder. Quarks: when the
+/// `quarkHandler` gain is `>= 1`, `gain × calculateQuarkMultiplier()` is added
+/// to `worlds` and `quarksThisSingularity` and the timer keeps its remainder.
+///
+/// `bonusGQMultiplier`'s external subscriber term (`1 + getQuarkBonus()/100`)
+/// is neutral in the fork — the global/personal quark bonus is a parked RMT
+/// seam — so only the `highestSingularityCount >= 100` export bonus applies,
+/// matching how [`compute_quark_multiplier`] treats event/patreon as neutral.
+pub fn claim_export_rewards(state: &mut GameState) -> ExportRewardClaim {
+    use crate::mechanics::golden_quark_upgrades::golden_quarks_3_effect;
+    use crate::mechanics::octeracts::octeract_export_quarks_effect;
+    use crate::mechanics::quarks::{quark_handler, QuarkHandlerInput};
+    use crate::state::golden_quarks::GQ_GOLDEN_QUARKS_3;
+    use crate::state::octeract_upgrades::OCTERACT_EXPORT_QUARKS;
+
+    let highest_sing = state.singularity.highest_singularity_count;
+
+    // bonusGQMultiplier: external subscriber bonus neutral (× 1) in the fork;
+    // only the highestSingularityCount >= 100 export bonus is live.
+    let bonus_gq_multiplier = if highest_sing >= 100.0 {
+        1.0 + highest_sing / 50.0
+    } else {
+        1.0
+    };
+
+    // Golden quarks: gated on the goldenQuarks3 upgrade's export rate.
+    let gq3 = &state.golden_quarks.upgrades[GQ_GOLDEN_QUARKS_3];
+    let gq_per_hour = golden_quarks_3_effect(gq3.level + gq3.free_level);
+    let mut golden_quarks_awarded = 0.0;
+    if gq_per_hour > 0.0 {
+        let window = 3600.0 / gq_per_hour;
+        golden_quarks_awarded =
+            (state.golden_quarks.golden_quarks_timer / window).floor() * bonus_gq_multiplier;
+        state.golden_quarks.golden_quarks += Decimal::from_finite(golden_quarks_awarded);
+        state.golden_quarks.golden_quarks_timer %= window;
+    }
+
+    // Quarks (worlds): gated on a whole-quark gain. The award uses the full
+    // in-game quark multiplier (`worlds.add(gain, true, true)`).
+    let oct_export = &state.octeract_upgrades.upgrades[OCTERACT_EXPORT_QUARKS];
+    let researches = &state.researches.researches;
+    let quark = quark_handler(&QuarkHandlerInput {
+        research_195: researches[195],
+        researches_sum: researches[99]
+            + researches[100]
+            + researches[125]
+            + researches[180]
+            + researches[195],
+        export_quark_mult: octeract_export_quarks_effect(oct_export.level + oct_export.free_level),
+        quarks_timer: state.quarks.quarks_timer,
+        // cube_mult is a pass-through in `quark_handler` and does not enter the
+        // `gain` used here, so the `1.0` placeholder is faithful.
+        cube_mult: 1.0,
+    });
+    let mut quarks_awarded = 0.0;
+    if quark.gain >= 1.0 {
+        quarks_awarded = quark.gain * compute_quark_multiplier(state);
+        state.quarks.worlds += Decimal::from_finite(quarks_awarded);
+        state.golden_quarks.quarks_this_singularity += quarks_awarded;
+        state.quarks.quarks_timer %= 3600.0 / quark.per_hour;
+    }
+
+    ExportRewardClaim {
+        golden_quarks: golden_quarks_awarded,
+        quarks: quarks_awarded,
+    }
+}
+
 /// `golden_quarks_multiplier_excluding_base` — self-derived from `&GameState`.
 ///
 /// `calculateGoldenQuarks()` (legacy `Calculate.ts`, granted on a singularity
@@ -5862,6 +5961,11 @@ fn phase_player_input(
                     .events
                     .extend(reset::toggle_singularity_challenge(state, *challenge));
             }
+            PlayerAction::SelectCampaign { campaign } => {
+                output
+                    .events
+                    .extend(select_campaign(state, *campaign, reset_gains));
+            }
             PlayerAction::ConfigureSingularityElevator {
                 target,
                 locked,
@@ -6366,52 +6470,94 @@ fn set_automation_toggle(state: &mut GameState, target: AutoToggle, enabled: boo
     }
 }
 
-/// `CorruptionLoadout.setLevel` — set a single corruption's *next-ascension*
-/// level (clamped to `[0, maxCorruptionLevel]`) and recompute
-/// `corruptions.next.total_corruption_ascension_multiplier`
-/// (`updateCorruptionScoreMult`). Out-of-range slots (`>= 8`) are ignored.
-///
-/// Neutral-defaulted bonus contributions (faithful — unported / paused):
-/// `cookieGrandma` talisman free-corruption-levels (not among the 7 ported
-/// talismans), `corruptionFifteen` GQ + `oneChallengeCap` SC free levels and
-/// score-increase, and `advancedPack` GQ score-increase — all singularity-era
-/// and `0` at the current scope. finiteDescent rune free levels, `cubeUpgrades[74]`,
-/// and `platonicUpgrades[17]` are applied faithfully.
-fn set_corruption_level(
-    state: &mut GameState,
-    index: usize,
-    level: u32,
-) -> SmallVec<[CoreEvent; 1]> {
-    use crate::mechanics::corruptions::{
-        calculate_total_corruption_score_mult, max_corruption_level, MaxCorruptionLevelInput,
-        TotalCorruptionScoreMultInput,
-    };
-    use crate::mechanics::golden_quark_upgrades::{
-        platonic_tau_effect, PlatonicTauKey, PlatonicTauValue,
-    };
+/// `CorruptionLoadout.bonusLevels` (Corruptions.ts:239-246) — the flat free
+/// levels added to every corruption ahead of multiplier / difficulty
+/// lookups: GQ `corruptionFifteen` (identity) + the `oneChallengeCap` Exalt
+/// reward (`completions >= 12`) + the cookieGrandma talisman inscript + the
+/// finiteDescent rune.
+pub(crate) fn corruption_bonus_levels(state: &GameState) -> f64 {
+    use crate::mechanics::golden_quark_upgrades::corruption_fifteen_effect;
     use crate::mechanics::rune_effects::{finite_descent_rune_effects, FiniteDescentRuneKey};
-    use crate::state::golden_quarks::GQ_PLATONIC_TAU;
+    use crate::mechanics::singularity_challenges::{
+        one_challenge_cap_effect, OneChallengeCapKey, SingularityEffectValue,
+    };
+    use crate::mechanics::talisman_effects::cookie_grandma_talisman_effects;
+    use crate::state::golden_quarks::GQ_CORRUPTION_FIFTEEN;
+    use crate::state::talismans::TALISMAN_COOKIE_GRANDMA;
     use crate::state::RUNE_FINITE_DESCENT;
 
-    const CUBE_UPGRADE_74: usize = 74;
-    const PLATONIC_UPGRADE_17: usize = 17;
+    let gq15 = &state.golden_quarks.upgrades[GQ_CORRUPTION_FIFTEEN];
+    let exalt_free = match one_challenge_cap_effect(
+        state.singularity.one_challenge_cap.completions,
+        OneChallengeCapKey::FreeCorruptionLevel,
+    ) {
+        SingularityEffectValue::Scalar(s) => s,
+        SingularityEffectValue::Unlock(_) => 0.0,
+    };
+    corruption_fifteen_effect(gq15.level + gq15.free_level)
+        + exalt_free
+        + cookie_grandma_talisman_effects(
+            state.talismans.talisman_rarity[TALISMAN_COOKIE_GRANDMA] as i32,
+        )
+        .free_corruption_level
+        + finite_descent_rune_effects(
+            state.runes.rune_levels[RUNE_FINITE_DESCENT],
+            FiniteDescentRuneKey::CorruptionFreeLevels,
+        )
+}
 
-    // Only the 8 real corruptions (viscosity..recession) are settable.
-    if index >= 8 {
-        return smallvec![];
-    }
+/// `CorruptionLoadout` `bonusVal` (Corruptions.ts:140-143) — the additive
+/// score increase inside each corruption's raw-multiplier base: GQ
+/// `advancedPack` (flat `0.33` once owned) + `oneChallengeCap`
+/// `corrScoreIncrease` (`0.05`/completion) + `0.3 · cubeUpgrades[74]`.
+pub(crate) fn corruption_bonus_val(state: &GameState) -> f64 {
+    use crate::mechanics::golden_quark_upgrades::{advanced_pack_effect, AdvancedPackKey};
+    use crate::mechanics::singularity_challenges::{
+        one_challenge_cap_effect, OneChallengeCapKey, SingularityEffectValue,
+    };
+    use crate::state::golden_quarks::GQ_ADVANCED_PACK;
+
+    const CUBE_UPGRADE_74: usize = 74;
+
+    let gq_adv = &state.golden_quarks.upgrades[GQ_ADVANCED_PACK];
+    let exalt_score = match one_challenge_cap_effect(
+        state.singularity.one_challenge_cap.completions,
+        OneChallengeCapKey::CorrScoreIncrease,
+    ) {
+        SingularityEffectValue::Scalar(s) => s,
+        SingularityEffectValue::Unlock(_) => 0.0,
+    };
+    advanced_pack_effect(
+        gq_adv.level + gq_adv.free_level,
+        AdvancedPackKey::CorruptionScoreIncrease,
+    ) + exalt_score
+        + 0.3 * state.cube_upgrade_levels.cube_upgrades[CUBE_UPGRADE_74]
+}
+
+/// `maxCorruptionLevel()` (Corruptions.ts:388-400) with every input live,
+/// including the singularity-era GQ `corruptionFourteen` unlock and the
+/// `octeractCorruption` cap increase.
+pub(crate) fn current_max_corruption_level(state: &GameState) -> f64 {
+    use crate::mechanics::corruptions::{max_corruption_level, MaxCorruptionLevelInput};
+    use crate::mechanics::golden_quark_upgrades::{
+        corruption_fourteen_effect, platonic_tau_effect, PlatonicTauKey, PlatonicTauValue,
+    };
+    use crate::mechanics::octeracts::octeract_corruption_effect;
+    use crate::state::golden_quarks::{GQ_CORRUPTION_FOURTEEN, GQ_PLATONIC_TAU};
+    use crate::state::octeract_upgrades::OCTERACT_CORRUPTION;
 
     let cc = &state.challenges.challenge_completions;
     let platonic = &state.cube_upgrade_levels.platonic_upgrades;
+    let gq = &state.golden_quarks.upgrades;
     let platonic_tau_unlocked = matches!(
         platonic_tau_effect(
-            state.golden_quarks.upgrades[GQ_PLATONIC_TAU].level
-                + state.golden_quarks.upgrades[GQ_PLATONIC_TAU].free_level,
+            gq[GQ_PLATONIC_TAU].level + gq[GQ_PLATONIC_TAU].free_level,
             PlatonicTauKey::Unlocked,
         ),
         PlatonicTauValue::Unlock(true)
     );
-    let max = max_corruption_level(&MaxCorruptionLevelInput {
+    let oct_corruption = &state.octeract_upgrades.upgrades[OCTERACT_CORRUPTION];
+    max_corruption_level(&MaxCorruptionLevelInput {
         challenge_11_completions: cc[11],
         challenge_12_completions: cc[12],
         challenge_13_completions: cc[13],
@@ -6419,31 +6565,94 @@ fn set_corruption_level(
         platonic_upgrade_5: platonic[5],
         platonic_upgrade_10: platonic[10],
         platonic_tau_unlocked,
-        corruption_fourteen_unlocked: false, // GQ corruptionFourteen (singularity) → neutral
-        octeract_corruption_cap_increase: 0.0, // octeractCorruption (singularity) → neutral
-    });
+        corruption_fourteen_unlocked: corruption_fourteen_effect(
+            gq[GQ_CORRUPTION_FOURTEEN].level + gq[GQ_CORRUPTION_FOURTEEN].free_level,
+        ),
+        octeract_corruption_cap_increase: octeract_corruption_effect(
+            oct_corruption.level + oct_corruption.free_level,
+        ),
+    })
+}
 
+/// `updateCorruptionScoreMult` over an arbitrary loadout with the live bonus
+/// terms (the legacy lazy `totalCorruptionAscensionMultiplier` getter
+/// recomputes with exactly these on first read).
+pub(crate) fn corruption_score_mult_for(state: &GameState, levels: [u32; 14]) -> f64 {
+    use crate::mechanics::corruptions::{
+        calculate_total_corruption_score_mult, TotalCorruptionScoreMultInput,
+    };
+
+    const PLATONIC_UPGRADE_17: usize = 17;
+
+    calculate_total_corruption_score_mult(&TotalCorruptionScoreMultInput {
+        levels: &levels,
+        bonus_levels: corruption_bonus_levels(state),
+        bonus_val: corruption_bonus_val(state),
+        viscosity_platonic_17: state.cube_upgrade_levels.platonic_upgrades[PLATONIC_UPGRADE_17],
+    })
+}
+
+/// `CorruptionLoadout.setLevel` — set a single corruption's *next-ascension*
+/// level (clamped to `[0, maxCorruptionLevel]`) and recompute
+/// `corruptions.next.total_corruption_ascension_multiplier`
+/// (`updateCorruptionScoreMult`). Out-of-range slots (`>= 8`) are ignored.
+/// Every bonus contribution is live: finiteDescent + cookieGrandma +
+/// `corruptionFifteen` + `oneChallengeCap` free levels, `advancedPack` +
+/// `oneChallengeCap` + `cubeUpgrades[74]` score increases, and the GQ /
+/// octeract corruption-cap raises.
+fn set_corruption_level(
+    state: &mut GameState,
+    index: usize,
+    level: u32,
+) -> SmallVec<[CoreEvent; 1]> {
+    // Only the 8 real corruptions (viscosity..recession) are settable.
+    if index >= 8 {
+        return smallvec![];
+    }
+
+    let max = current_max_corruption_level(state);
     let clamped = level.min(max as u32);
     state.corruptions.next.levels[index] = clamped;
 
-    // Recompute total_corruption_ascension_multiplier from the updated loadout.
-    let bonus_levels = finite_descent_rune_effects(
-        state.runes.rune_levels[RUNE_FINITE_DESCENT],
-        FiniteDescentRuneKey::CorruptionFreeLevels,
-    );
-    let bonus_val = 0.3 * state.cube_upgrade_levels.cube_upgrades[CUBE_UPGRADE_74];
+    let next_levels = state.corruptions.next.levels;
     state.corruptions.next.total_corruption_ascension_multiplier =
-        calculate_total_corruption_score_mult(&TotalCorruptionScoreMultInput {
-            levels: &state.corruptions.next.levels,
-            bonus_levels,
-            bonus_val,
-            viscosity_platonic_17: state.cube_upgrade_levels.platonic_upgrades[PLATONIC_UPGRADE_17],
-        });
+        corruption_score_mult_for(state, next_levels);
 
     smallvec![CoreEvent::CorruptionLevelSet {
         index,
         level: clamped,
     }]
+}
+
+/// Start a campaign (the legacy start-campaign button, Campaign.ts:1556-1564,
+/// then `CampaignManager.set campaign`, Campaign.ts:332-340): rejected while
+/// inside an ascension challenge; otherwise runs a full `reset('ascension')`
+/// — which banks + clears any currently-active campaign — then marks the
+/// chosen campaign current and applies its corruption loadout to
+/// `corruptions.used`. The fresh legacy `CorruptionLoadout`'s score mult
+/// re-derives lazily on first read; here the cache recomputes eagerly.
+fn select_campaign(
+    state: &mut GameState,
+    campaign: usize,
+    reset_gains: &ResetCurrencyResult,
+) -> SmallVec<[CoreEvent; 2]> {
+    use crate::mechanics::campaigns::{CAMPAIGNS_LEN, CAMPAIGN_CORRUPTION_LOADOUTS};
+
+    if campaign >= CAMPAIGNS_LEN || state.challenges.current_ascension_challenge != 0 {
+        return smallvec![];
+    }
+
+    let mut events = reset::perform_reset(state, ResetRequest::Ascension, reset_gains);
+
+    state.campaigns.current_campaign = Some(campaign as u8);
+    let mut levels = [0_u32; 14];
+    levels[..8].copy_from_slice(&CAMPAIGN_CORRUPTION_LOADOUTS[campaign]);
+    state.corruptions.used.levels = levels;
+    state.corruptions.used.total_corruption_ascension_multiplier =
+        corruption_score_mult_for(state, levels);
+
+    events.push(CoreEvent::CampaignStarted { campaign });
+    events
 }
 
 /// **Phase 4** — Resource generation + challenge auto-completion.
@@ -8529,6 +8738,141 @@ mod tests {
             output.events
         );
         assert_eq!(state.cube_upgrade_levels.cube_upgrades[1], 1.0);
+    }
+
+    #[test]
+    fn tack_dispatches_select_campaign_action() {
+        let mut state = GameState::default();
+        state.challenges.challenge_completions[10] = 3.0;
+
+        let mut input = TackInput {
+            dt: 0.025,
+            ..TackInput::default()
+        };
+        input
+            .player_actions
+            .push(PlayerAction::SelectCampaign { campaign: 4 });
+
+        let output = tack(&mut state, &input);
+
+        assert!(
+            output
+                .events
+                .iter()
+                .any(|e| matches!(e, CoreEvent::CampaignStarted { campaign: 4 })),
+            "expected CampaignStarted in events, got {:?}",
+            output.events
+        );
+        // The full ascension reset ran first (start button = reset('ascension')
+        // then the campaign setter)…
+        assert!(output.events.iter().any(|e| matches!(
+            e,
+            CoreEvent::ResetPerformed {
+                tier: crate::events::AutoResetTier::Ascension,
+                ..
+            }
+        )));
+        // …and the fifth campaign (viscosity 3 / drought 3) is now active on
+        // `corruptions.used`, with no completions banked (no campaign was
+        // active during the reset and singularity < 4).
+        assert_eq!(state.campaigns.current_campaign, Some(4));
+        assert_eq!(
+            state.corruptions.used.levels[crate::state::VISCOSITY_INDEX],
+            3
+        );
+        assert_eq!(
+            state.corruptions.used.levels[crate::state::DROUGHT_INDEX],
+            3
+        );
+        assert_eq!(state.campaigns.campaign_completions, [0.0; 50]);
+    }
+
+    #[test]
+    fn claim_export_rewards_banks_golden_quarks_and_quarks() {
+        use crate::state::golden_quarks::GQ_GOLDEN_QUARKS_3;
+        use crate::state::GoldenQuarkUpgrade;
+
+        let mut state = GameState::default();
+        // goldenQuarks3 level 1 → exportGQPerHour = 1·2/2 = 1/hr → window 3600s.
+        state.golden_quarks.upgrades[GQ_GOLDEN_QUARKS_3] = GoldenQuarkUpgrade {
+            level: 1.0,
+            ..GoldenQuarkUpgrade::default()
+        };
+        state.golden_quarks.golden_quarks_timer = 7400.0; // 2 whole windows + 200s
+                                                          // Quark timer: base 5/hr (no researches). 7400s · 5/3600 = floor(10.27) = 10.
+        state.quarks.quarks_timer = 7400.0;
+
+        let claim = claim_export_rewards(&mut state);
+
+        // 2 golden quarks at the default (sing < 100 ⇒ bonus mult 1).
+        assert_eq!(claim.golden_quarks, 2.0);
+        assert_eq!(state.golden_quarks.golden_quarks.to_number(), 2.0);
+        assert_eq!(state.golden_quarks.golden_quarks_timer, 200.0); // remainder
+
+        // Quark gain 10 × quark multiplier (≥ 1). At default the multiplier is 1.
+        assert!(claim.quarks >= 10.0);
+        assert_eq!(state.quarks.worlds.to_number(), claim.quarks);
+        assert_eq!(state.golden_quarks.quarks_this_singularity, claim.quarks);
+        // quarkstimer keeps remainder of 7400 % (3600/5 = 720) = 7400 - 10·720.
+        assert!((state.quarks.quarks_timer - 200.0).abs() < 1e-9);
+    }
+
+    #[test]
+    fn claim_export_rewards_noop_without_goldenquarks3_or_quark_gain() {
+        let mut state = GameState::default();
+        // No goldenQuarks3 ⇒ exportGQPerHour 0 ⇒ GQ timer untouched.
+        state.golden_quarks.golden_quarks_timer = 5000.0;
+        // Sub-1-quark window: 600s · 5/3600 = floor(0.83) = 0 ⇒ no quark claim.
+        state.quarks.quarks_timer = 600.0;
+
+        let claim = claim_export_rewards(&mut state);
+
+        assert_eq!(claim, ExportRewardClaim::default());
+        assert_eq!(state.golden_quarks.golden_quarks_timer, 5000.0);
+        assert_eq!(state.quarks.quarks_timer, 600.0);
+        assert_eq!(state.quarks.worlds.to_number(), 0.0);
+    }
+
+    #[test]
+    fn claim_export_rewards_applies_sing100_export_bonus() {
+        use crate::state::golden_quarks::GQ_GOLDEN_QUARKS_3;
+        use crate::state::GoldenQuarkUpgrade;
+
+        let mut state = GameState::default();
+        state.singularity.highest_singularity_count = 200.0; // bonus = 1 + 200/50 = 5
+        state.golden_quarks.upgrades[GQ_GOLDEN_QUARKS_3] = GoldenQuarkUpgrade {
+            level: 1.0,
+            ..GoldenQuarkUpgrade::default()
+        };
+        state.golden_quarks.golden_quarks_timer = 3600.0; // exactly one window
+
+        let claim = claim_export_rewards(&mut state);
+
+        // 1 whole window × bonus 5 = 5 golden quarks.
+        assert_eq!(claim.golden_quarks, 5.0);
+        assert_eq!(state.golden_quarks.golden_quarks.to_number(), 5.0);
+    }
+
+    #[test]
+    fn select_campaign_rejected_inside_ascension_challenge() {
+        let mut state = GameState::default();
+        state.challenges.current_ascension_challenge = 11;
+
+        let mut input = TackInput {
+            dt: 0.025,
+            ..TackInput::default()
+        };
+        input
+            .player_actions
+            .push(PlayerAction::SelectCampaign { campaign: 0 });
+
+        let output = tack(&mut state, &input);
+
+        assert!(!output
+            .events
+            .iter()
+            .any(|e| matches!(e, CoreEvent::CampaignStarted { .. })));
+        assert_eq!(state.campaigns.current_campaign, None);
     }
 
     #[test]
