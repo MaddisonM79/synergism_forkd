@@ -17,15 +17,10 @@
 /* Buildings: producer cards + the accelerator/multiplier/prestige row. */
 
 .sf-buildings-meta {
-  display: flex;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 280px));
   gap: var(--space-4);
   margin-top: var(--space-5);
-  flex-wrap: wrap;
-}
-
-.sf-buildings-meta .sf-card {
-  flex: 1;
-  min-width: 220px;
 }
 
 .sf-prestige-btn {
