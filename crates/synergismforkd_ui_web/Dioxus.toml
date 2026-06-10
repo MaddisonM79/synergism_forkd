@@ -1,0 +1,16 @@
+# Dioxus CLI configuration for the browser build.
+# Run from anywhere in the workspace: `dx serve -p synergismforkd_ui_web`
+
+[application]
+name = "synergism_forkd"
+default_platform = "web"
+# Component-adjacent assets (stylesheets, icons) live in the `ui` crate and
+# are collected through `asset!`; this dir is for web-shell-only files.
+asset_dir = "assets"
+
+[web.app]
+title = "Synergism Forkd"
+
+[web.watcher]
+watch_path = ["src", "../synergismforkd_ui/src", "../synergismforkd_ui/assets"]
+reload_html = true

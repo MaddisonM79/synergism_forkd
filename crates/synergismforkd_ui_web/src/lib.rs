@@ -18,8 +18,27 @@ use synergismforkd_ui as _;
 #[cfg(target_arch = "wasm32")]
 use getrandom as _;
 
+// On native, `dioxus` is present only so the renderer-free feature set
+// unifies with `synergismforkd_ui`; the launch path below is wasm-only.
+#[cfg(not(target_arch = "wasm32"))]
+use dioxus as _;
+
 pub mod save_host;
 
 pub use save_host::{BootOutcome, SaveHost, SaveStorage, AUTOSAVE_INTERVAL_S, SAVE_KEY};
 
-pub fn placeholder() {}
+/// Mount the app in the browser. Called by the `dx` binary entry (`main.rs`).
+#[cfg(target_arch = "wasm32")]
+pub fn run() {
+    // Placeholder root until the loop driver + `synergismforkd_ui::App`
+    // land (vertical-slice tasks 6–8).
+    dioxus::launch(placeholder_root);
+}
+
+#[cfg(target_arch = "wasm32")]
+fn placeholder_root() -> dioxus::prelude::Element {
+    use dioxus::prelude::*;
+    rsx! {
+        div { "Synergism Forkd — UI scaffold" }
+    }
+}

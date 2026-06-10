@@ -1,6 +1,6 @@
 [package]
 name = "synergismforkd_ui"
-description = "Platform-agnostic Dioxus components, hooks, and signals. Consumed by synergismforkd_ui_web (browser) and synergismforkd_ui_desktop (Tauri shell)."
+description = "Platform-agnostic Dioxus components, hooks, and signals. Consumed by synergismforkd_ui_web (browser) and synergismforkd_ui_desktop (dioxus-desktop shell)."
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -11,6 +11,13 @@ publish = false
 [dependencies]
 synergismforkd_common = { path = "../synergismforkd_common" }
 synergismforkd_logic = { path = "../synergismforkd_logic" }
+synergismforkd_bignum = { path = "../synergismforkd_bignum" }
+# `lib` = macro + html + signals + hooks + document + asset — everything a
+# component tree needs, with NO renderer and NO launch. Renderers live in
+# the shell crates (ui_web / ui_desktop) per the crate-boundary rules.
+dioxus = { workspace = true, features = ["lib"] }
+# i18n: en.json is embedded via include_str! and parsed once at startup.
+serde_json = { workspace = true }
 
 [lints]
 workspace = true
