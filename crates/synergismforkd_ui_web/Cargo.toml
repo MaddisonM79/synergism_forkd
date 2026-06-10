@@ -13,6 +13,12 @@ crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 synergismforkd_ui = { path = "../synergismforkd_ui" }
+# Host-tier save wiring (localStorage persistence + the autosave loop) drives
+# the headless logic and the fresh save format directly. The `SaveHost`
+# orchestration is platform-agnostic and unit-tested on native; only the
+# localStorage backend + the wall-clock are wasm-gated below.
+synergismforkd_logic = { path = "../synergismforkd_logic" }
+synergismforkd_save = { path = "../synergismforkd_save" }
 
 # When this crate is built for wasm32-unknown-unknown, the transitive
 # `getrandom` dep (pulled in by `rand`'s `ThreadRng` inside
@@ -22,8 +28,13 @@ synergismforkd_ui = { path = "../synergismforkd_ui" }
 # Cargo-feature-unification fix; the `wasm_js` feature lives in the wasm
 # host crate (which already crosses the JS boundary) and stays out of
 # `synergismforkd_logic` per the crate-boundary rules.
+#
+# `web-sys` (localStorage) + `js-sys` (Date.now wall-clock) back the wasm-only
+# `SaveStorage` impl and `now_ms()`; both stay out of the native build.
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 getrandom = { version = "0.4", features = ["wasm_js"] }
+js-sys = "0.3"
+web-sys = { version = "0.3", features = ["Window", "Storage"] }
 
 [lints]
 workspace = true
