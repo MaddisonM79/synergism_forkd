@@ -19,6 +19,7 @@ pub fn SectionView() -> Element {
         main { class: "sf-content",
             match section {
                 Section::Buildings => rsx! { production::buildings::Buildings {} },
+                Section::Achievements => rsx! { production::achievements::Achievements {} },
                 Section::SettingsGeneral => rsx! { settings::general::General {} },
                 Section::SettingsSaves => rsx! { settings::saves::Saves {} },
                 Section::SettingsThemes => rsx! { settings::themes::Themes {} },

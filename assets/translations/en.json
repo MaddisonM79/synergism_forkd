@@ -27,6 +27,10 @@
   "nav.section.settings_themes": "Themes",
   "nav.placeholder": "This section is under construction.",
 
+  "achievements.earned": "earned",
+  "achievements.points": "points",
+  "achievements.ap": "AP",
+
   "hud.coins": "Coins",
   "hud.diamonds": "Diamonds",
   "hud.mythos": "Mythos",

@@ -36,6 +36,60 @@
   font-size: var(--fs-xs);
 }
 
+/* Achievements: summary line + dense earned/locked grid. */
+.sf-ach-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-5);
+  align-items: baseline;
+  margin-bottom: var(--space-4);
+  font-size: var(--fs-sm);
+}
+
+.sf-ach-points {
+  color: var(--accent-production);
+}
+
+.sf-ach-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(34px, 1fr));
+  gap: var(--space-2);
+}
+
+.sf-ach-cell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  aspect-ratio: 1;
+  border: var(--bw) solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-surface);
+  color: var(--text-muted);
+  font-size: var(--fs-xs);
+  font-variant-numeric: tabular-nums;
+  cursor: default;
+  transition: background var(--t-fast), border-color var(--t-fast);
+}
+
+.sf-ach-cell.earned {
+  background: var(--accent-production);
+  border-color: var(--accent-production);
+  color: var(--text-inverse);
+  font-weight: 700;
+}
+
+.sf-ach-tip-name {
+  display: block;
+  max-width: 240px;
+  white-space: normal;
+}
+
+.sf-ach-tip-pts {
+  display: block;
+  margin-top: var(--space-1);
+  color: var(--accent-production);
+}
+
 /* The wealth-tax banner. */
 .sf-tax-line {
   margin-top: var(--space-4);

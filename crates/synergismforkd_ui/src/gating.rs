@@ -201,7 +201,10 @@ impl Section {
             | Section::SettingsGeneral
             | Section::SettingsSaves
             | Section::SettingsThemes => true,
-            Section::Achievements => rc.achievements_unlocked,
+            // Legacy gates the Achievements tab on the reincarnation unlock
+            // (Tabs.ts:627), not the `achievements_unlocked` flag (which the
+            // logic tier never writes).
+            Section::Achievements => rc.reincarnate_unlocked,
             Section::Runes => rc.prestige_unlocked,
             Section::Challenges => rc.transcend_unlocked,
             Section::Research | Section::Shop => rc.reincarnate_unlocked,
