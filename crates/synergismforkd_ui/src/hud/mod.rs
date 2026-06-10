@@ -10,8 +10,8 @@ use crate::components::{Num, Resource, ResourceIcon, Tooltip};
 use crate::gating::{Group, Route, Section};
 use crate::i18n::t;
 
-/// One HUD chip: icon + compact value, tooltip with the resource name and
-/// (optionally) its per-second rate.
+/// One HUD chip: icon + compact value (plus an inline per-second rate when
+/// given), tooltip with the resource name and exact rate.
 #[component]
 fn Chip(resource: Resource, value: Decimal, #[props(default)] rate: Option<Decimal>) -> Element {
     rsx! {
@@ -29,6 +29,13 @@ fn Chip(resource: Resource, value: Decimal, #[props(default)] rate: Option<Decim
             span { class: "sf-chip",
                 ResourceIcon { resource }
                 Num { value }
+                if let Some(rate) = rate {
+                    span { class: "sf-chip-rate",
+                        "+"
+                        Num { value: rate, rate: true }
+                        {t("hud.per_sec")}
+                    }
+                }
             }
         }
     }
