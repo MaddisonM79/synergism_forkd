@@ -880,11 +880,13 @@ fn reset_talismans_ascension(talismans: &mut TalismansState) {
 /// prestige/transcend/reincarnation counts once `highestSingularityCount >= 8`.
 /// Everything else resets to a fresh game.
 ///
+/// `worlds` (quarks) resets with the rebuild unless the limitedTime
+/// `preserveQuarks` reward is active (Reset.ts:1190), in which case the
+/// balance carries across.
+///
 /// Deferred (faithful for fresh saves): the elevator triad — the count advances
 /// `max(highest, count + lookahead)` (auto-climb), the only branch reachable
-/// while the elevator fields default to unlocked/non-slow. `worlds` (quarks)
-/// reset; the limitedTime `preserveQuarks` branch is inert until that
-/// singularity challenge is entered.
+/// while the elevator fields default to unlocked/non-slow.
 pub(crate) fn perform_singularity_reset(
     state: &mut GameState,
     set_sing_number: f64,
@@ -931,6 +933,22 @@ pub(crate) fn perform_singularity_reset(
     };
     let total_quarks_ever =
         state.golden_quarks.total_quarks_ever + state.golden_quarks.quarks_this_singularity;
+
+    // limitedTime `preserveQuarks` (Reset.ts:1190): while the effect is
+    // active, `worlds` (quarks) survives the singularity instead of resetting.
+    let preserve_quarks = {
+        use crate::mechanics::singularity_challenges::{
+            limited_time_effect, LimitedTimeKey, SingularityEffectValue,
+        };
+        matches!(
+            limited_time_effect(
+                state.singularity.limited_time.completions,
+                LimitedTimeKey::PreserveQuarks,
+            ),
+            SingularityEffectValue::Scalar(s) if s > 0.0
+        )
+    };
+    let held_worlds = state.quarks.worlds;
 
     // ── Capture survivors (before the blank-save reconstruction) ──
     let achievements = state.achievements.clone();
@@ -1017,6 +1035,12 @@ pub(crate) fn perform_singularity_reset(
         mastery.highest_mastery = highest;
     }
     state.ants.current_sacrifice_id = next_sacrifice_id;
+
+    // Quarks survive under the limitedTime `preserveQuarks` reward; the
+    // default rebuild already mirrors `player.worlds.reset()` (→ 0).
+    if preserve_quarks {
+        state.quarks.worlds = held_worlds;
+    }
 
     smallvec![CoreEvent::SingularityPerformed {
         golden_quarks_gained: gq_grant,
@@ -1323,6 +1347,24 @@ mod tests {
             e,
             CoreEvent::SingularityChallengeExited { success: false, .. }
         )));
+    }
+
+    #[test]
+    fn singularity_resets_quarks_unless_preserved_by_limited_time() {
+        // Without the limitedTime reward, quarks reset with the rebuild.
+        let mut state = GameState::default();
+        state.runes.rune_levels[RUNE_ANTIQUITIES] = 1.0;
+        state.quarks.worlds = Decimal::from_finite(1234.0);
+        perform_singularity_reset(&mut state, -1.0);
+        assert_eq!(state.quarks.worlds.to_number(), 0.0);
+
+        // With a limitedTime completion the preserveQuarks reward holds them.
+        let mut state = GameState::default();
+        state.runes.rune_levels[RUNE_ANTIQUITIES] = 1.0;
+        state.singularity.limited_time.completions = 1.0;
+        state.quarks.worlds = Decimal::from_finite(1234.0);
+        perform_singularity_reset(&mut state, -1.0);
+        assert_eq!(state.quarks.worlds.to_number(), 1234.0);
     }
 
     #[test]
