@@ -6,12 +6,15 @@
 use dioxus::prelude::*;
 use synergismforkd_bignum::Decimal;
 use synergismforkd_logic::mechanics::achievement_awards::achievement_progress;
+use synergismforkd_logic::mechanics::achievement_levels::{
+    achievement_level_from_points, to_next_achievement_level_exp,
+};
 use synergismforkd_logic::mechanics::achievement_point_values::ACHIEVEMENT_POINT_VALUES;
 use synergismforkd_logic::state::achievements::ACHIEVEMENTS_LEN;
 use synergismforkd_logic::PlayerAction;
 
 use crate::bridge::{use_bridge, use_slice};
-use crate::components::Num;
+use crate::components::{Num, Progress};
 use crate::format::format_value;
 use crate::i18n::t;
 
@@ -62,6 +65,7 @@ pub fn Achievements() -> Element {
                 " ({format_value(Decimal::from_finite(percent), notation)}%)"
             }
         }
+        LevelBar { points: points() }
         AchievementDetail { focused: focused(), earned: focused().map(|i| earned()[i] != 0) }
         div { class: "sf-ach-grid",
             for i in 0..ACHIEVEMENTS_LEN {
@@ -72,6 +76,43 @@ pub fn Achievements() -> Element {
                     on_focus: move |idx| focused.set(Some(idx)),
                 }
             }
+        }
+    }
+}
+
+/// Synergism Level + a bar of progress toward the next level. Levels are
+/// 50 AP apart below 2500 points, 100 apart above (the legacy two-regime
+/// curve); the bar fills with this level's AP gained out of the AP the next
+/// level costs.
+#[component]
+fn LevelBar(points: f64) -> Element {
+    let bridge = use_bridge();
+    let notation = bridge.prefs.read().notation;
+    let level = achievement_level_from_points(points);
+    let next_level = level + 1.0;
+    let to_next = to_next_achievement_level_exp(points);
+    let per_level = if points < 2_500.0 { 50.0 } else { 100.0 };
+    let gained = per_level - to_next;
+    let fraction = (gained / per_level).clamp(0.0, 1.0);
+
+    rsx! {
+        div { class: "sf-ach-level",
+            div { class: "sf-ach-level-row",
+                span { class: "sf-ach-level-name",
+                    {t("achievements.level")} " "
+                    span { class: "sf-ach-level-num", "{level}" }
+                }
+                span { class: "sf-ach-level-to-next",
+                    {format_value(Decimal::from_finite(gained), notation)}
+                    " / "
+                    {format_value(Decimal::from_finite(per_level), notation)}
+                    " "
+                    {t("achievements.ap")}
+                    " → "
+                    {t("achievements.level")} " {next_level}"
+                }
+            }
+            Progress { fraction }
         }
     }
 }

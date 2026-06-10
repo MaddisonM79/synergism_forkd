@@ -50,6 +50,35 @@
   color: var(--accent-production);
 }
 
+/* Synergism Level + progress-to-next bar. */
+.sf-ach-level {
+  margin-bottom: var(--space-5);
+  max-width: 560px;
+}
+
+.sf-ach-level-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: var(--space-2);
+  font-size: var(--fs-sm);
+}
+
+.sf-ach-level-name {
+  font-weight: 600;
+}
+
+.sf-ach-level-num {
+  color: var(--accent-production);
+  font-variant-numeric: tabular-nums;
+}
+
+.sf-ach-level-to-next {
+  color: var(--text-muted);
+  font-size: var(--fs-xs);
+  font-variant-numeric: tabular-nums;
+}
+
 .sf-ach-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(34px, 1fr));

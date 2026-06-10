@@ -31,6 +31,7 @@
   "achievements.hover_hint": "Hover over an achievement to see what it is.",
   "achievements.completed": "COMPLETED",
   "achievements.locked": "Locked",
+  "achievements.level": "Synergism Level",
   "achievements.requirement": "Requirement",
   "achievements.progress_done": "Earned — requirement met.",
   "achievements.progress_pending": "Not yet earned — meet the requirement above.",
