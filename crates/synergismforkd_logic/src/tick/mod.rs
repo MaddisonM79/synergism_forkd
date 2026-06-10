@@ -1706,7 +1706,24 @@ fn phase_global_state(state: &mut GameState) -> AggregatorOutputs {
     ) + crate::mechanics::achievement_awards::singularity_achievement_check(
         &mut state.achievements,
         state.singularity.highest_singularity_count,
-    );
+    )
+        // thousandSuns (#250) / thousandMoons (#251) — ungrouped, checked at
+        // updateAll cadence in the legacy tick (Synergism.ts:3994). The legacy
+        // `=== 1e5` gates are `>= 1e5` here: both levels cap at exactly 1e5
+        // (research 8x25 / cube w5x10), so the forms are equivalent and `>=`
+        // stays monotonic.
+        + crate::mechanics::achievement_awards::award_ungrouped_achievement(
+            &mut state.achievements,
+            250,
+            100.0,
+            state.researches.researches[200] >= 1e5,
+        )
+        + crate::mechanics::achievement_awards::award_ungrouped_achievement(
+            &mut state.achievements,
+            251,
+            150.0,
+            state.cube_upgrade_levels.cube_upgrades[50] >= 1e5,
+        );
     credit_achievement_quarks(state, awarded);
     recompute_talisman_rarities(state);
     let total_accelerator_boost = compute_total_accelerator_boost(state);
@@ -10153,6 +10170,30 @@ mod tests {
         assert_eq!(s.achievements.achievements[274], 1);
         assert_eq!(s.achievements.achievements[276], 1);
         assert_eq!(s.achievements.achievements[277], 0);
+    }
+
+    #[test]
+    fn phase_global_state_awards_thousand_suns_and_moons() {
+        // thousandSuns (#250): research 8x25 maxed at 1e5. thousandMoons
+        // (#251): cube upgrade w5x10 maxed at 1e5. Each then feeds the
+        // quarkGain achievement reward (×1.05 apiece).
+        let mut s = GameState::default();
+        s.singularity.highest_singularity_count = 1.0; // drop the ×1.25 default
+        let _ = phase_global_state(&mut s);
+        assert_eq!(s.achievements.achievements[250], 0);
+
+        s.researches.researches[200] = 1e5;
+        s.cube_upgrade_levels.cube_upgrades[50] = 1e5;
+        let _ = phase_global_state(&mut s);
+        assert_eq!(s.achievements.achievements[250], 1);
+        assert_eq!(s.achievements.achievements[251], 1);
+        // The newly-awarded bits light the quarkGain reward in the multiplier.
+        assert!((compute_quark_multiplier(&s) - 1.05 * 1.05).abs() < 1e-9);
+        // One level short → not awarded.
+        let mut below = GameState::default();
+        below.researches.researches[200] = 1e5 - 1.0;
+        let _ = phase_global_state(&mut below);
+        assert_eq!(below.achievements.achievements[250], 0);
     }
 
     #[test]
