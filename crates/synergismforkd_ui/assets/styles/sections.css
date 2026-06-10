@@ -35,6 +35,22 @@
   font-weight: 700;
 }
 
+/* Cascade-generated (+free) counts and contribution percentages. */
+.sf-free {
+  color: var(--text-muted);
+  font-size: var(--fs-xs);
+}
+
+/* The wealth-tax banner. */
+.sf-tax-line {
+  margin-top: var(--space-4);
+  padding: var(--space-3) var(--space-4);
+  border: var(--bw) solid var(--warn);
+  border-radius: var(--radius-sm);
+  color: var(--warn);
+  font-size: var(--fs-sm);
+}
+
 /* Settings */
 
 .sf-settings-list {

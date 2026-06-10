@@ -10,7 +10,6 @@
 
 use dioxus::prelude::*;
 use serde::{Deserialize, Serialize};
-use synergismforkd_bignum::Decimal;
 use synergismforkd_logic::{GameState, PlayerAction};
 
 use crate::format::Notation;
@@ -151,15 +150,9 @@ impl BuyAmount {
     }
 }
 
-/// Per-tick derived numbers the HUD shows (filled by the host loop from
-/// `TickOutput`; not stored in `GameState`).
-#[derive(Debug, Clone, Copy, PartialEq, Default)]
-pub struct DerivedStats {
-    /// Coins gained per real second (smoothed by the loop).
-    pub coins_per_sec: Decimal,
-    /// Prestige points the next prestige would award.
-    pub prestige_gain: Decimal,
-}
+// The HUD/buildings display numbers come straight from the tick output —
+// the logic tier's `DerivedTickStats` IS the display contract.
+pub use synergismforkd_logic::{BuildingsDerived, DerivedTickStats};
 
 /// Everything the component tree needs, `Copy` (all fields are signals).
 #[derive(Clone, Copy)]
@@ -179,7 +172,7 @@ pub struct GameBridge {
     /// Current nav position.
     pub route: Signal<Route>,
     /// HUD numbers derived per tick.
-    pub derived: Signal<DerivedStats>,
+    pub derived: Signal<DerivedTickStats>,
     /// Toast id counter.
     toast_seq: Signal<u64>,
 }
@@ -199,7 +192,7 @@ impl GameBridge {
                 dialog: Signal::new(None),
                 prefs: Signal::new(prefs),
                 route: Signal::new(Route::default()),
-                derived: Signal::new(DerivedStats::default()),
+                derived: Signal::new(DerivedTickStats::default()),
                 toast_seq: Signal::new(0),
             }
         })

@@ -6,9 +6,7 @@ use std::time::Duration;
 
 use dioxus::prelude::*;
 use synergismforkd_logic::TackInput;
-use synergismforkd_ui::bridge::{
-    DerivedStats, DialogKind, DialogRequest, GameBridge, HostCommand, UiPrefs,
-};
+use synergismforkd_ui::bridge::{DialogKind, DialogRequest, GameBridge, HostCommand, UiPrefs};
 use synergismforkd_ui::events_map;
 use synergismforkd_ui::gating::Route;
 use synergismforkd_ui::i18n::t;
@@ -80,14 +78,10 @@ pub async fn run(
             host.tick(&mut state, &input, platform::now_ms())
         };
 
-        // HUD derived numbers — only notify when they actually changed.
-        let derived = DerivedStats {
-            coins_per_sec: output.derived.coins_per_sec,
-            prestige_gain: output.derived.prestige_point_gain,
-        };
-        if *bridge.derived.peek() != derived {
+        // HUD/buildings derived numbers — only notify when they changed.
+        if *bridge.derived.peek() != output.derived {
             let mut signal = bridge.derived;
-            signal.set(derived);
+            signal.set(output.derived);
         }
 
         events_map::apply(&bridge, &output.events);
