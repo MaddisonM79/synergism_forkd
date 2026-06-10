@@ -320,6 +320,23 @@ pub enum PlayerAction {
         /// Which Exalt to toggle.
         challenge: crate::events::SingularityChallengeId,
     },
+    /// Configure the singularity elevator (the legacy elevator panel inputs):
+    /// set the target floor (clamped like the input listener, to
+    /// `[1, max(1, highest, count + lookahead if antiquities)]`) and the
+    /// locked / slow-climb toggles. Pure config — no event.
+    ConfigureSingularityElevator {
+        /// Requested elevator floor.
+        target: f64,
+        /// Lock a normal singularity to the target floor.
+        locked: bool,
+        /// Advance by exactly one singularity instead of the lookahead jump.
+        slow_climb: bool,
+    },
+    /// Ride the elevator to its target floor now (legacy
+    /// `teleportToSingularity`): ascending (count ≤ target) performs a full
+    /// singularity to the target; descending just sets the count — no reset.
+    /// Gated on a valid target and on not being inside an Exalt.
+    TeleportToSingularity,
 }
 
 /// Selects the automation flag a [`PlayerAction::ToggleAuto`] sets.
@@ -5845,6 +5862,20 @@ fn phase_player_input(
                     .events
                     .extend(reset::toggle_singularity_challenge(state, *challenge));
             }
+            PlayerAction::ConfigureSingularityElevator {
+                target,
+                locked,
+                slow_climb,
+            } => {
+                let requested = if target.is_finite() { *target } else { 1.0 };
+                let max_target = elevator_max_target(state);
+                state.singularity.elevator_target = requested.clamp(1.0, max_target);
+                state.singularity.elevator_locked = *locked;
+                state.singularity.elevator_slow_climb = *slow_climb;
+            }
+            PlayerAction::TeleportToSingularity => {
+                output.events.extend(reset::teleport_to_singularity(state));
+            }
         }
     }
 }
@@ -6950,6 +6981,20 @@ fn inside_singularity_challenge(s: &crate::state::SingularityState) -> bool {
         || s.taxman_last_stand.enabled
 }
 
+/// The elevator's highest reachable floor — `max(1, highestSingularityCount,
+/// count + lookahead)`, the lookahead leg only with the antiquities rune
+/// purchased (the legacy input listener / `teleportToSingularity` rule).
+fn elevator_max_target(state: &GameState) -> f64 {
+    let sing_look = if state.runes.rune_levels[crate::state::RUNE_ANTIQUITIES] > 0.0 {
+        state.singularity.singularity_count + compute_singularity_lookahead(state)
+    } else {
+        0.0
+    };
+    1.0_f64
+        .max(state.singularity.highest_singularity_count)
+        .max(sing_look)
+}
+
 // ─── Dispatch helpers ────────────────────────────────────────────────────
 
 /// `buildingAchievementCheck()` — run after a coin-producer buy to award the
@@ -7366,6 +7411,36 @@ mod tests {
             assert_eq!(s.achievements.progressive[slot].cached_points, 0.0);
         }
         assert_eq!(s.achievements.achievement_points, 0.0);
+    }
+
+    #[test]
+    fn configure_elevator_clamps_target_and_sets_toggles() {
+        let mut s = GameState::default();
+        s.singularity.highest_singularity_count = 10.0;
+        let mut input = TackInput::default();
+        input
+            .player_actions
+            .push(PlayerAction::ConfigureSingularityElevator {
+                target: 50.0, // above the reachable max (no antiquities) → clamps to highest
+                locked: true,
+                slow_climb: false,
+            });
+        let _ = tack(&mut s, &input);
+        assert_eq!(s.singularity.elevator_target, 10.0);
+        assert!(s.singularity.elevator_locked);
+        assert!(!s.singularity.elevator_slow_climb);
+
+        // Below the floor → clamps to 1.
+        let mut input = TackInput::default();
+        input
+            .player_actions
+            .push(PlayerAction::ConfigureSingularityElevator {
+                target: 0.0,
+                locked: false,
+                slow_climb: true,
+            });
+        let _ = tack(&mut s, &input);
+        assert_eq!(s.singularity.elevator_target, 1.0);
     }
 
     #[test]

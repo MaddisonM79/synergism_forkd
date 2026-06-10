@@ -903,14 +903,19 @@ pub(crate) fn perform_singularity_reset(
     let antiquities = state.runes.rune_levels[RUNE_ANTIQUITIES] > 0.0;
 
     let (new_count, new_highest, increment_highest) = if set_sing_number < 0.0 {
-        // Normal path — auto-climb (elevator unlocked, not slow-climb).
+        // Normal path — the elevator triad (Reset.ts:1112-1123): locked goes
+        // to the chosen floor, slow-climb advances by one, otherwise
+        // auto-climb by the fast-forward lookahead.
         let increment = old_count == old_highest;
-        let lookahead = super::compute_singularity_lookahead(state);
-        (
-            old_highest.max(old_count + lookahead),
-            old_highest,
-            increment,
-        )
+        let count = if state.singularity.elevator_locked {
+            state.singularity.elevator_target
+        } else if state.singularity.elevator_slow_climb {
+            old_count + 1.0
+        } else {
+            let lookahead = super::compute_singularity_lookahead(state);
+            old_highest.max(old_count + lookahead)
+        };
+        (count, old_highest, increment)
     } else {
         // Challenge enter/exit jump.
         let increment = old_count == old_highest && set_sing_number > old_count && antiquities;
@@ -1167,6 +1172,41 @@ pub(crate) fn toggle_singularity_challenge(
     }
 }
 
+/// `teleportToSingularity()` (`singularity.ts:3898`) — ride the elevator to
+/// its target floor. Gated on a valid target (`[1, max(1, highest,
+/// count + lookahead if antiquities)]`) and on not being inside an Exalt.
+///
+/// Ascending (`count <= target`) performs a full singularity to the target —
+/// and when the antiquities rune was *not* purchased, the singularity
+/// counter is held across it (the legacy `antiquitiesLevel === 0` branch).
+/// Descending just sets the count: **no reset** (verbatim — dropping floors
+/// is free).
+pub(crate) fn teleport_to_singularity(state: &mut GameState) -> SmallVec<[CoreEvent; 2]> {
+    use crate::state::RUNE_ANTIQUITIES;
+
+    let target = state.singularity.elevator_target;
+    let max_target = super::elevator_max_target(state);
+    if target < 1.0
+        || target > max_target
+        || super::inside_singularity_challenge(&state.singularity)
+    {
+        return SmallVec::new();
+    }
+
+    if state.singularity.singularity_count <= target {
+        let antiquities_level = state.runes.rune_levels[RUNE_ANTIQUITIES];
+        let held_counter = state.singularity.singularity_counter;
+        let events = perform_singularity_reset(state, target);
+        if antiquities_level == 0.0 {
+            state.singularity.singularity_counter = held_counter;
+        }
+        events
+    } else {
+        state.singularity.singularity_count = target;
+        SmallVec::new()
+    }
+}
+
 /// Zero a contiguous run of `player.upgrades` slots (the `resetUpgrades`
 /// loops). Indices are the legacy 1-based positions, in range for the
 /// `[u8; UPGRADES_DEFAULT_LEN]` bitmap.
@@ -1347,6 +1387,83 @@ mod tests {
             e,
             CoreEvent::SingularityChallengeExited { success: false, .. }
         )));
+    }
+
+    #[test]
+    fn elevator_branches_choose_the_next_floor() {
+        // Slow climb (the blank-save default): +1 even from below highest.
+        let mut state = GameState::default();
+        state.runes.rune_levels[RUNE_ANTIQUITIES] = 1.0;
+        state.singularity.singularity_count = 3.0;
+        state.singularity.highest_singularity_count = 10.0;
+        perform_singularity_reset(&mut state, -1.0);
+        assert_eq!(state.singularity.singularity_count, 4.0);
+        assert_eq!(state.singularity.highest_singularity_count, 10.0);
+
+        // Auto-climb (slow climb off): jump to max(highest, count + lookahead).
+        let mut state = GameState::default();
+        state.runes.rune_levels[RUNE_ANTIQUITIES] = 1.0;
+        state.singularity.elevator_slow_climb = false;
+        state.singularity.singularity_count = 3.0;
+        state.singularity.highest_singularity_count = 10.0;
+        perform_singularity_reset(&mut state, -1.0);
+        assert_eq!(state.singularity.singularity_count, 10.0);
+
+        // Locked: go to the chosen floor, even downward.
+        let mut state = GameState::default();
+        state.runes.rune_levels[RUNE_ANTIQUITIES] = 1.0;
+        state.singularity.elevator_locked = true;
+        state.singularity.elevator_target = 2.0;
+        state.singularity.singularity_count = 10.0;
+        state.singularity.highest_singularity_count = 10.0;
+        perform_singularity_reset(&mut state, -1.0);
+        assert_eq!(state.singularity.singularity_count, 2.0);
+        // The was-at-highest +1 bump applies regardless of branch
+        // (Reset.ts:1125 sits outside the elevator if/else).
+        assert_eq!(state.singularity.highest_singularity_count, 11.0);
+    }
+
+    #[test]
+    fn teleport_descends_without_reset_and_ascends_with_one() {
+        // Descending: count drops to the target, nothing else moves.
+        let mut state = GameState::default();
+        state.singularity.singularity_count = 10.0;
+        state.singularity.highest_singularity_count = 10.0;
+        state.singularity.elevator_target = 3.0;
+        state.upgrades.coins = Decimal::from_finite(1e50);
+        let events = teleport_to_singularity(&mut state);
+        assert!(events.is_empty());
+        assert_eq!(state.singularity.singularity_count, 3.0);
+        assert_eq!(state.upgrades.coins.to_number(), 1e50); // no reset
+
+        // Ascending (count <= target, within highest): a full singularity to
+        // the floor; without antiquities the singularity counter is held.
+        state.singularity.elevator_target = 10.0;
+        state.singularity.singularity_counter = 99.0;
+        let events = teleport_to_singularity(&mut state);
+        assert_eq!(state.singularity.singularity_count, 10.0);
+        assert_eq!(state.upgrades.coins, GameState::default().upgrades.coins);
+        assert_eq!(state.singularity.singularity_counter, 99.0);
+        assert!(events
+            .iter()
+            .any(|e| matches!(e, CoreEvent::SingularityPerformed { .. })));
+    }
+
+    #[test]
+    fn teleport_gates_on_target_range_and_exalt() {
+        // Target above the reachable max (highest 10, no antiquities) → no-op.
+        let mut state = GameState::default();
+        state.singularity.singularity_count = 10.0;
+        state.singularity.highest_singularity_count = 10.0;
+        state.singularity.elevator_target = 11.0;
+        assert!(teleport_to_singularity(&mut state).is_empty());
+        assert_eq!(state.singularity.singularity_count, 10.0);
+
+        // Inside an Exalt → no-op.
+        state.singularity.elevator_target = 3.0;
+        state.singularity.limited_time.enabled = true;
+        assert!(teleport_to_singularity(&mut state).is_empty());
+        assert_eq!(state.singularity.singularity_count, 10.0);
     }
 
     #[test]
