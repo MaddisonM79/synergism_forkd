@@ -19,6 +19,7 @@ pub fn SectionView() -> Element {
         main { class: "sf-content",
             match section {
                 Section::Buildings => rsx! { production::buildings::Buildings {} },
+                Section::Upgrades => rsx! { production::upgrades::Upgrades {} },
                 Section::Achievements => rsx! { production::achievements::Achievements {} },
                 Section::Settings => rsx! { settings::page::Settings {} },
                 _ => rsx! { div { class: "sf-placeholder", {t("nav.placeholder")} } },

@@ -25,6 +25,9 @@
   "nav.section.shop": "Shop",
   "nav.placeholder": "This section is under construction.",
 
+  "upgrades.empty_title": "No upgrades available yet",
+  "upgrades.empty_msg": "This is where you'll spend coins, diamonds, and other resources to power up your run. Upgrades are coming soon.",
+
   "achievements.earned": "earned",
   "achievements.points": "points",
   "achievements.ap": "AP",

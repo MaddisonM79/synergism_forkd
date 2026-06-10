@@ -3,3 +3,4 @@
 pub mod achievements;
 pub mod achievements_text;
 pub mod buildings;
+pub mod upgrades;
