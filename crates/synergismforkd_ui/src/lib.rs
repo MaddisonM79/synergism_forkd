@@ -7,6 +7,7 @@
 
 use synergismforkd_common as _;
 
+pub mod achievement_toast;
 pub mod app;
 pub mod bridge;
 pub mod components;

@@ -42,6 +42,31 @@ pub fn Tooltip(tip: Element, #[props(default = false)] down: bool, children: Ele
     }
 }
 
+/// A titled, collapsible section. Clicking the header toggles its body.
+/// `title` is plain text; `open` sets the initial state.
+#[component]
+pub fn Collapsible(
+    title: String,
+    #[props(default = true)] open: bool,
+    children: Element,
+) -> Element {
+    let mut is_open = use_signal(|| open);
+    rsx! {
+        section { class: "sf-collapsible",
+            button {
+                class: "sf-collapsible-head",
+                "aria-expanded": "{is_open()}",
+                onclick: move |_| is_open.toggle(),
+                span { class: if is_open() { "sf-collapsible-chevron open" } else { "sf-collapsible-chevron" }, "▸" }
+                span { class: "sf-collapsible-title", "{title}" }
+            }
+            if is_open() {
+                div { class: "sf-collapsible-body", {children} }
+            }
+        }
+    }
+}
+
 /// Thin progress bar; `fraction` clamped to 0..=1.
 #[component]
 pub fn Progress(fraction: f64) -> Element {

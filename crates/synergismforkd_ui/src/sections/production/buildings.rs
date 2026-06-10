@@ -1,7 +1,8 @@
-//! Buildings: the vertical slice's playable section. Coin sub-tab is live;
-//! the other family sub-tabs reveal with their unlocks and fill in at M2.
+//! Buildings: a single page with one collapsible section per producer
+//! family (Coin live; Diamond live; Mythos/Particle/Tesseract land later).
+//! Each family reveals at its reset unlock.
 //!
-//! Reveal ladder (legacy `coinunlock1..4` CSS gates, `revealStuff()`):
+//! Coin reveal ladder (legacy `coinunlock1..4` CSS gates, `revealStuff()`):
 //! tier-2 producer + Accelerators at `coin_one` (coins ≥ 500), tier-3 +
 //! Multipliers at `coin_two` (≥ 1e4), tier-4 + the buy-amount selector at
 //! `coin_three` (≥ 1e5), tier-5 + Prestige at `coin_four` (≥ 4e6);
@@ -14,33 +15,14 @@ use synergismforkd_logic::events::ProducerType;
 use synergismforkd_logic::{BuyRequest, PlayerAction, ResetRequest};
 
 use crate::bridge::{use_bridge, use_slice, BuyAmount};
-use crate::components::{Num, Resource, ResourceIcon, Tooltip};
+use crate::components::{Collapsible, Num, Resource, ResourceIcon, Tooltip};
 use crate::derive;
 use crate::format::format_value;
 use crate::i18n::t;
 
-/// Buildings sub-tabs, unlock-gated like everything else in the nav.
-const SUBTABS: [(&str, &str); 5] = [
-    ("buildings.subtab.coin", "coin"),
-    ("buildings.subtab.diamond", "diamond"),
-    ("buildings.subtab.mythos", "mythos"),
-    ("buildings.subtab.particle", "particle"),
-    ("buildings.subtab.tesseract", "tesseract"),
-];
-
 #[component]
 pub fn Buildings() -> Element {
-    let bridge = use_bridge();
-    let subsection = bridge.route.read().subsection;
-    let family_unlocked: Memo<[bool; 5]> = use_slice(|s| {
-        [
-            true,
-            s.reset_counters.prestige_unlocked,
-            s.reset_counters.transcend_unlocked,
-            s.reset_counters.reincarnate_unlocked,
-            s.reset_counters.ascension_count > 0.0,
-        ]
-    });
+    let show_diamond = use_slice(|s| s.reset_counters.prestige_unlocked);
     // The legacy `coinunlock3` gate: the buy-amount selector is itself a
     // progression reward (coins ≥ 1e5).
     let amounts_unlocked = use_slice(|s| s.reset_counters.coin_three_unlocked);
@@ -52,27 +34,13 @@ pub fn Buildings() -> Element {
                 BuyAmountToggle {}
             }
         }
-        if family_unlocked()[1] {
-            div { class: "sf-seg", style: "margin-bottom: var(--space-4)",
-                for (i, (key, id)) in SUBTABS.iter().enumerate() {
-                    if family_unlocked()[i] {
-                        button {
-                            key: "{id}",
-                            class: if i == subsection { "active" } else { "" },
-                            onclick: move |_| {
-                                let mut route = bridge.route;
-                                route.write().subsection = i;
-                            },
-                            {t(key)}
-                        }
-                    }
-                }
-            }
+        Collapsible { title: t("buildings.subtab.coin").to_string(),
+            CoinBuildings {}
         }
-        match subsection {
-            0 => rsx! { CoinBuildings {} },
-            1 => rsx! { DiamondBuildings {} },
-            _ => rsx! { div { class: "sf-placeholder", {t("nav.placeholder")} } },
+        if show_diamond() {
+            Collapsible { title: t("buildings.subtab.diamond").to_string(),
+                DiamondBuildings {}
+            }
         }
     }
 }
