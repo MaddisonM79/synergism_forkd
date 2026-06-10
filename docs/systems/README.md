@@ -108,8 +108,13 @@ fixed in code, the map had simply gone stale:
 > complete, **the singularity layer is live** (reset + GQ grant + seeded metadata), and **all 13
 > `updateAll` autobuyer families are wired** (incl. talisman / tesseract / ant-upgrade). **No HIGH
 > parity bugs remain open.** Branch `claude/wrap-meta-economy-quarks` additionally lands the
-> campaign-token derivation, the exalt enter/exit loop, the elevator triad, and `preserveQuarks` —
-> remaining non-UI work is host-tier seams and the parked backend; otherwise the UI tree.
+> campaign-token derivation, the exalt enter/exit loop, the elevator triad, and `preserveQuarks`.
+> Branch `claude/campaign-perks-saveload` then lands the **campaign runner** (`SelectCampaign` +
+> the ascension completion sweep + de-neutralized corruption bonus terms), the **53-perk table**
+> (`singularity_perks.rs`), the **export-reward claim** (`claim_export_rewards`), and **host-tier
+> save wiring** (`ui_web::SaveHost`: localStorage + 5 s autosave + load-on-boot, over a
+> `saved_at_ms`-stamped envelope) — remaining non-UI work is offline-progress catch-up and the
+> parked backend; otherwise the UI tree.
 
 ## Appendix: full single-canvas map
 

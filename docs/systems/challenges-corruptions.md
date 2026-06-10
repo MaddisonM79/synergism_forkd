@@ -20,7 +20,7 @@ flowchart LR
   ch15["Challenge 15 exponent"]:::ported
   autoChal["Auto-challenge sweep"]:::ported
   corruptions["Corruptions ·8 · loadouts"]:::ported
-  campaign["Campaign · tokens"]:::partial
+  campaign["Campaign · tokens + runner"]:::ported
   constUpg["Constant upgrades"]:::ported
 
   reinc["Reincarnation ↗ reset-cascade"]:::ext
@@ -64,7 +64,7 @@ flowchart LR
 | Challenge 15 exponent | 🟩 Ported | `mechanics/challenge_15_rewards.rs`; accrual at `tick/mod.rs:5396` (PR #265) |
 | Corruptions (8 effects) | 🟩 Ported | `state/corruptions.rs`, `mechanics/corruptions.rs` |
 | Auto-challenge sweep | 🟩 Ported | `tick/challenge_sweep.rs` |
-| Campaign tokens / constant upgrades | 🟩 Mostly | `state/campaigns.rs` (50 campaigns), `mechanics/campaign_token_rewards.rs`, `compute_campaign_tokens` (tick) — the campaign *runner* (UI) remains |
+| Campaign tokens + runner / constant upgrades | 🟩 Ported | `state/campaigns.rs` (50 campaigns + `current_campaign`), `mechanics/campaigns.rs` (runner data + completion recording), `mechanics/campaign_token_rewards.rs`, `compute_campaign_tokens` (tick) — only the icon-grid UI remains |
 
 ## Porting notes / open bugs
 
@@ -76,5 +76,15 @@ flowchart LR
   ports `updateTokens()` as a pure derivation over the 50-campaign limit/isMeta table
   (`CAMPAIGNS_LEN` 10→50, a latent sizing bug), inheritance + the GQ/octeract bonus-token upgrades.
   Every `campaign_token_rewards` formula now feeds from it, and the `campaignTokens` achievement
-  group (426–435) awards in the per-tick sweep. Tokens flow from `highestSingularityCount ≥ 5`
-  without the UI-tier campaign runner (which writes `campaign_completions` once it exists).
+  group (426–435) awards in the per-tick sweep.
+- ✅ **Campaign runner — ported to the logic tier.** `mechanics/campaigns.rs` carries the 50-entry
+  `campaignDatas` tables (per-campaign corruption loadouts + the flattened `unlockRequirement` gates)
+  and the verbatim only-increase/clamped `c10Completions` recording. `PlayerAction::SelectCampaign`
+  runs a full `reset('ascension')` then applies the chosen loadout to `corruptions.used` (rejected
+  inside an ascension challenge), and the ascension layer now runs the **completion sweep**
+  (`Reset.ts:762-784`): the `highestSingularityCount ≥ 4` auto-complete (difficulty comparison with
+  live `bonusLevels` on both sides) plus the active-campaign bank, before the `used ← next` swap.
+  Only the campaign icon-grid HTML stays UI-tier. The corruption `bonusLevels` / `bonusVal` terms
+  (`corruptionFifteen` + `oneChallengeCap` + `cookieGrandma` + `finiteDescent`; `advancedPack` +
+  `oneChallengeCap` + `cube74`) and the `maxCorruptionLevel` GQ/octeract cap inputs were
+  de-neutralized at the same time.
