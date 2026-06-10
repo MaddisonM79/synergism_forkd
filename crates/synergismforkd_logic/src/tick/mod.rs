@@ -78,6 +78,7 @@ mod ant_sacrifice;
 mod auto_buy;
 
 pub use auto_buy::{producer_cost_input, reduction_value};
+pub use reset::seed_blank_save;
 mod auto_research;
 mod auto_reset;
 mod automatic_tools;

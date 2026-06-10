@@ -36,7 +36,7 @@ use base64::prelude::{Engine as _, BASE64_STANDARD};
 use postcard::{from_bytes, to_allocvec};
 use serde::{Deserialize, Serialize};
 use synergismforkd_common as _;
-use synergismforkd_logic::{recompute_achievement_points, GameState};
+use synergismforkd_logic::{recompute_achievement_points, seed_blank_save, GameState};
 
 /// Current save schema version. Bump when a breaking schema change ships
 /// and a new `SaveV<N>` migration arm is added.
@@ -264,11 +264,16 @@ pub fn import_from_string_with_meta(s: &str) -> Result<(GameState, SaveMeta), Sa
 }
 
 /// A fresh-start game state — the "reset save" operation (TS `resetGame`'s
-/// state portion). Returns [`GameState::default`]; clearing persistent storage
-/// is the host's responsibility (filesystem / browser storage are UI-tier).
+/// state portion). [`GameState::default`] plus the `blankSave` starting
+/// economy ([`seed_blank_save`]: 100 coins, producer/accelerator/multiplier
+/// base costs — without it a fresh game is soft-locked). Clearing persistent
+/// storage is the host's responsibility (filesystem / browser storage are
+/// UI-tier).
 #[must_use]
 pub fn reset_save() -> GameState {
-    GameState::default()
+    let mut state = GameState::default();
+    seed_blank_save(&mut state);
+    state
 }
 
 #[cfg(test)]
@@ -412,10 +417,16 @@ mod tests {
     }
 
     #[test]
-    fn reset_save_returns_default() {
+    fn reset_save_returns_seeded_blank_save() {
         let fresh = reset_save();
-        let default = GameState::default();
-        assert_eq!(fresh.upgrades.coins, default.upgrades.coins);
+        // blankSave starting economy (Synergism.ts:307-345): 100 coins and
+        // playable base costs — NOT the all-zero GameState::default().
+        assert_eq!(fresh.upgrades.coins.to_number(), 100.0);
+        assert_eq!(fresh.coin_producers.cost(1).to_number(), 100.0);
+        assert_eq!(fresh.coin_producers.cost(5).to_number(), 8e6);
+        assert_eq!(fresh.diamond_producers.cost(1).to_number(), 100.0);
+        assert_eq!(fresh.accelerator.accelerator_cost.to_number(), 500.0);
+        assert_eq!(fresh.multiplier.multiplier_cost.to_number(), 10_000.0);
         assert_eq!(fresh.achievements.achievement_points, 0.0);
     }
 }
