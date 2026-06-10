@@ -196,15 +196,15 @@ impl Section {
     pub fn visible(self, state: &GameState) -> bool {
         let rc = &state.reset_counters;
         match self {
+            // Achievements is always visible — the legacy achievements tab's
+            // `setUnlockedState` is commented out (Tabs.ts:611-615), so it
+            // ships unlocked from a fresh save, alongside Buildings/Upgrades.
             Section::Buildings
             | Section::Upgrades
+            | Section::Achievements
             | Section::SettingsGeneral
             | Section::SettingsSaves
             | Section::SettingsThemes => true,
-            // Legacy gates the Achievements tab on the reincarnation unlock
-            // (Tabs.ts:627), not the `achievements_unlocked` flag (which the
-            // logic tier never writes).
-            Section::Achievements => rc.reincarnate_unlocked,
             Section::Runes => rc.prestige_unlocked,
             Section::Challenges => rc.transcend_unlocked,
             Section::Research | Section::Shop => rc.reincarnate_unlocked,
@@ -269,10 +269,10 @@ mod tests {
             .filter(|g| g.visible(&state))
             .collect();
         assert_eq!(visible, vec![Group::Production, Group::Settings]);
-        // Achievements hides inside Production until its flag flips.
-        assert!(!Section::Achievements.visible(&state));
+        // Production's three sections all ship unlocked.
         assert!(Section::Buildings.visible(&state));
         assert!(Section::Upgrades.visible(&state));
+        assert!(Section::Achievements.visible(&state));
     }
 
     #[test]
@@ -309,24 +309,35 @@ mod tests {
     }
 
     #[test]
-    fn route_clamps_to_visible_ground() {
-        let state = GameState::default();
-        // A stale route into a locked section snaps to the group's first
-        // visible section…
+    fn route_clamps_within_group_to_first_visible_section() {
+        // Prestige reveals Mystic via Runes, but Challenges/Research/AntHill
+        // stay locked. A stale route into a locked sibling snaps to the
+        // group's first visible section, keeping the group.
+        let mut state = GameState::default();
+        state.reset_counters.prestige_unlocked = true;
         let stale = Route {
-            group: Group::Production,
-            section: Section::Achievements,
+            group: Group::Mystic,
+            section: Section::AntHill,
             subsection: 3,
         };
         let snapped = stale.clamped(&state);
-        assert_eq!(snapped.section, Section::Buildings);
+        assert_eq!(snapped.group, Group::Mystic);
+        assert_eq!(snapped.section, Section::Runes);
         assert_eq!(snapped.subsection, 0);
-        // …and a route into a fully locked group falls back to Production.
+    }
+
+    #[test]
+    fn route_clamps_out_of_a_fully_locked_group_to_production() {
+        let state = GameState::default();
+        // The whole Singularity group is locked on a fresh save → fall back
+        // to Production's first visible section.
         let locked = Route {
             group: Group::Singularity,
             section: Section::Exalts,
             subsection: 0,
         };
-        assert_eq!(locked.clamped(&state).group, Group::Production);
+        let snapped = locked.clamped(&state);
+        assert_eq!(snapped.group, Group::Production);
+        assert_eq!(snapped.section, Section::Buildings);
     }
 }
