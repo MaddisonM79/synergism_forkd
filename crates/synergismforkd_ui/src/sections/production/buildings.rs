@@ -15,7 +15,7 @@ use synergismforkd_logic::events::ProducerType;
 use synergismforkd_logic::{BuyRequest, PlayerAction, ResetRequest};
 
 use crate::bridge::{use_bridge, use_slice, BuyAmount};
-use crate::components::{Collapsible, Num, Resource, ResourceIcon, Tooltip};
+use crate::components::{Collapsible, Num, Progress, Resource, ResourceIcon, Tooltip};
 use crate::derive;
 use crate::format::format_value;
 use crate::i18n::t;
@@ -86,6 +86,10 @@ fn CoinBuildings() -> Element {
     let show_accelerators = use_slice(|s| s.reset_counters.coin_one_unlocked);
     let show_multipliers = use_slice(|s| s.reset_counters.coin_two_unlocked);
     let show_prestige = use_slice(|s| s.reset_counters.coin_four_unlocked);
+    // Once you've prestiged, transcension becomes the next goal; once you've
+    // transcended, reincarnation does (mirrors the reset progression).
+    let show_transcend = use_slice(|s| s.reset_counters.prestige_unlocked);
+    let show_reincarnate = use_slice(|s| s.reset_counters.transcend_unlocked);
     let show_boost = use_slice(|s| s.reset_counters.prestige_unlocked);
     let tax_divisor = bridge.derived.read().buildings.tax_divisor;
 
@@ -111,7 +115,13 @@ fn CoinBuildings() -> Element {
                 AcceleratorBoostCard {}
             }
             if show_prestige() {
-                PrestigeCard {}
+                ResetCard { tier: ResetTier::Prestige }
+            }
+            if show_transcend() {
+                ResetCard { tier: ResetTier::Transcension }
+            }
+            if show_reincarnate() {
+                ResetCard { tier: ResetTier::Reincarnation }
             }
         }
     }
@@ -399,50 +409,146 @@ fn AcceleratorBoostCard() -> Element {
     }
 }
 
-/// Prestige: gain preview from `TickOutput.derived`, optional confirm,
-/// dispatches the reset request.
-#[component]
-fn PrestigeCard() -> Element {
-    let bridge = use_bridge();
-    let gain = bridge.derived.read().prestige_point_gain;
-    let available = gain >= Decimal::one();
+/// Which reset tier a [`ResetCard`] drives.
+#[derive(Debug, Clone, Copy, PartialEq)]
+enum ResetTier {
+    Prestige,
+    Transcension,
+    Reincarnation,
+}
 
-    let do_prestige = use_callback(move |()| {
-        bridge.dispatch(PlayerAction::Reset(ResetRequest::Prestige));
+impl ResetTier {
+    /// Card title / button label key.
+    fn title_key(self) -> &'static str {
+        match self {
+            ResetTier::Prestige => "buildings.prestige",
+            ResetTier::Transcension => "buildings.transcend",
+            ResetTier::Reincarnation => "buildings.reincarnate",
+        }
+    }
+
+    /// Confirm-dialog keys (title, body).
+    fn confirm_keys(self) -> (&'static str, &'static str) {
+        match self {
+            ResetTier::Prestige => (
+                "dialogs.confirm_prestige.title",
+                "dialogs.confirm_prestige.body",
+            ),
+            ResetTier::Transcension => (
+                "dialogs.confirm_transcend.title",
+                "dialogs.confirm_transcend.body",
+            ),
+            ResetTier::Reincarnation => (
+                "dialogs.confirm_reincarnate.title",
+                "dialogs.confirm_reincarnate.body",
+            ),
+        }
+    }
+
+    fn request(self) -> ResetRequest {
+        match self {
+            ResetTier::Prestige => ResetRequest::Prestige,
+            ResetTier::Transcension => ResetRequest::Transcension,
+            ResetTier::Reincarnation => ResetRequest::Reincarnation,
+        }
+    }
+
+    /// The currency this reset awards.
+    fn gain_resource(self) -> Resource {
+        match self {
+            ResetTier::Prestige => Resource::Diamonds,
+            ResetTier::Transcension => Resource::Mythos,
+            ResetTier::Reincarnation => Resource::Particles,
+        }
+    }
+
+    /// The resource accumulated toward the first point, and the threshold
+    /// at which the reset awards ≥ 1 (the divisor in the gain formula —
+    /// `x^p ≥ 1 ⟺ x ≥ divisor` for `p > 0`). Coins for prestige/transcend,
+    /// mythos shards for reincarnation.
+    fn source(self, s: &synergismforkd_logic::GameState) -> (Decimal, f64, Resource) {
+        match self {
+            ResetTier::Prestige => (s.coin_counters.coins_this_prestige, 1e12, Resource::Coins),
+            ResetTier::Transcension => (
+                s.coin_counters.coins_this_transcension,
+                1e100,
+                Resource::Coins,
+            ),
+            ResetTier::Reincarnation => {
+                (s.reset_counters.transcend_shards, 1e300, Resource::Mythos)
+            }
+        }
+    }
+}
+
+/// A reset card (prestige / transcension / reincarnation): the gain
+/// preview, a log-scale progress bar toward the minimum resource the reset
+/// needs to award its first point, and the reset button (gated until the
+/// minimum is met).
+#[component]
+fn ResetCard(tier: ResetTier) -> Element {
+    let bridge = use_bridge();
+    let gain = match tier {
+        ResetTier::Prestige => bridge.derived.read().prestige_point_gain,
+        ResetTier::Transcension => bridge.derived.read().transcend_point_gain,
+        ResetTier::Reincarnation => bridge.derived.read().reincarnation_point_gain,
+    };
+    let available = gain >= Decimal::one();
+    let (current, threshold, source_resource) = use_slice(move |s| tier.source(s))();
+    let notation = bridge.prefs.read().notation;
+
+    // Log-scale fill so the bar shows meaningful progress against the huge
+    // thresholds (1e12 … 1e300) instead of sitting at ~0 until the end.
+    let fraction = {
+        let cur = current.to_number();
+        if cur <= 1.0 {
+            0.0
+        } else {
+            (cur.log10() / threshold.log10()).clamp(0.0, 1.0)
+        }
+    };
+
+    let do_reset = use_callback(move |()| {
+        bridge.dispatch(PlayerAction::Reset(tier.request()));
     });
     let on_click = move |_| {
         if bridge.prefs.peek().confirm_resets {
-            bridge.confirm(
-                "dialogs.confirm_prestige.title",
-                "dialogs.confirm_prestige.body",
-                do_prestige,
-            );
+            let (tk, bk) = tier.confirm_keys();
+            bridge.confirm(tk, bk, do_reset);
         } else {
-            do_prestige.call(());
+            do_reset.call(());
         }
     };
 
     rsx! {
         div { class: "sf-card",
-            div { class: "sf-card-title", {t("buildings.prestige")} }
+            div { class: "sf-card-title", {t(tier.title_key())} }
             div { class: "sf-card-row",
                 span { class: "label", {t("buildings.prestige_gain")} }
-                Tooltip {
-                    tip: rsx! { span { {t("hud.diamonds")} } },
-                    span {
-                        "+"
-                        Num { value: gain }
-                        " "
-                        ResourceIcon { resource: Resource::Diamonds }
-                    }
+                span {
+                    "+"
+                    Num { value: gain }
+                    " "
+                    ResourceIcon { resource: tier.gain_resource() }
                 }
             }
+            div { class: "sf-card-row",
+                span { class: "label", {t("buildings.requires")} }
+                span { class: "sf-num",
+                    {format_value(current, notation)}
+                    " / "
+                    {format_value(Decimal::from_finite(threshold), notation)}
+                    " "
+                    ResourceIcon { resource: source_resource }
+                }
+            }
+            Progress { fraction }
             div { class: "sf-card-actions",
                 button {
                     class: "sf-prestige-btn",
                     disabled: !available,
                     onclick: on_click,
-                    {t("buildings.prestige")}
+                    {t(tier.title_key())}
                 }
             }
         }
