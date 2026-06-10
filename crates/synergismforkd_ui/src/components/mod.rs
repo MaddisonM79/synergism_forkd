@@ -97,7 +97,12 @@ pub fn ToastStack() -> Element {
                         ToastKind::Achievement => "sf-toast achievement",
                     },
                     onanimationend: move |_| bridge.dismiss_toast(toast.id),
-                    span { "{toast.text}" }
+                    div { class: "sf-toast-body",
+                        if let Some(title) = toast.title.clone() {
+                            div { class: "sf-toast-title", "{title}" }
+                        }
+                        div { class: "sf-toast-text", "{toast.text}" }
+                    }
                     button {
                         onclick: move |_| bridge.dismiss_toast(toast.id),
                         "✕"

@@ -7,7 +7,6 @@
 
 use dioxus::prelude::*;
 
-use crate::achievement_toast::AchievementToaster;
 use crate::bridge::use_bridge;
 use crate::components::{DialogLayer, ToastStack};
 use crate::hud::ResourceHud;
@@ -42,7 +41,6 @@ pub fn App() -> Element {
             SectionView {}
             ToastStack {}
             DialogLayer {}
-            AchievementToaster {}
             div { class: "sf-version", "v{VERSION}" }
         }
     }

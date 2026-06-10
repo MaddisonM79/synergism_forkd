@@ -375,16 +375,34 @@
 
 .sf-toast {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: var(--space-3);
   background: var(--bg-raised);
   border: var(--bw) solid var(--border-strong);
-  border-left-width: 3px;
-  border-radius: var(--radius-sm);
-  padding: var(--space-3) var(--space-4);
+  border-left-width: 4px;
+  border-radius: var(--radius-md);
+  padding: var(--space-4) var(--space-5);
+  font-size: var(--fs-md);
+  min-width: 280px;
+  max-width: 420px;
+  box-shadow: 0 6px 20px rgb(0 0 0 / 35%);
+  animation: sf-toast-life 7s forwards;
+}
+
+.sf-toast-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.sf-toast-title {
+  font-weight: 700;
+  margin-bottom: var(--space-1);
+}
+
+.sf-toast-text {
+  white-space: pre-line;
   font-size: var(--fs-sm);
-  max-width: 340px;
-  animation: sf-toast-life 4s forwards;
+  color: var(--text-muted);
 }
 
 .sf-toast.info {
@@ -401,6 +419,10 @@
 
 .sf-toast.achievement {
   border-left-color: var(--accent-production);
+}
+
+.sf-toast.achievement .sf-toast-title {
+  color: var(--accent-production);
 }
 
 .sf-toast button {

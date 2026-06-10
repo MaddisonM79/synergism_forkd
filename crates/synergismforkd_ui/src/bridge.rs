@@ -47,6 +47,9 @@ pub struct Toast {
     /// Monotonic id — list key + dismissal handle.
     pub id: u64,
     pub kind: ToastKind,
+    /// Optional bold heading (e.g. "Achievement Unlocked!").
+    pub title: Option<String>,
+    /// Body line(s). Newlines render on separate lines.
     pub text: String,
 }
 
@@ -214,8 +217,13 @@ impl GameBridge {
         host.write().push(command);
     }
 
-    /// Show a toast.
+    /// Show a plain toast (body only).
     pub fn toast(&self, kind: ToastKind, text: impl Into<String>) {
+        self.toast_rich(kind, None, text);
+    }
+
+    /// Show a toast with an optional bold title above the body.
+    pub fn toast_rich(&self, kind: ToastKind, title: Option<String>, text: impl Into<String>) {
         let mut seq = self.toast_seq;
         let id = {
             let mut seq = seq.write();
@@ -226,6 +234,7 @@ impl GameBridge {
         toasts.write().push(Toast {
             id,
             kind,
+            title,
             text: text.into(),
         });
     }

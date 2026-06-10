@@ -44,6 +44,10 @@ pub async fn run(
 
     let mut last_s = platform::perf_now_s();
     let mut was_hidden = platform::document_hidden();
+    // Previous-tick achievement bitmap; diffed each tick to toast new
+    // unlocks. Seeded from the (already catch-up'd) booted state so we
+    // don't toast everything earned before this session.
+    let mut prev_achievements: Vec<u8> = bridge.state.peek().achievements.achievements.to_vec();
 
     loop {
         gloo_timers::future::sleep(Duration::from_millis(TICK_MS)).await;
@@ -85,6 +89,17 @@ pub async fn run(
         }
 
         events_map::apply(&bridge, &output.events);
+
+        // Toast any achievement that flipped this tick, then snapshot.
+        {
+            let state = bridge.state.peek();
+            synergismforkd_ui::achievement_toast::toast_new_unlocks(
+                &bridge,
+                &prev_achievements,
+                &state,
+            );
+            prev_achievements.copy_from_slice(&state.achievements.achievements);
+        }
 
         handle_host_commands(&bridge, &mut host).await;
 
