@@ -351,6 +351,11 @@ pub enum PlayerAction {
         /// Campaign index (`campaignDatas` key order; `first` = 0).
         campaign: usize,
     },
+    /// The player opened the Achievements screen. Awards the
+    /// "Achievement Hunter" / `participationTrophy` achievement (ID 0,
+    /// `displayCondition: () => true`), the legacy `awardUngroupedAchievement`
+    /// fired on showing the tab (`Tabs.ts`). Idempotent.
+    OpenedAchievements,
 }
 
 /// Selects the automation flag a [`PlayerAction::ToggleAuto`] sets.
@@ -6150,6 +6155,17 @@ fn phase_player_input(
             }
             PlayerAction::TeleportToSingularity => {
                 output.events.extend(reset::teleport_to_singularity(state));
+            }
+            PlayerAction::OpenedAchievements => {
+                // participationTrophy = achievement ID 0, 5 AP, always
+                // unlockable. Idempotent; credits quarks on first award.
+                let awarded = crate::mechanics::achievement_awards::award_ungrouped_achievement(
+                    &mut state.achievements,
+                    0,
+                    crate::mechanics::achievement_point_values::ACHIEVEMENT_POINT_VALUES[0],
+                    true,
+                );
+                credit_achievement_quarks(state, awarded);
             }
         }
     }

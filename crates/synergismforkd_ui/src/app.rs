@@ -13,12 +13,21 @@ use crate::hud::ResourceHud;
 use crate::nav::{GroupedNav, SubNav};
 use crate::sections::SectionView;
 
+/// Crate version, stamped at build time — shown in the corner badge.
+const VERSION: &str = env!("CARGO_PKG_VERSION");
+
+/// Inline critical CSS: rendered synchronously in `<head>` (unlike the
+/// async `document::Stylesheet` links), so the page paints with the app
+/// background immediately instead of flashing unstyled content on refresh.
+const CRITICAL_CSS: &str = "html,body{margin:0;background:#1a1325;}";
+
 #[component]
 pub fn App() -> Element {
     let bridge = use_bridge();
     let theme = bridge.prefs.read().theme;
 
     rsx! {
+        document::Style { {CRITICAL_CSS} }
         document::Stylesheet { href: asset!("/assets/styles/tokens.css") }
         document::Stylesheet { href: asset!("/assets/styles/themes.css") }
         document::Stylesheet { href: asset!("/assets/styles/base.css") }
@@ -32,6 +41,7 @@ pub fn App() -> Element {
             SectionView {}
             ToastStack {}
             DialogLayer {}
+            div { class: "sf-version", "v{VERSION}" }
         }
     }
 }

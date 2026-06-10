@@ -20,16 +20,18 @@ pub enum Group {
     Ascension,
     Singularity,
     Shop,
+    Achievements,
     Settings,
 }
 
 impl Group {
-    pub const ALL: [Group; 6] = [
+    pub const ALL: [Group; 7] = [
         Group::Production,
         Group::Mystic,
         Group::Ascension,
         Group::Singularity,
         Group::Shop,
+        Group::Achievements,
         Group::Settings,
     ];
 
@@ -42,6 +44,7 @@ impl Group {
             Group::Ascension => "nav.group.ascension",
             Group::Singularity => "nav.group.singularity",
             Group::Shop => "nav.group.shop",
+            Group::Achievements => "nav.group.achievements",
             Group::Settings => "nav.group.settings",
         }
     }
@@ -55,6 +58,7 @@ impl Group {
             Group::Ascension => "ascension",
             Group::Singularity => "singularity",
             Group::Shop => "shop",
+            Group::Achievements => "achievements",
             Group::Settings => "settings",
         }
     }
@@ -63,7 +67,8 @@ impl Group {
     #[must_use]
     pub fn sections(self) -> &'static [Section] {
         match self {
-            Group::Production => &[Section::Buildings, Section::Upgrades, Section::Achievements],
+            Group::Production => &[Section::Buildings, Section::Upgrades],
+            Group::Achievements => &[Section::Achievements],
             Group::Mystic => &[
                 Section::Runes,
                 Section::Challenges,
@@ -80,11 +85,7 @@ impl Group {
                 Section::Ambrosia,
             ],
             Group::Shop => &[Section::Shop],
-            Group::Settings => &[
-                Section::SettingsGeneral,
-                Section::SettingsSaves,
-                Section::SettingsThemes,
-            ],
+            Group::Settings => &[Section::Settings],
         }
     }
 
@@ -130,10 +131,8 @@ pub enum Section {
     Ambrosia,
     // Shop
     Shop,
-    // Settings
-    SettingsGeneral,
-    SettingsSaves,
-    SettingsThemes,
+    // Settings — one consolidated page.
+    Settings,
 }
 
 impl Section {
@@ -141,7 +140,8 @@ impl Section {
     #[must_use]
     pub fn group(self) -> Group {
         match self {
-            Section::Buildings | Section::Upgrades | Section::Achievements => Group::Production,
+            Section::Buildings | Section::Upgrades => Group::Production,
+            Section::Achievements => Group::Achievements,
             Section::Runes | Section::Challenges | Section::Research | Section::AntHill => {
                 Group::Mystic
             }
@@ -153,9 +153,7 @@ impl Section {
             | Section::Exalts
             | Section::Ambrosia => Group::Singularity,
             Section::Shop => Group::Shop,
-            Section::SettingsGeneral | Section::SettingsSaves | Section::SettingsThemes => {
-                Group::Settings
-            }
+            Section::Settings => Group::Settings,
         }
     }
 
@@ -166,7 +164,7 @@ impl Section {
         match self {
             Section::Buildings => "nav.section.buildings",
             Section::Upgrades => "nav.section.upgrades",
-            Section::Achievements => "nav.section.achievements",
+            Section::Achievements => "nav.group.achievements",
             Section::Runes => "nav.section.runes",
             Section::Challenges => "nav.section.challenges",
             Section::Research => "nav.section.research",
@@ -181,9 +179,7 @@ impl Section {
             Section::Exalts => "nav.section.exalts",
             Section::Ambrosia => "nav.section.ambrosia",
             Section::Shop => "nav.section.shop",
-            Section::SettingsGeneral => "nav.section.settings_general",
-            Section::SettingsSaves => "nav.section.settings_saves",
-            Section::SettingsThemes => "nav.section.settings_themes",
+            Section::Settings => "nav.group.settings",
         }
     }
 
@@ -199,12 +195,9 @@ impl Section {
             // Achievements is always visible — the legacy achievements tab's
             // `setUnlockedState` is commented out (Tabs.ts:611-615), so it
             // ships unlocked from a fresh save, alongside Buildings/Upgrades.
-            Section::Buildings
-            | Section::Upgrades
-            | Section::Achievements
-            | Section::SettingsGeneral
-            | Section::SettingsSaves
-            | Section::SettingsThemes => true,
+            Section::Buildings | Section::Upgrades | Section::Achievements | Section::Settings => {
+                true
+            }
             Section::Runes => rc.prestige_unlocked,
             Section::Challenges => rc.transcend_unlocked,
             Section::Research | Section::Shop => rc.reincarnate_unlocked,
@@ -262,14 +255,17 @@ mod tests {
     use super::*;
 
     #[test]
-    fn fresh_save_shows_exactly_production_and_settings() {
+    fn fresh_save_shows_production_achievements_and_settings() {
         let state = GameState::default();
         let visible: Vec<Group> = Group::ALL
             .into_iter()
             .filter(|g| g.visible(&state))
             .collect();
-        assert_eq!(visible, vec![Group::Production, Group::Settings]);
-        // Production's three sections all ship unlocked.
+        // The three always-unlocked groups; the gameplay groups stay hidden.
+        assert_eq!(
+            visible,
+            vec![Group::Production, Group::Achievements, Group::Settings]
+        );
         assert!(Section::Buildings.visible(&state));
         assert!(Section::Upgrades.visible(&state));
         assert!(Section::Achievements.visible(&state));

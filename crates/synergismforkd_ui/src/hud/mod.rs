@@ -11,18 +11,34 @@ use crate::gating::{Group, Route, Section};
 use crate::i18n::t;
 
 /// One HUD chip: icon + compact value (plus an inline per-second rate when
-/// given), tooltip with the resource name and exact rate.
+/// given). The tooltip (opening downward, since the HUD hugs the top edge)
+/// shows the resource name, exact rate, and — when given — the lifetime
+/// total.
 #[component]
-fn Chip(resource: Resource, value: Decimal, #[props(default)] rate: Option<Decimal>) -> Element {
+fn Chip(
+    resource: Resource,
+    value: Decimal,
+    #[props(default)] rate: Option<Decimal>,
+    #[props(default)] lifetime: Option<Decimal>,
+) -> Element {
     rsx! {
         Tooltip {
+            down: true,
             tip: rsx! {
-                span { {t(resource.label_key())} }
-                if let Some(rate) = rate {
-                    span { class: "sf-chip-rate",
-                        " "
-                        Num { value: rate, rate: true }
-                        {t("hud.per_sec")}
+                div {
+                    span { {t(resource.label_key())} }
+                    if let Some(rate) = rate {
+                        span { class: "sf-chip-rate",
+                            " "
+                            Num { value: rate, rate: true }
+                            {t("hud.per_sec")}
+                        }
+                    }
+                }
+                if let Some(lifetime) = lifetime {
+                    div { class: "sf-chip-rate",
+                        {t("hud.lifetime")} ": "
+                        Num { value: lifetime }
                     }
                 }
             },
@@ -48,6 +64,7 @@ pub fn ResourceHud() -> Element {
     let bridge = use_bridge();
 
     let coins = use_slice(|s| s.upgrades.coins);
+    let coins_lifetime = use_slice(|s| s.coin_counters.coins_total);
     let diamonds = use_slice(|s| s.upgrades.prestige_points);
     let mythos = use_slice(|s| s.upgrades.transcend_points);
     let particles = use_slice(|s| s.upgrades.reincarnation_points);
@@ -66,7 +83,12 @@ pub fn ResourceHud() -> Element {
 
     rsx! {
         header { class: "sf-hud",
-            Chip { resource: Resource::Coins, value: coins(), rate: Some(coins_rate) }
+            Chip {
+                resource: Resource::Coins,
+                value: coins(),
+                rate: Some(coins_rate),
+                lifetime: Some(coins_lifetime()),
+            }
             if show_diamonds() {
                 Chip { resource: Resource::Diamonds, value: diamonds() }
                 Chip { resource: Resource::Offerings, value: offerings() }
@@ -89,7 +111,7 @@ pub fn ResourceHud() -> Element {
                 onclick: move |_| {
                     bridge.navigate(Route {
                         group: Group::Settings,
-                        section: Section::SettingsGeneral,
+                        section: Section::Settings,
                         subsection: 0,
                     });
                 },

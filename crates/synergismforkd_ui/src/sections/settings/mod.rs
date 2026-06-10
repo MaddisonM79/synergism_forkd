@@ -1,5 +1,3 @@
-//! Settings group sections.
+//! Settings group — a single consolidated page.
 
-pub mod general;
-pub mod saves;
-pub mod themes;
+pub mod page;

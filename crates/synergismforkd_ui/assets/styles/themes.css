@@ -1,40 +1,44 @@
 /* Color tokens per theme. Adding a theme = one new block + one Theme enum
  * variant; no component changes. */
 
+/* Dark = "pastel goth": a deep plum-tinted background (a lighter, modern
+ * take on the original Synergism purple) with soft lavender text and
+ * pastel accents. */
 .sf-app[data-theme="dark"] {
-  --bg-app: #0d1117;
-  --bg-surface: #151b24;
-  --bg-raised: #1c2433;
-  --bg-hover: #232d40;
-  --border: #2a3346;
-  --border-strong: #3c4658;
-  --text: #e6e9f0;
-  --text-muted: #97a1b4;
-  --text-inverse: #10141c;
+  --bg-app: #1a1325;
+  --bg-surface: #241a33;
+  --bg-raised: #2e2240;
+  --bg-hover: #3a2b50;
+  --border: #3d2f54;
+  --border-strong: #564170;
+  --text: #ece6f5;
+  --text-muted: #ab9dc4;
+  --text-inverse: #1a1325;
 
-  --ok: #4caf78;
-  --warn: #e0a93d;
-  --danger: #e05d5d;
-  --info: #5fa8e0;
+  --ok: #79d3a3;
+  --warn: #e7be5f;
+  --danger: #ec7a8f;
+  --info: #9a8cf0;
 
-  /* Group accents */
-  --accent-production: #d9a93d;
-  --accent-mystic: #a87fe0;
-  --accent-ascension: #5fb3f0;
-  --accent-singularity: #ef6292;
-  --accent-shop: #61b86b;
-  --accent-settings: #8a93a5;
+  /* Group accents (pastel) */
+  --accent-production: #e6c45c;
+  --accent-mystic: #c19af0;
+  --accent-ascension: #84c5f2;
+  --accent-singularity: #f291bf;
+  --accent-shop: #88d39a;
+  --accent-achievements: #e6c45c;
+  --accent-settings: #b3a6cf;
 
   /* Resource colors (ResourceIcon + chips) */
-  --res-coin: #e8c34a;
-  --res-diamond: #6fd9e8;
-  --res-mythos: #b387e8;
-  --res-particle: #f0945f;
-  --res-offering: #e87a6f;
-  --res-obtainium: #e86fb8;
-  --res-quark: #57d8d8;
-  --res-golden-quark: #f5d061;
-  --res-ambrosia: #7aa6f5;
+  --res-coin: #ecc95c;
+  --res-diamond: #84dbe8;
+  --res-mythos: #c39bf0;
+  --res-particle: #f2a877;
+  --res-offering: #ee8f86;
+  --res-obtainium: #ee8cc6;
+  --res-quark: #79dede;
+  --res-golden-quark: #f5d674;
+  --res-ambrosia: #9ab6f5;
 }
 
 .sf-app[data-theme="light"] {
@@ -58,6 +62,7 @@
   --accent-ascension: #2278bd;
   --accent-singularity: #c23a68;
   --accent-shop: #2f8a3a;
+  --accent-achievements: #a87a14;
   --accent-settings: #5d6778;
 
   --res-coin: #b8901a;

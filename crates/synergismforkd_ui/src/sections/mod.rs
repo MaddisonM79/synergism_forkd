@@ -20,9 +20,7 @@ pub fn SectionView() -> Element {
             match section {
                 Section::Buildings => rsx! { production::buildings::Buildings {} },
                 Section::Achievements => rsx! { production::achievements::Achievements {} },
-                Section::SettingsGeneral => rsx! { settings::general::General {} },
-                Section::SettingsSaves => rsx! { settings::saves::Saves {} },
-                Section::SettingsThemes => rsx! { settings::themes::Themes {} },
+                Section::Settings => rsx! { settings::page::Settings {} },
                 _ => rsx! { div { class: "sf-placeholder", {t("nav.placeholder")} } },
             }
         }

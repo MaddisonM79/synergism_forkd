@@ -4,6 +4,7 @@
   "nav.group.ascension": "Ascension",
   "nav.group.singularity": "Singularity",
   "nav.group.shop": "Shop",
+  "nav.group.achievements": "Achievements",
   "nav.group.settings": "Settings",
   "nav.section.buildings": "Buildings",
   "nav.section.upgrades": "Upgrades",
@@ -22,9 +23,6 @@
   "nav.section.exalts": "Exalts",
   "nav.section.ambrosia": "Ambrosia",
   "nav.section.shop": "Shop",
-  "nav.section.settings_general": "General",
-  "nav.section.settings_saves": "Saves",
-  "nav.section.settings_themes": "Themes",
   "nav.placeholder": "This section is under construction.",
 
   "achievements.earned": "earned",
@@ -33,6 +31,9 @@
   "achievements.hover_hint": "Hover over an achievement to see what it is.",
   "achievements.completed": "COMPLETED",
   "achievements.locked": "Locked",
+  "achievements.requirement": "Requirement",
+  "achievements.progress_done": "Earned — requirement met.",
+  "achievements.progress_pending": "Not yet earned — meet the requirement above.",
 
   "hud.coins": "Coins",
   "hud.diamonds": "Diamonds",
@@ -44,6 +45,7 @@
   "hud.golden_quarks": "Golden Quarks",
   "hud.ambrosia": "Ambrosia",
   "hud.per_sec": "/s",
+  "hud.lifetime": "Lifetime",
   "hud.autosave": "Autosaved",
 
   "buildings.subtab.coin": "Coin",
@@ -115,6 +117,7 @@
   "settings.danger.reset_settings_hint": "Restore default theme, notation, buy amount, and confirmations. Save untouched.",
   "settings.danger.reset_all": "Reset everything",
   "settings.danger.reset_all_hint": "Delete the save and reset all settings. Total fresh start.",
+  "settings.appearance.title": "Appearance",
   "settings.themes.title": "Theme",
   "settings.themes.dark": "Dark",
   "settings.themes.light": "Light"

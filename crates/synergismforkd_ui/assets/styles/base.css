@@ -33,6 +33,19 @@ body {
   font-variant-numeric: tabular-nums;
 }
 
+/* Version badge, pinned to the bottom-right of the window. */
+.sf-version {
+  position: fixed;
+  right: var(--space-3);
+  bottom: var(--space-2);
+  font-size: var(--fs-xs);
+  font-variant-numeric: tabular-nums;
+  color: var(--text-muted);
+  opacity: 0.6;
+  pointer-events: none;
+  z-index: var(--z-nav);
+}
+
 button {
   font: inherit;
   color: inherit;

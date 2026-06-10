@@ -30,11 +30,14 @@ pub fn Num(value: Decimal, #[props(default = false)] rate: bool) -> Element {
 
 /// Hover/focus tooltip. Pure CSS reveal; `tip` renders into the bubble.
 #[component]
-pub fn Tooltip(tip: Element, children: Element) -> Element {
+pub fn Tooltip(tip: Element, #[props(default = false)] down: bool, children: Element) -> Element {
+    // `down` opens the bubble below the anchor — for elements near the top
+    // edge (the HUD), where an upward bubble would clip off-screen.
+    let tip_cls = if down { "sf-tip sf-tip-down" } else { "sf-tip" };
     rsx! {
         span { class: "sf-tip-wrap", tabindex: "0",
             {children}
-            span { class: "sf-tip", {tip} }
+            span { class: tip_cls, {tip} }
         }
     }
 }

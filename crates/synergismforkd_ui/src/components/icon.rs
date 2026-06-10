@@ -87,12 +87,18 @@ impl Resource {
 }
 
 /// Inline resource glyph, sized by font (1em) and colored by theme token.
+/// Explicit `width`/`height` attributes keep the SVG at icon size even
+/// before the stylesheets load — without them an unstyled `<svg>` defaults
+/// to ~300×150px, flashing a huge glyph (e.g. the coin's filled circle) on
+/// the first paint after a refresh.
 #[component]
 pub fn ResourceIcon(resource: Resource) -> Element {
     rsx! {
         span { class: "sf-icon", style: "color: {resource.css_color()}",
             svg {
                 view_box: "0 0 24 24",
+                width: "1em",
+                height: "1em",
                 xmlns: "http://www.w3.org/2000/svg",
                 path { d: resource.path(), fill: "currentColor" }
             }

@@ -87,6 +87,10 @@ pub struct DialogProgress {
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub struct UiPrefs {
     pub notation: Notation,
+    /// Per-click purchase cap. Persisted (remembered across sessions);
+    /// `#[serde(default)]` so saves written before it was a stored field
+    /// load as the default (`One`) rather than failing to parse.
+    #[serde(default)]
     pub buy_amount: BuyAmount,
     pub theme: Theme,
     /// Ask before prestiging ("don't ask again" unchecks this).
@@ -108,10 +112,10 @@ impl Default for UiPrefs {
 /// Max which routes to the buy-max request instead).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 pub enum BuyAmount {
+    #[default]
     One,
     Ten,
     Hundred,
-    #[default]
     Thousand,
     Max,
 }

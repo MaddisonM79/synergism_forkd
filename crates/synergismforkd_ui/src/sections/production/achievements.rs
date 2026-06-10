@@ -5,8 +5,10 @@
 
 use dioxus::prelude::*;
 use synergismforkd_bignum::Decimal;
+use synergismforkd_logic::mechanics::achievement_awards::achievement_progress;
 use synergismforkd_logic::mechanics::achievement_point_values::ACHIEVEMENT_POINT_VALUES;
 use synergismforkd_logic::state::achievements::ACHIEVEMENTS_LEN;
+use synergismforkd_logic::PlayerAction;
 
 use crate::bridge::{use_bridge, use_slice};
 use crate::components::Num;
@@ -23,6 +25,9 @@ fn max_points() -> f64 {
 #[component]
 pub fn Achievements() -> Element {
     let bridge = use_bridge();
+    // Opening the screen awards "Achievement Hunter" (the legacy
+    // participationTrophy, fired on showing the tab). Runs once per mount.
+    use_hook(|| bridge.dispatch(PlayerAction::OpenedAchievements));
     // The earned bitmap: re-renders the grid only when an achievement flips.
     let earned = use_slice(|s| s.achievements.achievements.to_vec());
     let points = use_slice(|s| s.achievements.achievement_points);
@@ -71,8 +76,9 @@ pub fn Achievements() -> Element {
     }
 }
 
-/// The persistent info box above the grid. Shows the focused achievement's
-/// full text + points, or a prompt when nothing is hovered.
+/// The persistent info box above the grid: `#N - Name [status]`, the name's
+/// flavor below, then the requirement + progress. Shows a prompt when
+/// nothing is hovered.
 #[component]
 fn AchievementDetail(focused: Option<usize>, earned: Option<bool>) -> Element {
     let Some(index) = focused else {
@@ -81,24 +87,49 @@ fn AchievementDetail(focused: Option<usize>, earned: Option<bool>) -> Element {
         };
     };
     let points = ACHIEVEMENT_POINT_VALUES[index];
-    let status_cls = if earned == Some(true) {
+    let is_earned = earned == Some(true);
+    let status_cls = if is_earned {
         "sf-ach-status earned"
     } else {
         "sf-ach-status"
     };
-    let status_key = if earned == Some(true) {
+    let status_key = if is_earned {
         "achievements.completed"
     } else {
         "achievements.locked"
     };
+    // Live numeric progress (e.g. "34 / 100") for the threshold-backed
+    // achievements. Reading state here subscribes only this small detail box
+    // to the tick — the 509-cell grid stays on its own earned-bitmap memo.
+    let bridge = use_bridge();
+    let notation = bridge.prefs.read().notation;
+    let progress = achievement_progress(&bridge.state.read(), index);
+
     rsx! {
         div { class: "sf-ach-detail",
             div { class: "sf-ach-detail-head",
                 span { class: "sf-ach-detail-num", "#{index + 1}" }
+                span { class: "sf-ach-detail-name", " - " {achievements_text::name(index)} }
                 span { class: status_cls, {t(status_key)} }
                 span { class: "sf-ach-detail-pts", "{points} {t(\"achievements.ap\")}" }
             }
-            div { class: "sf-ach-detail-text", {achievements_text::full(index)} }
+            div { class: "sf-ach-detail-req",
+                span { class: "sf-ach-req-label", {t("achievements.requirement")} ": " }
+                span { {achievements_text::requirement(index)} }
+            }
+            div { class: "sf-ach-detail-progress",
+                if is_earned {
+                    span { class: "sf-ach-progress-done", {t("achievements.progress_done")} }
+                } else if let Some((current, target)) = progress {
+                    span { class: "sf-ach-progress-count",
+                        {format_value(Decimal::from_finite(current.min(target)), notation)}
+                        " / "
+                        {format_value(Decimal::from_finite(target), notation)}
+                    }
+                } else {
+                    span { class: "sf-ach-progress-pending", {t("achievements.progress_pending")} }
+                }
+            }
         }
     }
 }

@@ -207,7 +207,8 @@
 }
 
 .sf-seg button.active {
-  background: var(--bg-raised);
+  background: var(--accent, var(--info));
+  color: var(--text-inverse);
   font-weight: 700;
 }
 
@@ -233,6 +234,12 @@
   transition: opacity var(--t-fast) 150ms;
   z-index: var(--z-tooltip);
   pointer-events: none;
+}
+
+/* Opens below the anchor (HUD chips, where upward would clip off-screen). */
+.sf-tip.sf-tip-down {
+  bottom: auto;
+  top: calc(100% + var(--space-2));
 }
 
 .sf-tip-wrap:hover .sf-tip,
