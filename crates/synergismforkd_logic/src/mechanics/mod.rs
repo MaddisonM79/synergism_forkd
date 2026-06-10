@@ -75,6 +75,7 @@ pub mod singularity_challenges;
 pub mod singularity_helpers;
 pub mod singularity_milestones;
 pub mod singularity_penalties;
+pub mod singularity_perks;
 pub mod talisman_costs;
 pub mod talisman_effects;
 pub mod talisman_levels;
