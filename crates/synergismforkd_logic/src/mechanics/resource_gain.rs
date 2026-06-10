@@ -284,6 +284,21 @@ pub struct ResourceGainResult {
     pub events: SmallVec<[CoreEvent; 8]>,
 }
 
+/// Tax-capped coin gain for one 0.025 s base tick (the legacy `addcoin`
+/// before dt scaling). Coins per second = this × 40 × the global speed
+/// multiplier. Zero below the `produceTotal ≥ 0.001` production floor.
+/// Shared by [`resource_gain`] and the tick's HUD-rate derivation so the
+/// two can't drift.
+#[must_use]
+pub fn coin_gain_per_base_tick(pre: &ResourceGainPre) -> Decimal {
+    if pre.produce_total < Decimal::from_finite(0.001) {
+        return Decimal::zero();
+    }
+    let ten = Decimal::from_finite(10.0);
+    let cap_exponent = pre.maxexponent - pre.taxdivisorcheck.log(ten).to_number();
+    (pre.produce_total / pre.taxdivisor).min(ten.pow(Decimal::from_finite(cap_exponent)))
+}
+
 /// Per-tick resource generation. Pure given `state` + `pre` + `dt`; returns
 /// the post-tick player + G slice plus an event list. The caller writes the
 /// player-state fields in [`ResourceGainResult`] back into the corresponding
@@ -310,10 +325,7 @@ pub fn resource_gain(state: &GameState, pre: &ResourceGainPre, dt: f64) -> Resou
     let mut coins_this_reincarnation = state.coin_counters.coins_this_reincarnation;
     let mut coins_total = state.coin_counters.coins_total;
     if pre.produce_total >= Decimal::from_finite(0.001) {
-        let cap_exponent = pre.maxexponent - pre.taxdivisorcheck.log(ten).to_number();
-        let addcoin = (pre.produce_total / pre.taxdivisor)
-            .min(ten.pow(Decimal::from_finite(cap_exponent)))
-            * dt_scaled_dec;
+        let addcoin = coin_gain_per_base_tick(pre) * dt_scaled_dec;
         coins += addcoin;
         coins_this_prestige += addcoin;
         coins_this_transcension += addcoin;

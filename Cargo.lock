@@ -2788,6 +2788,7 @@ dependencies = [
  "getrandom 0.4.2",
  "gloo-timers",
  "js-sys",
+ "serde_json",
  "synergismforkd_logic",
  "synergismforkd_save",
  "synergismforkd_ui",

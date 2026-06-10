@@ -50,11 +50,19 @@ web-sys = { version = "0.3", features = [
     "Storage",
     # performance.now() drives tick dt
     "Performance",
+    # document.hidden gates the on-hide force-save
+    "Document",
+    # NOT used here: newest web-sys 0.3.x gates window.location() behind
+    # this feature while dioxus-web 0.7.9 still expects it ungated —
+    # feature unification supplies it on dioxus-web's behalf.
+    "Location",
     # navigator.clipboard for save export
     "Navigator",
     "Clipboard",
 ] }
 wasm-bindgen-futures = "0.4"
+# UiPrefs round-trip through localStorage as JSON.
+serde_json = { workspace = true }
 
 [lints]
 workspace = true

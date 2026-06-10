@@ -77,6 +77,8 @@
   "toasts.import_bad": "That save string could not be read",
   "toasts.save_corrupt": "Stored save could not be loaded — started fresh (old data preserved)",
   "toasts.prestige_done": "Prestiged!",
+  "toasts.singularity_done": "Singularity reached!",
+  "toasts.hard_reset_done": "Save wiped — fresh start",
 
   "settings.saves.title": "Saves",
   "settings.saves.export": "Export to clipboard",

@@ -25,20 +25,19 @@ use dioxus as _;
 
 pub mod save_host;
 
+#[cfg(target_arch = "wasm32")]
+pub mod catch_up;
+#[cfg(target_arch = "wasm32")]
+pub mod loop_driver;
+#[cfg(target_arch = "wasm32")]
+pub mod platform;
+#[cfg(target_arch = "wasm32")]
+pub mod root;
+
 pub use save_host::{BootOutcome, SaveHost, SaveStorage, AUTOSAVE_INTERVAL_S, SAVE_KEY};
 
 /// Mount the app in the browser. Called by the `dx` binary entry (`main.rs`).
 #[cfg(target_arch = "wasm32")]
 pub fn run() {
-    // Placeholder root until the loop driver + `synergismforkd_ui::App`
-    // land (vertical-slice tasks 6–8).
-    dioxus::launch(placeholder_root);
-}
-
-#[cfg(target_arch = "wasm32")]
-fn placeholder_root() -> dioxus::prelude::Element {
-    use dioxus::prelude::*;
-    rsx! {
-        div { "Synergism Forkd — UI scaffold" }
-    }
+    dioxus::launch(root::WebRoot);
 }

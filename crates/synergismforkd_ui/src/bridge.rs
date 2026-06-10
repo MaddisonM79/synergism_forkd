@@ -183,18 +183,23 @@ pub struct GameBridge {
 }
 
 impl GameBridge {
-    /// Create the bridge and install it in context. Host-root only.
-    pub fn provide(initial_state: GameState, prefs: UiPrefs) -> Self {
-        use_context_provider(|| GameBridge {
-            state: Signal::new(initial_state),
-            actions: Signal::new(Vec::new()),
-            host: Signal::new(Vec::new()),
-            toasts: Signal::new(Vec::new()),
-            dialog: Signal::new(None),
-            prefs: Signal::new(prefs),
-            route: Signal::new(Route::default()),
-            derived: Signal::new(DerivedStats::default()),
-            toast_seq: Signal::new(0),
+    /// Create the bridge and install it in context. Host-root only. `init`
+    /// runs exactly once (context providers don't re-run on re-render), so
+    /// the host can move its booted state in from a one-time hook.
+    pub fn provide(init: impl FnOnce() -> (GameState, UiPrefs)) -> Self {
+        use_context_provider(|| {
+            let (initial_state, prefs) = init();
+            GameBridge {
+                state: Signal::new(initial_state),
+                actions: Signal::new(Vec::new()),
+                host: Signal::new(Vec::new()),
+                toasts: Signal::new(Vec::new()),
+                dialog: Signal::new(None),
+                prefs: Signal::new(prefs),
+                route: Signal::new(Route::default()),
+                derived: Signal::new(DerivedStats::default()),
+                toast_seq: Signal::new(0),
+            }
         })
     }
 

@@ -513,15 +513,33 @@ pub fn daily_reset(state: &mut GameState) {
     state.ants.quarks_gained_from_ants = 0.0;
 }
 
-/// Result of [`tack`]. The accumulated event stream is the only output
-/// the UI tier reads from a tick today; derived stats and dirty flags
-/// land here once Phase 2 acquires a `state.g_cache` slice to read from.
+/// Result of [`tack`]: the event stream the UI dispatches, plus per-tick
+/// derived display numbers.
 #[derive(Debug, Clone, Default)]
 pub struct TickOutput {
     /// CoreEvent stream for the UI tier to dispatch. Inline capacity of
     /// 16 covers the typical worst-case tick (purchases × N + 1
     /// achievement + up to 5 challenge auto-completions).
     pub events: SmallVec<[CoreEvent; 16]>,
+    /// Display values `tack` already computed this tick (gain previews,
+    /// rates). NOT persisted — pure tick output for the HUD.
+    pub derived: DerivedTickStats,
+}
+
+/// Per-tick derived display numbers. Sourced from values the tick already
+/// computes (`ResetCurrencyGains`, `ResourceGainPre`); no extra math beyond
+/// one rate composition.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct DerivedTickStats {
+    /// Coins gained per real second at this tick's production + speed
+    /// multiplier (tax-capped).
+    pub coins_per_sec: Decimal,
+    /// Prestige points the next prestige would award (`G.prestigePointGain`).
+    pub prestige_point_gain: Decimal,
+    /// Transcend points the next transcension would award.
+    pub transcend_point_gain: Decimal,
+    /// Reincarnation points the next reincarnation would award.
+    pub reincarnation_point_gain: Decimal,
 }
 
 /// Captured outputs of the three Phase 2 aggregators, so downstream
@@ -695,6 +713,17 @@ pub fn tack(state: &mut GameState, input: &TackInput) -> TickOutput {
     update_progress_unlocks(state);
     phase_challenge_completion(state, &reset_gains, &mut output);
     phase_automation(state, &automation_pre, input, &mut output);
+
+    // HUD display numbers, from values this tick already computed. The coin
+    // rate composes the base-tick gain (`resource_gain`'s `addcoin` per
+    // 0.025 s) with the same speed multiplier phase_generation ran on.
+    output.derived = DerivedTickStats {
+        coins_per_sec: crate::mechanics::resource_gain::coin_gain_per_base_tick(&resource_gain_pre)
+            * Decimal::from_finite(40.0 * automation_pre.global_time_multiplier),
+        prestige_point_gain: reset_gains.prestige_point_gain,
+        transcend_point_gain: reset_gains.transcend_point_gain,
+        reincarnation_point_gain: reset_gains.reincarnation_point_gain,
+    };
 
     output
 }
