@@ -35,6 +35,17 @@ pub struct SingularityState {
     /// `player.singChallengeTimer` — time inside the current singularity
     /// challenge (accumulates while `enabled`, resets to 0 otherwise).
     pub sing_challenge_timer: f64,
+    /// `player.singularityElevatorTarget` — the elevator's chosen floor.
+    /// The configure action clamps it to
+    /// `[1, max(1, highest, count + lookahead if antiquities)]`.
+    pub elevator_target: f64,
+    /// `player.singularityElevatorSlowClimb` — when set (the blank-save
+    /// default), a normal singularity advances the count by exactly one
+    /// instead of jumping by the fast-forward lookahead.
+    pub elevator_slow_climb: bool,
+    /// `player.singularityElevatorLocked` — when set, a normal singularity
+    /// goes to [`Self::elevator_target`] instead of advancing.
+    pub elevator_locked: bool,
     /// `noSingularityUpgrades` Exalt 1.
     pub no_singularity_upgrades: SingularityChallengeState,
     /// `oneChallengeCap` Exalt 2.
@@ -62,6 +73,11 @@ impl Default for SingularityState {
             highest_singularity_count: 0.0,
             singularity_counter: 0.0,
             sing_challenge_timer: 0.0,
+            // blankSave: target 1, slowClimb TRUE, locked false
+            // (Synergism.ts:1076-1078).
+            elevator_target: 1.0,
+            elevator_slow_climb: true,
+            elevator_locked: false,
             no_singularity_upgrades: SingularityChallengeState::default(),
             one_challenge_cap: SingularityChallengeState::default(),
             no_octeracts: SingularityChallengeState::default(),

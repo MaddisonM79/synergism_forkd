@@ -5,11 +5,16 @@
 //! and the constant-upgrade reads scattered across the tick layer.
 
 use serde::{Deserialize, Serialize};
+use serde_big_array::BigArray;
 
 use synergismforkd_bignum::Decimal;
 
-/// Fixed cardinality of the campaign-completions array. Tier B item 12.
-pub const CAMPAIGNS_LEN: usize = 10;
+/// Fixed cardinality of the campaign-completions array — one slot per key
+/// of the legacy `campaignDatas` const (`Campaign.ts`, `first` through
+/// `fiftieth`), verified against both legacy snapshots (50 keys, identical
+/// order and `limit`/`isMeta` values). The earlier `10` was a latent sizing
+/// bug (the octeract-42→47 class).
+pub const CAMPAIGNS_LEN: usize = 50;
 
 /// Fixed cardinality of the constant-upgrade array — `10 + 1` for the
 /// legacy 1-indexed convention. Tier B item 12.
@@ -18,9 +23,12 @@ pub const CONSTANT_UPGRADES_LEN: usize = 11;
 /// Slice of `GameState` for campaigns + constant upgrades.
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct CampaignsState {
-    /// Per-campaign completion count. UI maintains the name ↔
-    /// index mapping. Both arrays fit inside serde's default
-    /// 0..=32-length window so no `BigArray` attribute needed.
+    /// Per-campaign `c10Completions` count, in `campaignDatas` key order
+    /// (`first` = 0 … `fiftieth` = 49). The campaign *runner* (choosing a
+    /// campaign, completing c10 under its corruptions) is UI-tier, so logic
+    /// only ever reads these; the token total derives from them via
+    /// [`crate::mechanics::campaign_token_rewards`].
+    #[serde(with = "BigArray")]
     pub campaign_completions: [f64; CAMPAIGNS_LEN],
     /// `player.campaigns.tokensSpent` — total tokens spent across
     /// all campaigns.

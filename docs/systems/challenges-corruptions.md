@@ -64,7 +64,7 @@ flowchart LR
 | Challenge 15 exponent | 🟩 Ported | `mechanics/challenge_15_rewards.rs`; accrual at `tick/mod.rs:5396` (PR #265) |
 | Corruptions (8 effects) | 🟩 Ported | `state/corruptions.rs`, `mechanics/corruptions.rs` |
 | Auto-challenge sweep | 🟩 Ported | `tick/challenge_sweep.rs` |
-| Campaign / constant upgrades | 🟨 Partial | `state/campaigns.rs`, `mechanics/campaign_token_rewards.rs` |
+| Campaign tokens / constant upgrades | 🟩 Mostly | `state/campaigns.rs` (50 campaigns), `mechanics/campaign_token_rewards.rs`, `compute_campaign_tokens` (tick) — the campaign *runner* (UI) remains |
 
 ## Porting notes / open bugs
 
@@ -72,5 +72,9 @@ flowchart LR
   (commit `ff7683e9`), so the C15 reward cascade lights up and hepteracts are reachable via the C15
   path. (It was open at this map's first draft, cut before #265 merged.)
 - Audit **C1** (global-speed mult dropped in c1) and **C2** (c10→ascension unlock dead) are **fixed**.
-- **Campaign tokens:** the token count is never tracked, leaving ~14 dormant reward consumers at
-  identity (UI-tier concern).
+- ✅ **Campaign tokens — derived + all 14 reward consumers fed.** `compute_campaign_tokens` (tick)
+  ports `updateTokens()` as a pure derivation over the 50-campaign limit/isMeta table
+  (`CAMPAIGNS_LEN` 10→50, a latent sizing bug), inheritance + the GQ/octeract bonus-token upgrades.
+  Every `campaign_token_rewards` formula now feeds from it, and the `campaignTokens` achievement
+  group (426–435) awards in the per-tick sweep. Tokens flow from `highestSingularityCount ≥ 5`
+  without the UI-tier campaign runner (which writes `campaign_completions` once it exists).

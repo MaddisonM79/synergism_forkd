@@ -255,6 +255,19 @@ pub fn achievement_unlock(exponent: f64) -> f64 {
     }
 }
 
+/// `challenge15Rewards.quarks.value` — multiplied into the quark multiplier
+/// (`allQuarkStats`, the `Challenge15` line consumed by
+/// `compute_quark_multiplier`). Requirement `1e11`, `baseValue` `1`. Legacy
+/// formula `1 + (3/400)·log2(e·32 / 1e11)` (Variables.ts:298).
+#[must_use]
+pub fn quarks(exponent: f64) -> f64 {
+    if exponent >= 1e11 {
+        1.0 + (3.0 / 400.0) * (exponent * 32.0 / 1e11).log2()
+    } else {
+        1.0
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -283,6 +296,17 @@ mod tests {
         assert_eq!(score(9.9e9), 1.0);
         // Just under the ant-speed requirement → still identity.
         assert_eq!(ant_speed(1.99e5), 1.0);
+        // Just under the quarks requirement → still identity.
+        assert_eq!(quarks(9.9e10), 1.0);
+    }
+
+    #[test]
+    fn quarks_scales_above_requirement() {
+        // e = 1e11 → 1 + (3/400)·log2(1e11·32/1e11) = 1 + (3/400)·log2(32)
+        //          = 1 + (3/400)·5 = 1.0375.
+        assert!((quarks(1e11) - 1.0375).abs() < 1e-12);
+        // Monotonic increasing above the requirement.
+        assert!(quarks(1e12) > quarks(1e11));
     }
 
     #[test]

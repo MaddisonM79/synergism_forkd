@@ -880,11 +880,13 @@ fn reset_talismans_ascension(talismans: &mut TalismansState) {
 /// prestige/transcend/reincarnation counts once `highestSingularityCount >= 8`.
 /// Everything else resets to a fresh game.
 ///
+/// `worlds` (quarks) resets with the rebuild unless the limitedTime
+/// `preserveQuarks` reward is active (Reset.ts:1190), in which case the
+/// balance carries across.
+///
 /// Deferred (faithful for fresh saves): the elevator triad — the count advances
 /// `max(highest, count + lookahead)` (auto-climb), the only branch reachable
-/// while the elevator fields default to unlocked/non-slow. `worlds` (quarks)
-/// reset; the limitedTime `preserveQuarks` branch is inert until that
-/// singularity challenge is entered.
+/// while the elevator fields default to unlocked/non-slow.
 pub(crate) fn perform_singularity_reset(
     state: &mut GameState,
     set_sing_number: f64,
@@ -901,14 +903,19 @@ pub(crate) fn perform_singularity_reset(
     let antiquities = state.runes.rune_levels[RUNE_ANTIQUITIES] > 0.0;
 
     let (new_count, new_highest, increment_highest) = if set_sing_number < 0.0 {
-        // Normal path — auto-climb (elevator unlocked, not slow-climb).
+        // Normal path — the elevator triad (Reset.ts:1112-1123): locked goes
+        // to the chosen floor, slow-climb advances by one, otherwise
+        // auto-climb by the fast-forward lookahead.
         let increment = old_count == old_highest;
-        let lookahead = super::compute_singularity_lookahead(state);
-        (
-            old_highest.max(old_count + lookahead),
-            old_highest,
-            increment,
-        )
+        let count = if state.singularity.elevator_locked {
+            state.singularity.elevator_target
+        } else if state.singularity.elevator_slow_climb {
+            old_count + 1.0
+        } else {
+            let lookahead = super::compute_singularity_lookahead(state);
+            old_highest.max(old_count + lookahead)
+        };
+        (count, old_highest, increment)
     } else {
         // Challenge enter/exit jump.
         let increment = old_count == old_highest && set_sing_number > old_count && antiquities;
@@ -931,6 +938,22 @@ pub(crate) fn perform_singularity_reset(
     };
     let total_quarks_ever =
         state.golden_quarks.total_quarks_ever + state.golden_quarks.quarks_this_singularity;
+
+    // limitedTime `preserveQuarks` (Reset.ts:1190): while the effect is
+    // active, `worlds` (quarks) survives the singularity instead of resetting.
+    let preserve_quarks = {
+        use crate::mechanics::singularity_challenges::{
+            limited_time_effect, LimitedTimeKey, SingularityEffectValue,
+        };
+        matches!(
+            limited_time_effect(
+                state.singularity.limited_time.completions,
+                LimitedTimeKey::PreserveQuarks,
+            ),
+            SingularityEffectValue::Scalar(s) if s > 0.0
+        )
+    };
+    let held_worlds = state.quarks.worlds;
 
     // ── Capture survivors (before the blank-save reconstruction) ──
     let achievements = state.achievements.clone();
@@ -1018,10 +1041,170 @@ pub(crate) fn perform_singularity_reset(
     }
     state.ants.current_sacrifice_id = next_sacrifice_id;
 
+    // Quarks survive under the limitedTime `preserveQuarks` reward; the
+    // default rebuild already mirrors `player.worlds.reset()` (→ 0).
+    if preserve_quarks {
+        state.quarks.worlds = held_worlds;
+    }
+
     smallvec![CoreEvent::SingularityPerformed {
         golden_quarks_gained: gq_grant,
         singularity_count: new_count,
     }]
+}
+
+/// The mutable per-challenge tracker for an Exalt id (the
+/// `player.singularityChallenges[key]` lookup).
+pub(crate) fn challenge_state_mut(
+    state: &mut GameState,
+    id: crate::events::SingularityChallengeId,
+) -> &mut crate::state::singularity::SingularityChallengeState {
+    use crate::events::SingularityChallengeId as Id;
+    let s = &mut state.singularity;
+    match id {
+        Id::NoSingularityUpgrades => &mut s.no_singularity_upgrades,
+        Id::OneChallengeCap => &mut s.one_challenge_cap,
+        Id::NoOcteracts => &mut s.no_octeracts,
+        Id::LimitedAscensions => &mut s.limited_ascensions,
+        Id::NoAmbrosiaUpgrades => &mut s.no_ambrosia_upgrades,
+        Id::NoQuarkUpgrades => &mut s.no_quark_upgrades,
+        Id::LimitedTime => &mut s.limited_time,
+        Id::SadisticPrequel => &mut s.sadistic_prequel,
+        Id::TaxmanLastStand => &mut s.taxman_last_stand,
+    }
+}
+
+/// `SingularityChallenge.challengeEntryHandler()` — toggle an Exalt: enter
+/// it when its flag is clear, otherwise exit (success iff the antiquities
+/// rune was purchased inside — the legacy
+/// `exitChallenge(runes.antiquities.level > 0)`).
+///
+/// **Enter** (`enableChallenge`, sans the UI confirm — the action carries
+/// intent): gated on `highestSingularityCount ≥ unlockSingularity` and on
+/// not already being inside an Exalt. Holds the singularity counter and the
+/// quark / golden-quark export timers across a singularity jump to
+/// `singularityRequirement(baseReq, completions)`; the golden-quark grant is
+/// credited by the jump itself (the legacy capture-then-overwrite nets the
+/// same single grant).
+///
+/// **Exit** (`exitChallenge`): clears the flag, then on success sets
+/// `highestSingularityCompleted` to the *current* count and re-derives the
+/// completion ladder **before** the return jump (so the jump's golden-quark
+/// grant already sees the new completions, mirroring the legacy ordering).
+/// Jumps back to the held highest count. The singularity counter is restored
+/// either way; the quark / golden-quark export timers only on failure
+/// (success forfeits them, verbatim).
+pub(crate) fn toggle_singularity_challenge(
+    state: &mut GameState,
+    id: crate::events::SingularityChallengeId,
+) -> SmallVec<[CoreEvent; 4]> {
+    use crate::mechanics::singularity_challenges::{
+        challenge_completions_from_highest, challenge_meta, challenge_singularity_requirement,
+    };
+    use crate::state::RUNE_ANTIQUITIES;
+
+    let inside_any = super::inside_singularity_challenge(&state.singularity);
+
+    if !challenge_state_mut(state, id).enabled {
+        // ── Enter ──
+        let meta = challenge_meta(id);
+        if state.singularity.highest_singularity_count < meta.unlock_singularity || inside_any {
+            return SmallVec::new();
+        }
+        let completions = challenge_state_mut(state, id).completions;
+        let target = challenge_singularity_requirement(id, completions);
+        let hold_sing_counter = state.singularity.singularity_counter;
+        let hold_quark_timer = state.quarks.quarks_timer;
+        let hold_gq_timer = state.golden_quarks.golden_quarks_timer;
+
+        // The flag survives the jump (the whole singularity slice does).
+        challenge_state_mut(state, id).enabled = true;
+        let mut events: SmallVec<[CoreEvent; 4]> = perform_singularity_reset(state, target)
+            .into_iter()
+            .collect();
+
+        state.singularity.singularity_counter = if meta.reset_time {
+            0.0
+        } else {
+            hold_sing_counter
+        };
+        state.quarks.quarks_timer = hold_quark_timer;
+        state.golden_quarks.golden_quarks_timer = hold_gq_timer;
+
+        events.push(CoreEvent::SingularityChallengeEntered {
+            challenge: id,
+            target_singularity: target,
+        });
+        events
+    } else {
+        // ── Exit ──
+        let success = state.runes.rune_levels[RUNE_ANTIQUITIES] > 0.0;
+        let hold_highest = state.singularity.highest_singularity_count;
+        let hold_sing_counter = state.singularity.singularity_counter;
+        let hold_quark_timer = state.quarks.quarks_timer;
+        let hold_gq_timer = state.golden_quarks.golden_quarks_timer;
+        let current_count = state.singularity.singularity_count;
+
+        let ch = challenge_state_mut(state, id);
+        ch.enabled = false;
+        if success {
+            ch.highest_singularity_completed = current_count;
+            ch.completions = challenge_completions_from_highest(id, current_count);
+        }
+        let completions = ch.completions;
+
+        let mut events: SmallVec<[CoreEvent; 4]> = perform_singularity_reset(state, hold_highest)
+            .into_iter()
+            .collect();
+
+        state.singularity.singularity_counter = hold_sing_counter;
+        if !success {
+            state.quarks.quarks_timer = hold_quark_timer;
+            state.golden_quarks.golden_quarks_timer = hold_gq_timer;
+        }
+
+        events.push(CoreEvent::SingularityChallengeExited {
+            challenge: id,
+            success,
+            completions,
+        });
+        events
+    }
+}
+
+/// `teleportToSingularity()` (`singularity.ts:3898`) — ride the elevator to
+/// its target floor. Gated on a valid target (`[1, max(1, highest,
+/// count + lookahead if antiquities)]`) and on not being inside an Exalt.
+///
+/// Ascending (`count <= target`) performs a full singularity to the target —
+/// and when the antiquities rune was *not* purchased, the singularity
+/// counter is held across it (the legacy `antiquitiesLevel === 0` branch).
+/// Descending just sets the count: **no reset** (verbatim — dropping floors
+/// is free).
+pub(crate) fn teleport_to_singularity(state: &mut GameState) -> SmallVec<[CoreEvent; 2]> {
+    use crate::state::RUNE_ANTIQUITIES;
+
+    let target = state.singularity.elevator_target;
+    let max_target = super::elevator_max_target(state);
+    if target < 1.0
+        || target > max_target
+        || super::inside_singularity_challenge(&state.singularity)
+    {
+        return SmallVec::new();
+    }
+
+    if state.singularity.singularity_count <= target {
+        let antiquities_level = state.runes.rune_levels[RUNE_ANTIQUITIES];
+        let held_counter = state.singularity.singularity_counter;
+        let events = perform_singularity_reset(state, target);
+        if antiquities_level == 0.0 {
+            state.singularity.singularity_counter = held_counter;
+        }
+        events
+    } else {
+        state.singularity.singularity_count = target;
+        SmallVec::new()
+    }
 }
 
 /// Zero a contiguous run of `player.upgrades` slots (the `resetUpgrades`
@@ -1099,6 +1282,206 @@ mod tests {
         assert_eq!(state.golden_quarks.upgrades[GQ_GOLDEN_QUARKS_1].level, 5.0); // survives
         assert_eq!(state.golden_quarks.quarks_this_singularity, 0.0); // reset
         assert_eq!(state.golden_quarks.total_quarks_ever, 3e5); // accumulated
+    }
+
+    #[test]
+    fn exalt_enter_gates_on_unlock_singularity_and_inside_flag() {
+        use crate::events::SingularityChallengeId as Id;
+        // Below unlockSingularity (25) → no-op.
+        let mut state = GameState::default();
+        state.singularity.highest_singularity_count = 24.0;
+        let events = toggle_singularity_challenge(&mut state, Id::NoSingularityUpgrades);
+        assert!(events.is_empty());
+        assert!(!state.singularity.no_singularity_upgrades.enabled);
+
+        // Already inside another Exalt → no-op.
+        let mut state = GameState::default();
+        state.singularity.highest_singularity_count = 100.0;
+        state.singularity.one_challenge_cap.enabled = true;
+        let events = toggle_singularity_challenge(&mut state, Id::NoSingularityUpgrades);
+        assert!(events.is_empty());
+        assert!(!state.singularity.no_singularity_upgrades.enabled);
+    }
+
+    #[test]
+    fn exalt_enter_jumps_to_tier_requirement_and_holds_timers() {
+        use crate::events::SingularityChallengeId as Id;
+        let mut state = GameState::default();
+        state.singularity.highest_singularity_count = 25.0;
+        state.singularity.singularity_count = 25.0;
+        state.singularity.singularity_counter = 77.0;
+        state.quarks.quarks_timer = 55.0;
+        state.golden_quarks.golden_quarks_timer = 33.0;
+
+        let events = toggle_singularity_challenge(&mut state, Id::NoSingularityUpgrades);
+        // Tier 1 of noSingularityUpgrades sits at singularity 1 (baseReq 1).
+        assert!(state.singularity.no_singularity_upgrades.enabled);
+        assert_eq!(state.singularity.singularity_count, 1.0);
+        assert_eq!(state.singularity.highest_singularity_count, 25.0);
+        // Timers held across the jump (resetTime is false).
+        assert_eq!(state.singularity.singularity_counter, 77.0);
+        assert_eq!(state.quarks.quarks_timer, 55.0);
+        assert_eq!(state.golden_quarks.golden_quarks_timer, 33.0);
+        // The golden-quark grant was credited by the jump.
+        assert!(state.golden_quarks.golden_quarks.to_number() >= 100.0);
+        assert!(events
+            .iter()
+            .any(|e| matches!(e, CoreEvent::SingularityChallengeEntered { .. })));
+        assert!(events
+            .iter()
+            .any(|e| matches!(e, CoreEvent::SingularityPerformed { .. })));
+    }
+
+    #[test]
+    fn exalt_exit_success_derives_completions_and_returns_to_highest() {
+        use crate::events::SingularityChallengeId as Id;
+        let mut state = GameState::default();
+        state.singularity.highest_singularity_count = 25.0;
+        state.singularity.singularity_count = 25.0;
+        toggle_singularity_challenge(&mut state, Id::NoSingularityUpgrades);
+        assert_eq!(state.singularity.singularity_count, 1.0);
+
+        // Re-acquire antiquities inside the challenge → the exit succeeds.
+        state.runes.rune_levels[RUNE_ANTIQUITIES] = 1.0;
+        state.quarks.quarks_timer = 41.0;
+        let events = toggle_singularity_challenge(&mut state, Id::NoSingularityUpgrades);
+        let ch = state.singularity.no_singularity_upgrades;
+        assert!(!ch.enabled);
+        // Completed at singularity 1 = the tier-1 rung → 1 completion.
+        assert_eq!(ch.highest_singularity_completed, 1.0);
+        assert_eq!(ch.completions, 1.0);
+        // Returned to the held highest.
+        assert_eq!(state.singularity.singularity_count, 25.0);
+        // Success forfeits the quark export timer (only failure restores it).
+        assert_eq!(state.quarks.quarks_timer, 0.0);
+        assert!(events.iter().any(|e| matches!(
+            e,
+            CoreEvent::SingularityChallengeExited {
+                success: true,
+                completions,
+                ..
+            } if *completions == 1.0
+        )));
+    }
+
+    #[test]
+    fn exalt_exit_failure_keeps_completions_and_restores_timers() {
+        use crate::events::SingularityChallengeId as Id;
+        let mut state = GameState::default();
+        state.singularity.highest_singularity_count = 25.0;
+        state.singularity.singularity_count = 25.0;
+        toggle_singularity_challenge(&mut state, Id::NoSingularityUpgrades);
+
+        // No antiquities inside → the exit fails.
+        state.quarks.quarks_timer = 41.0;
+        state.golden_quarks.golden_quarks_timer = 13.0;
+        let events = toggle_singularity_challenge(&mut state, Id::NoSingularityUpgrades);
+        let ch = state.singularity.no_singularity_upgrades;
+        assert!(!ch.enabled);
+        assert_eq!(ch.completions, 0.0);
+        assert_eq!(state.singularity.singularity_count, 25.0);
+        // Failure restores the export timers.
+        assert_eq!(state.quarks.quarks_timer, 41.0);
+        assert_eq!(state.golden_quarks.golden_quarks_timer, 13.0);
+        assert!(events.iter().any(|e| matches!(
+            e,
+            CoreEvent::SingularityChallengeExited { success: false, .. }
+        )));
+    }
+
+    #[test]
+    fn elevator_branches_choose_the_next_floor() {
+        // Slow climb (the blank-save default): +1 even from below highest.
+        let mut state = GameState::default();
+        state.runes.rune_levels[RUNE_ANTIQUITIES] = 1.0;
+        state.singularity.singularity_count = 3.0;
+        state.singularity.highest_singularity_count = 10.0;
+        perform_singularity_reset(&mut state, -1.0);
+        assert_eq!(state.singularity.singularity_count, 4.0);
+        assert_eq!(state.singularity.highest_singularity_count, 10.0);
+
+        // Auto-climb (slow climb off): jump to max(highest, count + lookahead).
+        let mut state = GameState::default();
+        state.runes.rune_levels[RUNE_ANTIQUITIES] = 1.0;
+        state.singularity.elevator_slow_climb = false;
+        state.singularity.singularity_count = 3.0;
+        state.singularity.highest_singularity_count = 10.0;
+        perform_singularity_reset(&mut state, -1.0);
+        assert_eq!(state.singularity.singularity_count, 10.0);
+
+        // Locked: go to the chosen floor, even downward.
+        let mut state = GameState::default();
+        state.runes.rune_levels[RUNE_ANTIQUITIES] = 1.0;
+        state.singularity.elevator_locked = true;
+        state.singularity.elevator_target = 2.0;
+        state.singularity.singularity_count = 10.0;
+        state.singularity.highest_singularity_count = 10.0;
+        perform_singularity_reset(&mut state, -1.0);
+        assert_eq!(state.singularity.singularity_count, 2.0);
+        // The was-at-highest +1 bump applies regardless of branch
+        // (Reset.ts:1125 sits outside the elevator if/else).
+        assert_eq!(state.singularity.highest_singularity_count, 11.0);
+    }
+
+    #[test]
+    fn teleport_descends_without_reset_and_ascends_with_one() {
+        // Descending: count drops to the target, nothing else moves.
+        let mut state = GameState::default();
+        state.singularity.singularity_count = 10.0;
+        state.singularity.highest_singularity_count = 10.0;
+        state.singularity.elevator_target = 3.0;
+        state.upgrades.coins = Decimal::from_finite(1e50);
+        let events = teleport_to_singularity(&mut state);
+        assert!(events.is_empty());
+        assert_eq!(state.singularity.singularity_count, 3.0);
+        assert_eq!(state.upgrades.coins.to_number(), 1e50); // no reset
+
+        // Ascending (count <= target, within highest): a full singularity to
+        // the floor; without antiquities the singularity counter is held.
+        state.singularity.elevator_target = 10.0;
+        state.singularity.singularity_counter = 99.0;
+        let events = teleport_to_singularity(&mut state);
+        assert_eq!(state.singularity.singularity_count, 10.0);
+        assert_eq!(state.upgrades.coins, GameState::default().upgrades.coins);
+        assert_eq!(state.singularity.singularity_counter, 99.0);
+        assert!(events
+            .iter()
+            .any(|e| matches!(e, CoreEvent::SingularityPerformed { .. })));
+    }
+
+    #[test]
+    fn teleport_gates_on_target_range_and_exalt() {
+        // Target above the reachable max (highest 10, no antiquities) → no-op.
+        let mut state = GameState::default();
+        state.singularity.singularity_count = 10.0;
+        state.singularity.highest_singularity_count = 10.0;
+        state.singularity.elevator_target = 11.0;
+        assert!(teleport_to_singularity(&mut state).is_empty());
+        assert_eq!(state.singularity.singularity_count, 10.0);
+
+        // Inside an Exalt → no-op.
+        state.singularity.elevator_target = 3.0;
+        state.singularity.limited_time.enabled = true;
+        assert!(teleport_to_singularity(&mut state).is_empty());
+        assert_eq!(state.singularity.singularity_count, 10.0);
+    }
+
+    #[test]
+    fn singularity_resets_quarks_unless_preserved_by_limited_time() {
+        // Without the limitedTime reward, quarks reset with the rebuild.
+        let mut state = GameState::default();
+        state.runes.rune_levels[RUNE_ANTIQUITIES] = 1.0;
+        state.quarks.worlds = Decimal::from_finite(1234.0);
+        perform_singularity_reset(&mut state, -1.0);
+        assert_eq!(state.quarks.worlds.to_number(), 0.0);
+
+        // With a limitedTime completion the preserveQuarks reward holds them.
+        let mut state = GameState::default();
+        state.runes.rune_levels[RUNE_ANTIQUITIES] = 1.0;
+        state.singularity.limited_time.completions = 1.0;
+        state.quarks.worlds = Decimal::from_finite(1234.0);
+        perform_singularity_reset(&mut state, -1.0);
+        assert_eq!(state.quarks.worlds.to_number(), 1234.0);
     }
 
     #[test]

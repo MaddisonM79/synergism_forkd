@@ -3,16 +3,21 @@
 //!
 //! Verbatim port of
 //! `legacy/core_split/packages/logic/src/mechanics/singularityChallenges.ts`.
-//! The UI tier still owns the `singularityChallengeData` table.
 //! This module owns the three pure-formula fields each challenge
-//! has: `singularity_requirement(base_req, completions)`,
-//! `achievement_point_value(n)`, and `effect(n, key)`.
+//! has — `singularity_requirement(base_req, completions)`,
+//! `achievement_point_value(n)`, and `effect(n, key)` — plus the
+//! static `singularityChallengeData` row each challenge keys
+//! ([`challenge_meta`]) and the enter/exit support math
+//! ([`challenge_singularity_requirement`],
+//! [`challenge_completions_from_highest`]).
 //!
 //! Effect functions return either booleans (for unlock keys) or
 //! `f64` scalars. To keep the dispatch clean while preserving
 //! variable return types, each challenge gets its own key enum and
 //! its own tagged-result enum (with an `Unlock(bool)` and
 //! `Scalar(f64)` variant). The caller pattern-matches the result.
+
+use crate::events::SingularityChallengeId;
 
 // ─── Per-challenge singularityRequirement formulas ────────────────────────
 
@@ -147,6 +152,145 @@ pub fn sadistic_prequel_achievement_point_value(n: f64) -> f64 {
 #[must_use]
 pub fn taxman_last_stand_achievement_point_value(n: f64) -> f64 {
     50.0 * n
+}
+
+// ─── Per-challenge static metadata + dispatch ──────────────────────────────
+
+/// One Exalt's static data-table row (`singularityChallengeData` —
+/// `baseReq` / `maxCompletions` / `unlockSingularity` / `resetTime`).
+/// Identical in both legacy snapshots. `reset_time` is `false` for every
+/// current challenge (the constructor's `data.resetTime ?? false`).
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct SingularityChallengeMeta {
+    /// `baseReq` — the tier-0 singularity requirement.
+    pub base_req: f64,
+    /// `maxCompletions` — the completion cap.
+    pub max_completions: f64,
+    /// `unlockSingularity` — minimum `highestSingularityCount` to enter.
+    pub unlock_singularity: f64,
+    /// `resetTime` — whether entering zeroes `singularityCounter` (instead
+    /// of holding it across the jump).
+    pub reset_time: bool,
+}
+
+/// Static metadata for an Exalt challenge.
+#[must_use]
+pub const fn challenge_meta(id: SingularityChallengeId) -> SingularityChallengeMeta {
+    match id {
+        SingularityChallengeId::NoSingularityUpgrades => SingularityChallengeMeta {
+            base_req: 1.0,
+            max_completions: 15.0,
+            unlock_singularity: 25.0,
+            reset_time: false,
+        },
+        SingularityChallengeId::OneChallengeCap => SingularityChallengeMeta {
+            base_req: 10.0,
+            max_completions: 15.0,
+            unlock_singularity: 40.0,
+            reset_time: false,
+        },
+        SingularityChallengeId::NoOcteracts => SingularityChallengeMeta {
+            base_req: 75.0,
+            max_completions: 15.0,
+            unlock_singularity: 100.0,
+            reset_time: false,
+        },
+        SingularityChallengeId::LimitedAscensions => SingularityChallengeMeta {
+            base_req: 7.0,
+            max_completions: 10.0,
+            unlock_singularity: 50.0,
+            reset_time: false,
+        },
+        SingularityChallengeId::NoAmbrosiaUpgrades => SingularityChallengeMeta {
+            base_req: 150.0,
+            max_completions: 15.0,
+            unlock_singularity: 166.0,
+            reset_time: false,
+        },
+        SingularityChallengeId::NoQuarkUpgrades => SingularityChallengeMeta {
+            base_req: 20.0,
+            max_completions: 10.0,
+            unlock_singularity: 66.0,
+            reset_time: false,
+        },
+        SingularityChallengeId::LimitedTime => SingularityChallengeMeta {
+            base_req: 203.0,
+            max_completions: 15.0,
+            unlock_singularity: 216.0,
+            reset_time: false,
+        },
+        SingularityChallengeId::SadisticPrequel => SingularityChallengeMeta {
+            base_req: 120.0,
+            max_completions: 15.0,
+            unlock_singularity: 256.0,
+            reset_time: false,
+        },
+        SingularityChallengeId::TaxmanLastStand => SingularityChallengeMeta {
+            base_req: 240.0,
+            max_completions: 10.0,
+            unlock_singularity: 281.0,
+            reset_time: false,
+        },
+    }
+}
+
+/// `computeSingularityRquirement()` — the singularity count tier
+/// `completions + 1` of this challenge requires, dispatching to the
+/// per-challenge `singularityRequirement` formula with its static
+/// `baseReq`.
+#[must_use]
+pub fn challenge_singularity_requirement(id: SingularityChallengeId, completions: f64) -> f64 {
+    let base_req = challenge_meta(id).base_req;
+    match id {
+        SingularityChallengeId::NoSingularityUpgrades => {
+            no_singularity_upgrades_singularity_requirement(base_req, completions)
+        }
+        SingularityChallengeId::OneChallengeCap => {
+            one_challenge_cap_singularity_requirement(base_req, completions)
+        }
+        SingularityChallengeId::NoOcteracts => {
+            no_octeracts_singularity_requirement(base_req, completions)
+        }
+        SingularityChallengeId::LimitedAscensions => {
+            limited_ascensions_singularity_requirement(base_req, completions)
+        }
+        SingularityChallengeId::NoAmbrosiaUpgrades => {
+            no_ambrosia_upgrades_singularity_requirement(base_req, completions)
+        }
+        SingularityChallengeId::NoQuarkUpgrades => {
+            no_quark_upgrades_singularity_requirement(base_req, completions)
+        }
+        SingularityChallengeId::LimitedTime => {
+            limited_time_singularity_requirement(base_req, completions)
+        }
+        SingularityChallengeId::SadisticPrequel => {
+            sadistic_prequel_singularity_requirement(base_req, completions)
+        }
+        SingularityChallengeId::TaxmanLastStand => {
+            taxman_last_stand_singularity_requirement(base_req, completions)
+        }
+    }
+}
+
+/// `updateChallengeCompletions()` — re-derive the completion count from the
+/// highest singularity this challenge was completed at: walk the
+/// requirement ladder while it stays within `highest_singularity_completed`,
+/// capped at `maxCompletions`. The legacy walk continues past the cap and
+/// clamps after; stopping at the cap is outcome-identical (the result is
+/// `min(walk, max)` either way) and bounds the loop.
+#[must_use]
+pub fn challenge_completions_from_highest(
+    id: SingularityChallengeId,
+    highest_singularity_completed: f64,
+) -> f64 {
+    let max_completions = challenge_meta(id).max_completions;
+    let mut completions = 0.0;
+    while completions < max_completions
+        && challenge_singularity_requirement(id, completions) <= highest_singularity_completed
+    {
+        completions += 1.0;
+    }
+    completions.min(max_completions)
 }
 
 // ─── Tagged result type ───────────────────────────────────────────────────
@@ -493,6 +637,41 @@ mod tests {
             no_singularity_upgrades_singularity_requirement(100.0, 5.0),
             180.0
         );
+    }
+
+    #[test]
+    fn challenge_meta_spot_anchors() {
+        let no_sing = challenge_meta(SingularityChallengeId::NoSingularityUpgrades);
+        assert_eq!(no_sing.base_req, 1.0);
+        assert_eq!(no_sing.max_completions, 15.0);
+        assert_eq!(no_sing.unlock_singularity, 25.0);
+        let taxman = challenge_meta(SingularityChallengeId::TaxmanLastStand);
+        assert_eq!(taxman.base_req, 240.0);
+        assert_eq!(taxman.max_completions, 10.0);
+        assert_eq!(taxman.unlock_singularity, 281.0);
+    }
+
+    #[test]
+    fn challenge_singularity_requirement_folds_base_req() {
+        // noSingularityUpgrades: base 1 → tier 1 sits at singularity 1,
+        // tier 6 at 1 + 16·5 = 81, tier 10 at 1 + 16·9 + 8 = 153.
+        let id = SingularityChallengeId::NoSingularityUpgrades;
+        assert_eq!(challenge_singularity_requirement(id, 0.0), 1.0);
+        assert_eq!(challenge_singularity_requirement(id, 5.0), 81.0);
+        assert_eq!(challenge_singularity_requirement(id, 9.0), 153.0);
+    }
+
+    #[test]
+    fn completions_ladder_walks_and_caps() {
+        let id = SingularityChallengeId::NoSingularityUpgrades;
+        // Nothing completed → 0.
+        assert_eq!(challenge_completions_from_highest(id, 0.0), 0.0);
+        // Completed at singularity 1 (the tier-1 requirement) → 1.
+        assert_eq!(challenge_completions_from_highest(id, 1.0), 1.0);
+        // Completed at 153 → tiers 1..=10 (the tier-10 rung is exactly 153).
+        assert_eq!(challenge_completions_from_highest(id, 153.0), 10.0);
+        // Far past every rung → capped at maxCompletions.
+        assert_eq!(challenge_completions_from_highest(id, 1e9), 15.0);
     }
 
     #[test]

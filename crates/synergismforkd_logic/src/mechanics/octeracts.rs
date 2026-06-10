@@ -843,6 +843,76 @@ pub fn octeract_talisman_level_cap_4_effect(n: f64) -> f64 {
     n
 }
 
+// ─── Max levels ────────────────────────────────────────────────────────────
+
+/// Per-upgrade `maxLevel`, in `octeractUpgrades` key order (`-1` =
+/// unlimited). Identical in both legacy snapshots. Static data the UI tier
+/// also owns — kept here (not in the state struct) since it never varies
+/// per player.
+pub const OCTERACT_MAX_LEVELS: [f64; OCTERACT_UPGRADES_LEN] = [
+    1.0,      // 0 octeractStarter
+    1e8,      // 1 octeractGain
+    -1.0,     // 2 octeractGain2
+    20_000.0, // 3 octeractQuarkGain
+    5.0,      // 4 octeractQuarkGain2
+    2.0,      // 5 octeractCorruption
+    50.0,     // 6 octeractGQCostReduce
+    100.0,    // 7 octeractExportQuarks
+    50.0,     // 8 octeractImprovedDaily
+    50.0,     // 9 octeractImprovedDaily2
+    -1.0,     // 10 octeractImprovedDaily3
+    25.0,     // 11 octeractImprovedQuarkHept
+    1_000.0,  // 12 octeractImprovedGlobalSpeed
+    100.0,    // 13 octeractImprovedAscensionSpeed
+    250.0,    // 14 octeractImprovedAscensionSpeed2
+    1.0,      // 15 octeractImprovedFree
+    1.0,      // 16 octeractImprovedFree2
+    1.0,      // 17 octeractImprovedFree3
+    40.0,     // 18 octeractImprovedFree4
+    10.0,     // 19 octeractSingUpgradeCap
+    -1.0,     // 20 octeractOfferings1
+    -1.0,     // 21 octeractObtainium1
+    1e6,      // 22 octeractAscensions
+    -1.0,     // 23 octeractAscensions2
+    -1.0,     // 24 octeractAscensionsOcteractGain
+    2.0,      // 25 octeractFastForward
+    -1.0,     // 26 octeractAutoPotionSpeed
+    100.0,    // 27 octeractAutoPotionEfficiency
+    20.0,     // 28 octeractOneMindImprover
+    -1.0,     // 29 octeractAmbrosiaLuck
+    30.0,     // 30 octeractAmbrosiaLuck2
+    30.0,     // 31 octeractAmbrosiaLuck3
+    50.0,     // 32 octeractAmbrosiaLuck4
+    -1.0,     // 33 octeractAmbrosiaGeneration
+    20.0,     // 34 octeractAmbrosiaGeneration2
+    35.0,     // 35 octeractAmbrosiaGeneration3
+    50.0,     // 36 octeractAmbrosiaGeneration4
+    10.0,     // 37 octeractBonusTokens1
+    5.0,      // 38 octeractBonusTokens2
+    5.0,      // 39 octeractBonusTokens3
+    50.0,     // 40 octeractBonusTokens4
+    6.0,      // 41 octeractBlueberries
+    80.0,     // 42 octeractInfiniteShopUpgrades
+    25.0,     // 43 octeractTalismanLevelCap1
+    35.0,     // 44 octeractTalismanLevelCap2
+    40.0,     // 45 octeractTalismanLevelCap3
+    -1.0,     // 46 octeractTalismanLevelCap4
+];
+
+/// Count of octeract upgrades whose **purchased** level has reached their
+/// `maxLevel` (the `octeractUpgrades` progressive-achievement closure:
+/// `maxLevel !== -1 && level >= maxLevel`; free levels don't count).
+#[must_use]
+pub fn count_maxed_octeract_upgrades(state: &OcteractUpgradesState) -> f64 {
+    let mut count = 0.0;
+    for (upgrade, max) in state.upgrades.iter().zip(OCTERACT_MAX_LEVELS) {
+        if max != -1.0 && upgrade.level >= max {
+            count += 1.0;
+        }
+    }
+    count
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

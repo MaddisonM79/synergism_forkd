@@ -787,6 +787,22 @@ pub fn favorite_upgrade_effect(n: f64, sum_of_maxed_sibling_upgrades: f64) -> f6
     1.0 + n / 5_000.0 * (sum_of_maxed_sibling_upgrades + 6.0)
 }
 
+/// Count of golden-quark upgrades whose **purchased** level has reached
+/// their `maxLevel` (the `singularityUpgrades` progressive-achievement
+/// closure: `maxLevel !== -1 && level >= maxLevel`; free levels don't
+/// count). Reads the seeded per-upgrade `max_level` metadata (`-1` =
+/// unlimited).
+#[must_use]
+pub fn count_maxed_golden_quark_upgrades(state: &crate::state::GoldenQuarksState) -> f64 {
+    let mut count = 0.0;
+    for upgrade in &state.upgrades {
+        if upgrade.max_level != -1.0 && upgrade.level >= upgrade.max_level {
+            count += 1.0;
+        }
+    }
+    count
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

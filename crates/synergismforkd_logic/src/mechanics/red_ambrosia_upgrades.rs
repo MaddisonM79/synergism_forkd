@@ -470,6 +470,58 @@ pub fn free_speed_upgrades_effect(n: f64) -> f64 {
     n
 }
 
+// ─── Max levels ────────────────────────────────────────────────────────────
+
+/// Per-upgrade `maxLevel`, in `redAmbrosiaUpgrades` key order (every red
+/// upgrade has a finite cap — no `-1` sentinel). Identical in both legacy
+/// snapshots. Static data the UI tier also owns — kept here (not in the
+/// state struct) since it never varies per player.
+pub const RED_AMBROSIA_MAX_LEVELS: [f64; crate::state::red_ambrosia::RED_AMBROSIA_UPGRADES_LEN] = [
+    100.0, // 0 tutorial
+    5.0,   // 1 conversionImprovement1
+    3.0,   // 2 conversionImprovement2
+    2.0,   // 3 conversionImprovement3
+    5.0,   // 4 freeTutorialLevels
+    5.0,   // 5 freeLevelsRow2
+    5.0,   // 6 freeLevelsRow3
+    5.0,   // 7 freeLevelsRow4
+    5.0,   // 8 freeLevelsRow5
+    100.0, // 9 blueberryGenerationSpeed
+    100.0, // 10 regularLuck
+    100.0, // 11 redGenerationSpeed
+    100.0, // 12 redLuck
+    1.0,   // 13 redAmbrosiaCube
+    1.0,   // 14 redAmbrosiaObtainium
+    1.0,   // 15 redAmbrosiaOffering
+    20.0,  // 16 redAmbrosiaCubeImprover
+    1.0,   // 17 viscount
+    40.0,  // 18 infiniteShopUpgrades
+    100.0, // 19 redAmbrosiaAccelerator
+    250.0, // 20 regularLuck2
+    250.0, // 21 blueberryGenerationSpeed2
+    100.0, // 22 salvageYinYang
+    5.0,   // 23 blueberries
+    10.0,  // 24 redAmbrosiaFreeAccumulator
+    5.0,   // 25 freeOfferingUpgrades
+    5.0,   // 26 freeObtainiumUpgrades
+    5.0,   // 27 freeCubeUpgrades
+    5.0,   // 28 freeSpeedUpgrades
+];
+
+/// Count of red-ambrosia upgrades whose level has reached their `maxLevel`
+/// (the `redAmbrosiaUpgrades` progressive-achievement closure:
+/// `level >= maxLevel`, no sentinel — every cap is finite).
+#[must_use]
+pub fn count_maxed_red_ambrosia_upgrades(state: &crate::state::RedAmbrosiaState) -> f64 {
+    let mut count = 0.0;
+    for (upgrade, max) in state.upgrades.iter().zip(RED_AMBROSIA_MAX_LEVELS) {
+        if upgrade.level >= max {
+            count += 1.0;
+        }
+    }
+    count
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

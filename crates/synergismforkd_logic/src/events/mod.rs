@@ -515,6 +515,30 @@ pub enum CoreEvent {
         /// The new `singularityCount` after the reset.
         singularity_count: f64,
     },
+    /// A singularity (Exalt) challenge was entered
+    /// (`SingularityChallenge.enableChallenge`): the challenge flag is set and
+    /// a singularity reset jumped to the tier's required count. Accompanied by
+    /// the jump's [`Self::SingularityPerformed`].
+    SingularityChallengeEntered {
+        /// Which Exalt was entered.
+        challenge: SingularityChallengeId,
+        /// The singularity count the jump landed on
+        /// (`singularityRequirement(baseReq, completions)`).
+        target_singularity: f64,
+    },
+    /// A singularity (Exalt) challenge was exited
+    /// (`SingularityChallenge.exitChallenge`): the flag cleared and a
+    /// singularity reset returned to the held highest count. On success the
+    /// completion ladder was re-derived first.
+    SingularityChallengeExited {
+        /// Which Exalt was exited.
+        challenge: SingularityChallengeId,
+        /// Whether the tier was completed (the antiquities rune was purchased
+        /// inside the challenge).
+        success: bool,
+        /// The challenge's completion count after the exit.
+        completions: f64,
+    },
     /// One of the four `automaticTools()` branches fired this tick.
     ///
     /// Emitted by the auto-tool state machine (tick-side, not yet
@@ -692,6 +716,44 @@ pub enum CubeTier {
     /// Platonic Cubes.
     Platonic,
 }
+
+/// Identifies one of the nine singularity (Exalt) challenges — the keys of
+/// the legacy `player.singularityChallenges`, in `singularityChallengeData`
+/// order. Names match the `SingularityState` field names.
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum SingularityChallengeId {
+    /// `noSingularityUpgrades` (Exalt 1).
+    NoSingularityUpgrades,
+    /// `oneChallengeCap` (Exalt 2).
+    OneChallengeCap,
+    /// `noOcteracts` (Exalt 4).
+    NoOcteracts,
+    /// `limitedAscensions` (Exalt 3).
+    LimitedAscensions,
+    /// `noAmbrosiaUpgrades` (Exalt 5).
+    NoAmbrosiaUpgrades,
+    /// `noQuarkUpgrades`.
+    NoQuarkUpgrades,
+    /// `limitedTime` (Exalt 6).
+    LimitedTime,
+    /// `sadisticPrequel` (Exalt 7).
+    SadisticPrequel,
+    /// `taxmanLastStand` (Exalt 8).
+    TaxmanLastStand,
+}
+
+/// All nine Exalt challenges, in `singularityChallengeData` order.
+pub const SINGULARITY_CHALLENGE_IDS: [SingularityChallengeId; 9] = [
+    SingularityChallengeId::NoSingularityUpgrades,
+    SingularityChallengeId::OneChallengeCap,
+    SingularityChallengeId::NoOcteracts,
+    SingularityChallengeId::LimitedAscensions,
+    SingularityChallengeId::NoAmbrosiaUpgrades,
+    SingularityChallengeId::NoQuarkUpgrades,
+    SingularityChallengeId::LimitedTime,
+    SingularityChallengeId::SadisticPrequel,
+    SingularityChallengeId::TaxmanLastStand,
+];
 
 #[cfg(test)]
 mod tests {

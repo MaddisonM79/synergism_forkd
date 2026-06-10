@@ -9,6 +9,13 @@
 //! return a scalar (or, for `tutorial_bonus`, a 3-field struct).
 //! All formulas are pure functions of `campaign_tokens` with no
 //! player or game-state reads.
+//!
+//! The token *total* (`updateTokens`) lives here too — the static
+//! per-campaign `limit`/`isMeta` table, [`campaign_token_value`], and the
+//! inheritance / singularity-multiplier grants. The `GameState` assembler
+//! (`compute_campaign_tokens`) composes them in the tick.
+
+use crate::state::campaigns::CAMPAIGNS_LEN;
 
 /// Result of [`tutorial_bonus`].
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -187,6 +194,140 @@ pub fn campaign_blueberry_speed_bonus(campaign_tokens: f64) -> f64 {
         + 0.03 * (1.0 - (-(campaign_tokens - 4_000.0).max(0.0) / 2_000.0).exp())
 }
 
+// ─── Token total (`updateTokens`) ──────────────────────────────────────────
+//
+// `campaignTokens` is a derived total in the legacy code (a module global
+// recomputed by `updateTokens()`): the sum of every campaign's
+// `computeTokenValue()` plus `inheritanceTokens()` plus the GQ
+// `singBonusTokens4` / octeract `octeractBonusTokens4` initial-token
+// bonuses. Logic derives it live from `campaign_completions` — no cached
+// state field.
+
+/// Per-campaign completion `limit`, in `campaignDatas` key order
+/// (`Campaign.ts`, `first` = 0 … `fiftieth` = 49; identical in both legacy
+/// snapshots).
+pub const CAMPAIGN_TOKEN_LIMITS: [f64; CAMPAIGNS_LEN] = [
+    10.0, 10.0, 10.0, 10.0, 10.0, // 0-4
+    15.0, 15.0, 15.0, 15.0, 15.0, // 5-9
+    20.0, 20.0, 20.0, 20.0, 20.0, // 10-14
+    25.0, 25.0, 25.0, 25.0, 25.0, // 15-19
+    30.0, 30.0, 30.0, 30.0, 30.0, // 20-24
+    35.0, 35.0, 35.0, 35.0, 35.0, // 25-29
+    40.0, 40.0, // 30-31
+    45.0, 45.0, // 32-33
+    50.0, 50.0, // 34-35
+    55.0, 55.0, // 36-37
+    60.0, 60.0, // 38-39
+    65.0, 70.0, 75.0, 80.0, 85.0, // 40-44
+    95.0, 105.0, 115.0, 125.0, 140.0, // 45-49
+];
+
+/// Per-campaign `isMeta` flag (meta campaigns earn doubled tokens), same
+/// key order as [`CAMPAIGN_TOKEN_LIMITS`].
+pub const CAMPAIGN_IS_META: [bool; CAMPAIGNS_LEN] = [
+    false, true, false, false, false, // 0-4
+    false, true, false, false, false, // 5-9
+    false, true, false, false, true, // 10-14
+    false, false, true, false, false, // 15-19
+    true, false, false, true, false, // 20-24
+    false, false, true, false, true, // 25-29
+    true, false, // 30-31
+    false, true, // 32-33
+    true, false, // 34-35
+    false, true, // 36-37
+    false, true, // 38-39
+    true, true, true, true, true, // 40-44
+    true, true, true, false, true, // 45-49
+];
+
+/// The cross-campaign bonus terms of `computeTokenValue` — identical for
+/// every campaign, so the caller assembles them once. Each folds the
+/// matching highest-singularity milestone with the GQ + octeract
+/// bonus-token upgrade effects.
+#[derive(Debug, Clone, Copy, PartialEq, Default)]
+pub struct CampaignTokenBonuses {
+    /// Added once `completed >= 1`: `(highestSing >= 16 ? 5 : 0) +
+    /// singBonusTokens1 + octeractBonusTokens3`.
+    pub first_completion_bonus: f64,
+    /// Added once `completed == limit`: `(highestSing >= 69 ? 10 : 0) +
+    /// singBonusTokens3 + octeractBonusTokens1`.
+    pub last_completion_bonus: f64,
+    /// Shared multiplier: `singularityBonusTokenMult() × singBonusTokens2
+    /// × octeractBonusTokens2` (the per-campaign `isMeta` ×2 is applied
+    /// inside [`campaign_token_value`]).
+    pub token_multiplier: f64,
+}
+
+/// One campaign's token value — `Campaign.computeTokenValue()`
+/// (`Campaign.ts:538`). `completed = min(c10Completions, limit)` is the
+/// additive base; the first/last-completion bonuses join it, and the
+/// product of the shared multiplier with the meta ×2 is floored.
+#[must_use]
+pub fn campaign_token_value(
+    c10_completions: f64,
+    limit: f64,
+    is_meta: bool,
+    bonuses: &CampaignTokenBonuses,
+) -> f64 {
+    let completed = c10_completions.min(limit);
+    let mut additive = completed;
+    if completed >= 1.0 {
+        additive += bonuses.first_completion_bonus;
+    }
+    if completed == limit {
+        additive += bonuses.last_completion_bonus;
+    }
+    let multiplier = if is_meta { 2.0 } else { 1.0 } * bonuses.token_multiplier;
+    (additive * multiplier).floor()
+}
+
+/// `inheritanceLevels` — highest-singularity milestones for the
+/// inheritance token grant (`Calculate.ts:135`).
+const INHERITANCE_LEVELS: [f64; 15] = [
+    2.0, 5.0, 10.0, 17.0, 26.0, 37.0, 50.0, 65.0, 82.0, 101.0, 220.0, 240.0, 260.0, 270.0, 277.0,
+];
+
+/// `inheritanceTokenValues` — token grant per inheritance tier.
+const INHERITANCE_TOKEN_VALUES: [f64; 15] = [
+    1.0, 10.0, 25.0, 40.0, 75.0, 100.0, 150.0, 200.0, 250.0, 300.0, 350.0, 400.0, 500.0, 600.0,
+    750.0,
+];
+
+/// `inheritanceTokens()` (`Calculate.ts:1691`) — the flat token grant from
+/// the highest singularity reached.
+///
+/// Faithful quirk: the legacy loop runs `i = 15` down to `i = 1` over the
+/// 15-entry arrays — `i = 15` reads out of bounds (`>= undefined` is
+/// false, a no-op) and `i = 0` is never tested, so the `inheritanceLevels[0]
+/// = 2 → 1 token` tier is unreachable. The effective floor is singularity
+/// 5 → 10 tokens.
+#[must_use]
+pub fn inheritance_tokens(highest_singularity_count: f64) -> f64 {
+    for i in (1..=14).rev() {
+        if highest_singularity_count >= INHERITANCE_LEVELS[i] {
+            return INHERITANCE_TOKEN_VALUES[i];
+        }
+    }
+    0.0
+}
+
+/// `bonusTokenLevels` — highest-singularity milestones for the global
+/// token multiplier (`Calculate.ts:138`).
+const BONUS_TOKEN_LEVELS: [f64; 5] = [41.0, 58.0, 113.0, 163.0, 229.0];
+
+/// `singularityBonusTokenMult()` (`Calculate.ts:1701`) — `1 + 0.02·i` for
+/// the highest tier `i` (1-based) whose milestone the player has reached;
+/// `1` below singularity 41.
+#[must_use]
+pub fn singularity_bonus_token_mult(highest_singularity_count: f64) -> f64 {
+    for i in (1..=5).rev() {
+        if highest_singularity_count >= BONUS_TOKEN_LEVELS[i - 1] {
+            return 1.0 + 0.02 * i as f64;
+        }
+    }
+    1.0
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -197,6 +338,68 @@ mod tests {
         assert_eq!(bonus.cube_bonus, 1.0);
         assert_eq!(bonus.obtainium_bonus, 1.0);
         assert_eq!(bonus.offering_bonus, 1.0);
+    }
+
+    #[test]
+    fn token_value_base_is_clamped_completions() {
+        let none = CampaignTokenBonuses {
+            token_multiplier: 1.0,
+            ..Default::default()
+        };
+        assert_eq!(campaign_token_value(0.0, 10.0, false, &none), 0.0);
+        assert_eq!(campaign_token_value(5.0, 10.0, false, &none), 5.0);
+        // Clamped to the limit.
+        assert_eq!(campaign_token_value(99.0, 10.0, false, &none), 10.0);
+    }
+
+    #[test]
+    fn token_value_applies_first_last_meta_and_floor() {
+        let bonuses = CampaignTokenBonuses {
+            first_completion_bonus: 5.0,
+            last_completion_bonus: 10.0,
+            token_multiplier: 1.02,
+        };
+        // 1 completion: (1 + 5)·1.02 = 6.12 → floor 6.
+        assert_eq!(campaign_token_value(1.0, 10.0, false, &bonuses), 6.0);
+        // Full completion: (10 + 5 + 10)·1.02 = 25.5 → floor 25.
+        assert_eq!(campaign_token_value(10.0, 10.0, false, &bonuses), 25.0);
+        // Meta doubles the multiplier: 25·2·1.02 = 51.
+        assert_eq!(campaign_token_value(10.0, 10.0, true, &bonuses), 51.0);
+    }
+
+    #[test]
+    fn inheritance_tokens_floor_is_singularity_5() {
+        // The legacy loop never tests index 0, so the level-2 → 1-token
+        // tier is unreachable — faithful quirk.
+        assert_eq!(inheritance_tokens(0.0), 0.0);
+        assert_eq!(inheritance_tokens(2.0), 0.0);
+        assert_eq!(inheritance_tokens(4.0), 0.0);
+        assert_eq!(inheritance_tokens(5.0), 10.0);
+        assert_eq!(inheritance_tokens(16.0), 25.0);
+        assert_eq!(inheritance_tokens(277.0), 750.0);
+    }
+
+    #[test]
+    fn singularity_bonus_token_mult_tiers() {
+        assert_eq!(singularity_bonus_token_mult(0.0), 1.0);
+        assert_eq!(singularity_bonus_token_mult(40.0), 1.0);
+        assert!((singularity_bonus_token_mult(41.0) - 1.02).abs() < 1e-12);
+        assert!((singularity_bonus_token_mult(229.0) - 1.1).abs() < 1e-12);
+    }
+
+    #[test]
+    fn campaign_tables_cover_all_fifty_campaigns() {
+        assert_eq!(CAMPAIGN_TOKEN_LIMITS.len(), CAMPAIGNS_LEN);
+        assert_eq!(CAMPAIGN_IS_META.len(), CAMPAIGNS_LEN);
+        // Spot anchors: first (10, not meta), second (10, meta),
+        // forty-ninth (125, not meta), fiftieth (140, meta).
+        assert_eq!(CAMPAIGN_TOKEN_LIMITS[0], 10.0);
+        assert!(!CAMPAIGN_IS_META[0]);
+        assert!(CAMPAIGN_IS_META[1]);
+        assert_eq!(CAMPAIGN_TOKEN_LIMITS[48], 125.0);
+        assert!(!CAMPAIGN_IS_META[48]);
+        assert_eq!(CAMPAIGN_TOKEN_LIMITS[49], 140.0);
+        assert!(CAMPAIGN_IS_META[49]);
     }
 
     #[test]

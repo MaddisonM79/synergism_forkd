@@ -69,8 +69,10 @@ flowchart LR
 
 - The reset cascade through **ascension is complete and faithful**, including the corruption-effects
   and extinction divisor used by the ascension award.
-- ✅ **Singularity is live**: `perform_singularity_reset` (`ResetRequest::Singularity`, gated on the
-  antiquities rune) grants `calculateGoldenQuarks` and rebuilds the player from `GameState::default()`
-  preserving meta-progression. Auto-climb count advance; elevator triad + challenge entry deferred.
-  See [singularity-ambrosia.md](singularity-ambrosia.md).
+- ✅ **Singularity is live — nothing deferred**: `perform_singularity_reset`
+  (`ResetRequest::Singularity`, gated on the antiquities rune) grants `calculateGoldenQuarks` and
+  rebuilds the player from `GameState::default()` preserving meta-progression. The elevator triad
+  drives the count advance (locked / slow-climb / auto-climb; slowClimb is the blankSave default),
+  the exalt enter/exit loop and the teleport ride the explicit-jump path, and quarks survive under
+  the limitedTime `preserveQuarks` reward. See [singularity-ambrosia.md](singularity-ambrosia.md).
 - Counts increment by a flat `+1` rather than `floor(multiplier)` (medium finding **P1.6**).
