@@ -210,15 +210,6 @@ fn CoinProducerCard(index: u8) -> Element {
         let action = derive::producer_buy(&bridge.state.peek(), ProducerType::Coin, index, amount);
         bridge.dispatch(action);
     };
-    let buy_max = move |_| {
-        let action = derive::producer_buy(
-            &bridge.state.peek(),
-            ProducerType::Coin,
-            index,
-            BuyAmount::Max,
-        );
-        bridge.dispatch(action);
-    };
 
     rsx! {
         div { class: "sf-card",
@@ -237,7 +228,6 @@ fn CoinProducerCard(index: u8) -> Element {
             }
             div { class: "sf-card-actions",
                 button { disabled: !affordable(), onclick: buy, {t("buildings.buy")} }
-                button { disabled: !affordable(), onclick: buy_max, {t("buildings.buy_max")} }
             }
         }
     }
