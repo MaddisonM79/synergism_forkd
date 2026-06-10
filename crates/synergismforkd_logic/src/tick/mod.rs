@@ -22,9 +22,11 @@
 //!    fresh costs.
 //! 4. **Resource generation** — calls [`resource_gain`] and writes its
 //!    result back into the corresponding [`GameState`] slices.
-//! 5. **Automation** — stubbed; head/middle/tail content (timers,
-//!    auto-research, rune/ant sacrifice, addObtainium/Offerings, challenge
-//!    sweep, auto-reset) lands as those mechanics port.
+//! 5. **Automation** — head/middle/tail, fully wired (see
+//!    [`phase_automation`]): head timers; the middle's rune/ant sacrifice,
+//!    addObtainium, and auto-research; the tail's addOfferings, challenge
+//!    sweep, and auto-resets. `time_warp` ticks skip head + middle and run
+//!    only the tail (the offline-catch-up mode).
 //!
 //! Boundary: this module produces a flat [`TickOutput`] event stream.
 //! Modal dispatch, audio cues, save serialization, and i18n live in the

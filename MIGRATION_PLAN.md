@@ -6,7 +6,7 @@ Untracked scratch at the worktree root — keep or delete freely.
 
 # Synergism Forkd — Logic Migration & Parity Remediation Plan
 
-**Scope:** logic conversion only (`crates/synergismforkd_logic`). No UI/HUD. Parity target = the TS monolith (`legacy/original/src`), with the extracted package (`legacy/core_split/packages/logic`) as the function-level reference. Source of findings: [PARITY_AUDIT.md](PARITY_AUDIT.md).
+**Scope:** logic conversion only (`crates/synergismforkd_logic`). No UI/HUD. Parity target = the TS monolith (`legacy/original/src`), with the extracted package (`legacy/core_split/packages/logic`) as the function-level reference. Source of findings: the 2026-06-06 parity audit (`PARITY_AUDIT.md`, since deleted — all findings resolved; see `docs/systems/ui-readiness.md`).
 
 ## Guiding principles (apply to every item)
 

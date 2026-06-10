@@ -9,7 +9,7 @@ porting notes.
   `Reset.ts`, `Runes.ts`, `Cubes.ts`/`Platonic.ts`, `Hepteracts.ts`, `Achievements.ts`,
   `singularity.ts`). Key edges were spot-checked against source, not taken from memory.
 - **Colors** = current Rust port status in `crates/synergismforkd_logic/src/…`, reconciled with the
-  repo-root [`PARITY_AUDIT.md`](../../PARITY_AUDIT.md). **Snapshot: `main` @ 2026-06-08 (incl. PR #265) +
+  (since-superseded) 2026-06-06 parity audit. **Snapshot: `main` @ 2026-06-08 (incl. PR #265) +
   branch `claude/nifty-colden-ef7278` (PR #269)** — the latter adds the `updateAll` autobuyers, the
   save export/import + on-load recompute (**H5 fixed**), and the achievement award groups.
 
@@ -37,6 +37,7 @@ porting notes.
 | [singularity-ambrosia.md](singularity-ambrosia.md) | singularity reset, golden quarks, octeracts, perks; ambrosia / blueberry / red-ambrosia | 🟩 mostly |
 | [meta-economy.md](meta-economy.md) | quarks, shop, potions, purchases, codes, achievements, statistics/history | 🟩 mostly |
 | [infrastructure.md](infrastructure.md) | game loop, calculate engine, state schema, events, save, UI, automation, RNG | 🟨 |
+| [ui-readiness.md](ui-readiness.md) | source-verified UI-readiness audit: what's complete, the offline-catch-up gap, deferral list | 🟩 ready |
 
 ## Overview
 
@@ -89,7 +90,9 @@ flowchart LR
 ## Open parity bugs
 
 **None.** Every HIGH finding from the audit is now fixed in code, each verified against
-`crates/synergismforkd_logic/`. Full audit detail in [`PARITY_AUDIT.md`](../../PARITY_AUDIT.md).
+`crates/synergismforkd_logic/`. (The original `PARITY_AUDIT.md` scratch doc has been deleted —
+its findings were all resolved and it had begun misleading readers; see
+[ui-readiness.md](ui-readiness.md) for the current assessment.)
 
 Fixed since the audit (shown green): **C1** global-speed mult, **C2** c10→ascension unlock,
 **H6** cube-opening, **H7** ant-sacrifice; via PR #265 **P1.4** C15 accrual / **H3** rune
