@@ -1,8 +1,9 @@
-//! Synergism Forkd — WASM entry point.
+//! Synergism Forkd — browser shell.
 //!
-//! Built as `cdylib` for `wasm32-unknown-unknown`; mounts the
-//! `synergismforkd_ui` Dioxus root component into the page. Also built
-//! as `rlib` so the desktop crate can depend on it.
+//! The `dx`-built bin target (`main.rs`) calls [`run`] on
+//! `wasm32-unknown-unknown` to mount the `synergismforkd_ui` Dioxus tree.
+//! The lib form exists for native unit tests (SaveHost) and any host that
+//! wants the persistence seam.
 //!
 //! Hosts the [`save_host`] seam: `localStorage` persistence + the autosave
 //! loop that drives the headless game logic and the fresh save format on the

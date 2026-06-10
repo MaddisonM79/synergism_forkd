@@ -76,6 +76,8 @@ use crate::state::{GameState, RngPurpose, RUNE_COUNT, TALISMAN_COUNT};
 mod ant_generation;
 mod ant_sacrifice;
 mod auto_buy;
+
+pub use auto_buy::{producer_cost_input, reduction_value};
 mod auto_research;
 mod auto_reset;
 mod automatic_tools;

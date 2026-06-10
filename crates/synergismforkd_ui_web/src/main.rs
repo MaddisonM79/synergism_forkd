@@ -12,6 +12,15 @@ use synergismforkd_save as _;
 use synergismforkd_ui as _;
 #[cfg(not(target_arch = "wasm32"))]
 use synergismforkd_ui_web as _;
+#[cfg(target_arch = "wasm32")]
+mod wasm_dep_silencers {
+    use getrandom as _;
+    use gloo_timers as _;
+    use js_sys as _;
+    use serde_json as _;
+    use wasm_bindgen_futures as _;
+    use web_sys as _;
+}
 
 fn main() {
     #[cfg(target_arch = "wasm32")]

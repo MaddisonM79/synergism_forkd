@@ -8,8 +8,10 @@ license.workspace = true
 repository.workspace = true
 publish = false
 
+# rlib only: `dx` builds the bin target (src/main.rs) for the browser, and
+# a cdylib here would collide with the bin's wasm output filename.
 [lib]
-crate-type = ["cdylib", "rlib"]
+crate-type = ["rlib"]
 
 [dependencies]
 synergismforkd_ui = { path = "../synergismforkd_ui" }

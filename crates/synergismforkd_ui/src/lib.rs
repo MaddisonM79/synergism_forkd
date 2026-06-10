@@ -10,6 +10,7 @@ use synergismforkd_common as _;
 pub mod app;
 pub mod bridge;
 pub mod components;
+pub mod derive;
 pub mod events_map;
 pub mod format;
 pub mod gating;
