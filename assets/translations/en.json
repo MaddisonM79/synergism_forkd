@@ -30,6 +30,9 @@
   "achievements.earned": "earned",
   "achievements.points": "points",
   "achievements.ap": "AP",
+  "achievements.hover_hint": "Hover over an achievement to see what it is.",
+  "achievements.completed": "COMPLETED",
+  "achievements.locked": "Locked",
 
   "hud.coins": "Coins",
   "hud.diamonds": "Diamonds",
