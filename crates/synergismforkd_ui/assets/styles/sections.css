@@ -1,0 +1,64 @@
+/* Per-section layout. Density target: Buildings fully visible without
+ * scrolling at 1280×800. */
+
+.sf-section-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  margin-bottom: var(--space-4);
+}
+
+.sf-section-head h1 {
+  margin: 0;
+  font-size: var(--fs-xl);
+  flex: 1;
+}
+
+/* Buildings: producer cards + the accelerator/multiplier/prestige row. */
+
+.sf-buildings-meta {
+  display: flex;
+  gap: var(--space-4);
+  margin-top: var(--space-5);
+  flex-wrap: wrap;
+}
+
+.sf-buildings-meta .sf-card {
+  flex: 1;
+  min-width: 220px;
+}
+
+.sf-prestige-btn {
+  background: var(--accent-production);
+  border-color: var(--accent-production);
+  color: var(--text-inverse);
+  font-weight: 700;
+}
+
+/* Settings */
+
+.sf-settings-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  max-width: 560px;
+}
+
+.sf-settings-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  background: var(--bg-surface);
+  border: var(--bw) solid var(--border);
+  border-radius: var(--radius-md);
+  padding: var(--space-4);
+}
+
+.sf-settings-row .text {
+  flex: 1;
+}
+
+.sf-settings-row .hint {
+  color: var(--text-muted);
+  font-size: var(--fs-xs);
+}

@@ -1,0 +1,70 @@
+/* App shell layout + element defaults. */
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+}
+
+.sf-app {
+  display: grid;
+  grid-template-columns: var(--rail-w) 1fr;
+  grid-template-rows: var(--hud-h) var(--subnav-h) 1fr;
+  grid-template-areas:
+    "rail hud"
+    "rail subnav"
+    "rail content";
+  height: 100vh;
+  background: var(--bg-app);
+  color: var(--text);
+  font-family: var(--font-ui);
+  font-size: var(--fs-md);
+  line-height: 1.35;
+}
+
+/* Every number on screen: tabular so columns don't jitter at 20 Hz. */
+.sf-num {
+  font-family: var(--font-num);
+  font-variant-numeric: tabular-nums;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+  background: var(--bg-raised);
+  border: var(--bw) solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: var(--space-2) var(--space-4);
+  cursor: pointer;
+  transition: background var(--t-fast), border-color var(--t-fast);
+}
+
+button:hover:not(:disabled) {
+  background: var(--bg-hover);
+  border-color: var(--border-strong);
+}
+
+button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+input[type="text"],
+textarea {
+  font: inherit;
+  color: var(--text);
+  background: var(--bg-app);
+  border: var(--bw) solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: var(--space-2) var(--space-3);
+}
+
+::selection {
+  background: var(--info);
+  color: var(--text-inverse);
+}

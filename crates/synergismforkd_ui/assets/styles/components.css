@@ -1,0 +1,384 @@
+/* Shared component styles. One class family per component, tokens only. */
+
+/* ---- Nav rail ---- */
+
+.sf-rail {
+  grid-area: rail;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-4) var(--space-3);
+  background: var(--bg-surface);
+  border-right: var(--bw) solid var(--border);
+  z-index: var(--z-nav);
+}
+
+.sf-rail-title {
+  font-size: var(--fs-lg);
+  font-weight: 700;
+  padding: 0 var(--space-3) var(--space-4);
+}
+
+.sf-rail-btn {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  text-align: left;
+  background: transparent;
+  border: var(--bw) solid transparent;
+  border-left: 3px solid transparent;
+  padding: var(--space-3) var(--space-4);
+  font-size: var(--fs-md);
+}
+
+.sf-rail-btn:hover:not(:disabled) {
+  background: var(--bg-hover);
+  border-color: transparent;
+}
+
+.sf-rail-btn.active {
+  background: var(--bg-raised);
+  border-left-color: var(--accent, var(--info));
+  font-weight: 600;
+}
+
+.sf-rail-btn .sf-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent, var(--text-muted));
+}
+
+/* ---- Sub nav ---- */
+
+.sf-subnav {
+  grid-area: subnav;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 0 var(--space-5);
+  background: var(--bg-surface);
+  border-bottom: var(--bw) solid var(--border);
+}
+
+.sf-subnav-btn {
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  padding: var(--space-2) var(--space-4);
+  font-size: var(--fs-sm);
+  color: var(--text-muted);
+}
+
+.sf-subnav-btn:hover:not(:disabled) {
+  background: transparent;
+  color: var(--text);
+}
+
+.sf-subnav-btn.active {
+  color: var(--text);
+  border-bottom-color: var(--accent, var(--info));
+  font-weight: 600;
+}
+
+/* ---- HUD ---- */
+
+.sf-hud {
+  grid-area: hud;
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  padding: 0 var(--space-5);
+  background: var(--bg-surface);
+  border-bottom: var(--bw) solid var(--border);
+}
+
+.sf-hud-spacer {
+  flex: 1;
+}
+
+.sf-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-3);
+  background: var(--bg-raised);
+  border: var(--bw) solid var(--border);
+  border-radius: var(--radius-md);
+  font-size: var(--fs-sm);
+}
+
+.sf-chip .sf-chip-rate {
+  color: var(--text-muted);
+  font-size: var(--fs-xs);
+}
+
+/* ---- Content area ---- */
+
+.sf-content {
+  grid-area: content;
+  overflow-y: auto;
+  padding: var(--space-5);
+}
+
+.sf-placeholder {
+  color: var(--text-muted);
+  padding: var(--space-6);
+  text-align: center;
+}
+
+/* ---- Cards ---- */
+
+.sf-card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: var(--space-4);
+}
+
+.sf-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  background: var(--bg-surface);
+  border: var(--bw) solid var(--border);
+  border-radius: var(--radius-md);
+  padding: var(--space-4);
+}
+
+.sf-card-title {
+  font-weight: 600;
+  font-size: var(--fs-sm);
+}
+
+.sf-card-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  font-size: var(--fs-sm);
+}
+
+.sf-card-row .label {
+  color: var(--text-muted);
+  font-size: var(--fs-xs);
+}
+
+.sf-card-actions {
+  display: flex;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+}
+
+.sf-card-actions button {
+  flex: 1;
+  font-size: var(--fs-sm);
+  padding: var(--space-2) var(--space-2);
+}
+
+/* ---- Resource icon ---- */
+
+.sf-icon {
+  display: inline-flex;
+  width: 1em;
+  height: 1em;
+  vertical-align: -0.125em;
+}
+
+.sf-icon svg {
+  width: 100%;
+  height: 100%;
+}
+
+/* ---- Segmented toggle (buy amount) ---- */
+
+.sf-seg {
+  display: inline-flex;
+  border: var(--bw) solid var(--border);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+
+.sf-seg button {
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  padding: var(--space-1) var(--space-3);
+  font-size: var(--fs-xs);
+}
+
+.sf-seg button.active {
+  background: var(--bg-raised);
+  font-weight: 700;
+}
+
+/* ---- Tooltip ---- */
+
+.sf-tip-wrap {
+  position: relative;
+}
+
+.sf-tip {
+  position: absolute;
+  bottom: calc(100% + var(--space-2));
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--bg-raised);
+  border: var(--bw) solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  padding: var(--space-2) var(--space-3);
+  font-size: var(--fs-xs);
+  white-space: nowrap;
+  visibility: hidden;
+  opacity: 0;
+  transition: opacity var(--t-fast) 150ms;
+  z-index: var(--z-tooltip);
+  pointer-events: none;
+}
+
+.sf-tip-wrap:hover .sf-tip,
+.sf-tip-wrap:focus-within .sf-tip {
+  visibility: visible;
+  opacity: 1;
+}
+
+/* ---- Dialogs ---- */
+
+.sf-dialog-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgb(0 0 0 / 55%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: var(--z-dialog);
+}
+
+.sf-dialog {
+  width: min(440px, 90vw);
+  background: var(--bg-surface);
+  border: var(--bw) solid var(--border-strong);
+  border-radius: var(--radius-md);
+  padding: var(--space-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.sf-dialog h2 {
+  margin: 0;
+  font-size: var(--fs-lg);
+}
+
+.sf-dialog .sf-dialog-body {
+  font-size: var(--fs-sm);
+  color: var(--text-muted);
+}
+
+.sf-dialog textarea {
+  width: 100%;
+  min-height: 72px;
+  resize: vertical;
+}
+
+.sf-dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-3);
+}
+
+.sf-dialog-actions .primary {
+  background: var(--info);
+  border-color: var(--info);
+  color: var(--text-inverse);
+}
+
+.sf-dialog-actions .danger {
+  background: var(--danger);
+  border-color: var(--danger);
+  color: var(--text-inverse);
+}
+
+/* ---- Progress bar ---- */
+
+.sf-progress {
+  height: 10px;
+  background: var(--bg-raised);
+  border: var(--bw) solid var(--border);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+
+.sf-progress > div {
+  height: 100%;
+  background: var(--info);
+  transition: width var(--t-fast);
+}
+
+/* ---- Toasts ---- */
+
+.sf-toast-stack {
+  position: fixed;
+  right: var(--space-5);
+  bottom: var(--space-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  z-index: var(--z-toast);
+}
+
+.sf-toast {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  background: var(--bg-raised);
+  border: var(--bw) solid var(--border-strong);
+  border-left-width: 3px;
+  border-radius: var(--radius-sm);
+  padding: var(--space-3) var(--space-4);
+  font-size: var(--fs-sm);
+  max-width: 340px;
+  animation: sf-toast-life 4s forwards;
+}
+
+.sf-toast.info {
+  border-left-color: var(--info);
+}
+
+.sf-toast.success {
+  border-left-color: var(--ok);
+}
+
+.sf-toast.warn {
+  border-left-color: var(--warn);
+}
+
+.sf-toast.achievement {
+  border-left-color: var(--accent-production);
+}
+
+.sf-toast button {
+  border: none;
+  background: transparent;
+  padding: 0 var(--space-1);
+  color: var(--text-muted);
+}
+
+@keyframes sf-toast-life {
+  0% {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+
+  4% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  88% {
+    opacity: 1;
+  }
+
+  100% {
+    opacity: 0;
+  }
+}

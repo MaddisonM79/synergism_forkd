@@ -1,0 +1,72 @@
+/* Color tokens per theme. Adding a theme = one new block + one Theme enum
+ * variant; no component changes. */
+
+.sf-app[data-theme="dark"] {
+  --bg-app: #0d1117;
+  --bg-surface: #151b24;
+  --bg-raised: #1c2433;
+  --bg-hover: #232d40;
+  --border: #2a3346;
+  --border-strong: #3c4658;
+  --text: #e6e9f0;
+  --text-muted: #97a1b4;
+  --text-inverse: #10141c;
+
+  --ok: #4caf78;
+  --warn: #e0a93d;
+  --danger: #e05d5d;
+  --info: #5fa8e0;
+
+  /* Group accents */
+  --accent-production: #d9a93d;
+  --accent-mystic: #a87fe0;
+  --accent-ascension: #5fb3f0;
+  --accent-singularity: #ef6292;
+  --accent-shop: #61b86b;
+  --accent-settings: #8a93a5;
+
+  /* Resource colors (ResourceIcon + chips) */
+  --res-coin: #e8c34a;
+  --res-diamond: #6fd9e8;
+  --res-mythos: #b387e8;
+  --res-particle: #f0945f;
+  --res-offering: #e87a6f;
+  --res-obtainium: #e86fb8;
+  --res-quark: #57d8d8;
+  --res-golden-quark: #f5d061;
+  --res-ambrosia: #7aa6f5;
+}
+
+.sf-app[data-theme="light"] {
+  --bg-app: #f2f4f8;
+  --bg-surface: #ffffff;
+  --bg-raised: #eef1f6;
+  --bg-hover: #e3e8f0;
+  --border: #d4dae4;
+  --border-strong: #b8c0ce;
+  --text: #1c2430;
+  --text-muted: #5d6778;
+  --text-inverse: #ffffff;
+
+  --ok: #2e8b57;
+  --warn: #b07d1a;
+  --danger: #c43d3d;
+  --info: #2f6fae;
+
+  --accent-production: #a87a14;
+  --accent-mystic: #7a4fc0;
+  --accent-ascension: #2278bd;
+  --accent-singularity: #c23a68;
+  --accent-shop: #2f8a3a;
+  --accent-settings: #5d6778;
+
+  --res-coin: #b8901a;
+  --res-diamond: #1f96aa;
+  --res-mythos: #8455c8;
+  --res-particle: #c96637;
+  --res-offering: #c2554a;
+  --res-obtainium: #b83d8a;
+  --res-quark: #1a9a9a;
+  --res-golden-quark: #b8961f;
+  --res-ambrosia: #3a66c2;
+}

@@ -7,10 +7,15 @@
 
 use synergismforkd_common as _;
 
+pub mod app;
 pub mod bridge;
+pub mod components;
 pub mod format;
 pub mod gating;
+pub mod hud;
 pub mod i18n;
+pub mod nav;
+pub mod sections;
 pub mod theme;
 
-pub fn placeholder() {}
+pub use app::App;

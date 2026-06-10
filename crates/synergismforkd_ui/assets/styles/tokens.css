@@ -1,0 +1,42 @@
+/* Design tokens — theme-independent. Color tokens live in themes.css,
+ * keyed off the data-theme attribute the app root renders. Components
+ * consume tokens only; no raw values outside this layer. */
+
+.sf-app {
+  /* Spacing (px) */
+  --space-1: 2px;
+  --space-2: 4px;
+  --space-3: 8px;
+  --space-4: 12px;
+  --space-5: 16px;
+  --space-6: 24px;
+
+  /* Radii / borders */
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --bw: 1px;
+
+  /* Typography. All numerals tabular so HUD/cards don't jitter. */
+  --font-ui: "Segoe UI", system-ui, -apple-system, sans-serif;
+  --font-num: var(--font-ui);
+  --fs-xs: 11px;
+  --fs-sm: 12.5px;
+  --fs-md: 14px;
+  --fs-lg: 16px;
+  --fs-xl: 20px;
+
+  /* Motion */
+  --t-fast: 120ms ease;
+  --t-med: 250ms ease;
+
+  /* Z layers */
+  --z-nav: 10;
+  --z-tooltip: 40;
+  --z-dialog: 50;
+  --z-toast: 60;
+
+  /* Layout */
+  --rail-w: 168px;
+  --hud-h: 44px;
+  --subnav-h: 36px;
+}
