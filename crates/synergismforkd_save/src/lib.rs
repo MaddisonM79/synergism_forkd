@@ -33,14 +33,21 @@
 //! as u32; etc. There is no `SavedNumber`.
 
 use base64::prelude::{Engine as _, BASE64_STANDARD};
-use postcard::{from_bytes, to_allocvec};
+use postcard::{from_bytes, take_from_bytes, to_allocvec};
 use serde::{Deserialize, Serialize};
+use synergismforkd_bignum::Decimal;
 use synergismforkd_common as _;
+use synergismforkd_logic::mechanics::rune_data::{RuneUpgradeKind, CORE_RUNE_COUNT};
+use synergismforkd_logic::mechanics::rune_upgrade_progression::rune_upgrade_exp_to_level;
+use synergismforkd_logic::state::*;
 use synergismforkd_logic::{recompute_achievement_points, seed_blank_save, GameState};
 
 /// Current save schema version. Bump when a breaking schema change ships
 /// and a new `SaveV<N>` migration arm is added.
-pub const CURRENT_VERSION: u16 = 1;
+///
+/// - **v1**: pre-rune-EXP `GameState` (no blessing/spirit EXP).
+/// - **v2**: adds `RunesState::rune_blessing_exp` / `rune_spirit_exp`.
+pub const CURRENT_VERSION: u16 = 2;
 
 /// Wire-format envelope. The first thing serialized in every save; the
 /// `version` field is how a reader knows which `SaveV<N>` shape follows.
@@ -53,10 +60,18 @@ pub const CURRENT_VERSION: u16 = 1;
 /// [`load_with_meta`] to compute offline-elapsed on load. `None` when the save
 /// was written without a timestamp (the plain [`save`] path).
 #[derive(Debug, Clone, Serialize, Deserialize)]
-struct SaveEnvelope {
+struct SaveEnvelope<P> {
     version: u16,
-    payload: SaveV1,
+    payload: P,
     saved_at_ms: Option<u64>,
+}
+
+/// Decodes just the leading `version` field. Postcard is positional, so the
+/// `version` (the envelope's first field) reads first; this lets [`load`]
+/// route to the right `SaveV<N>` payload shape before decoding the rest.
+#[derive(Deserialize)]
+struct VersionPeek {
+    version: u16,
 }
 
 /// Transport-level metadata recovered from a save, independent of the
@@ -69,17 +84,159 @@ pub struct SaveMeta {
     pub saved_at_ms: Option<u64>,
 }
 
-/// Save schema version 1 — today, equal to [`GameState`] verbatim.
-///
-/// At the first schema break, `SaveV1` stays frozen at its current shape
-/// (so old saves can still be read) and a new `SaveV2` struct gets
-/// introduced. A `From<SaveV1> for SaveV2` impl handles the migration.
+/// Save schema version 2 — the live [`GameState`] shape (the current writer
+/// always emits this).
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct SaveV1 {
-    /// Composed game state. Today this is the live [`GameState`]; once a
-    /// schema break ships, this field becomes a stable mirror that
-    /// records what `GameState` looked like at v1.
-    pub state: GameState,
+struct SaveV2 {
+    state: GameState,
+}
+
+/// Save schema version 1 — **frozen** at the pre-rune-EXP shape. Loaded only
+/// when migrating an old save; [`GameStateV1`] mirrors what `GameState` looked
+/// like before the blessing/spirit EXP fields were added. Migrated to the live
+/// state via `From<GameStateV1> for GameState`.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct SaveV1 {
+    state: GameStateV1,
+}
+
+/// Frozen v1 [`GameState`] mirror. Field order **must** match the v1 wire
+/// layout (postcard is positional): identical to the live `GameState` except
+/// `runes` is the pre-EXP [`RunesStateV1`]. Every other slice type is unchanged
+/// since v1, so they reuse the live types.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct GameStateV1 {
+    accelerator: AcceleratorState,
+    achievements: AchievementsState,
+    ambrosia: AmbrosiaState,
+    ants: AntsState,
+    automation: AutomationState,
+    cube_blessings: BlessingValues,
+    tesseract_blessings: BlessingValues,
+    hypercube_blessings: BlessingValues,
+    platonic_blessings: PlatonicBlessings,
+    campaigns: CampaignsState,
+    challenges: ChallengesState,
+    coin_counters: CoinCountersState,
+    corruptions: CorruptionsState,
+    crystal_upgrades: CrystalUpgradesState,
+    cube_balances: CubeBalancesState,
+    cube_upgrade_levels: CubeUpgradeLevelsState,
+    event_buffs: EventBuffsState,
+    g_cache: GCacheState,
+    golden_quarks: GoldenQuarksState,
+    hepteracts: HepteractsState,
+    level: LevelState,
+    multiplier: MultiplierState,
+    octeract_upgrades: OcteractUpgradesState,
+    particle_buildings: ParticleBuildingsState,
+    coin_producers: ProducerFamilyState,
+    diamond_producers: ProducerFamilyState,
+    mythos_producers: ProducerFamilyState,
+    particle_producers: ProducerFamilyState,
+    quarks: QuarksState,
+    red_ambrosia: RedAmbrosiaState,
+    researches: ResearchesState,
+    reset_counters: ResetCountersState,
+    rng: RngState,
+    runes: RunesStateV1,
+    shop: ShopState,
+    singularity: SingularityState,
+    talismans: TalismansState,
+    tesseract_buildings: TesseractBuildingsState,
+    upgrades: UpgradesState,
+}
+
+/// Frozen v1 [`RunesState`] mirror — the shape before `rune_blessing_exp` /
+/// `rune_spirit_exp` were added. Field order matches the v1 wire layout.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct RunesStateV1 {
+    rune_levels: [f64; RUNE_COUNT],
+    rune_exp: [f64; RUNE_COUNT],
+    rune_shards: Decimal,
+    rune_blessing_levels: [f64; RUNE_COUNT],
+    rune_spirit_levels: [f64; RUNE_COUNT],
+    rune_free_levels: [f64; RUNE_COUNT],
+}
+
+impl From<GameStateV1> for GameState {
+    fn from(v: GameStateV1) -> Self {
+        GameState {
+            runes: migrate_runes_v1(v.runes),
+            accelerator: v.accelerator,
+            achievements: v.achievements,
+            ambrosia: v.ambrosia,
+            ants: v.ants,
+            automation: v.automation,
+            cube_blessings: v.cube_blessings,
+            tesseract_blessings: v.tesseract_blessings,
+            hypercube_blessings: v.hypercube_blessings,
+            platonic_blessings: v.platonic_blessings,
+            campaigns: v.campaigns,
+            challenges: v.challenges,
+            coin_counters: v.coin_counters,
+            corruptions: v.corruptions,
+            crystal_upgrades: v.crystal_upgrades,
+            cube_balances: v.cube_balances,
+            cube_upgrade_levels: v.cube_upgrade_levels,
+            event_buffs: v.event_buffs,
+            g_cache: v.g_cache,
+            golden_quarks: v.golden_quarks,
+            hepteracts: v.hepteracts,
+            level: v.level,
+            multiplier: v.multiplier,
+            octeract_upgrades: v.octeract_upgrades,
+            particle_buildings: v.particle_buildings,
+            coin_producers: v.coin_producers,
+            diamond_producers: v.diamond_producers,
+            mythos_producers: v.mythos_producers,
+            particle_producers: v.particle_producers,
+            quarks: v.quarks,
+            red_ambrosia: v.red_ambrosia,
+            researches: v.researches,
+            reset_counters: v.reset_counters,
+            rng: v.rng,
+            shop: v.shop,
+            singularity: v.singularity,
+            talismans: v.talismans,
+            tesseract_buildings: v.tesseract_buildings,
+            upgrades: v.upgrades,
+        }
+    }
+}
+
+/// v1 → v2 runes migration: copy the existing fields and seed the new
+/// blessing/spirit EXP arrays from the stored *level* — `expToLevel(level)` —
+/// so the level survives the round-trip through `levelFromEXP` (seeding `0`
+/// would reset a non-zero level to 0). Only the five core runes have
+/// blessings/spirits; the rest stay `0`.
+fn migrate_runes_v1(v: RunesStateV1) -> RunesState {
+    let mut rune_blessing_exp = [0.0_f64; RUNE_COUNT];
+    let mut rune_spirit_exp = [0.0_f64; RUNE_COUNT];
+    for i in 0..CORE_RUNE_COUNT {
+        rune_blessing_exp[i] = rune_upgrade_exp_to_level(
+            RuneUpgradeKind::Blessing.cost_coefficient(i),
+            v.rune_blessing_levels[i],
+            RuneUpgradeKind::Blessing.levels_per_oom(i),
+        )
+        .to_number();
+        rune_spirit_exp[i] = rune_upgrade_exp_to_level(
+            RuneUpgradeKind::Spirit.cost_coefficient(i),
+            v.rune_spirit_levels[i],
+            RuneUpgradeKind::Spirit.levels_per_oom(i),
+        )
+        .to_number();
+    }
+    RunesState {
+        rune_levels: v.rune_levels,
+        rune_exp: v.rune_exp,
+        rune_shards: v.rune_shards,
+        rune_blessing_levels: v.rune_blessing_levels,
+        rune_blessing_exp,
+        rune_spirit_levels: v.rune_spirit_levels,
+        rune_spirit_exp,
+        rune_free_levels: v.rune_free_levels,
+    }
 }
 
 /// Errors from [`save`] / [`load`].
@@ -160,7 +317,7 @@ pub fn save(state: &GameState) -> Result<Vec<u8>, SaveError> {
 pub fn save_at(state: &GameState, saved_at_ms: Option<u64>) -> Result<Vec<u8>, SaveError> {
     let envelope = SaveEnvelope {
         version: CURRENT_VERSION,
-        payload: SaveV1 {
+        payload: SaveV2 {
             state: state.clone(),
         },
         saved_at_ms,
@@ -196,16 +353,29 @@ pub fn load(bytes: &[u8]) -> Result<GameState, SaveError> {
 /// - [`SaveError::UnknownVersion`] if the header reports a version greater than
 ///   [`CURRENT_VERSION`] (a save written by a newer build).
 pub fn load_with_meta(bytes: &[u8]) -> Result<(GameState, SaveMeta), SaveError> {
-    let envelope: SaveEnvelope = from_bytes(bytes)?;
-    if envelope.version > CURRENT_VERSION {
-        return Err(SaveError::UnknownVersion(envelope.version));
+    // Peek the leading version field, then decode the matching payload shape
+    // and run the migration chain up to the current version.
+    let (peek, _) = take_from_bytes::<VersionPeek>(bytes)?;
+    if peek.version > CURRENT_VERSION {
+        return Err(SaveError::UnknownVersion(peek.version));
     }
-    // Single-arm dispatch today; the migration chain ladder lives here
-    // when v2+ lands.
-    let meta = SaveMeta {
-        saved_at_ms: envelope.saved_at_ms,
-    };
-    Ok((envelope.payload.state, meta))
+    match peek.version {
+        1 => {
+            let envelope: SaveEnvelope<SaveV1> = from_bytes(bytes)?;
+            let meta = SaveMeta {
+                saved_at_ms: envelope.saved_at_ms,
+            };
+            Ok((GameState::from(envelope.payload.state), meta))
+        }
+        // 2 (CURRENT) — and any unreachable lower version decodes as latest.
+        _ => {
+            let envelope: SaveEnvelope<SaveV2> = from_bytes(bytes)?;
+            let meta = SaveMeta {
+                saved_at_ms: envelope.saved_at_ms,
+            };
+            Ok((envelope.payload.state, meta))
+        }
+    }
 }
 
 /// Encode a [`GameState`] to a portable base64 string — the user-facing export
@@ -414,6 +584,120 @@ mod tests {
         assert_eq!(meta.saved_at_ms, Some(42));
         // H5 recompute still runs on the meta import path.
         assert_eq!(restored.achievements.achievement_points, 5.0);
+    }
+
+    #[test]
+    fn migrate_runes_v1_seeds_exp_from_level() {
+        use synergismforkd_logic::mechanics::rune_upgrade_progression::rune_upgrade_level_from_exp;
+
+        let mut rune_blessing_levels = [0.0_f64; RUNE_COUNT];
+        let mut rune_spirit_levels = [0.0_f64; RUNE_COUNT];
+        rune_blessing_levels[0] = 8.0; // speed blessing
+        rune_spirit_levels[0] = 4.0; // speed spirit
+        let migrated = migrate_runes_v1(RunesStateV1 {
+            rune_levels: [0.0; RUNE_COUNT],
+            rune_exp: [0.0; RUNE_COUNT],
+            rune_shards: Decimal::zero(),
+            rune_blessing_levels,
+            rune_spirit_levels,
+            rune_free_levels: [0.0; RUNE_COUNT],
+        });
+
+        // Levels survive the migration…
+        assert_eq!(migrated.rune_blessing_levels[0], 8.0);
+        assert_eq!(migrated.rune_spirit_levels[0], 4.0);
+        // …and the seeded EXP re-derives the same level (seeding 0 would reset it).
+        let d = rune_upgrade_level_from_exp(
+            Decimal::from_finite(migrated.rune_blessing_exp[0]),
+            RuneUpgradeKind::Blessing.cost_coefficient(0),
+            RuneUpgradeKind::Blessing.levels_per_oom(0),
+        );
+        let level = if d.needs_float_bump {
+            d.levels + 1.0
+        } else {
+            d.levels
+        };
+        assert_eq!(level, 8.0);
+    }
+
+    #[test]
+    fn v1_save_blob_loads_and_migrates_to_current() {
+        // Build a frozen-v1 envelope with a non-zero speed-blessing level, encode
+        // it, and load through the version dispatch + migration.
+        let g = GameState::default();
+        let mut rune_blessing_levels = [0.0_f64; RUNE_COUNT];
+        rune_blessing_levels[0] = 6.0;
+        let v1_state = GameStateV1 {
+            accelerator: g.accelerator,
+            achievements: g.achievements,
+            ambrosia: g.ambrosia,
+            ants: g.ants,
+            automation: g.automation,
+            cube_blessings: g.cube_blessings,
+            tesseract_blessings: g.tesseract_blessings,
+            hypercube_blessings: g.hypercube_blessings,
+            platonic_blessings: g.platonic_blessings,
+            campaigns: g.campaigns,
+            challenges: g.challenges,
+            coin_counters: g.coin_counters,
+            corruptions: g.corruptions,
+            crystal_upgrades: g.crystal_upgrades,
+            cube_balances: g.cube_balances,
+            cube_upgrade_levels: g.cube_upgrade_levels,
+            event_buffs: g.event_buffs,
+            g_cache: g.g_cache,
+            golden_quarks: g.golden_quarks,
+            hepteracts: g.hepteracts,
+            level: g.level,
+            multiplier: g.multiplier,
+            octeract_upgrades: g.octeract_upgrades,
+            particle_buildings: g.particle_buildings,
+            coin_producers: g.coin_producers,
+            diamond_producers: g.diamond_producers,
+            mythos_producers: g.mythos_producers,
+            particle_producers: g.particle_producers,
+            quarks: g.quarks,
+            red_ambrosia: g.red_ambrosia,
+            researches: g.researches,
+            reset_counters: g.reset_counters,
+            rng: g.rng,
+            runes: RunesStateV1 {
+                rune_levels: [0.0; RUNE_COUNT],
+                rune_exp: [0.0; RUNE_COUNT],
+                rune_shards: Decimal::zero(),
+                rune_blessing_levels,
+                rune_spirit_levels: [0.0; RUNE_COUNT],
+                rune_free_levels: [0.0; RUNE_COUNT],
+            },
+            shop: g.shop,
+            singularity: g.singularity,
+            talismans: g.talismans,
+            tesseract_buildings: g.tesseract_buildings,
+            upgrades: g.upgrades,
+        };
+        let envelope = SaveEnvelope {
+            version: 1,
+            payload: SaveV1 { state: v1_state },
+            saved_at_ms: Some(123),
+        };
+        let bytes = to_allocvec(&envelope).expect("encode v1 envelope");
+
+        let (restored, meta) = load_with_meta(&bytes).expect("load v1 blob");
+        assert_eq!(meta.saved_at_ms, Some(123));
+        // The blessing level survived migration, and its EXP was seeded.
+        assert_eq!(restored.runes.rune_blessing_levels[0], 6.0);
+        assert!(restored.runes.rune_blessing_exp[0] > 0.0);
+    }
+
+    #[test]
+    fn current_v2_save_round_trips_blessing_spirit_exp() {
+        let mut original = GameState::default();
+        original.runes.rune_blessing_exp[0] = 1234.5;
+        original.runes.rune_spirit_exp[1] = 6789.0;
+        let bytes = save(&original).expect("save v2");
+        let restored = load(&bytes).expect("load v2");
+        assert_eq!(restored.runes.rune_blessing_exp[0], 1234.5);
+        assert_eq!(restored.runes.rune_spirit_exp[1], 6789.0);
     }
 
     #[test]

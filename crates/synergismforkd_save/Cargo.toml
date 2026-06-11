@@ -11,12 +11,10 @@ publish = false
 [dependencies]
 synergismforkd_common = { path = "../synergismforkd_common" }
 synergismforkd_logic = { path = "../synergismforkd_logic" }
+synergismforkd_bignum = { path = "../synergismforkd_bignum" }
 serde = { workspace = true }
 postcard = { workspace = true }
 base64 = { workspace = true }
-
-[dev-dependencies]
-synergismforkd_bignum = { path = "../synergismforkd_bignum" }
 
 [lints]
 workspace = true
