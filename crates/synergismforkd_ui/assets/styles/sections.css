@@ -14,13 +14,54 @@
   flex: 1;
 }
 
-/* Buildings: producer cards + the accelerator/multiplier/prestige row. */
+/* Buildings: producer cards + the accelerator/multiplier row. */
 
 .sf-buildings-meta {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(220px, 280px));
   gap: var(--space-4);
   margin-top: var(--space-5);
+}
+
+/* Reset buttons (prestige/transcension/reincarnation) pinned above the
+ * producers, off the coin building row. */
+.sf-reset-strip {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 280px));
+  gap: var(--space-4);
+  margin-bottom: var(--space-5);
+}
+
+/* Right-side persistent status panel (reset gains + live stats). */
+.sf-stats {
+  grid-area: stats;
+  overflow-y: auto;
+  border-left: var(--bw) solid var(--border);
+  background: var(--bg-surface);
+  padding: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+.sf-stats-title {
+  font-size: var(--fs-lg);
+  font-weight: 700;
+}
+
+.sf-stats-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.sf-stats-head {
+  font-size: var(--fs-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+  border-bottom: var(--bw) solid var(--border);
+  padding-bottom: var(--space-1);
 }
 
 .sf-prestige-btn {
@@ -165,6 +206,108 @@
   border-color: var(--accent-production);
   color: var(--text-inverse);
   font-weight: 700;
+}
+
+/* ── Upgrades: dense square grid + shared detail card (Achievements-style) ── */
+.sf-upg-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(34px, 1fr));
+  gap: var(--space-2);
+}
+
+.sf-upg-cell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  aspect-ratio: 1;
+  border: var(--bw) solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-surface);
+  color: var(--text-muted);
+  font-size: var(--fs-xs);
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+  transition: background var(--t-fast), border-color var(--t-fast);
+}
+
+.sf-upg-cell:hover,
+.sf-upg-cell:focus-visible {
+  border-color: var(--accent-production);
+  outline: none;
+}
+
+/* Affordable-but-unowned: accent border to invite a click. */
+.sf-upg-cell.can {
+  border-color: var(--accent-production);
+  color: var(--text);
+}
+
+/* Owned: filled gold (matches the legacy "bought" treatment). */
+.sf-upg-cell.owned {
+  background: var(--accent-production);
+  border-color: var(--accent-production);
+  color: var(--text-inverse);
+  font-weight: 700;
+  cursor: default;
+}
+
+.sf-upg-detail {
+  min-height: 56px;
+  margin-bottom: var(--space-4);
+  padding: var(--space-3) var(--space-4);
+  border: var(--bw) solid var(--border);
+  border-left: 3px solid var(--accent-production);
+  border-radius: var(--radius-sm);
+  background: var(--bg-surface);
+}
+
+.sf-upg-detail.muted {
+  border-left-color: var(--border);
+  color: var(--text-muted);
+  font-size: var(--fs-sm);
+  display: flex;
+  align-items: center;
+}
+
+.sf-upg-detail-head {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-3);
+  margin-bottom: var(--space-1);
+}
+
+.sf-upg-detail-num {
+  font-variant-numeric: tabular-nums;
+  color: var(--text-muted);
+  font-weight: 700;
+}
+
+.sf-upg-detail-name {
+  font-weight: 700;
+}
+
+.sf-upg-status {
+  margin-left: auto;
+  font-size: var(--fs-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+}
+
+.sf-upg-status.owned {
+  color: var(--res-coin);
+  font-weight: 700;
+}
+
+.sf-upg-status.can {
+  color: var(--ok);
+  font-weight: 700;
+}
+
+.sf-upg-detail-effect {
+  font-size: var(--fs-sm);
+  color: var(--text-muted);
+  margin-top: var(--space-1);
 }
 
 /* Persistent detail box above the grid (replaces per-cell tooltips). */

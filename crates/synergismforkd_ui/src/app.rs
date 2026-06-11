@@ -12,6 +12,7 @@ use crate::components::{DialogLayer, ToastStack};
 use crate::hud::ResourceHud;
 use crate::nav::{GroupedNav, SubNav};
 use crate::sections::SectionView;
+use crate::stats::StatsPanel;
 
 /// Crate version, stamped at build time — shown in the corner badge.
 const VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -39,6 +40,7 @@ pub fn App() -> Element {
             ResourceHud {}
             SubNav {}
             SectionView {}
+            StatsPanel {}
             ToastStack {}
             DialogLayer {}
             div { class: "sf-version", "v{VERSION}" }

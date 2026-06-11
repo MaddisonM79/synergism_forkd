@@ -13,12 +13,12 @@ body {
 
 .sf-app {
   display: grid;
-  grid-template-columns: var(--rail-w) 1fr;
+  grid-template-columns: var(--rail-w) 1fr var(--stats-w);
   grid-template-rows: var(--hud-h) var(--subnav-h) 1fr;
   grid-template-areas:
-    "rail hud"
-    "rail subnav"
-    "rail content";
+    "rail hud     stats"
+    "rail subnav  stats"
+    "rail content stats";
   height: 100vh;
   background: var(--bg-app);
   color: var(--text);

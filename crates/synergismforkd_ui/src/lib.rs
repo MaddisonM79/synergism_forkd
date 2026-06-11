@@ -19,6 +19,7 @@ pub mod hud;
 pub mod i18n;
 pub mod nav;
 pub mod sections;
+pub mod stats;
 pub mod theme;
 
 pub use app::App;

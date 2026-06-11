@@ -388,5 +388,22 @@
   "upgrades.crystalEffects.5": "Diamond Building Production x{{x}}",
   "upgrades.crystal_level": "Level",
   "upgrades.crystal_currency": "crystals",
-  "upgrades.crystalUpgrades.heading": "Crystal Upgrades"
+  "upgrades.crystalUpgrades.heading": "Crystal Upgrades",
+  "stats.title": "Status",
+  "stats.resets": "Resets",
+  "stats.production": "Production",
+  "stats.systems": "Systems",
+  "stats.coins_per_sec": "Coins",
+  "stats.tax_divisor": "Tax divisor",
+  "stats.building_power": "Building power",
+  "stats.speed": "Game speed",
+  "stats.total_mult": "Total multiplier",
+  "stats.global_mythos": "Mythos multiplier",
+  "upgrades.hover_hint": "Hover or focus an upgrade to see its details.",
+  "upgrades.status_affordable": "Affordable",
+  "upgrades.status_locked": "Locked",
+  "upgrades.crystalFormula.1": "(1 + level / 100)^(AP)",
+  "upgrades.crystalFormula.2": "(1 + level * log10(Coins + 1) / 100)^(2 + log2(level + 1))",
+  "upgrades.crystalFormula.3": "(1 + Bonus%)^(Diamond Buildings Bought)",
+  "upgrades.crystalFormula.5": "(1 + level / 20)^(Transcension Challenges Completed)"
 }

@@ -26,12 +26,33 @@ pub fn Buildings() -> Element {
     // The legacy `coinunlock3` gate: the buy-amount selector is itself a
     // progression reward (coins ≥ 1e5).
     let amounts_unlocked = use_slice(|s| s.reset_counters.coin_three_unlocked);
+    // Reset gates (lifted here so the reset buttons sit in a strip above the
+    // producers rather than mixed into the coin building row). Prestige reveals
+    // at coins ≥ 4e6; transcension after a prestige; reincarnation after a
+    // transcension (mirrors the reset progression).
+    let show_prestige = use_slice(|s| s.reset_counters.coin_four_unlocked);
+    let show_transcend = use_slice(|s| s.reset_counters.prestige_unlocked);
+    let show_reincarnate = use_slice(|s| s.reset_counters.transcend_unlocked);
+    let any_reset = show_prestige() || show_transcend() || show_reincarnate();
 
     rsx! {
         div { class: "sf-section-head",
             h1 { {t("nav.section.buildings")} }
             if amounts_unlocked() {
                 BuyAmountToggle {}
+            }
+        }
+        if any_reset {
+            div { class: "sf-reset-strip",
+                if show_prestige() {
+                    ResetCard { tier: ResetTier::Prestige }
+                }
+                if show_transcend() {
+                    ResetCard { tier: ResetTier::Transcension }
+                }
+                if show_reincarnate() {
+                    ResetCard { tier: ResetTier::Reincarnation }
+                }
             }
         }
         Collapsible { title: t("buildings.subtab.coin").to_string(),
@@ -85,11 +106,6 @@ fn CoinBuildings() -> Element {
     });
     let show_accelerators = use_slice(|s| s.reset_counters.coin_one_unlocked);
     let show_multipliers = use_slice(|s| s.reset_counters.coin_two_unlocked);
-    let show_prestige = use_slice(|s| s.reset_counters.coin_four_unlocked);
-    // Once you've prestiged, transcension becomes the next goal; once you've
-    // transcended, reincarnation does (mirrors the reset progression).
-    let show_transcend = use_slice(|s| s.reset_counters.prestige_unlocked);
-    let show_reincarnate = use_slice(|s| s.reset_counters.transcend_unlocked);
     let show_boost = use_slice(|s| s.reset_counters.prestige_unlocked);
     let tax_divisor = bridge.derived.read().buildings.tax_divisor;
 
@@ -113,15 +129,6 @@ fn CoinBuildings() -> Element {
             }
             if show_boost() {
                 AcceleratorBoostCard {}
-            }
-            if show_prestige() {
-                ResetCard { tier: ResetTier::Prestige }
-            }
-            if show_transcend() {
-                ResetCard { tier: ResetTier::Transcension }
-            }
-            if show_reincarnate() {
-                ResetCard { tier: ResetTier::Reincarnation }
             }
         }
     }
@@ -252,6 +259,11 @@ fn CrystalUpgradeCard(i: u8) -> Element {
     let notation = bridge.prefs.read().notation;
     let effect = use_slice(move |s| crystal_effect_text(i, s, bridge.prefs.peek().notation));
     let name = t(&format!("upgrades.crystalUpgrades.{i}")).to_string();
+    // The legacy explicit math formula (crystals 1/2/3/5 only). A missing key
+    // echoes itself, so render the line only when a real formula is present.
+    let formula_key = format!("upgrades.crystalFormula.{i}");
+    let formula = t(&formula_key);
+    let has_formula = formula != formula_key;
 
     let buy = move |_| {
         bridge.dispatch(derive::crystal_upgrade_buy(&bridge.state.peek(), i));
@@ -260,6 +272,9 @@ fn CrystalUpgradeCard(i: u8) -> Element {
     rsx! {
         div { class: "sf-card",
             div { class: "sf-card-title", "{name}" }
+            if has_formula {
+                div { class: "sf-upgrade-formula", "{formula}" }
+            }
             div { class: "sf-card-row",
                 span { class: "label", {t("upgrades.crystal_level")} }
                 span { {format_value(Decimal::from_finite(level()), notation)} }
