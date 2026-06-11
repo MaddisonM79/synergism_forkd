@@ -389,6 +389,9 @@ pub enum AutoToggle {
     /// 7, boost 8, diamond producers 10-14, mythos 16-20, particle 22-26).
     /// Out-of-range is ignored.
     BuildingAutobuy(usize),
+    /// `automation.shop_toggles.<field>` — an upgrade-family autobuy enable
+    /// (the legacy `player.shoptoggles`). Read by the upgrade-tab autobuyer.
+    ShopAutobuy(crate::state::ShopAutobuyKind),
 }
 
 /// Per-mechanic dispatcher for the eight `buy_*` purchase loops. The
@@ -560,6 +563,15 @@ pub struct DerivedTickStats {
     /// Coins gained per real second at this tick's production + speed
     /// multiplier (tax-capped).
     pub coins_per_sec: Decimal,
+    /// Crystals (prestige shards) produced per real second by the diamond
+    /// buildings — the prestige-tier analogue of `coins_per_sec`.
+    pub crystals_per_sec: Decimal,
+    /// Obtainium gained per real second from auto-obtainium (0 unless
+    /// research 61 — automatic obtainium — is owned).
+    pub obtainium_per_sec: Decimal,
+    /// Offerings gained per real second from the passive auto-offering
+    /// trickle (0 until challenge 3 is first cleared).
+    pub offerings_per_sec: Decimal,
     /// Prestige points the next prestige would award (`G.prestigePointGain`).
     pub prestige_point_gain: Decimal,
     /// Transcend points the next transcension would award.
@@ -837,9 +849,35 @@ pub fn tack(state: &mut GameState, input: &TackInput) -> TickOutput {
     // The coin rate composes the base-tick gain (`resource_gain`'s `addcoin`
     // per 0.025 s) with the same speed multiplier phase_generation ran on.
     let per_sec_scale = Decimal::from_finite(40.0 * automation_pre.global_time_multiplier);
+    // Crystals/sec: the tier-1 diamond-building production (`produce_diamonds`)
+    // scaled like coins — generated+owned × base rate × crystal multiplier ×
+    // the 40×speed per-second scale.
+    let d0 = &state.diamond_producers.tiers[0];
+    let crystals_per_sec = (d0.generated + Decimal::from_finite(d0.owned))
+        * Decimal::from_finite(resource_gain_pre.first_produce_diamonds)
+        * resource_gain_pre.global_crystal_multiplier
+        * per_sec_scale;
+    // Obtainium/sec: the auto-obtainium gain evaluated for 1 s (it's linear in
+    // dt). Only credited when research 61 is owned, so the rate is 0 otherwise.
+    let obtainium_per_sec = if state.researches.researches[61] == 1.0 {
+        compute_obtainium_gain(state, 1.0, reset_gains.reincarnation_point_gain)
+    } else {
+        Decimal::zero()
+    };
+    // Offerings/sec: the passive auto-offering trickle adds `dt / 2` to a
+    // counter each tick and floors it into offerings → a flat 0.5/s, gated on
+    // having ever cleared challenge 3.
+    let offerings_per_sec = if state.challenges.highest_challenge_completions[3] > 0.0 {
+        Decimal::from_finite(0.5)
+    } else {
+        Decimal::zero()
+    };
     output.derived = DerivedTickStats {
         coins_per_sec: crate::mechanics::resource_gain::coin_gain_per_base_tick(&resource_gain_pre)
             * per_sec_scale,
+        crystals_per_sec,
+        obtainium_per_sec,
+        offerings_per_sec,
         prestige_point_gain: reset_gains.prestige_point_gain,
         transcend_point_gain: reset_gains.transcend_point_gain,
         reincarnation_point_gain: reset_gains.reincarnation_point_gain,
@@ -6147,6 +6185,10 @@ fn compute_resource_gain_pre(
         prestige_point_gain: reset.prestige_point_gain,
         transcend_point_gain: reset.transcend_point_gain,
         reincarnation_point_gain: reset.reincarnation_point_gain,
+        // Coin generator-cascade multipliers (from the accelerator aggregator).
+        generator_power: agg.update_all_tick.generator_power,
+        u_fourteen_multi: agg.update_all_tick.u_fourteen_multi,
+        u_fifteen_multi: agg.update_all_tick.u_fifteen_multi,
     }
 }
 
@@ -6733,6 +6775,7 @@ fn set_automation_toggle(state: &mut GameState, target: AutoToggle, enabled: boo
                 *flag = enabled;
             }
         }
+        AutoToggle::ShopAutobuy(kind) => auto.shop_toggles.set(kind, enabled),
     }
 }
 
@@ -6957,6 +7000,15 @@ fn phase_generation(
     state.reset_counters.transcend_shards = result.transcend_shards;
     state.reset_counters.reincarnation_shards = result.reincarnation_shards;
     state.campaigns.ascend_shards = result.ascend_shards;
+
+    // ─── Coin generated counters (generator upgrades 101-105) ────────────
+    // All five tiers update here — upgrade 105 feeds tier 5 (Alchemies) from
+    // tier 1 (Workers), so unlike the cascades below, tier 5 is not terminal.
+    state.coin_producers.tiers[0].generated = result.first_generated_coin;
+    state.coin_producers.tiers[1].generated = result.second_generated_coin;
+    state.coin_producers.tiers[2].generated = result.third_generated_coin;
+    state.coin_producers.tiers[3].generated = result.fourth_generated_coin;
+    state.coin_producers.tiers[4].generated = result.fifth_generated_coin;
 
     // ─── Generated counters (tier 1..4; tier 5 is terminal) ──────────────
     state.diamond_producers.tiers[0].generated = result.first_generated_diamonds;
@@ -10939,6 +10991,46 @@ mod tests {
         };
         let _ = tack(&mut state, &input);
         assert!((state.crystal_upgrades.prestige_shards.to_number() - 50.0).abs() < 1e-9);
+    }
+
+    #[test]
+    fn coin_generator_cascade_writes_back_through_tack() {
+        // End-to-end regression: generator upgrade 101 (Alchemies → Coin Mints)
+        // must grow tier-4 coin `generated`. The original bug was that
+        // `phase_generation` never wrote coin `generated` back, so the whole
+        // generator chain (101-105) was inert and Coin Mints showed "+0".
+        let mut state = GameState::default();
+        state.upgrades.upgrades[101] = 1; // Alchemies → Coin Mints
+        state.coin_producers.tiers[4].owned = 100.0; // 100 Alchemies
+        let input = TackInput {
+            dt: 0.05,
+            ..TackInput::default()
+        };
+        let _ = tack(&mut state, &input);
+        // gen_dt = 0.05 / 0.05 = 1; tier-4 (Coin Mints) += (0 + 100) * 1 * 1 = 100.
+        assert!((state.coin_producers.tiers[3].generated.to_number() - 100.0).abs() < 1e-9);
+    }
+
+    #[test]
+    fn hud_per_second_rates_track_continuous_producers() {
+        // The HUD shows `/s` for continuously-produced resources. Verify each
+        // rate surfaces through the derived stats.
+        let mut state = GameState::default();
+        state.diamond_producers.tiers[0].owned = 100.0; // produces Crystals
+        state.challenges.highest_challenge_completions[3] = 1.0; // offering trickle on
+        let input = TackInput {
+            dt: 0.05,
+            ..TackInput::default()
+        };
+        let out = tack(&mut state, &input);
+        assert!(
+            out.derived.crystals_per_sec.to_number() > 0.0,
+            "diamond buildings produce crystals/s"
+        );
+        // Passive auto-offering trickle is a flat 0.5/s once c3 is cleared.
+        assert!((out.derived.offerings_per_sec.to_number() - 0.5).abs() < 1e-9);
+        // Auto-obtainium is gated on research 61 (off here) → no rate.
+        assert_eq!(out.derived.obtainium_per_sec.to_number(), 0.0);
     }
 
     #[test]

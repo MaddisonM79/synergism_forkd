@@ -14,7 +14,7 @@ use synergismforkd_logic::mechanics::auto_upgrades::{
     diamond_upgrade_reward, DIAMOND_UPGRADE_18_ACHIEVEMENT, DIAMOND_UPGRADE_19_ACHIEVEMENT,
     DIAMOND_UPGRADE_20_ACHIEVEMENT, UPGRADE_COSTS,
 };
-use synergismforkd_logic::GameState;
+use synergismforkd_logic::{GameState, ShopAutobuyKind};
 
 use crate::components::Resource;
 
@@ -54,6 +54,37 @@ impl Shop {
             Shop::Particle => "upgrades.shopTitles.particle",
             Shop::Automation => "upgrades.shopTitles.automation",
             Shop::Generator => "upgrades.shopTitles.generator",
+        }
+    }
+
+    /// The upgrade-tab autobuy toggle this shop drives, if its family is
+    /// auto-buyable. The `Automation` upgrades (81-100) only auto-buy at
+    /// singularity 25 (no per-family `shoptoggle`), so they have no toggle.
+    #[must_use]
+    pub fn autobuy_kind(self) -> Option<ShopAutobuyKind> {
+        match self {
+            Shop::Coin => Some(ShopAutobuyKind::Coin),
+            Shop::Diamond => Some(ShopAutobuyKind::Diamond),
+            Shop::Mythos => Some(ShopAutobuyKind::Mythos),
+            Shop::Particle => Some(ShopAutobuyKind::Reincarnation),
+            Shop::Generator => Some(ShopAutobuyKind::Generators),
+            Shop::Automation => None,
+        }
+    }
+
+    /// Whether this shop's autobuyer is unlocked — its unlock upgrade is owned,
+    /// matching the gates in `tick::auto_buy::auto_upgrades` (coin 91, diamond
+    /// 92, mythos 99, generators 90, reincarnation cube-upgrade 8). Until then
+    /// the toggle would have no effect, so it's hidden.
+    #[must_use]
+    pub fn autobuy_unlocked(self, s: &GameState) -> bool {
+        match self {
+            Shop::Coin => s.upgrades.upgrades[91] > 0,
+            Shop::Diamond => s.upgrades.upgrades[92] > 0,
+            Shop::Mythos => s.upgrades.upgrades[99] > 0,
+            Shop::Generator => s.upgrades.upgrades[90] > 0,
+            Shop::Particle => s.cube_upgrade_levels.cube_upgrades[8] > 0.0,
+            Shop::Automation => false,
         }
     }
 }

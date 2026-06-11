@@ -6,8 +6,9 @@
 //! [`super::upgrade_effects`].
 
 use dioxus::prelude::*;
+use synergismforkd_logic::{AutoToggle, PlayerAction};
 
-use crate::bridge::{use_bridge, use_slice};
+use crate::bridge::{use_bridge, use_slice, use_slow_slice};
 use crate::components::{Collapsible, Num, ResourceIcon};
 use crate::derive;
 use crate::i18n::t;
@@ -45,9 +46,47 @@ pub fn Upgrades() -> Element {
             }
         }
         for shop in visible_shops() {
-            Collapsible { key: "{shop:?}", title: t(shop.title_key()).to_string(),
+            Collapsible {
+                key: "{shop:?}",
+                title: t(shop.title_key()).to_string(),
+                action: rsx! { ShopAutoToggle { shop } },
                 ShopGrid { shop, focused }
             }
+        }
+    }
+}
+
+/// Per-shop autobuy toggle, shown on the section header once that family's
+/// upgrade autobuyer is unlocked (its unlock upgrade is owned). Flips the
+/// matching `shop_toggles` field that `auto_buy::auto_upgrades` reads. Renders
+/// nothing for shops with no autobuyer (Automation) or while still locked.
+#[component]
+fn ShopAutoToggle(shop: Shop) -> Element {
+    // All hooks run unconditionally (rules of hooks); the early returns below
+    // are placed after every hook. `kind` is fixed per instance (the
+    // Collapsible is keyed by shop); `unlocked` / `on` may change at runtime.
+    let bridge = use_bridge();
+    let kind = shop.autobuy_kind();
+    let unlocked = use_slice(move |s| shop.autobuy_unlocked(s));
+    let on = use_slice(move |s| kind.is_some_and(|k| s.automation.shop_toggles.get(k)));
+
+    let Some(kind) = kind else {
+        return rsx! {};
+    };
+    if !unlocked() {
+        return rsx! {};
+    }
+    rsx! {
+        button {
+            class: if on() { "sf-auto-toggle on" } else { "sf-auto-toggle" },
+            "aria-pressed": "{on()}",
+            onclick: move |_| {
+                bridge.dispatch(PlayerAction::ToggleAuto {
+                    target: AutoToggle::ShopAutobuy(kind),
+                    enabled: !on(),
+                });
+            },
+            {t(if on() { "buildings.auto_on" } else { "buildings.auto_off" })}
         }
     }
 }
@@ -78,7 +117,9 @@ fn UpgradeCell(idx: usize, focused: Signal<Option<usize>>) -> Element {
     let bridge = use_bridge();
     let mut focused = focused;
     let owned = use_slice(move |s| meta(idx).owned(s));
-    let affordable = use_slice(move |s| meta(idx).affordable(s));
+    // 5 Hz (legacy buttoncolorchange): the affordable→`.can` accent would
+    // otherwise strobe at 20 Hz when the upgrade autobuyer is draining currency.
+    let affordable = use_slow_slice(move |s| meta(idx).affordable(s));
 
     let cls = if owned() {
         "sf-upg-cell owned"

@@ -2,20 +2,20 @@
 //! `format()`; see `docs/systems/ui-readiness.md` history and the plan notes).
 //!
 //! One call path for every number on screen so precision rules can't drift
-//! per call site (a legacy pain point):
+//! per call site (a legacy pain point). Everything at or above `1e3` uses
+//! exponent notation so any two on-screen values are directly comparable —
+//! there is deliberately no suffix tier that would render `10.0Qa` beside
+//! `2.14e50` on the same line:
 //!
 //! - `< 1,000`: plain, up to `max_decimals` (trailing zeros trimmed).
-//! - `1e3 ..< 1e18`: short-scale suffixes `K M B T Qa`, 3 significant digits
-//!   (`1.23M`, `12.3M`, `123M`).
-//! - `>= 1e18`: scientific `1.23e18`; the exponent gains thousands grouping
+//! - `>= 1e3`: scientific `1.23e4`; the exponent gains thousands grouping
 //!   once it's itself ≥ 1e6 (`1.23e1,234,567`).
 //! - `0 < x < 1`: up to 3 decimals; below `1e-3` scientific (`1.23e-5`).
 //! - Negatives recurse with a `-` prefix; NaN renders `"0"` (legacy-compatible
 //!   defensive default); infinities render `∞`.
 //!
-//! Alternative notations ([`Notation::Scientific`] / [`Notation::Engineering`])
-//! replace the suffix tier for players who prefer exponents; both kick in at
-//! 1e3 and keep the plain tier below.
+//! [`Notation::Scientific`] is the default; [`Notation::Engineering`] is an
+//! alternative that snaps the exponent to a multiple of 3 (`45.6e3`).
 
 mod time;
 
@@ -28,10 +28,12 @@ use synergismforkd_bignum::Decimal;
 /// never part of `GameState`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 pub enum Notation {
-    /// Suffixes to `1e18`, then scientific. The default.
+    /// Mantissa + exponent from `1e3` up (`1.23e4`). The default — and the
+    /// only large-number representation, so any two values are directly
+    /// comparable. `serde(alias = "Modern")` migrates prefs persisted under
+    /// the former suffix-tier default to scientific on load.
     #[default]
-    Modern,
-    /// Mantissa + exponent from `1e3` up (`1.23e4`).
+    #[serde(alias = "Modern")]
     Scientific,
     /// Like scientific, but the exponent snaps to a multiple of 3
     /// (`12.3e3`).
@@ -51,7 +53,7 @@ pub struct FormatOpts {
 impl Default for FormatOpts {
     fn default() -> Self {
         Self {
-            notation: Notation::Modern,
+            notation: Notation::Scientific,
             max_decimals: 0,
         }
     }
@@ -83,12 +85,6 @@ pub fn format_value(value: Decimal, notation: Notation) -> String {
     )
 }
 
-/// Short-scale suffixes, one per power of 1000 starting at `1e3`.
-const SUFFIXES: [&str; 5] = ["K", "M", "B", "T", "Qa"];
-
-/// First exponent past the suffix table (Qa covers `1e15..1e18`).
-const SCIENTIFIC_FLOOR_EXP: i64 = 18;
-
 /// The single formatting entry point.
 #[must_use]
 pub fn format(value: Decimal, opts: FormatOpts) -> String {
@@ -119,8 +115,7 @@ pub fn format(value: Decimal, opts: FormatOpts) -> String {
 
     let (mantissa, exponent) = mantissa_exponent(value);
     match opts.notation {
-        Notation::Modern if exponent < SCIENTIFIC_FLOOR_EXP => format_suffix(approx),
-        Notation::Modern | Notation::Scientific => format_scientific(mantissa, exponent),
+        Notation::Scientific => format_scientific(mantissa, exponent),
         Notation::Engineering => format_engineering(mantissa, exponent),
     }
 }
@@ -145,30 +140,6 @@ fn format_plain(value: f64, max_decimals: u8) -> String {
         s
     } else {
         trim_zeros(&s)
-    }
-}
-
-/// Suffix tier: `1e3 <= value < 1e18`, 3 significant digits.
-///
-/// f64 carries this whole range (display precision is 3 digits, well under
-/// f64's ~15.9). Rounding can roll a scaled value to 1000 (`999_999` →
-/// `1000K`); the loop re-normalizes so it lands as `1.00M`, and a roll past
-/// `Qa` falls through to scientific.
-fn format_suffix(value: f64) -> String {
-    let mut group = (floored_log10(value) / 3) as usize; // 1 = K, 2 = M, …
-    let mut scaled = value / 1000f64.powi(group as i32);
-    let mut decimals = sig_decimals(scaled);
-    let mut rounded = round_to(scaled, decimals);
-    if rounded >= 1000.0 {
-        group += 1;
-        scaled = value / 1000f64.powi(group as i32);
-        decimals = sig_decimals(scaled);
-        rounded = round_to(scaled, decimals);
-    }
-    match SUFFIXES.get(group - 1) {
-        Some(suffix) => format!("{rounded:.*}{suffix}", decimals as usize),
-        // Rounding rolled past Qa (999.5e15 → 1e18): scientific takes over.
-        None => format_scientific(1.0, (group as i64) * 3),
     }
 }
 
@@ -239,18 +210,6 @@ fn round_to(value: f64, decimals: u8) -> f64 {
     (value * p).round() / p
 }
 
-/// `log10(value).floor()` hardened against the classic `log10(1000) =
-/// 2.999…` float wobble.
-fn floored_log10(value: f64) -> i32 {
-    let mut exp = value.log10().floor() as i32;
-    if 10f64.powi(exp + 1) <= value {
-        exp += 1;
-    } else if 10f64.powi(exp) > value {
-        exp -= 1;
-    }
-    exp
-}
-
 /// Thousands-group an integer with commas (`1234567` → `"1,234,567"`).
 /// Locale-aware separators are an i18n-milestone concern.
 fn group_thousands(n: i64) -> String {
@@ -284,85 +243,85 @@ mod tests {
         Decimal::from_finite(v)
     }
 
-    fn modern(v: f64) -> String {
-        format_count(d(v), Notation::Modern)
+    /// Default notation (scientific) via the count path.
+    fn sci(v: f64) -> String {
+        format_count(d(v), Notation::Scientific)
+    }
+
+    fn sci_decimal(v: Decimal) -> String {
+        format_count(v, Notation::Scientific)
     }
 
     #[test]
     fn zero_infinity_and_negatives() {
-        assert_eq!(modern(0.0), "0");
+        assert_eq!(sci(0.0), "0");
         // No public NaN constructor in break-eternity-rs 0.4 (the guard in
         // `format` is defense-in-depth); infinity is reachable though.
-        assert_eq!(format_count(Decimal::inf(), Notation::Modern), "∞");
-        assert_eq!(format_count(Decimal::neg_inf(), Notation::Modern), "-∞");
-        assert_eq!(modern(-1_234_567.0), "-1.23M");
-        assert_eq!(format_value(d(-1.5), Notation::Modern), "-1.5");
+        assert_eq!(format_count(Decimal::inf(), Notation::Scientific), "∞");
+        assert_eq!(format_count(Decimal::neg_inf(), Notation::Scientific), "-∞");
+        assert_eq!(sci(-1_234_567.0), "-1.23e6");
+        assert_eq!(format_value(d(-1.5), Notation::Scientific), "-1.5");
     }
 
     #[test]
     fn plain_tier_counts_and_values() {
-        assert_eq!(modern(1.0), "1");
-        assert_eq!(modern(999.0), "999");
+        assert_eq!(sci(1.0), "1");
+        assert_eq!(sci(999.0), "999");
         // Counts truncate to whole numbers…
-        assert_eq!(modern(12.75), "13");
+        assert_eq!(sci(12.75), "13");
         // …values keep up to 2 decimals, trailing zeros trimmed.
-        assert_eq!(format_value(d(12.75), Notation::Modern), "12.75");
-        assert_eq!(format_value(d(12.5), Notation::Modern), "12.5");
-        assert_eq!(format_value(d(12.0), Notation::Modern), "12");
+        assert_eq!(format_value(d(12.75), Notation::Scientific), "12.75");
+        assert_eq!(format_value(d(12.5), Notation::Scientific), "12.5");
+        assert_eq!(format_value(d(12.0), Notation::Scientific), "12");
     }
 
     #[test]
     fn sub_one_tier() {
-        assert_eq!(modern(0.5), "0.5");
-        assert_eq!(modern(0.125), "0.125");
-        assert_eq!(modern(0.001), "0.001");
-        assert_eq!(modern(0.000123), "1.23e-4");
+        assert_eq!(sci(0.5), "0.5");
+        assert_eq!(sci(0.125), "0.125");
+        assert_eq!(sci(0.001), "0.001");
+        assert_eq!(sci(0.000123), "1.23e-4");
     }
 
     #[test]
-    fn suffix_tier_three_sig_digits() {
-        assert_eq!(modern(1_000.0), "1.00K");
-        assert_eq!(modern(1_234.0), "1.23K");
-        assert_eq!(modern(12_340.0), "12.3K");
-        assert_eq!(modern(123_400.0), "123K");
-        assert_eq!(modern(1_234_000.0), "1.23M");
-        assert_eq!(modern(1.234e9), "1.23B");
-        assert_eq!(modern(1.234e12), "1.23T");
-        assert_eq!(modern(1.234e15), "1.23Qa");
-        assert_eq!(modern(999.4e15), "999Qa");
+    fn scientific_tier_is_uniform_across_magnitudes() {
+        // Every value ≥ 1e3 is `m.mm e EXP` — no suffix tier, so a mid value
+        // and a huge value on the same line are directly comparable.
+        assert_eq!(sci(1_000.0), "1.00e3");
+        assert_eq!(sci(1_234.0), "1.23e3");
+        assert_eq!(sci(12_340.0), "1.23e4");
+        assert_eq!(sci(123_400.0), "1.23e5");
+        assert_eq!(sci(1_234_000.0), "1.23e6");
+        assert_eq!(sci(1.234e9), "1.23e9");
+        assert_eq!(sci(1.234e12), "1.23e12");
+        assert_eq!(sci(1.234e15), "1.23e15");
+        // The bug report's pairing — both ends now in exponent form.
+        assert_eq!(sci(1e16), "1.00e16");
+        assert_eq!(sci(2.14e50), "2.14e50");
     }
 
     #[test]
-    fn suffix_rounding_rolls_over_cleanly() {
-        // 999,999 would render 1000K at 0 decimals — must bump to 1.00M.
-        assert_eq!(modern(999_999.0), "1.00M");
-        assert_eq!(modern(999_500.0), "1.00M");
-        // Below the half-step it stays in band.
-        assert_eq!(modern(999_400.0), "999K");
-        // Rolling past the end of the table lands in scientific. (999.6, not
-        // 999.5 — the e15-scale literal isn't exactly representable and the
-        // half-step would round down.)
-        assert_eq!(modern(999.6e15), "1.00e18");
-    }
-
-    #[test]
-    fn scientific_from_1e18_in_modern() {
-        assert_eq!(modern(1.23e18), "1.23e18");
-        assert_eq!(modern(4.56e19), "4.56e19");
+    fn exponent_grouping_for_very_large_values() {
+        assert_eq!(sci(1.23e18), "1.23e18");
+        assert_eq!(sci(4.56e19), "4.56e19");
         let huge = Decimal::from_mantissa_exponent(1.234, 1_234_567.0);
-        assert_eq!(modern_decimal(huge), "1.23e1,234,567");
+        assert_eq!(sci_decimal(huge), "1.23e1,234,567");
     }
 
-    fn modern_decimal(v: Decimal) -> String {
-        format_count(v, Notation::Modern)
+    #[test]
+    fn modern_pref_migrates_to_scientific() {
+        // Prefs persisted under the old suffix-tier default (the JSON string
+        // "Modern") must deserialize to the new scientific default.
+        let n: Notation = serde_json::from_str("\"Modern\"").unwrap();
+        assert_eq!(n, Notation::Scientific);
     }
 
     #[test]
     fn mantissa_jitter_guards() {
         // 9.999e18 at 2 decimals would print 10.00e18 — must renormalize.
-        assert_eq!(modern(9.999e18), "1.00e19");
+        assert_eq!(sci(9.999e18), "1.00e19");
         let low = Decimal::from_mantissa_exponent(0.99999, 20.0);
-        assert_eq!(modern_decimal(low), "1.00e20");
+        assert_eq!(sci_decimal(low), "1.00e20");
     }
 
     #[test]
@@ -385,7 +344,7 @@ mod tests {
     fn beyond_f64_uses_bignum_extraction() {
         // 1e400 is past f64::MAX; the layer-1 path must still format.
         let huge = Decimal::from_mantissa_exponent(2.5, 400.0);
-        assert_eq!(modern_decimal(huge), "2.50e400");
+        assert_eq!(sci_decimal(huge), "2.50e400");
     }
 
     #[test]

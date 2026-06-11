@@ -46,6 +46,9 @@ pub async fn run(
 
     let mut last_s = platform::perf_now_s();
     let mut was_hidden = platform::document_hidden();
+    // Tick counter for the 5 Hz UI pulse (every 4th tick at 50 ms = 200 ms,
+    // the legacy `slowUpdates`/`buttoncolorchange` cadence).
+    let mut tick_count: u64 = 0;
     // Previous-tick achievement bitmap; diffed each tick to toast new
     // unlocks. Seeded from the (already catch-up'd) booted state so we
     // don't toast everything earned before this session.
@@ -88,6 +91,16 @@ pub async fn run(
         if *bridge.derived.peek() != output.derived {
             let mut signal = bridge.derived;
             signal.set(output.derived);
+        }
+
+        // 5 Hz UI pulse: fire every 4th tick so throttled visual state
+        // (buy-button affordability) settles at the legacy `slowUpdates`
+        // cadence instead of strobing at 20 Hz under an active autobuyer.
+        tick_count = tick_count.wrapping_add(1);
+        if tick_count % 4 == 0 {
+            let mut pulse = bridge.slow_pulse;
+            let next = pulse.peek().wrapping_add(1);
+            pulse.set(next);
         }
 
         events_map::apply(&bridge, &output.events);

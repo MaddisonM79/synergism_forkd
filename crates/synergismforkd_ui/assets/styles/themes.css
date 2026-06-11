@@ -9,6 +9,9 @@
   --bg-surface: #241a33;
   --bg-raised: #2e2240;
   --bg-hover: #3a2b50;
+  /* Side/top chrome (nav rail, HUD, subnav, stats panel). Matches the surface
+   * here — the dark theme intentionally tints its whole frame plum. */
+  --bg-chrome: #241a33;
   --border: #3d2f54;
   --border-strong: #564170;
   --text: #ece6f5;
@@ -42,38 +45,51 @@
   --res-ambrosia: #9ab6f5;
 }
 
+/* Light = "pastel goth, lit": the daytime twin of the dark plum theme — a
+ * soft lilac canvas with aubergine ink and muted jewel-tone accents. Greys
+ * run light→dark with a purple tint so nothing reads as flat neutral. */
 .sf-app[data-theme="light"] {
-  --bg-app: #f2f4f8;
-  --bg-surface: #ffffff;
-  --bg-raised: #eef1f6;
-  --bg-hover: #e3e8f0;
-  --border: #d4dae4;
-  --border-strong: #b8c0ce;
-  --text: #1c2430;
-  --text-muted: #5d6778;
-  --text-inverse: #ffffff;
+  /* Content pane anchored on Pantone 13-3905 TCX "Diaphanous Lilac" (#c6c2cd).
+   * The ramp is built around it: near-white cards lift above it, the grey side
+   * chrome sits at a similar value, raised/hover/borders step down. */
+  --bg-app: #c6c2cd;        /* Pantone 13-3905 TCX — the content pane */
+  --bg-surface: #eeecf2;    /* near-white lilac — cards lift off the pane */
+  --bg-raised: #d9d5e1;     /* insets / buttons / chips — sits between card and pane */
+  --bg-hover: #cfcad9;      /* hover wash */
+  /* Side/top chrome (nav rail, HUD, subnav, stats panel): neutral grey at the
+   * pane's value, so the side bars read grey against the lilac content. */
+  --bg-chrome: #d4d3d8;
+  --border: #b0aabe;        /* lilac-grey, visible on the light cards */
+  --border-strong: #908aa0; /* deeper lilac-grey */
+  --text: #2a2138;          /* dark aubergine ink (not pure black) */
+  --text-muted: #574b6e;    /* muted plum-grey, dark enough for the deeper pane */
+  --text-inverse: #f6f1fc;  /* light, for text on filled accents */
 
-  --ok: #2e8b57;
-  --warn: #b07d1a;
-  --danger: #c43d3d;
-  --info: #2f6fae;
+  /* Semantic — muted jewel tones, dark enough to read on the lilac canvas. */
+  --ok: #3f8d68;
+  --warn: #a87d22;
+  --danger: #c2456f;
+  --info: #6a52bf;
 
-  --accent-production: #a87a14;
-  --accent-mystic: #7a4fc0;
-  --accent-ascension: #2278bd;
-  --accent-singularity: #c23a68;
-  --accent-shop: #2f8a3a;
-  --accent-achievements: #a87a14;
-  --accent-settings: #5d6778;
+  /* Group accents (muted jewel tones, the violet leading). */
+  --accent-production: #9c7a1e;  /* antique gold */
+  --accent-mystic: #7344b3;      /* signature violet */
+  --accent-ascension: #3a72bd;   /* periwinkle blue */
+  --accent-singularity: #bf3f76; /* goth magenta */
+  --accent-shop: #3f8d68;        /* dusty green */
+  --accent-achievements: #9c7a1e;
+  --accent-settings: #665a80;    /* plum-grey */
 
-  --res-coin: #b8901a;
-  --res-diamond: #1f96aa;
-  --res-crystal: #5b6fc0;
-  --res-mythos: #8455c8;
-  --res-particle: #c96637;
-  --res-offering: #c2554a;
-  --res-obtainium: #b83d8a;
-  --res-quark: #1a9a9a;
-  --res-golden-quark: #b8961f;
-  --res-ambrosia: #3a66c2;
+  /* Resource colors (ResourceIcon + chips) — kept distinct per resource,
+   * shifted cooler/muted to sit on the lilac canvas. */
+  --res-coin: #a6831c;
+  --res-diamond: #1f8ca6;
+  --res-crystal: #5f63bd;
+  --res-mythos: #8450c6;
+  --res-particle: #bf6638;
+  --res-offering: #bf5048;
+  --res-obtainium: #b53d86;
+  --res-quark: #1f9696;
+  --res-golden-quark: #a6851c;
+  --res-ambrosia: #4663bf;
 }

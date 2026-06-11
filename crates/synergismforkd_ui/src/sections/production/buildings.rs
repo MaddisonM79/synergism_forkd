@@ -14,7 +14,7 @@ use synergismforkd_bignum::Decimal;
 use synergismforkd_logic::events::ProducerType;
 use synergismforkd_logic::{AutoToggle, BuyRequest, PlayerAction, ResetRequest};
 
-use crate::bridge::{use_bridge, use_slice, BuyAmount};
+use crate::bridge::{use_bridge, use_slice, use_slow_slice, BuyAmount};
 use crate::components::{Collapsible, Num, Progress, Resource, ResourceIcon, Tooltip};
 use crate::derive;
 use crate::format::format_value;
@@ -193,7 +193,9 @@ fn CoinProducerCard(index: u8) -> Element {
     let auto_unlocked = use_slice(move |s| s.upgrades.upgrades[80 + index as usize] == 1);
     let generated = use_slice(move |s| s.coin_producers.tiers[(index - 1) as usize].generated);
     let cost = use_slice(move |s| s.coin_producers.cost(index));
-    let affordable = use_slice(move |s| s.upgrades.coins >= s.coin_producers.cost(index));
+    // Throttled to 5 Hz (legacy buttoncolorchange): drives the Buy button's
+    // disabled state, which would otherwise strobe at 20 Hz under the autobuyer.
+    let affordable = use_slow_slice(move |s| s.upgrades.coins >= s.coin_producers.cost(index));
     let name_key = match index {
         1 => "buildings.coin.1",
         2 => "buildings.coin.2",
@@ -305,7 +307,8 @@ fn CrystalUpgradeCard(i: u8) -> Element {
     let bridge = use_bridge();
     let level = use_slice(move |s| s.crystal_upgrades.crystal_upgrades[(i - 1) as usize]);
     let cost = use_slice(move |s| crystal_cost(i, s));
-    let affordable = use_slice(move |s| s.crystal_upgrades.prestige_shards >= crystal_cost(i, s));
+    let affordable =
+        use_slow_slice(move |s| s.crystal_upgrades.prestige_shards >= crystal_cost(i, s));
     let notation = bridge.prefs.read().notation;
     let effect = use_slice(move |s| crystal_effect_text(i, s, bridge.prefs.peek().notation));
     let name = t(&format!("upgrades.crystalUpgrades.{i}")).to_string();
@@ -356,7 +359,7 @@ fn DiamondProducerCard(index: u8) -> Element {
     let generated = use_slice(move |s| s.diamond_producers.tiers[(index - 1) as usize].generated);
     let cost = use_slice(move |s| s.diamond_producers.cost(index));
     let affordable =
-        use_slice(move |s| s.upgrades.prestige_points >= s.diamond_producers.cost(index));
+        use_slow_slice(move |s| s.upgrades.prestige_points >= s.diamond_producers.cost(index));
     // Diamond-producer autobuyers unlock via Synergism-level milestones
     // (tier-N crystal autobuy); toggle slot 9 + tier.
     let auto_unlocked = use_slice(move |s| {
@@ -430,7 +433,7 @@ fn AcceleratorCard() -> Element {
     let bridge = use_bridge();
     let owned = use_slice(|s| s.accelerator.accelerator_bought);
     let cost = use_slice(|s| s.accelerator.accelerator_cost);
-    let affordable = use_slice(|s| s.upgrades.coins >= s.accelerator.accelerator_cost);
+    let affordable = use_slow_slice(|s| s.upgrades.coins >= s.accelerator.accelerator_cost);
     let auto_unlocked = use_slice(|s| s.upgrades.upgrades[86] == 1);
     let derived = bridge.derived.read();
     let b = &derived.buildings;
@@ -475,7 +478,7 @@ fn MultiplierCard() -> Element {
     let bridge = use_bridge();
     let owned = use_slice(|s| s.multiplier.multiplier_bought);
     let cost = use_slice(|s| s.multiplier.multiplier_cost);
-    let affordable = use_slice(|s| s.upgrades.coins >= s.multiplier.multiplier_cost);
+    let affordable = use_slow_slice(|s| s.upgrades.coins >= s.multiplier.multiplier_cost);
     let auto_unlocked = use_slice(|s| s.upgrades.upgrades[87] == 1);
     let derived = bridge.derived.read();
     let b = &derived.buildings;
@@ -524,7 +527,7 @@ fn AcceleratorBoostCard() -> Element {
     let owned = use_slice(|s| s.accelerator.accelerator_boost_bought);
     let cost = use_slice(|s| s.accelerator.accelerator_boost_cost);
     let affordable =
-        use_slice(|s| s.upgrades.prestige_points >= s.accelerator.accelerator_boost_cost);
+        use_slow_slice(|s| s.upgrades.prestige_points >= s.accelerator.accelerator_boost_cost);
     let auto_unlocked = use_slice(|s| s.upgrades.upgrades[88] == 1 && s.upgrades.upgrades[46] == 1);
     let derived = bridge.derived.read();
     let b = &derived.buildings;
@@ -603,6 +606,16 @@ impl ResetTier {
             ResetTier::Prestige => ResetRequest::Prestige,
             ResetTier::Transcension => ResetRequest::Transcension,
             ResetTier::Reincarnation => ResetRequest::Reincarnation,
+        }
+    }
+
+    /// Whether this tier's reset should pop a confirm dialog, per the
+    /// independent Settings toggles.
+    fn confirm_enabled(self, prefs: &crate::bridge::UiPrefs) -> bool {
+        match self {
+            ResetTier::Prestige => prefs.confirm_prestige,
+            ResetTier::Transcension => prefs.confirm_transcension,
+            ResetTier::Reincarnation => prefs.confirm_reincarnation,
         }
     }
 
@@ -715,7 +728,7 @@ fn ResetCard(tier: ResetTier) -> Element {
         bridge.dispatch(PlayerAction::Reset(tier.request()));
     });
     let on_click = move |_| {
-        if bridge.prefs.peek().confirm_resets {
+        if tier.confirm_enabled(&bridge.prefs.peek()) {
             let (tk, bk) = tier.confirm_keys();
             bridge.confirm(tk, bk, do_reset);
         } else {

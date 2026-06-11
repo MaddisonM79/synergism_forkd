@@ -99,6 +99,49 @@ impl Default for ShopToggles {
     }
 }
 
+/// Selects one of the five [`ShopToggles`] fields — the upgrade-family
+/// autobuy switches surfaced to the UI. Lets the toggle action and the
+/// field-read share one mapping ([`ShopToggles::get`] / [`ShopToggles::set`])
+/// rather than duplicating the field match per call site.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ShopAutobuyKind {
+    /// `shop_toggles.coin` — coin-tab upgrades.
+    Coin,
+    /// `shop_toggles.prestige` — diamond/prestige-tab upgrades.
+    Diamond,
+    /// `shop_toggles.transcend` — mythos/transcension-tab upgrades.
+    Mythos,
+    /// `shop_toggles.generators` — generator upgrades.
+    Generators,
+    /// `shop_toggles.reincarnate` — reincarnation-tab upgrades.
+    Reincarnation,
+}
+
+impl ShopToggles {
+    /// Current on/off state of the toggle `kind` selects.
+    #[must_use]
+    pub fn get(&self, kind: ShopAutobuyKind) -> bool {
+        match kind {
+            ShopAutobuyKind::Coin => self.coin,
+            ShopAutobuyKind::Diamond => self.prestige,
+            ShopAutobuyKind::Mythos => self.transcend,
+            ShopAutobuyKind::Generators => self.generators,
+            ShopAutobuyKind::Reincarnation => self.reincarnate,
+        }
+    }
+
+    /// Set the toggle `kind` selects to `on`.
+    pub fn set(&mut self, kind: ShopAutobuyKind, on: bool) {
+        match kind {
+            ShopAutobuyKind::Coin => self.coin = on,
+            ShopAutobuyKind::Diamond => self.prestige = on,
+            ShopAutobuyKind::Mythos => self.transcend = on,
+            ShopAutobuyKind::Generators => self.generators = on,
+            ShopAutobuyKind::Reincarnation => self.reincarnate = on,
+        }
+    }
+}
+
 /// Slice of `GameState` for cross-cutting automation toggles + timers.
 ///
 /// Not `Copy` (holds a [`SweepState`], which carries a `BTreeSet`) and
@@ -322,5 +365,55 @@ mod tests {
         assert!(s.shop_toggles.transcend);
         assert!(s.shop_toggles.generators);
         assert!(s.shop_toggles.reincarnate);
+    }
+
+    #[test]
+    fn shop_toggle_get_set_round_trips_every_kind() {
+        let kinds = [
+            (
+                ShopAutobuyKind::Coin,
+                ShopToggles {
+                    coin: false,
+                    ..ShopToggles::default()
+                },
+            ),
+            (
+                ShopAutobuyKind::Diamond,
+                ShopToggles {
+                    prestige: false,
+                    ..ShopToggles::default()
+                },
+            ),
+            (
+                ShopAutobuyKind::Mythos,
+                ShopToggles {
+                    transcend: false,
+                    ..ShopToggles::default()
+                },
+            ),
+            (
+                ShopAutobuyKind::Generators,
+                ShopToggles {
+                    generators: false,
+                    ..ShopToggles::default()
+                },
+            ),
+            (
+                ShopAutobuyKind::Reincarnation,
+                ShopToggles {
+                    reincarnate: false,
+                    ..ShopToggles::default()
+                },
+            ),
+        ];
+        for (kind, expected) in kinds {
+            let mut t = ShopToggles::default();
+            assert!(t.get(kind), "defaults on");
+            t.set(kind, false);
+            assert!(!t.get(kind));
+            assert_eq!(t, expected, "only the selected field flips");
+            t.set(kind, true);
+            assert_eq!(t, ShopToggles::default());
+        }
     }
 }

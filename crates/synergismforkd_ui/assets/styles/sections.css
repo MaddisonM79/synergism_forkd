@@ -37,7 +37,7 @@
   grid-area: stats;
   overflow-y: auto;
   border-left: var(--bw) solid var(--border);
-  background: var(--bg-surface);
+  background: var(--bg-chrome);
   padding: var(--space-4);
   display: flex;
   flex-direction: column;
@@ -252,7 +252,15 @@
 }
 
 .sf-upg-detail {
-  min-height: 56px;
+  /* Fixed height so the grid below never shifts as the focused upgrade (and
+   * its description length) changes; tall enough for a two-line name plus the
+   * cost and effect rows. The muted hint is centered within the same box. */
+  height: 96px;
+  overflow: hidden;
+  /* Cap the width so the right-aligned cost sits near the content instead of
+   * being flung to the far edge on wide viewports (`.sf-card-row` is
+   * `space-between`). */
+  max-width: 520px;
   margin-bottom: var(--space-4);
   padding: var(--space-3) var(--space-4);
   border: var(--bw) solid var(--border);
@@ -312,7 +320,14 @@
 
 /* Persistent detail box above the grid (replaces per-cell tooltips). */
 .sf-ach-detail {
-  min-height: 56px;
+  /* Fixed height (matches `.sf-upg-detail`) so the 509-cell grid never shifts
+   * as the focused achievement changes; tall enough for a wrapped requirement
+   * line plus the name and progress rows. */
+  height: 96px;
+  overflow: hidden;
+  /* Match `.sf-upg-detail`: cap the width so the right-aligned AP value sits
+   * near the content instead of the far edge on wide viewports. */
+  max-width: 520px;
   margin-bottom: var(--space-4);
   padding: var(--space-3) var(--space-4);
   border: var(--bw) solid var(--border);
@@ -445,6 +460,13 @@
 
 .sf-settings-block .sf-settings-row {
   margin-bottom: var(--space-3);
+}
+
+/* Block-level explanatory line under a Settings heading (before the rows). */
+.sf-settings-subhint {
+  margin: 0 0 var(--space-3);
+  color: var(--text-muted);
+  font-size: var(--fs-xs);
 }
 
 /* Danger zone: visually quarantined destructive actions. */

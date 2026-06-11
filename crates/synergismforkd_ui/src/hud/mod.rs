@@ -81,6 +81,9 @@ pub fn ResourceHud() -> Element {
     let show_gq = use_slice(|s| s.singularity.highest_singularity_count > 0.0);
 
     let coins_rate = bridge.derived.read().coins_per_sec;
+    let crystals_rate = bridge.derived.read().crystals_per_sec;
+    let offerings_rate = bridge.derived.read().offerings_per_sec;
+    let obtainium_rate = bridge.derived.read().obtainium_per_sec;
 
     rsx! {
         header { class: "sf-hud",
@@ -92,15 +95,15 @@ pub fn ResourceHud() -> Element {
             }
             if show_diamonds() {
                 Chip { resource: Resource::Diamonds, value: diamonds() }
-                Chip { resource: Resource::Crystals, value: crystals() }
-                Chip { resource: Resource::Offerings, value: offerings() }
+                Chip { resource: Resource::Crystals, value: crystals(), rate: Some(crystals_rate) }
+                Chip { resource: Resource::Offerings, value: offerings(), rate: Some(offerings_rate) }
             }
             if show_mythos() {
                 Chip { resource: Resource::Mythos, value: mythos() }
             }
             if show_particles() {
                 Chip { resource: Resource::Particles, value: particles() }
-                Chip { resource: Resource::Obtainium, value: obtainium() }
+                Chip { resource: Resource::Obtainium, value: obtainium(), rate: Some(obtainium_rate) }
             }
             if show_quarks() {
                 Chip { resource: Resource::Quarks, value: quarks() }

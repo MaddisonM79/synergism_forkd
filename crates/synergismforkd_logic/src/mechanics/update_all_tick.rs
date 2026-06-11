@@ -83,6 +83,12 @@ pub struct UpdateAllTickResult {
     pub accelerator_effect_display: Decimal,
     /// `G.generatorPower`.
     pub generator_power: Decimal,
+    /// `G.uFourteenMulti` — upgrade-14 generator-cascade multiplier (feeds the
+    /// Coin Mints → Printers step of the coin generator chain).
+    pub u_fourteen_multi: Decimal,
+    /// `G.uFifteenMulti` — upgrade-15 generator-cascade multiplier (feeds the
+    /// Alchemies → Coin Mints step).
+    pub u_fifteen_multi: Decimal,
 }
 
 /// Per-tick accelerator-state aggregator. `total_multiplier` is the
@@ -228,6 +234,20 @@ pub fn update_all_tick(
         generator_power = Decimal::from_finite(1.02).pow(Decimal::from_finite(total_accelerator));
     }
 
+    // `G.uFourteenMulti` / `G.uFifteenMulti` (Synergism.ts:3966-3974): both are
+    // `1.15^freeAccelerator × 1e5` when their upgrade is owned, else 1. They
+    // amplify two steps of the coin generator cascade in `resource_gain`.
+    let mut u_fourteen_multi = Decimal::one();
+    let mut u_fifteen_multi = Decimal::one();
+    if upgrade(14) > 0.5 {
+        u_fourteen_multi = Decimal::from_finite(1.15).pow(Decimal::from_finite(free_accelerator))
+            * Decimal::from_finite(1e5);
+    }
+    if upgrade(15) > 0.5 {
+        u_fifteen_multi = Decimal::from_finite(1.15).pow(Decimal::from_finite(free_accelerator))
+            * Decimal::from_finite(1e5);
+    }
+
     UpdateAllTickResult {
         total_accelerator,
         cost_divisor,
@@ -238,6 +258,8 @@ pub fn update_all_tick(
         accelerator_effect,
         accelerator_effect_display,
         generator_power,
+        u_fourteen_multi,
+        u_fifteen_multi,
     }
 }
 

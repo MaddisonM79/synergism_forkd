@@ -43,22 +43,30 @@ pub fn Tooltip(tip: Element, #[props(default = false)] down: bool, children: Ele
 }
 
 /// A titled, collapsible section. Clicking the header toggles its body.
-/// `title` is plain text; `open` sets the initial state.
+/// `title` is plain text; `open` sets the initial state. An optional `action`
+/// renders beside the header — outside the toggle button, so it stays
+/// independently clickable (e.g. a per-section autobuy toggle).
 #[component]
 pub fn Collapsible(
     title: String,
     #[props(default = true)] open: bool,
+    #[props(optional)] action: Option<Element>,
     children: Element,
 ) -> Element {
     let mut is_open = use_signal(|| open);
     rsx! {
         section { class: "sf-collapsible",
-            button {
-                class: "sf-collapsible-head",
-                "aria-expanded": "{is_open()}",
-                onclick: move |_| is_open.toggle(),
-                span { class: if is_open() { "sf-collapsible-chevron open" } else { "sf-collapsible-chevron" }, "▸" }
-                span { class: "sf-collapsible-title", "{title}" }
+            div { class: "sf-collapsible-head-row",
+                button {
+                    class: "sf-collapsible-head",
+                    "aria-expanded": "{is_open()}",
+                    onclick: move |_| is_open.toggle(),
+                    span { class: if is_open() { "sf-collapsible-chevron open" } else { "sf-collapsible-chevron" }, "▸" }
+                    span { class: "sf-collapsible-title", "{title}" }
+                }
+                if let Some(action) = action {
+                    {action}
+                }
             }
             if is_open() {
                 div { class: "sf-collapsible-body", {children} }

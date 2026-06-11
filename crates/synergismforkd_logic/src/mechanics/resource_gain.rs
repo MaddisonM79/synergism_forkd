@@ -100,6 +100,14 @@ pub struct ResourceGainPre {
     pub global_constant_mult: Decimal,
     /// `G.challengeBaseRequirements[0..=4]` — log10 coin thresholds for c1-c5.
     pub challenge_base_requirements: [f64; 5],
+    /// `G.generatorPower` — coin generator-cascade multiplier (steps 101-104).
+    pub generator_power: Decimal,
+    /// `G.uFourteenMulti` — extra multiplier on the Coin Mints → Printers step
+    /// (generator upgrade 102).
+    pub u_fourteen_multi: Decimal,
+    /// `G.uFifteenMulti` — extra multiplier on the Alchemies → Coin Mints step
+    /// (generator upgrade 101).
+    pub u_fifteen_multi: Decimal,
 }
 
 impl Default for ResourceGainPre {
@@ -137,6 +145,9 @@ impl Default for ResourceGainPre {
             fifth_produce_particles: 0.0,
             global_constant_mult: Decimal::one(),
             challenge_base_requirements: [10.0, 20.0, 60.0, 100.0, 200.0],
+            generator_power: Decimal::one(),
+            u_fourteen_multi: Decimal::one(),
+            u_fifteen_multi: Decimal::one(),
         }
     }
 }
@@ -191,6 +202,19 @@ pub struct ResourceGainResult {
     pub reincarnation_shards: Decimal,
     /// New `player.ascendShards`.
     pub ascend_shards: Decimal,
+    // ─── Coin generated counters (generator upgrades 101-105) ────────────
+    // Unlike the other cascades, all five coin tiers can update: upgrade 105
+    // feeds the fifth (Alchemies) from the first (Workers).
+    /// New `player.firstGeneratedCoin`.
+    pub first_generated_coin: Decimal,
+    /// New `player.secondGeneratedCoin`.
+    pub second_generated_coin: Decimal,
+    /// New `player.thirdGeneratedCoin`.
+    pub third_generated_coin: Decimal,
+    /// New `player.fourthGeneratedCoin`.
+    pub fourth_generated_coin: Decimal,
+    /// New `player.fifthGeneratedCoin`.
+    pub fifth_generated_coin: Decimal,
     // ─── Generated counters (first..fourth tier; fifth never updates) ────
     /// New `player.firstGeneratedDiamonds`.
     pub first_generated_diamonds: Decimal,
@@ -353,6 +377,54 @@ pub fn resource_gain(state: &GameState, pre: &ResourceGainPre, dt: f64) -> Resou
     {
         reincarnation_points +=
             (pre.reincarnation_point_gain / Decimal::from_finite(4000.0) * dt_scaled_dec).floor();
+    }
+
+    // ─── Coin generator cascade (upgrades 101-105) ───────────────────────
+    // Legacy `updateAll` "Generation" block (Synergism.ts:4294-4328). Each
+    // owned generator upgrade adds the next-higher tier's (generated + owned)
+    // output to a lower tier's `generated` count, forming a 5-step ring:
+    //   101: Alchemies(5)   → Coin Mints(4)   × uFifteenMulti × generatorPower
+    //   102: Coin Mints(4)  → Printers(3)     × uFourteenMulti × generatorPower
+    //   103: Printers(3)    → Investments(2)  × generatorPower
+    //   104: Investments(2) → Workers(1)      × generatorPower
+    //   105: Workers(1)     → Alchemies(5)     (raw owned, no multiplier)
+    // Steps run in this order and read the just-updated value from the prior
+    // step (sequential accumulation), exactly as the legacy does.
+    //
+    // The legacy block runs once per 50 ms `fastUpdate` with no dt scaling. To
+    // stay dt-correct (identical at the 50 ms tick, and right under time-warp /
+    // offline catch-up), each increment is scaled by `dt / 0.05` — the number
+    // of `fastUpdate`s the elapsed `dt` represents.
+    let coin = &state.coin_producers.tiers;
+    let coin_owned = |i: usize| Decimal::from_finite(coin[i].owned);
+    let gen_dt = Decimal::from_finite(dt / 0.05);
+    let mut first_generated_coin = coin[0].generated;
+    let mut second_generated_coin = coin[1].generated;
+    let mut third_generated_coin = coin[2].generated;
+    let mut fourth_generated_coin = coin[3].generated;
+    let mut fifth_generated_coin = coin[4].generated;
+    if upgrade(101) > 0.5 {
+        fourth_generated_coin += (fifth_generated_coin + coin_owned(4))
+            * pre.u_fifteen_multi
+            * pre.generator_power
+            * gen_dt;
+    }
+    if upgrade(102) > 0.5 {
+        third_generated_coin += (fourth_generated_coin + coin_owned(3))
+            * pre.u_fourteen_multi
+            * pre.generator_power
+            * gen_dt;
+    }
+    if upgrade(103) > 0.5 {
+        second_generated_coin +=
+            (third_generated_coin + coin_owned(2)) * pre.generator_power * gen_dt;
+    }
+    if upgrade(104) > 0.5 {
+        first_generated_coin +=
+            (second_generated_coin + coin_owned(1)) * pre.generator_power * gen_dt;
+    }
+    if upgrade(105) > 0.5 {
+        fifth_generated_coin += coin_owned(0) * gen_dt;
     }
 
     // ─── Diamond cascade ─────────────────────────────────────────────────
@@ -632,6 +704,11 @@ pub fn resource_gain(state: &GameState, pre: &ResourceGainPre, dt: f64) -> Resou
         transcend_shards,
         reincarnation_shards,
         ascend_shards,
+        first_generated_coin,
+        second_generated_coin,
+        third_generated_coin,
+        fourth_generated_coin,
+        fifth_generated_coin,
         first_generated_diamonds,
         second_generated_diamonds,
         third_generated_diamonds,
@@ -839,6 +916,51 @@ mod tests {
         // fourth_generated += 10 * 1 = 10.
         assert_eq!(r.produce_fifth_diamonds.to_number(), 10.0);
         assert_eq!(r.fourth_generated_diamonds.to_number(), 10.0);
+    }
+
+    #[test]
+    fn coin_generator_101_feeds_coin_mints_from_alchemies() {
+        let mut state = GameState::default();
+        state.upgrades.upgrades[101] = 1; // Alchemies → Coin Mints
+        state.coin_producers.tiers[4].owned = 10.0; // 10 Alchemies
+                                                    // generator_power / uFifteenMulti default to 1; dt=0.05 ⇒ gen_dt=1.
+                                                    // fourth += (0 + 10) * 1 * 1 * 1 = 10.
+        let r = resource_gain(&state, &ResourceGainPre::default(), 0.05);
+        assert_eq!(r.fourth_generated_coin.to_number(), 10.0);
+        // Untouched tiers (no upgrade) stay at 0.
+        assert_eq!(r.third_generated_coin.to_number(), 0.0);
+        assert_eq!(r.fifth_generated_coin.to_number(), 0.0);
+    }
+
+    #[test]
+    fn coin_generator_is_inert_without_the_upgrade() {
+        let mut state = GameState::default();
+        state.coin_producers.tiers[4].owned = 1e9; // plenty owned, but no upgrade 101
+        let r = resource_gain(&state, &ResourceGainPre::default(), 0.05);
+        assert_eq!(r.fourth_generated_coin.to_number(), 0.0);
+    }
+
+    #[test]
+    fn coin_generator_scales_with_dt() {
+        let mut state = GameState::default();
+        state.upgrades.upgrades[101] = 1;
+        state.coin_producers.tiers[4].owned = 10.0;
+        // dt = 1.0 s ⇒ gen_dt = 1 / 0.05 = 20 fastUpdates. fourth += 10 * 20 = 200.
+        let r = resource_gain(&state, &ResourceGainPre::default(), 1.0);
+        assert_eq!(r.fourth_generated_coin.to_number(), 200.0);
+    }
+
+    #[test]
+    fn coin_generator_cascades_sequentially_within_a_tick() {
+        let mut state = GameState::default();
+        state.upgrades.upgrades[101] = 1; // Alchemies → Coin Mints
+        state.upgrades.upgrades[102] = 1; // Coin Mints → Printers
+        state.coin_producers.tiers[4].owned = 10.0; // 10 Alchemies
+                                                    // dt=0.05 ⇒ gen_dt=1. 101: fourth += 10 ⇒ 10.
+                                                    // 102 reads the just-updated fourth: third += (10 + 0) * 1 * 1 = 10.
+        let r = resource_gain(&state, &ResourceGainPre::default(), 0.05);
+        assert_eq!(r.fourth_generated_coin.to_number(), 10.0);
+        assert_eq!(r.third_generated_coin.to_number(), 10.0);
     }
 
     #[test]
