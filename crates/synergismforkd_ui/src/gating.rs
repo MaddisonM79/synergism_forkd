@@ -67,7 +67,7 @@ impl Group {
     #[must_use]
     pub fn sections(self) -> &'static [Section] {
         match self {
-            Group::Production => &[Section::Buildings, Section::Upgrades],
+            Group::Production => &[Section::Buildings, Section::Upgrades, Section::Stats],
             Group::Achievements => &[Section::Achievements],
             Group::Mystic => &[
                 Section::Runes,
@@ -112,6 +112,7 @@ pub enum Section {
     #[default]
     Buildings,
     Upgrades,
+    Stats,
     Achievements,
     // Mystic
     Runes,
@@ -140,7 +141,7 @@ impl Section {
     #[must_use]
     pub fn group(self) -> Group {
         match self {
-            Section::Buildings | Section::Upgrades => Group::Production,
+            Section::Buildings | Section::Upgrades | Section::Stats => Group::Production,
             Section::Achievements => Group::Achievements,
             Section::Runes | Section::Challenges | Section::Research | Section::AntHill => {
                 Group::Mystic
@@ -164,6 +165,7 @@ impl Section {
         match self {
             Section::Buildings => "nav.section.buildings",
             Section::Upgrades => "nav.section.upgrades",
+            Section::Stats => "nav.section.stats",
             Section::Achievements => "nav.group.achievements",
             Section::Runes => "nav.section.runes",
             Section::Challenges => "nav.section.challenges",
@@ -195,9 +197,11 @@ impl Section {
             // Achievements is always visible — the legacy achievements tab's
             // `setUnlockedState` is commented out (Tabs.ts:611-615), so it
             // ships unlocked from a fresh save, alongside Buildings/Upgrades.
-            Section::Buildings | Section::Upgrades | Section::Achievements | Section::Settings => {
-                true
-            }
+            Section::Buildings
+            | Section::Upgrades
+            | Section::Stats
+            | Section::Achievements
+            | Section::Settings => true,
             Section::Runes => rc.prestige_unlocked,
             Section::Challenges => rc.transcend_unlocked,
             Section::Research | Section::Shop => rc.reincarnate_unlocked,

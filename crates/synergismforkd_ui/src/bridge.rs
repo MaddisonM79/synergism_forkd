@@ -113,10 +113,6 @@ pub struct UiPrefs {
     /// Ask before a Reincarnation reset.
     #[serde(default = "default_true")]
     pub confirm_reincarnation: bool,
-    /// Show the right-side Status panel (reset gains + live stats).
-    /// `#[serde(default)]` so older saves load with the panel on.
-    #[serde(default = "default_true")]
-    pub show_stats_panel: bool,
 }
 
 /// `serde(default)` helper: a `bool` field defaults to `false`, but a missing
@@ -135,7 +131,6 @@ impl Default for UiPrefs {
             confirm_prestige: true,
             confirm_transcension: true,
             confirm_reincarnation: true,
-            show_stats_panel: true,
         }
     }
 }

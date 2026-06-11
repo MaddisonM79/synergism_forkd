@@ -22,6 +22,7 @@ pub fn SectionView() -> Element {
             match section {
                 Section::Buildings => rsx! { production::buildings::Buildings {} },
                 Section::Upgrades => rsx! { production::upgrades::Upgrades {} },
+                Section::Stats => rsx! { production::stats::StatsPage {} },
                 Section::Achievements => rsx! { production::achievements::Achievements {} },
                 Section::Runes => rsx! { mystic::runes::Runes {} },
                 Section::Settings => rsx! { settings::page::Settings {} },

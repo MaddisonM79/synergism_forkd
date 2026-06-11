@@ -1,16 +1,14 @@
-//! The persistent right-side panel. Top section is the **resource ledger**
-//! (every unlocked currency, icon + value + rate) — always shown, it's the
-//! primary resource HUD now that the top bar is gone. Below it sit the
-//! reset-gain and live production/system stats, which the `show_stats_panel`
-//! pref toggles. All numbers come from state slices + the tick's derived
-//! surface (`bridge.derived`) and re-render only when they change.
+//! The resource ledger — the left half of the bottom bar. Every unlocked
+//! currency as `icon + value (+rate)`, wrapping into columns to fill the
+//! wide-short panel. The live production/system stats live on their own
+//! [`Stats page`](crate::sections::production::stats). Numbers come from
+//! state slices + the tick's derived surface (`bridge.derived`).
 
 use dioxus::prelude::*;
 use synergismforkd_bignum::Decimal;
 
 use crate::bridge::{use_bridge, use_slice};
 use crate::components::{Num, Resource, ResourceIcon};
-use crate::format::format_value;
 use crate::i18n::t;
 
 /// One currency row: icon + name on the left, value (and an optional inline
@@ -63,20 +61,10 @@ pub fn StatsPanel() -> Element {
     let show_gq = use_slice(|s| s.singularity.highest_singularity_count > 0.0);
 
     let derived = bridge.derived.read();
-    let b = derived.buildings;
-    let prefs = bridge.prefs.read();
-    let notation = prefs.notation;
-    let show_stats = prefs.show_stats_panel;
-    // f64 → display string at the player's notation.
-    let fv = move |x: f64| format_value(Decimal::from_finite(x), notation);
-
-    let show_tax = b.tax_divisor > Decimal::one();
 
     rsx! {
         aside { class: "sf-stats",
-            div { class: "sf-stats-title", {t("stats.title")} }
-
-            // ── Resource ledger (always shown) ──────────────────────────────
+            // ── Resource ledger ─────────────────────────────────────────────
             section { class: "sf-stats-section sf-stats-resources",
                 div { class: "sf-stats-head", {t("stats.resources")} }
                 CurrencyRow {
@@ -114,66 +102,6 @@ pub fn StatsPanel() -> Element {
                 }
                 if show_gq() {
                     CurrencyRow { resource: Resource::GoldenQuarks, value: golden_quarks() }
-                }
-            }
-
-            if show_stats {
-                section { class: "sf-stats-section",
-                    div { class: "sf-stats-head", {t("stats.production")} }
-                    div { class: "sf-card-row",
-                        span { class: "label", {t("stats.coins_per_sec")} }
-                        span {
-                            Num { value: derived.coins_per_sec, rate: true }
-                            {t("hud.per_sec")}
-                        }
-                    }
-                    div { class: "sf-card-row",
-                        span { class: "label", {t("buildings.accelerators")} }
-                        span {
-                            Num { value: b.accelerator_effect, rate: true }
-                            "×"
-                        }
-                    }
-                    div { class: "sf-card-row",
-                        span { class: "label", {t("buildings.multipliers")} }
-                        span {
-                            Num { value: b.multiplier_effect, rate: true }
-                            "×"
-                        }
-                    }
-                    if show_tax {
-                        div { class: "sf-card-row",
-                            span { class: "label", {t("stats.tax_divisor")} }
-                            span { Num { value: b.tax_divisor } }
-                        }
-                    }
-                }
-
-                if show_diamonds() {
-                    section { class: "sf-stats-section",
-                        div { class: "sf-stats-head", {t("stats.systems")} }
-                        div { class: "sf-card-row",
-                            span { class: "label", {t("stats.building_power")} }
-                            span { "{fv(b.building_power)}" }
-                        }
-                        div { class: "sf-card-row",
-                            span { class: "label", {t("stats.speed")} }
-                            span { "{fv(b.global_speed_mult)}×" }
-                        }
-                        div { class: "sf-card-row",
-                            span { class: "label", {t("stats.total_mult")} }
-                            span { "{fv(b.total_multiplier)}×" }
-                        }
-                        if show_mythos() {
-                            div { class: "sf-card-row",
-                                span { class: "label", {t("stats.global_mythos")} }
-                                span {
-                                    Num { value: b.global_mythos_multiplier, rate: true }
-                                    "×"
-                                }
-                            }
-                        }
-                    }
                 }
             }
         }
