@@ -25,7 +25,9 @@ const CRITICAL_CSS: &str = "html,body{margin:0;background:#1a1325;}";
 #[component]
 pub fn App() -> Element {
     let bridge = use_bridge();
-    let theme = bridge.prefs.read().theme;
+    let prefs = bridge.prefs.read();
+    let theme = prefs.theme;
+    let show_stats = prefs.show_stats_panel;
 
     rsx! {
         document::Style { {CRITICAL_CSS} }
@@ -35,12 +37,16 @@ pub fn App() -> Element {
         document::Stylesheet { href: asset!("/assets/styles/components.css") }
         document::Stylesheet { href: asset!("/assets/styles/sections.css") }
 
-        div { class: "sf-app", "data-theme": theme.css_value(),
+        div {
+            class: if show_stats { "sf-app" } else { "sf-app no-stats" },
+            "data-theme": theme.css_value(),
             GroupedNav {}
             ResourceHud {}
             SubNav {}
             SectionView {}
-            StatsPanel {}
+            if show_stats {
+                StatsPanel {}
+            }
             ToastStack {}
             DialogLayer {}
             div { class: "sf-version", "v{VERSION}" }

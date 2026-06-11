@@ -26,6 +26,7 @@ pub fn Settings() -> Element {
 fn AppearanceSection() -> Element {
     let bridge = use_bridge();
     let current = bridge.prefs.read().theme;
+    let stats_on = bridge.prefs.read().show_stats_panel;
     rsx! {
         section { class: "sf-settings-block",
             h2 { {t("settings.appearance.title")} }
@@ -44,6 +45,30 @@ fn AppearanceSection() -> Element {
                             },
                             {t(theme.label_key())}
                         }
+                    }
+                }
+            }
+            div { class: "sf-settings-row",
+                div { class: "text",
+                    div { {t("settings.stats_panel.title")} }
+                    div { class: "hint", {t("settings.stats_panel.hint")} }
+                }
+                div { class: "sf-seg",
+                    button {
+                        class: if stats_on { "active" } else { "" },
+                        onclick: move |_| {
+                            let mut prefs = bridge.prefs;
+                            prefs.write().show_stats_panel = true;
+                        },
+                        {t("settings.on")}
+                    }
+                    button {
+                        class: if stats_on { "" } else { "active" },
+                        onclick: move |_| {
+                            let mut prefs = bridge.prefs;
+                            prefs.write().show_stats_panel = false;
+                        },
+                        {t("settings.off")}
                     }
                 }
             }

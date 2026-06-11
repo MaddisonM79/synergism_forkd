@@ -405,5 +405,9 @@
   "upgrades.crystalFormula.1": "(1 + level / 100)^(AP)",
   "upgrades.crystalFormula.2": "(1 + level * log10(Coins + 1) / 100)^(2 + log2(level + 1))",
   "upgrades.crystalFormula.3": "(1 + Bonus%)^(Diamond Buildings Bought)",
-  "upgrades.crystalFormula.5": "(1 + level / 20)^(Transcension Challenges Completed)"
+  "upgrades.crystalFormula.5": "(1 + level / 20)^(Transcension Challenges Completed)",
+  "settings.stats_panel.title": "Status panel",
+  "settings.stats_panel.hint": "Show the right-side panel with reset gains and live stats.",
+  "settings.on": "On",
+  "settings.off": "Off"
 }

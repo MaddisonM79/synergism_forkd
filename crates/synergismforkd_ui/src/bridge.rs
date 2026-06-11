@@ -98,6 +98,16 @@ pub struct UiPrefs {
     pub theme: Theme,
     /// Ask before prestiging ("don't ask again" unchecks this).
     pub confirm_resets: bool,
+    /// Show the right-side Status panel (reset gains + live stats).
+    /// `#[serde(default)]` so older saves load with the panel on.
+    #[serde(default = "default_true")]
+    pub show_stats_panel: bool,
+}
+
+/// `serde(default)` helper: a `bool` field defaults to `false`, but a missing
+/// `show_stats_panel` should default to *on*.
+fn default_true() -> bool {
+    true
 }
 
 impl Default for UiPrefs {
@@ -107,6 +117,7 @@ impl Default for UiPrefs {
             buy_amount: BuyAmount::default(),
             theme: Theme::default(),
             confirm_resets: true,
+            show_stats_panel: true,
         }
     }
 }

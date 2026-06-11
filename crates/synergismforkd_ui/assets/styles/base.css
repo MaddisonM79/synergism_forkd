@@ -27,6 +27,15 @@ body {
   line-height: 1.35;
 }
 
+/* Status panel hidden (setting off): drop the third column. */
+.sf-app.no-stats {
+  grid-template-columns: var(--rail-w) 1fr;
+  grid-template-areas:
+    "rail hud"
+    "rail subnav"
+    "rail content";
+}
+
 /* Every number on screen: tabular so columns don't jitter at 20 Hz. */
 .sf-num {
   font-family: var(--font-num);
