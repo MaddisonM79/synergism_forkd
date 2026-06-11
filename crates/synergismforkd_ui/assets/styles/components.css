@@ -229,6 +229,23 @@
   white-space: nowrap;
 }
 
+/* Per-second row: the value can be very wide (with its % suffix), so always
+ * stack it on its own line under the label — uniform card height across the
+ * row instead of some cards wrapping and others not. */
+.sf-card-row.sf-persec {
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0;
+}
+
+.sf-card-row.sf-persec .label {
+  align-self: flex-start;
+}
+
+.sf-card-row.sf-persec > .label + * {
+  margin-left: 0;
+}
+
 .sf-card-actions {
   display: flex;
   gap: var(--space-2);

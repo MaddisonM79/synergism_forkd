@@ -202,7 +202,7 @@ fn CoinProducerCard(index: u8) -> Element {
             div { class: "sf-card-title", {t(name_key)} }
             OwnedRow { owned: owned(), generated: generated() }
             CostRow { cost: cost(), resource: Resource::Coins }
-            div { class: "sf-card-row",
+            div { class: "sf-card-row sf-persec",
                 span { class: "label", {t("buildings.per_sec")} }
                 Tooltip {
                     tip: rsx! { span { {format_value(Decimal::from_finite(percent), notation)} "% " {t("buildings.of_total")} } },
