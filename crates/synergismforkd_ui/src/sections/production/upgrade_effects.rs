@@ -401,4 +401,29 @@ mod tests {
         let txt = effect_text(21, &s, &d, Notation::default()).unwrap();
         assert!(!txt.contains("{{x}}") && !txt.contains("{{y}}"));
     }
+
+    #[test]
+    fn crystal_cost_at_level_zero_is_base() {
+        let s = GameState::default();
+        // base[0] = 6, level 0, c = 0 → floor(0.5²/2) = 0 → 10^6.
+        assert_eq!(crystal_cost(1, &s), Decimal::from_finite(1e6));
+    }
+
+    #[test]
+    fn crystal_effect_fills_or_hides() {
+        let s = GameState::default();
+        // 1/2/5 are computable → templated string filled.
+        for i in [1u8, 2, 5] {
+            let txt = crystal_effect_text(i, &s, Notation::default())
+                .unwrap_or_else(|| panic!("crystal {i} should have an effect"));
+            assert!(
+                !txt.contains("{{"),
+                "crystal {i} placeholder must be filled"
+            );
+        }
+        // 3/4 need unported helpers → hidden, never raw.
+        for i in [3u8, 4] {
+            assert!(crystal_effect_text(i, &s, Notation::default()).is_none());
+        }
+    }
 }
