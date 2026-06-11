@@ -15,7 +15,7 @@ use synergismforkd_logic::mechanics::multipliers::BuyMultiplierInput;
 use synergismforkd_logic::mechanics::producers::{BuyMaxInput, BuyProducerInput};
 use synergismforkd_logic::state::BuyAmount as LogicBuyAmount;
 use synergismforkd_logic::{
-    producer_cost_input, reduction_value, BuyRequest, GameState, PlayerAction,
+    producer_cost_input, reduction_value, BuyRequest, ClickUpgradesUnlocks, GameState, PlayerAction,
 };
 
 use crate::bridge::BuyAmount;
@@ -94,6 +94,23 @@ pub fn multiplier_buy(state: &GameState, amount: BuyAmount) -> PlayerAction {
         in_transcension_challenge_4: state.challenges.current_transcension_challenge == 4,
         in_reincarnation_challenge_8: state.challenges.current_reincarnation_challenge == 8,
     }))
+}
+
+/// Shop-upgrade purchase (`idx` in `1..=125`). Routes through the logic tier's
+/// `clickUpgrades` dispatcher, which picks the currency/mechanic from the index
+/// (coin / diamond / mythos / particle / automation / generator) and gates on
+/// the upgrade being unowned + the relevant tier unlock. The single buy path
+/// for every shop, so manual and auto purchases can't disagree on routing.
+#[must_use]
+pub fn upgrade_buy(state: &GameState, idx: usize) -> PlayerAction {
+    PlayerAction::Buy(BuyRequest::ClickUpgrade {
+        i: idx,
+        unlocks: ClickUpgradesUnlocks {
+            prestige: state.reset_counters.prestige_unlocked,
+            transcend: state.reset_counters.transcend_unlocked,
+            reincarnate: state.reset_counters.reincarnate_unlocked,
+        },
+    })
 }
 
 #[cfg(test)]

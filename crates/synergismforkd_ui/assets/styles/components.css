@@ -173,6 +173,15 @@
   font-size: var(--fs-sm);
 }
 
+/* An owned upgrade (legacy gold "BOUGHT!" treatment). */
+.sf-card.bought {
+  border-color: var(--res-coin);
+}
+
+.sf-card.bought .sf-card-title {
+  color: var(--res-coin);
+}
+
 .sf-card-row {
   display: flex;
   justify-content: space-between;
