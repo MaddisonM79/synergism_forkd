@@ -284,7 +284,7 @@ fn CrystalUpgradeCard(i: u8) -> Element {
                 span {
                     Num { value: cost() }
                     " "
-                    {t("upgrades.crystal_currency")}
+                    ResourceIcon { resource: Resource::Crystals }
                 }
             }
             if let Some(line) = effect() {

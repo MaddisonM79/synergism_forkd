@@ -32,6 +32,7 @@
   /* Resource colors (ResourceIcon + chips) */
   --res-coin: #ecc95c;
   --res-diamond: #84dbe8;
+  --res-crystal: #b7c8f7;
   --res-mythos: #c39bf0;
   --res-particle: #f2a877;
   --res-offering: #ee8f86;
@@ -67,6 +68,7 @@
 
   --res-coin: #b8901a;
   --res-diamond: #1f96aa;
+  --res-crystal: #5b6fc0;
   --res-mythos: #8455c8;
   --res-particle: #c96637;
   --res-offering: #c2554a;

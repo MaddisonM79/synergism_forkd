@@ -409,5 +409,6 @@
   "settings.stats_panel.title": "Status panel",
   "settings.stats_panel.hint": "Show the right-side panel with reset gains and live stats.",
   "settings.on": "On",
-  "settings.off": "Off"
+  "settings.off": "Off",
+  "hud.crystals": "Crystals"
 }

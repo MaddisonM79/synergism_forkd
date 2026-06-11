@@ -13,6 +13,9 @@ use dioxus::prelude::*;
 pub enum Resource {
     Coins,
     Diamonds,
+    /// Crystals (`prestigeShards`) — the diamond-layer sub-currency that
+    /// crystal upgrades cost.
+    Crystals,
     Mythos,
     Particles,
     Offerings,
@@ -29,6 +32,7 @@ impl Resource {
         match self {
             Resource::Coins => "var(--res-coin)",
             Resource::Diamonds => "var(--res-diamond)",
+            Resource::Crystals => "var(--res-crystal)",
             Resource::Mythos => "var(--res-mythos)",
             Resource::Particles => "var(--res-particle)",
             Resource::Offerings => "var(--res-offering)",
@@ -45,6 +49,7 @@ impl Resource {
         match self {
             Resource::Coins => "hud.coins",
             Resource::Diamonds => "hud.diamonds",
+            Resource::Crystals => "hud.crystals",
             Resource::Mythos => "hud.mythos",
             Resource::Particles => "hud.particles",
             Resource::Offerings => "hud.offerings",
@@ -62,6 +67,8 @@ impl Resource {
             Resource::Coins => "M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18z",
             // Rhombus (diamond).
             Resource::Diamonds => "M12 2 21 12 12 22 3 12z",
+            // Faceted gem (crystal): a smaller cut-stone silhouette.
+            Resource::Crystals => "M7 3h10l3 5-8 13L4 8z",
             // Four-point star (mythos).
             Resource::Mythos => "M12 2l2.5 7.5L22 12l-7.5 2.5L12 22l-2.5-7.5L2 12l7.5-2.5z",
             // Dot + orbit hint (particle).
