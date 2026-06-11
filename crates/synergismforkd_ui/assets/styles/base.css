@@ -13,18 +13,27 @@ body {
 
 .sf-app {
   display: grid;
-  grid-template-columns: var(--rail-w) 1fr;
+  grid-template-columns: var(--rail-w) 1fr var(--stats-w);
   grid-template-rows: var(--hud-h) var(--subnav-h) 1fr;
   grid-template-areas:
-    "rail hud"
-    "rail subnav"
-    "rail content";
+    "rail hud     stats"
+    "rail subnav  stats"
+    "rail content stats";
   height: 100vh;
   background: var(--bg-app);
   color: var(--text);
   font-family: var(--font-ui);
   font-size: var(--fs-md);
   line-height: 1.35;
+}
+
+/* Status panel hidden (setting off): drop the third column. */
+.sf-app.no-stats {
+  grid-template-columns: var(--rail-w) 1fr;
+  grid-template-areas:
+    "rail hud"
+    "rail subnav"
+    "rail content";
 }
 
 /* Every number on screen: tabular so columns don't jitter at 20 Hz. */

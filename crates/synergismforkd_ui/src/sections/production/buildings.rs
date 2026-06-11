@@ -12,13 +12,13 @@
 use dioxus::prelude::*;
 use synergismforkd_bignum::Decimal;
 use synergismforkd_logic::events::ProducerType;
-use synergismforkd_logic::{BuyRequest, PlayerAction, ResetRequest};
+use synergismforkd_logic::{AutoToggle, BuyRequest, PlayerAction, ResetRequest};
 
 use crate::bridge::{use_bridge, use_slice, BuyAmount};
 use crate::components::{Collapsible, Num, Progress, Resource, ResourceIcon, Tooltip};
 use crate::derive;
 use crate::format::format_value;
-use crate::i18n::t;
+use crate::i18n::{t, t_args};
 
 #[component]
 pub fn Buildings() -> Element {
@@ -26,12 +26,33 @@ pub fn Buildings() -> Element {
     // The legacy `coinunlock3` gate: the buy-amount selector is itself a
     // progression reward (coins ≥ 1e5).
     let amounts_unlocked = use_slice(|s| s.reset_counters.coin_three_unlocked);
+    // Reset gates (lifted here so the reset buttons sit in a strip above the
+    // producers rather than mixed into the coin building row). Prestige reveals
+    // at coins ≥ 4e6; transcension after a prestige; reincarnation after a
+    // transcension (mirrors the reset progression).
+    let show_prestige = use_slice(|s| s.reset_counters.coin_four_unlocked);
+    let show_transcend = use_slice(|s| s.reset_counters.prestige_unlocked);
+    let show_reincarnate = use_slice(|s| s.reset_counters.transcend_unlocked);
+    let any_reset = show_prestige() || show_transcend() || show_reincarnate();
 
     rsx! {
         div { class: "sf-section-head",
             h1 { {t("nav.section.buildings")} }
             if amounts_unlocked() {
                 BuyAmountToggle {}
+            }
+        }
+        if any_reset {
+            div { class: "sf-reset-strip",
+                if show_prestige() {
+                    ResetCard { tier: ResetTier::Prestige }
+                }
+                if show_transcend() {
+                    ResetCard { tier: ResetTier::Transcension }
+                }
+                if show_reincarnate() {
+                    ResetCard { tier: ResetTier::Reincarnation }
+                }
             }
         }
         Collapsible { title: t("buildings.subtab.coin").to_string(),
@@ -85,11 +106,6 @@ fn CoinBuildings() -> Element {
     });
     let show_accelerators = use_slice(|s| s.reset_counters.coin_one_unlocked);
     let show_multipliers = use_slice(|s| s.reset_counters.coin_two_unlocked);
-    let show_prestige = use_slice(|s| s.reset_counters.coin_four_unlocked);
-    // Once you've prestiged, transcension becomes the next goal; once you've
-    // transcended, reincarnation does (mirrors the reset progression).
-    let show_transcend = use_slice(|s| s.reset_counters.prestige_unlocked);
-    let show_reincarnate = use_slice(|s| s.reset_counters.transcend_unlocked);
     let show_boost = use_slice(|s| s.reset_counters.prestige_unlocked);
     let tax_divisor = bridge.derived.read().buildings.tax_divisor;
 
@@ -113,15 +129,6 @@ fn CoinBuildings() -> Element {
             }
             if show_boost() {
                 AcceleratorBoostCard {}
-            }
-            if show_prestige() {
-                ResetCard { tier: ResetTier::Prestige }
-            }
-            if show_transcend() {
-                ResetCard { tier: ResetTier::Transcension }
-            }
-            if show_reincarnate() {
-                ResetCard { tier: ResetTier::Reincarnation }
             }
         }
     }
@@ -156,10 +163,34 @@ fn CostRow(cost: Decimal, resource: Resource) -> Element {
     }
 }
 
+/// A building autobuyer enable toggle, shown once the autobuyer is unlocked.
+/// `index` is the legacy `player.toggles` slot (1..=26); flips
+/// `automation.toggles[index]` so the `updateAll` driver buys this building.
+#[component]
+fn AutoBuyToggle(index: usize) -> Element {
+    let bridge = use_bridge();
+    let on = use_slice(move |s| s.automation.toggles[index]);
+    rsx! {
+        button {
+            class: if on() { "sf-auto-toggle on" } else { "sf-auto-toggle" },
+            "aria-pressed": "{on()}",
+            onclick: move |_| {
+                bridge.dispatch(PlayerAction::ToggleAuto {
+                    target: AutoToggle::BuildingAutobuy(index),
+                    enabled: !on(),
+                });
+            },
+            {t(if on() { "buildings.auto_on" } else { "buildings.auto_off" })}
+        }
+    }
+}
+
 #[component]
 fn CoinProducerCard(index: u8) -> Element {
     let bridge = use_bridge();
     let owned = use_slice(move |s| s.coin_producers.owned(index));
+    // Autobuyer unlocks via automation upgrade 80+t (Upgrades → Automation).
+    let auto_unlocked = use_slice(move |s| s.upgrades.upgrades[80 + index as usize] == 1);
     let generated = use_slice(move |s| s.coin_producers.tiers[(index - 1) as usize].generated);
     let cost = use_slice(move |s| s.coin_producers.cost(index));
     let affordable = use_slice(move |s| s.upgrades.coins >= s.coin_producers.cost(index));
@@ -195,7 +226,7 @@ fn CoinProducerCard(index: u8) -> Element {
             div { class: "sf-card-title", {t(name_key)} }
             OwnedRow { owned: owned(), generated: generated() }
             CostRow { cost: cost(), resource: Resource::Coins }
-            div { class: "sf-card-row",
+            div { class: "sf-card-row sf-persec",
                 span { class: "label", {t("buildings.per_sec")} }
                 Tooltip {
                     tip: rsx! { span { {format_value(Decimal::from_finite(percent), notation)} "% " {t("buildings.of_total")} } },
@@ -207,6 +238,9 @@ fn CoinProducerCard(index: u8) -> Element {
             }
             div { class: "sf-card-actions",
                 button { disabled: !affordable(), onclick: buy, {t("buildings.buy")} }
+                if auto_unlocked() {
+                    AutoBuyToggle { index: index as usize }
+                }
             }
         }
     }
@@ -219,10 +253,97 @@ fn CoinProducerCard(index: u8) -> Element {
 /// `ProducerType::Diamonds`.
 #[component]
 fn DiamondBuildings() -> Element {
+    // Crystal upgrades 1–2 reveal with the Diamond subtab; 3–5 behind transcend
+    // (legacy `transcendunlock` on `buycrystalupgrade3..5`).
+    let show_crystal_345 = use_slice(|s| s.reset_counters.transcend_unlocked);
     rsx! {
         div { class: "sf-card-grid",
             for index in 1..=5u8 {
                 DiamondProducerCard { key: "{index}", index }
+            }
+        }
+        div { class: "sf-collapsible-title sf-crystal-head", {t("upgrades.crystalUpgrades.heading")} }
+        CrystalBonusLine {}
+        div { class: "sf-card-grid",
+            for i in 1..=5u8 {
+                if i <= 2 || show_crystal_345() {
+                    CrystalUpgradeCard { key: "c{i}", i }
+                }
+            }
+        }
+    }
+}
+
+/// The legacy "You have X Crystals, multiplying Coin production by Y×" line —
+/// makes the Crystals → Coin bonus visible (it's applied in the coin
+/// multiplier chain but was otherwise invisible).
+#[component]
+fn CrystalBonusLine() -> Element {
+    let bridge = use_bridge();
+    let crystals = use_slice(|s| s.crystal_upgrades.prestige_shards);
+    let mult = bridge.derived.read().buildings.crystal_coin_multiplier;
+    let notation = bridge.prefs.read().notation;
+    rsx! {
+        div { class: "sf-crystal-bonus",
+            {t_args(
+                "upgrades.crystal_bonus",
+                &[
+                    ("crystals", &format_value(crystals(), notation)),
+                    ("mult", &format_value(mult, notation)),
+                ],
+            )}
+        }
+    }
+}
+
+/// A crystal upgrade (prestige-shard ladder shown under Diamonds): level, cost
+/// in crystals, live effect (1/2/5), and a buy-to-max button.
+#[component]
+fn CrystalUpgradeCard(i: u8) -> Element {
+    use crate::sections::production::upgrade_effects::{crystal_cost, crystal_effect_text};
+
+    let bridge = use_bridge();
+    let level = use_slice(move |s| s.crystal_upgrades.crystal_upgrades[(i - 1) as usize]);
+    let cost = use_slice(move |s| crystal_cost(i, s));
+    let affordable = use_slice(move |s| s.crystal_upgrades.prestige_shards >= crystal_cost(i, s));
+    let notation = bridge.prefs.read().notation;
+    let effect = use_slice(move |s| crystal_effect_text(i, s, bridge.prefs.peek().notation));
+    let name = t(&format!("upgrades.crystalUpgrades.{i}")).to_string();
+    // The legacy explicit math formula (crystals 1/2/3/5 only). A missing key
+    // echoes itself, so render the line only when a real formula is present.
+    let formula_key = format!("upgrades.crystalFormula.{i}");
+    let formula = t(&formula_key);
+    let has_formula = formula != formula_key;
+
+    let buy = move |_| {
+        bridge.dispatch(derive::crystal_upgrade_buy(&bridge.state.peek(), i));
+    };
+
+    rsx! {
+        div { class: "sf-card",
+            div { class: "sf-card-title", "{name}" }
+            if has_formula {
+                div { class: "sf-upgrade-formula", "{formula}" }
+            }
+            div { class: "sf-card-row",
+                span { class: "label", {t("upgrades.crystal_level")} }
+                span { {format_value(Decimal::from_finite(level()), notation)} }
+            }
+            div { class: "sf-card-row",
+                span { class: "label", {t("buildings.cost")} }
+                span {
+                    Num { value: cost() }
+                    " "
+                    ResourceIcon { resource: Resource::Crystals }
+                }
+            }
+            if let Some(line) = effect() {
+                div { class: "sf-card-row sf-upgrade-effect",
+                    span { "{line}" }
+                }
+            }
+            div { class: "sf-card-actions",
+                button { disabled: !affordable(), onclick: buy, {t("buildings.buy")} }
             }
         }
     }
@@ -236,6 +357,23 @@ fn DiamondProducerCard(index: u8) -> Element {
     let cost = use_slice(move |s| s.diamond_producers.cost(index));
     let affordable =
         use_slice(move |s| s.upgrades.prestige_points >= s.diamond_producers.cost(index));
+    // Diamond-producer autobuyers unlock via Synergism-level milestones
+    // (tier-N crystal autobuy); toggle slot 9 + tier.
+    let auto_unlocked = use_slice(move |s| {
+        use synergismforkd_logic::mechanics::achievement_levels::achievement_level_from_points;
+        use synergismforkd_logic::mechanics::level_milestones::{
+            get_level_milestone, LevelMilestoneKey,
+        };
+        let key = match index {
+            1 => LevelMilestoneKey::Tier1CrystalAutobuy,
+            2 => LevelMilestoneKey::Tier2CrystalAutobuy,
+            3 => LevelMilestoneKey::Tier3CrystalAutobuy,
+            4 => LevelMilestoneKey::Tier4CrystalAutobuy,
+            _ => LevelMilestoneKey::Tier5CrystalAutobuy,
+        };
+        let level = achievement_level_from_points(s.achievements.achievement_points);
+        get_level_milestone(key, level) > 0.5
+    });
     let name_key = match index {
         1 => "buildings.diamond.1",
         2 => "buildings.diamond.2",
@@ -258,6 +396,9 @@ fn DiamondProducerCard(index: u8) -> Element {
             CostRow { cost: cost(), resource: Resource::Diamonds }
             div { class: "sf-card-actions",
                 button { disabled: !affordable(), onclick: buy, {t("buildings.buy")} }
+                if auto_unlocked() {
+                    AutoBuyToggle { index: 9 + index as usize }
+                }
             }
         }
     }
@@ -290,6 +431,7 @@ fn AcceleratorCard() -> Element {
     let owned = use_slice(|s| s.accelerator.accelerator_bought);
     let cost = use_slice(|s| s.accelerator.accelerator_cost);
     let affordable = use_slice(|s| s.upgrades.coins >= s.accelerator.accelerator_cost);
+    let auto_unlocked = use_slice(|s| s.upgrades.upgrades[86] == 1);
     let derived = bridge.derived.read();
     let b = &derived.buildings;
     let notation = bridge.prefs.read().notation;
@@ -320,6 +462,9 @@ fn AcceleratorCard() -> Element {
             }
             div { class: "sf-card-actions",
                 button { disabled: !affordable(), onclick: buy, {t("buildings.buy")} }
+                if auto_unlocked() {
+                    AutoBuyToggle { index: 6 }
+                }
             }
         }
     }
@@ -331,6 +476,7 @@ fn MultiplierCard() -> Element {
     let owned = use_slice(|s| s.multiplier.multiplier_bought);
     let cost = use_slice(|s| s.multiplier.multiplier_cost);
     let affordable = use_slice(|s| s.upgrades.coins >= s.multiplier.multiplier_cost);
+    let auto_unlocked = use_slice(|s| s.upgrades.upgrades[87] == 1);
     let derived = bridge.derived.read();
     let b = &derived.buildings;
     let notation = bridge.prefs.read().notation;
@@ -362,6 +508,9 @@ fn MultiplierCard() -> Element {
             }
             div { class: "sf-card-actions",
                 button { disabled: !affordable(), onclick: buy, {t("buildings.buy")} }
+                if auto_unlocked() {
+                    AutoBuyToggle { index: 7 }
+                }
             }
         }
     }
@@ -376,6 +525,7 @@ fn AcceleratorBoostCard() -> Element {
     let cost = use_slice(|s| s.accelerator.accelerator_boost_cost);
     let affordable =
         use_slice(|s| s.upgrades.prestige_points >= s.accelerator.accelerator_boost_cost);
+    let auto_unlocked = use_slice(|s| s.upgrades.upgrades[88] == 1 && s.upgrades.upgrades[46] == 1);
     let derived = bridge.derived.read();
     let b = &derived.buildings;
     let notation = bridge.prefs.read().notation;
@@ -404,6 +554,9 @@ fn AcceleratorBoostCard() -> Element {
             }
             div { class: "sf-card-actions",
                 button { disabled: !affordable(), onclick: buy, {t("buildings.buy")} }
+                if auto_unlocked() {
+                    AutoBuyToggle { index: 8 }
+                }
             }
         }
     }
@@ -462,22 +615,79 @@ impl ResetTier {
         }
     }
 
-    /// The resource accumulated toward the first point, and the threshold
-    /// at which the reset awards ≥ 1 (the divisor in the gain formula —
-    /// `x^p ≥ 1 ⟺ x ≥ divisor` for `p > 0`). Coins for prestige/transcend,
-    /// mythos shards for reincarnation.
-    fn source(self, s: &synergismforkd_logic::GameState) -> (Decimal, f64, Resource) {
+    /// Reset availability + progress, faithful to the legacy `resetCheck`
+    /// thresholds (Synergism.ts:3551 / 3559 / 3629):
+    /// - prestige: `coinsThisPrestige ≥ 1e16` **or** gain ≥ 100
+    /// - transcension: (`coinsThisTranscension ≥ 1e100` **or** gain ≥ 0.5) and
+    ///   not inside a transcension challenge
+    /// - reincarnation: gain > 0.5 and not inside a transcension/reincarnation
+    ///   challenge (purely gain-gated — no coin threshold)
+    fn gate(self, s: &synergismforkd_logic::GameState, gain: Decimal) -> ResetGate {
+        let g = gain.to_number();
         match self {
-            ResetTier::Prestige => (s.coin_counters.coins_this_prestige, 1e12, Resource::Coins),
-            ResetTier::Transcension => (
-                s.coin_counters.coins_this_transcension,
-                1e100,
-                Resource::Coins,
-            ),
+            ResetTier::Prestige => {
+                let current = s.coin_counters.coins_this_prestige;
+                let threshold = Decimal::from_finite(1e16);
+                ResetGate {
+                    available: current >= threshold || g >= 100.0,
+                    current,
+                    threshold,
+                    resource: Resource::Coins,
+                    fraction: log_fraction(current, threshold),
+                }
+            }
+            ResetTier::Transcension => {
+                let current = s.coin_counters.coins_this_transcension;
+                let threshold = Decimal::from_finite(1e100);
+                let in_challenge = s.challenges.current_transcension_challenge != 0;
+                ResetGate {
+                    available: (current >= threshold || g >= 0.5) && !in_challenge,
+                    current,
+                    threshold,
+                    resource: Resource::Coins,
+                    fraction: log_fraction(current, threshold),
+                }
+            }
             ResetTier::Reincarnation => {
-                (s.reset_counters.transcend_shards, 1e300, Resource::Mythos)
+                let in_challenge = s.challenges.current_transcension_challenge != 0
+                    || s.challenges.current_reincarnation_challenge != 0;
+                let threshold = Decimal::from_finite(0.5);
+                ResetGate {
+                    available: g > 0.5 && !in_challenge,
+                    current: gain,
+                    threshold,
+                    resource: Resource::Particles,
+                    fraction: (g / 0.5).clamp(0.0, 1.0),
+                }
             }
         }
+    }
+}
+
+/// Reset availability + the "requires" / progress-bar inputs for one tier.
+struct ResetGate {
+    /// Whether the reset may be performed now (the legacy `resetCheck` gate).
+    available: bool,
+    /// The metric shown in the "requires" line (coins for prestige/transcend,
+    /// the gain for reincarnation).
+    current: Decimal,
+    /// The threshold that metric is measured against.
+    threshold: Decimal,
+    /// Icon for the requires line.
+    resource: Resource,
+    /// Progress-bar fill, 0..=1.
+    fraction: f64,
+}
+
+/// Log-scale progress toward a huge coin threshold, so the bar shows real
+/// movement instead of sitting at ~0 until the very end.
+fn log_fraction(current: Decimal, threshold: Decimal) -> f64 {
+    let cur = current.to_number();
+    let thr = threshold.to_number();
+    if cur <= 1.0 || thr <= 1.0 {
+        0.0
+    } else {
+        (cur.log10() / thr.log10()).clamp(0.0, 1.0)
     }
 }
 
@@ -493,20 +703,13 @@ fn ResetCard(tier: ResetTier) -> Element {
         ResetTier::Transcension => bridge.derived.read().transcend_point_gain,
         ResetTier::Reincarnation => bridge.derived.read().reincarnation_point_gain,
     };
-    let available = gain >= Decimal::one();
-    let (current, threshold, source_resource) = use_slice(move |s| tier.source(s))();
+    let gate = tier.gate(&bridge.state.read(), gain);
+    let available = gate.available;
+    let current = gate.current;
+    let threshold = gate.threshold;
+    let source_resource = gate.resource;
+    let fraction = gate.fraction;
     let notation = bridge.prefs.read().notation;
-
-    // Log-scale fill so the bar shows meaningful progress against the huge
-    // thresholds (1e12 … 1e300) instead of sitting at ~0 until the end.
-    let fraction = {
-        let cur = current.to_number();
-        if cur <= 1.0 {
-            0.0
-        } else {
-            (cur.log10() / threshold.log10()).clamp(0.0, 1.0)
-        }
-    };
 
     let do_reset = use_callback(move |()| {
         bridge.dispatch(PlayerAction::Reset(tier.request()));
@@ -537,7 +740,7 @@ fn ResetCard(tier: ResetTier) -> Element {
                 span { class: "sf-num",
                     {format_value(current, notation)}
                     " / "
-                    {format_value(Decimal::from_finite(threshold), notation)}
+                    {format_value(threshold, notation)}
                     " "
                     ResourceIcon { resource: source_resource }
                 }

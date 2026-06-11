@@ -66,6 +66,7 @@ pub fn ResourceHud() -> Element {
     let coins = use_slice(|s| s.upgrades.coins);
     let coins_lifetime = use_slice(|s| s.coin_counters.coins_total);
     let diamonds = use_slice(|s| s.upgrades.prestige_points);
+    let crystals = use_slice(|s| s.crystal_upgrades.prestige_shards);
     let mythos = use_slice(|s| s.upgrades.transcend_points);
     let particles = use_slice(|s| s.upgrades.reincarnation_points);
     let offerings = use_slice(|s| s.automation.offerings);
@@ -91,6 +92,7 @@ pub fn ResourceHud() -> Element {
             }
             if show_diamonds() {
                 Chip { resource: Resource::Diamonds, value: diamonds() }
+                Chip { resource: Resource::Crystals, value: crystals() }
                 Chip { resource: Resource::Offerings, value: offerings() }
             }
             if show_mythos() {

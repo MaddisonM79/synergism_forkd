@@ -50,12 +50,16 @@ pub use currency::{Coins, Multiplier, PrestigePoints, ReincarnationPoints, Trans
 
 pub use tick::{
     claim_export_rewards, daily_reset, producer_cost_input, reduction_value, seed_blank_save, tack,
-    AutomationPre, BuildingsDerived, BuyRequest, DerivedTickStats, ExportRewardClaim, PlayerAction,
-    ResetRequest, TackInput, TickOutput,
+    AutoToggle, AutomationPre, BuildingsDerived, BuyRequest, DerivedTickStats, ExportRewardClaim,
+    PlayerAction, ResetRequest, TackInput, TickOutput,
 };
 
 // Host seam: rebuild the achievement-points total from a loaded bitmap (H5).
 pub use mechanics::achievement_points::recompute_achievement_points;
+
+// UI seam: the per-run unlock gates for `BuyRequest::ClickUpgrade` (the
+// Upgrades-tab buy path).
+pub use mechanics::auto_upgrades::ClickUpgradesUnlocks;
 
 // ─── Per-tick aggregator entry points ────────────────────────────────────
 

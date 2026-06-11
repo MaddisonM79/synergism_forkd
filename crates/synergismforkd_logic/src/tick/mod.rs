@@ -42,6 +42,7 @@ use crate::mechanics::achievement_rewards;
 use crate::mechanics::ant_masteries::{buy_ant_mastery, BuyAntMasteryInput};
 use crate::mechanics::ant_producers::{buy_ant_producer, BuyAntProducerInput};
 use crate::mechanics::ant_upgrades::{buy_ant_upgrade, BuyAntUpgradeInput};
+use crate::mechanics::auto_upgrades::{click_upgrades, ClickUpgradesUnlocks};
 use crate::mechanics::blueberry_upgrades::{buy_ambrosia_upgrade, BuyAmbrosiaUpgradeInput};
 use crate::mechanics::challenge_15_rewards;
 use crate::mechanics::constant_upgrades::{buy_constant_upgrade, BuyConstantUpgradeInput};
@@ -383,6 +384,11 @@ pub enum AutoToggle {
     /// `auto_challenge_toggles[slot]` — per-challenge sweep enable
     /// (`slot` in `0..16`; out-of-range is ignored).
     AutoChallengeSlot(usize),
+    /// `automation.toggles[index]` — a building autobuyer enable (the legacy
+    /// `player.toggles[1..=26]`: coin producers 1-5, accelerator 6, multiplier
+    /// 7, boost 8, diamond producers 10-14, mythos 16-20, particle 22-26).
+    /// Out-of-range is ignored.
+    BuildingAutobuy(usize),
 }
 
 /// Per-mechanic dispatcher for the eight `buy_*` purchase loops. The
@@ -392,6 +398,18 @@ pub enum AutoToggle {
 pub enum BuyRequest {
     /// Routes to [`buy_upgrades`].
     Upgrade(BuyUpgradeInput),
+    /// Routes to [`click_upgrades`] — the legacy `clickUpgrades(i)` index
+    /// dispatcher for the shop bitmap (`1..=125`). Picks the currency/mechanic
+    /// from `i` (coin/diamond/mythos/particle via [`buy_upgrades`], automation
+    /// `81..=100` via `buy_autobuyers`, generator `101..=120` via
+    /// `buy_generator`) and is gated on the upgrade being unowned + the tier
+    /// unlock in `unlocks`. The single buy path for the whole Upgrades tab.
+    ClickUpgrade {
+        /// Upgrade index, `1..=125`.
+        i: usize,
+        /// Per-run tier unlock gates (`player.unlocks.*`).
+        unlocks: ClickUpgradesUnlocks,
+    },
     /// Routes to [`buy_research`].
     Research(BuyResearchInput),
     /// Routes to [`buy_gq_upgrade`].
@@ -587,6 +605,25 @@ pub struct BuildingsDerived {
     /// Free accelerators one boost grants
     /// (`5 + 2·r18 + 2·r19 + 3·r20 + cube blessing`).
     pub accelerators_per_boost: f64,
+
+    // ── Upgrade-shop effect inputs (legacy `G.*` read by `upgradetexts`) ──
+    // Surfaced for the Upgrades tab's live effect lines; already computed
+    // mid-tick, captured here so the UI needn't rerun the aggregators.
+    /// `G.totalMultiplier`.
+    pub total_multiplier: f64,
+    /// `G.totalAccelerator`.
+    pub total_accelerator: f64,
+    /// `G.totalAcceleratorBoost`.
+    pub total_accelerator_boost: f64,
+    /// `G.globalMythosMultiplier`.
+    pub global_mythos_multiplier: Decimal,
+    /// `calculateBuildingPower()` — the coin per-building power scalar.
+    pub building_power: f64,
+    /// `calculateGlobalSpeedMult()` — the global time multiplier.
+    pub global_speed_mult: f64,
+    /// `(prestigeShards + 1) ^ crystalExponent` — Crystals → Coin production
+    /// multiplier (the legacy "X Crystals, multiplying Coin production by Y").
+    pub crystal_coin_multiplier: Decimal,
 }
 
 impl Default for BuildingsDerived {
@@ -605,6 +642,13 @@ impl Default for BuildingsDerived {
             free_accelerator_boost: 0.0,
             boost_power_percent: 0.0,
             accelerators_per_boost: 5.0,
+            total_multiplier: 0.0,
+            total_accelerator: 0.0,
+            total_accelerator_boost: 0.0,
+            global_mythos_multiplier: Decimal::one(),
+            building_power: 1.0,
+            global_speed_mult: 1.0,
+            crystal_coin_multiplier: Decimal::one(),
         }
     }
 }
@@ -762,18 +806,27 @@ pub fn tack(state: &mut GameState, input: &TackInput) -> TickOutput {
     // until ants unlock → whole product 0), vs the old AutomationPre default of
     // 1 — ant generation multiplies by this factor so it no-ops at 0 anyway.
     automation_pre.ant_speed_mult = compute_ant_speed_mult(state);
-    phase_player_input(state, input, &reset_gains, &mut output);
+    let reset_performed = phase_player_input(state, input, &reset_gains, &mut output);
     // Generation runs on dt scaled by the global-speed multiplier (legacy
     // `resourceGain(dt * timeMult)`, Synergism.ts:4604). `automation_pre`
     // already holds this tick's `compute_global_speed_mult_pre` (set above) and
     // the timer phase consumes the same value — this is the single
     // generation-side application. Ant generation deliberately stays on raw dt.
-    phase_generation(
-        state,
-        &resource_gain_pre,
-        input.dt * automation_pre.global_time_multiplier,
-        &mut output,
-    );
+    //
+    // Skipped on a manual-reset tick: `resource_gain_pre` was derived from the
+    // pre-reset producers, so running generation here would re-credit a full
+    // tick of pre-reset production on top of the just-reset balance (undoing the
+    // coin / `coins_this_*` reset). The reset zeroed the producers, so the
+    // legacy post-reset frame produces ≈nothing anyway — matching "reset happens
+    // between frames." Auto-reset runs after generation and is unaffected.
+    if !reset_performed {
+        phase_generation(
+            state,
+            &resource_gain_pre,
+            input.dt * automation_pre.global_time_multiplier,
+            &mut output,
+        );
+    }
     // Progress unlock flags that depend on finalized coins / prestige points
     // (legacy per-tick checks, Synergism.ts:3976-3989 + Automation.ts:8).
     update_progress_unlocks(state);
@@ -847,6 +900,13 @@ fn derive_buildings_display(
             + 2.0 * researches[19]
             + 3.0 * researches[20]
             + accelerator_cube_blessing_chain(state),
+        total_multiplier: agg.update_all_multiplier.total_multiplier,
+        total_accelerator: agg.update_all_tick.total_accelerator,
+        total_accelerator_boost: compute_total_accelerator_boost(state).total_accelerator_boost,
+        global_mythos_multiplier: agg.global_multipliers.global_mythos_multiplier,
+        building_power: compute_building_power(state),
+        global_speed_mult: compute_global_speed_mult_pre(state),
+        crystal_coin_multiplier: agg.global_multipliers.crystal_coin_multiplier,
     }
 }
 
@@ -6096,12 +6156,20 @@ fn compute_resource_gain_pre(
 /// [`BuyRequest`] → a `buy_*` loop, [`ResetRequest`] → the reset executor
 /// (which awards `reset_gains`, computed at the top of [`tack`]). Events
 /// flow into [`TickOutput::events`].
+/// Returns `true` if any action this tick performed a reset (prestige …
+/// ascension / singularity, challenge entry, campaign select). The caller
+/// skips this tick's [`phase_generation`] when so: the reset zeroes producers,
+/// so the tick-local `resource_gain_pre` (computed *before* this phase, from the
+/// pre-reset producers) would otherwise re-credit a full tick of pre-reset
+/// production on top of the freshly-reset balance — undoing the reset. Auto-reset
+/// ([`phase_automation`]) runs *after* generation and is unaffected.
 fn phase_player_input(
     state: &mut GameState,
     input: &TackInput,
     reset_gains: &crate::mechanics::reset_currency::ResetCurrencyResult,
     output: &mut TickOutput,
-) {
+) -> bool {
+    let mut reset_performed = false;
     for action in &input.player_actions {
         match action {
             PlayerAction::Buy(req) => {
@@ -6110,6 +6178,7 @@ fn phase_player_input(
                     .extend(dispatch_buy(state, req, reset_gains.prestige_point_gain));
             }
             PlayerAction::Reset(req) => {
+                reset_performed = true;
                 output
                     .events
                     .extend(reset::perform_reset(state, *req, reset_gains));
@@ -6123,6 +6192,7 @@ fn phase_player_input(
                 set_automation_toggle(state, *target, *enabled);
             }
             PlayerAction::EnterChallenge { challenge } => {
+                reset_performed = true;
                 output
                     .events
                     .extend(enter_challenge(state, *challenge, reset_gains));
@@ -6133,11 +6203,13 @@ fn phase_player_input(
                 ));
             }
             PlayerAction::ToggleSingularityChallenge { challenge } => {
+                reset_performed = true;
                 output
                     .events
                     .extend(reset::toggle_singularity_challenge(state, *challenge));
             }
             PlayerAction::SelectCampaign { campaign } => {
+                reset_performed = true;
                 output
                     .events
                     .extend(select_campaign(state, *campaign, reset_gains));
@@ -6154,6 +6226,7 @@ fn phase_player_input(
                 state.singularity.elevator_slow_climb = *slow_climb;
             }
             PlayerAction::TeleportToSingularity => {
+                reset_performed = true;
                 output.events.extend(reset::teleport_to_singularity(state));
             }
             PlayerAction::OpenedAchievements => {
@@ -6169,6 +6242,7 @@ fn phase_player_input(
             }
         }
     }
+    reset_performed
 }
 
 /// `toggleChallenges` — enter a challenge: set the `current_*_challenge` slot,
@@ -6651,6 +6725,11 @@ fn set_automation_toggle(state: &mut GameState, target: AutoToggle, enabled: boo
         AutoToggle::RetryChallenges => auto.retry_challenges = enabled,
         AutoToggle::AutoChallengeSlot(slot) => {
             if let Some(flag) = auto.auto_challenge_toggles.get_mut(slot) {
+                *flag = enabled;
+            }
+        }
+        AutoToggle::BuildingAutobuy(index) => {
+            if let Some(flag) = auto.toggles.get_mut(index) {
                 *flag = enabled;
             }
         }
@@ -7501,6 +7580,9 @@ fn dispatch_buy(
     // and prevent the second `&mut` for the currency.)
     match req {
         BuyRequest::Upgrade(inp) => buy_upgrades(&mut state.upgrades, *inp),
+        BuyRequest::ClickUpgrade { i, unlocks } => {
+            click_upgrades(&mut state.upgrades, *unlocks, *i)
+        }
         BuyRequest::Research(inp) => buy_research(&mut state.researches, *inp),
         BuyRequest::GoldenQuarkUpgrade(inp) => buy_gq_upgrade(&mut state.golden_quarks, *inp),
         BuyRequest::OcteractUpgrade(inp) => buy_octeract_upgrade(
@@ -7810,6 +7892,39 @@ mod tests {
     }
 
     #[test]
+    fn crystal_coin_multiplier_surfaced_in_derived() {
+        // Crystals multiply coin production by (prestigeShards + 1)^exp; the
+        // default exponent is 1/3, so 7 crystals → (7 + 1)^(1/3) = 2×. Surfaced
+        // on BuildingsDerived so the UI can display the bonus.
+        let mut s = GameState::default();
+        s.crystal_upgrades.prestige_shards = Decimal::from_finite(7.0);
+        let out = tack(&mut s, &TackInput::default());
+        let m = out.derived.buildings.crystal_coin_multiplier.to_number();
+        assert!((m - 2.0).abs() < 1e-9, "expected ~2.0, got {m}");
+    }
+
+    #[test]
+    fn building_autobuy_toggle_drives_purchase() {
+        // The UI's autobuy toggle flips automation.toggles[i]; with the
+        // autobuyer unlocked (upgrade 81) and coins to spend, the updateAll
+        // driver buys coin producer 1 the same tick.
+        let mut s = GameState::default();
+        s.upgrades.upgrades[81] = 1;
+        s.upgrades.coins = Decimal::from_finite(1e6);
+        let mut input = TackInput::default();
+        input.player_actions.push(PlayerAction::ToggleAuto {
+            target: AutoToggle::BuildingAutobuy(1),
+            enabled: true,
+        });
+        let _ = tack(&mut s, &input);
+        assert!(s.automation.toggles[1], "toggle should be set");
+        assert!(
+            s.coin_producers.owned(1) > 0.0,
+            "autobuyer should have bought workers"
+        );
+    }
+
+    #[test]
     fn configure_elevator_clamps_target_and_sets_toggles() {
         let mut s = GameState::default();
         s.singularity.highest_singularity_count = 10.0;
@@ -7873,6 +7988,54 @@ mod tests {
         // noSingularityUpgrades rewardAP = 15·1.
         let _ = tack(&mut s, &TackInput::default());
         assert_eq!(s.achievements.progressive[8].cached_points, 15.0);
+    }
+
+    #[test]
+    fn manual_prestige_actually_resets_coins() {
+        // Regression: a manual prestige reset zeroes the coin economy, then the
+        // same tick's generation must NOT re-credit pre-reset production on top
+        // (which would undo the reset). With producers owned, generation would
+        // add a large `addcoin`; the reset tick must skip it.
+        let mut s = GameState::default();
+        s.upgrades.coins = Decimal::from_finite(1e12);
+        s.coin_counters.coins_this_prestige = Decimal::from_finite(1e12);
+        for tier in &mut s.coin_producers.tiers {
+            tier.owned = 100.0;
+        }
+        let mut input = TackInput::default();
+        input
+            .player_actions
+            .push(PlayerAction::Reset(ResetRequest::Prestige));
+        let _ = tack(&mut s, &input);
+        assert_eq!(s.upgrades.coins, Decimal::from_finite(102.0));
+        assert_eq!(
+            s.coin_counters.coins_this_prestige,
+            Decimal::from_finite(100.0)
+        );
+    }
+
+    #[test]
+    fn click_upgrade_buys_across_currency_tiers() {
+        // The Upgrades-tab buy path: one BuyRequest::ClickUpgrade routes by
+        // index to coins (1), prestige autobuyers (81) and generators (101).
+        let mut s = GameState::default();
+        s.upgrades.coins = Decimal::from_finite(1e9);
+        s.upgrades.prestige_points = Decimal::from_finite(1e15);
+        let unlocks = ClickUpgradesUnlocks {
+            prestige: true, // 81..=120 require the prestige unlock
+            transcend: false,
+            reincarnate: false,
+        };
+        let mut input = TackInput::default();
+        for i in [1usize, 81, 101] {
+            input
+                .player_actions
+                .push(PlayerAction::Buy(BuyRequest::ClickUpgrade { i, unlocks }));
+        }
+        let _ = tack(&mut s, &input);
+        assert_eq!(s.upgrades.upgrades[1], 1, "coin upgrade 1 bought");
+        assert_eq!(s.upgrades.upgrades[81], 1, "automation upgrade 81 bought");
+        assert_eq!(s.upgrades.upgrades[101], 1, "generator upgrade 101 bought");
     }
 
     #[test]
