@@ -411,5 +411,7 @@
   "settings.on": "On",
   "settings.off": "Off",
   "hud.crystals": "Crystals",
-  "upgrades.crystal_bonus": "You have {{crystals}} Crystals, multiplying Coin production by {{mult}}×."
+  "upgrades.crystal_bonus": "You have {{crystals}} Crystals, multiplying Coin production by {{mult}}×.",
+  "buildings.auto_on": "Auto: On",
+  "buildings.auto_off": "Auto: Off"
 }

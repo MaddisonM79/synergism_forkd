@@ -12,7 +12,7 @@
 use dioxus::prelude::*;
 use synergismforkd_bignum::Decimal;
 use synergismforkd_logic::events::ProducerType;
-use synergismforkd_logic::{BuyRequest, PlayerAction, ResetRequest};
+use synergismforkd_logic::{AutoToggle, BuyRequest, PlayerAction, ResetRequest};
 
 use crate::bridge::{use_bridge, use_slice, BuyAmount};
 use crate::components::{Collapsible, Num, Progress, Resource, ResourceIcon, Tooltip};
@@ -163,10 +163,34 @@ fn CostRow(cost: Decimal, resource: Resource) -> Element {
     }
 }
 
+/// A building autobuyer enable toggle, shown once the autobuyer is unlocked.
+/// `index` is the legacy `player.toggles` slot (1..=26); flips
+/// `automation.toggles[index]` so the `updateAll` driver buys this building.
+#[component]
+fn AutoBuyToggle(index: usize) -> Element {
+    let bridge = use_bridge();
+    let on = use_slice(move |s| s.automation.toggles[index]);
+    rsx! {
+        button {
+            class: if on() { "sf-auto-toggle on" } else { "sf-auto-toggle" },
+            "aria-pressed": "{on()}",
+            onclick: move |_| {
+                bridge.dispatch(PlayerAction::ToggleAuto {
+                    target: AutoToggle::BuildingAutobuy(index),
+                    enabled: !on(),
+                });
+            },
+            {t(if on() { "buildings.auto_on" } else { "buildings.auto_off" })}
+        }
+    }
+}
+
 #[component]
 fn CoinProducerCard(index: u8) -> Element {
     let bridge = use_bridge();
     let owned = use_slice(move |s| s.coin_producers.owned(index));
+    // Autobuyer unlocks via automation upgrade 80+t (Upgrades → Automation).
+    let auto_unlocked = use_slice(move |s| s.upgrades.upgrades[80 + index as usize] == 1);
     let generated = use_slice(move |s| s.coin_producers.tiers[(index - 1) as usize].generated);
     let cost = use_slice(move |s| s.coin_producers.cost(index));
     let affordable = use_slice(move |s| s.upgrades.coins >= s.coin_producers.cost(index));
@@ -214,6 +238,9 @@ fn CoinProducerCard(index: u8) -> Element {
             }
             div { class: "sf-card-actions",
                 button { disabled: !affordable(), onclick: buy, {t("buildings.buy")} }
+                if auto_unlocked() {
+                    AutoBuyToggle { index: index as usize }
+                }
             }
         }
     }
@@ -330,6 +357,23 @@ fn DiamondProducerCard(index: u8) -> Element {
     let cost = use_slice(move |s| s.diamond_producers.cost(index));
     let affordable =
         use_slice(move |s| s.upgrades.prestige_points >= s.diamond_producers.cost(index));
+    // Diamond-producer autobuyers unlock via Synergism-level milestones
+    // (tier-N crystal autobuy); toggle slot 9 + tier.
+    let auto_unlocked = use_slice(move |s| {
+        use synergismforkd_logic::mechanics::achievement_levels::achievement_level_from_points;
+        use synergismforkd_logic::mechanics::level_milestones::{
+            get_level_milestone, LevelMilestoneKey,
+        };
+        let key = match index {
+            1 => LevelMilestoneKey::Tier1CrystalAutobuy,
+            2 => LevelMilestoneKey::Tier2CrystalAutobuy,
+            3 => LevelMilestoneKey::Tier3CrystalAutobuy,
+            4 => LevelMilestoneKey::Tier4CrystalAutobuy,
+            _ => LevelMilestoneKey::Tier5CrystalAutobuy,
+        };
+        let level = achievement_level_from_points(s.achievements.achievement_points);
+        get_level_milestone(key, level) > 0.5
+    });
     let name_key = match index {
         1 => "buildings.diamond.1",
         2 => "buildings.diamond.2",
@@ -352,6 +396,9 @@ fn DiamondProducerCard(index: u8) -> Element {
             CostRow { cost: cost(), resource: Resource::Diamonds }
             div { class: "sf-card-actions",
                 button { disabled: !affordable(), onclick: buy, {t("buildings.buy")} }
+                if auto_unlocked() {
+                    AutoBuyToggle { index: 9 + index as usize }
+                }
             }
         }
     }
@@ -384,6 +431,7 @@ fn AcceleratorCard() -> Element {
     let owned = use_slice(|s| s.accelerator.accelerator_bought);
     let cost = use_slice(|s| s.accelerator.accelerator_cost);
     let affordable = use_slice(|s| s.upgrades.coins >= s.accelerator.accelerator_cost);
+    let auto_unlocked = use_slice(|s| s.upgrades.upgrades[86] == 1);
     let derived = bridge.derived.read();
     let b = &derived.buildings;
     let notation = bridge.prefs.read().notation;
@@ -414,6 +462,9 @@ fn AcceleratorCard() -> Element {
             }
             div { class: "sf-card-actions",
                 button { disabled: !affordable(), onclick: buy, {t("buildings.buy")} }
+                if auto_unlocked() {
+                    AutoBuyToggle { index: 6 }
+                }
             }
         }
     }
@@ -425,6 +476,7 @@ fn MultiplierCard() -> Element {
     let owned = use_slice(|s| s.multiplier.multiplier_bought);
     let cost = use_slice(|s| s.multiplier.multiplier_cost);
     let affordable = use_slice(|s| s.upgrades.coins >= s.multiplier.multiplier_cost);
+    let auto_unlocked = use_slice(|s| s.upgrades.upgrades[87] == 1);
     let derived = bridge.derived.read();
     let b = &derived.buildings;
     let notation = bridge.prefs.read().notation;
@@ -456,6 +508,9 @@ fn MultiplierCard() -> Element {
             }
             div { class: "sf-card-actions",
                 button { disabled: !affordable(), onclick: buy, {t("buildings.buy")} }
+                if auto_unlocked() {
+                    AutoBuyToggle { index: 7 }
+                }
             }
         }
     }
@@ -470,6 +525,7 @@ fn AcceleratorBoostCard() -> Element {
     let cost = use_slice(|s| s.accelerator.accelerator_boost_cost);
     let affordable =
         use_slice(|s| s.upgrades.prestige_points >= s.accelerator.accelerator_boost_cost);
+    let auto_unlocked = use_slice(|s| s.upgrades.upgrades[88] == 1 && s.upgrades.upgrades[46] == 1);
     let derived = bridge.derived.read();
     let b = &derived.buildings;
     let notation = bridge.prefs.read().notation;
@@ -498,6 +554,9 @@ fn AcceleratorBoostCard() -> Element {
             }
             div { class: "sf-card-actions",
                 button { disabled: !affordable(), onclick: buy, {t("buildings.buy")} }
+                if auto_unlocked() {
+                    AutoBuyToggle { index: 8 }
+                }
             }
         }
     }

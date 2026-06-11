@@ -265,6 +265,15 @@
   padding: var(--space-2) var(--space-2);
 }
 
+/* Building autobuyer enable toggle (shown once unlocked). Off = dim, on =
+ * accent fill so the active state reads at a glance. */
+.sf-auto-toggle.on {
+  background: var(--accent-production);
+  border-color: var(--accent-production);
+  color: var(--text-inverse);
+  font-weight: 600;
+}
+
 /* ---- Resource icon ---- */
 
 .sf-icon {

@@ -384,6 +384,11 @@ pub enum AutoToggle {
     /// `auto_challenge_toggles[slot]` — per-challenge sweep enable
     /// (`slot` in `0..16`; out-of-range is ignored).
     AutoChallengeSlot(usize),
+    /// `automation.toggles[index]` — a building autobuyer enable (the legacy
+    /// `player.toggles[1..=26]`: coin producers 1-5, accelerator 6, multiplier
+    /// 7, boost 8, diamond producers 10-14, mythos 16-20, particle 22-26).
+    /// Out-of-range is ignored.
+    BuildingAutobuy(usize),
 }
 
 /// Per-mechanic dispatcher for the eight `buy_*` purchase loops. The
@@ -6723,6 +6728,11 @@ fn set_automation_toggle(state: &mut GameState, target: AutoToggle, enabled: boo
                 *flag = enabled;
             }
         }
+        AutoToggle::BuildingAutobuy(index) => {
+            if let Some(flag) = auto.toggles.get_mut(index) {
+                *flag = enabled;
+            }
+        }
     }
 }
 
@@ -7891,6 +7901,27 @@ mod tests {
         let out = tack(&mut s, &TackInput::default());
         let m = out.derived.buildings.crystal_coin_multiplier.to_number();
         assert!((m - 2.0).abs() < 1e-9, "expected ~2.0, got {m}");
+    }
+
+    #[test]
+    fn building_autobuy_toggle_drives_purchase() {
+        // The UI's autobuy toggle flips automation.toggles[i]; with the
+        // autobuyer unlocked (upgrade 81) and coins to spend, the updateAll
+        // driver buys coin producer 1 the same tick.
+        let mut s = GameState::default();
+        s.upgrades.upgrades[81] = 1;
+        s.upgrades.coins = Decimal::from_finite(1e6);
+        let mut input = TackInput::default();
+        input.player_actions.push(PlayerAction::ToggleAuto {
+            target: AutoToggle::BuildingAutobuy(1),
+            enabled: true,
+        });
+        let _ = tack(&mut s, &input);
+        assert!(s.automation.toggles[1], "toggle should be set");
+        assert!(
+            s.coin_producers.owned(1) > 0.0,
+            "autobuyer should have bought workers"
+        );
     }
 
     #[test]
