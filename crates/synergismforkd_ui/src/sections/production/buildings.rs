@@ -594,6 +594,9 @@ fn AcceleratorBoostCard() -> Element {
     let affordable =
         use_slow_slice(|s| s.upgrades.prestige_points >= s.accelerator.accelerator_boost_cost);
     let auto_unlocked = use_slice(|s| s.upgrades.upgrades[88] == 1 && s.upgrades.upgrades[46] == 1);
+    // Upgrade 46 ("…do not reset Prestige features") flips the boost from a
+    // prestige-resetting buy to a plain bulk purchase — drives the effect note.
+    let no_reset = use_slice(|s| s.upgrades.upgrades[46] >= 1);
     let derived = bridge.derived.read();
     let b = &derived.buildings;
     let notation = bridge.prefs.read().notation;
@@ -610,15 +613,20 @@ fn AcceleratorBoostCard() -> Element {
             CostRow { cost: cost(), resource: Resource::Diamonds }
             div { class: "sf-card-row",
                 span { class: "label", {t("buildings.boost_grants")} }
-                Tooltip {
-                    tip: rsx! { span { {t("buildings.boost_warning")} } },
-                    span { class: "sf-num",
-                        "+{format_value(Decimal::from_finite(b.boost_power_percent), notation)}% · "
-                        {format_value(Decimal::from_finite(b.accelerators_per_boost), notation)}
-                        " "
-                        {t("buildings.accelerators")}
-                    }
+                span { class: "sf-num",
+                    "+{format_value(Decimal::from_finite(b.boost_power_percent), notation)}% · "
+                    {format_value(Decimal::from_finite(b.accelerators_per_boost), notation)}
+                    " "
+                    {t("buildings.accelerators")}
                 }
+            }
+            // Visible consequence (was a hover-only tooltip): pre-upgrade-46 a
+            // boost triggers a prestige reset + wipes Diamond upgrades; after
+            // 46 it's a plain bulk buy.
+            if no_reset() {
+                div { class: "sf-boost-note", {t("buildings.boost_safe")} }
+            } else {
+                div { class: "sf-boost-note warn", {t("buildings.boost_warning")} }
             }
             div { class: "sf-card-actions",
                 button { disabled: !affordable(), onclick: buy, {t("buildings.buy")} }
