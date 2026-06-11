@@ -762,18 +762,27 @@ pub fn tack(state: &mut GameState, input: &TackInput) -> TickOutput {
     // until ants unlock → whole product 0), vs the old AutomationPre default of
     // 1 — ant generation multiplies by this factor so it no-ops at 0 anyway.
     automation_pre.ant_speed_mult = compute_ant_speed_mult(state);
-    phase_player_input(state, input, &reset_gains, &mut output);
+    let reset_performed = phase_player_input(state, input, &reset_gains, &mut output);
     // Generation runs on dt scaled by the global-speed multiplier (legacy
     // `resourceGain(dt * timeMult)`, Synergism.ts:4604). `automation_pre`
     // already holds this tick's `compute_global_speed_mult_pre` (set above) and
     // the timer phase consumes the same value — this is the single
     // generation-side application. Ant generation deliberately stays on raw dt.
-    phase_generation(
-        state,
-        &resource_gain_pre,
-        input.dt * automation_pre.global_time_multiplier,
-        &mut output,
-    );
+    //
+    // Skipped on a manual-reset tick: `resource_gain_pre` was derived from the
+    // pre-reset producers, so running generation here would re-credit a full
+    // tick of pre-reset production on top of the just-reset balance (undoing the
+    // coin / `coins_this_*` reset). The reset zeroed the producers, so the
+    // legacy post-reset frame produces ≈nothing anyway — matching "reset happens
+    // between frames." Auto-reset runs after generation and is unaffected.
+    if !reset_performed {
+        phase_generation(
+            state,
+            &resource_gain_pre,
+            input.dt * automation_pre.global_time_multiplier,
+            &mut output,
+        );
+    }
     // Progress unlock flags that depend on finalized coins / prestige points
     // (legacy per-tick checks, Synergism.ts:3976-3989 + Automation.ts:8).
     update_progress_unlocks(state);
@@ -6096,12 +6105,20 @@ fn compute_resource_gain_pre(
 /// [`BuyRequest`] → a `buy_*` loop, [`ResetRequest`] → the reset executor
 /// (which awards `reset_gains`, computed at the top of [`tack`]). Events
 /// flow into [`TickOutput::events`].
+/// Returns `true` if any action this tick performed a reset (prestige …
+/// ascension / singularity, challenge entry, campaign select). The caller
+/// skips this tick's [`phase_generation`] when so: the reset zeroes producers,
+/// so the tick-local `resource_gain_pre` (computed *before* this phase, from the
+/// pre-reset producers) would otherwise re-credit a full tick of pre-reset
+/// production on top of the freshly-reset balance — undoing the reset. Auto-reset
+/// ([`phase_automation`]) runs *after* generation and is unaffected.
 fn phase_player_input(
     state: &mut GameState,
     input: &TackInput,
     reset_gains: &crate::mechanics::reset_currency::ResetCurrencyResult,
     output: &mut TickOutput,
-) {
+) -> bool {
+    let mut reset_performed = false;
     for action in &input.player_actions {
         match action {
             PlayerAction::Buy(req) => {
@@ -6110,6 +6127,7 @@ fn phase_player_input(
                     .extend(dispatch_buy(state, req, reset_gains.prestige_point_gain));
             }
             PlayerAction::Reset(req) => {
+                reset_performed = true;
                 output
                     .events
                     .extend(reset::perform_reset(state, *req, reset_gains));
@@ -6123,6 +6141,7 @@ fn phase_player_input(
                 set_automation_toggle(state, *target, *enabled);
             }
             PlayerAction::EnterChallenge { challenge } => {
+                reset_performed = true;
                 output
                     .events
                     .extend(enter_challenge(state, *challenge, reset_gains));
@@ -6133,11 +6152,13 @@ fn phase_player_input(
                 ));
             }
             PlayerAction::ToggleSingularityChallenge { challenge } => {
+                reset_performed = true;
                 output
                     .events
                     .extend(reset::toggle_singularity_challenge(state, *challenge));
             }
             PlayerAction::SelectCampaign { campaign } => {
+                reset_performed = true;
                 output
                     .events
                     .extend(select_campaign(state, *campaign, reset_gains));
@@ -6154,6 +6175,7 @@ fn phase_player_input(
                 state.singularity.elevator_slow_climb = *slow_climb;
             }
             PlayerAction::TeleportToSingularity => {
+                reset_performed = true;
                 output.events.extend(reset::teleport_to_singularity(state));
             }
             PlayerAction::OpenedAchievements => {
@@ -6169,6 +6191,7 @@ fn phase_player_input(
             }
         }
     }
+    reset_performed
 }
 
 /// `toggleChallenges` — enter a challenge: set the `current_*_challenge` slot,
@@ -7873,6 +7896,30 @@ mod tests {
         // noSingularityUpgrades rewardAP = 15·1.
         let _ = tack(&mut s, &TackInput::default());
         assert_eq!(s.achievements.progressive[8].cached_points, 15.0);
+    }
+
+    #[test]
+    fn manual_prestige_actually_resets_coins() {
+        // Regression: a manual prestige reset zeroes the coin economy, then the
+        // same tick's generation must NOT re-credit pre-reset production on top
+        // (which would undo the reset). With producers owned, generation would
+        // add a large `addcoin`; the reset tick must skip it.
+        let mut s = GameState::default();
+        s.upgrades.coins = Decimal::from_finite(1e12);
+        s.coin_counters.coins_this_prestige = Decimal::from_finite(1e12);
+        for tier in &mut s.coin_producers.tiers {
+            tier.owned = 100.0;
+        }
+        let mut input = TackInput::default();
+        input
+            .player_actions
+            .push(PlayerAction::Reset(ResetRequest::Prestige));
+        let _ = tack(&mut s, &input);
+        assert_eq!(s.upgrades.coins, Decimal::from_finite(102.0));
+        assert_eq!(
+            s.coin_counters.coins_this_prestige,
+            Decimal::from_finite(100.0)
+        );
     }
 
     #[test]
