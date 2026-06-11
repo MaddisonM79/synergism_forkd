@@ -77,7 +77,7 @@ pub fn StatsPanel() -> Element {
             div { class: "sf-stats-title", {t("stats.title")} }
 
             // ── Resource ledger (always shown) ──────────────────────────────
-            section { class: "sf-stats-section",
+            section { class: "sf-stats-section sf-stats-resources",
                 div { class: "sf-stats-head", {t("stats.resources")} }
                 CurrencyRow {
                     resource: Resource::Coins,

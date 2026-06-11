@@ -49,6 +49,6 @@
   --rail-w: 148px;
   --header-h: 40px;
   --subnav-h: 36px;
-  --stats-w: 212px;
-  --detail-h: 138px;
+  /* Height of the split bottom bar (Status | hover-detail). */
+  --detail-h: 172px;
 }

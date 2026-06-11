@@ -35,26 +35,46 @@
 }
 
 /* Right-side persistent status panel (reset gains + live stats). */
+/* Status now lives in the LEFT half of the bottom bar — a wide, short panel,
+ * continuous with the content pane (divider rules only). Sections flow in a
+ * row; the resource ledger wraps into columns so it fits the short height. */
 .sf-stats {
   grid-area: stats;
   overflow-y: auto;
-  /* No hard border wall — the chrome/content color step defines the edge. */
-  background: var(--bg-chrome);
-  padding: var(--space-4);
+  background: var(--bg-app);
+  border-top: var(--bw) solid var(--border);
+  border-right: var(--bw) solid var(--border);
+  padding: var(--space-4) var(--space-5);
   display: flex;
-  flex-direction: column;
-  gap: var(--space-5);
+  flex-flow: row wrap;
+  align-content: flex-start;
+  gap: var(--space-3) var(--space-6);
 }
 
+/* The "Status" heading is redundant down here — the layout speaks for itself. */
 .sf-stats-title {
-  font-size: var(--fs-lg);
-  font-weight: 700;
+  display: none;
 }
 
 .sf-stats-section {
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
+  min-width: 140px;
+}
+
+/* The resource ledger takes the full panel width and wraps into auto-fill
+ * columns (a tall single column won't fit the short bar). */
+.sf-stats-resources {
+  flex: 1 1 100%;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  column-gap: var(--space-6);
+  row-gap: 0;
+}
+
+.sf-stats-resources .sf-stats-head {
+  grid-column: 1 / -1;
 }
 
 .sf-stats-head {
