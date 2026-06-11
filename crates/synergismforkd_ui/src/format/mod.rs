@@ -2,13 +2,14 @@
 //! `format()`; see `docs/systems/ui-readiness.md` history and the plan notes).
 //!
 //! One call path for every number on screen so precision rules can't drift
-//! per call site (a legacy pain point). Everything at or above `1e3` uses
-//! exponent notation so any two on-screen values are directly comparable —
-//! there is deliberately no suffix tier that would render `10.0Qa` beside
-//! `2.14e50` on the same line:
+//! per call site (a legacy pain point). Below a million numbers read plainly
+//! (comma-grouped); at or above `1e6` they switch to exponent notation, so any
+//! two large values are directly comparable — there is deliberately no suffix
+//! tier that would render `10.0Qa` beside `2.14e50` on the same line:
 //!
-//! - `< 1,000`: plain, up to `max_decimals` (trailing zeros trimmed).
-//! - `>= 1e3`: scientific `1.23e4`; the exponent gains thousands grouping
+//! - `< 1e6`: plain, comma-grouped (`12,345`), up to `max_decimals` (trailing
+//!   zeros trimmed).
+//! - `>= 1e6`: scientific `1.23e6`; the exponent gains thousands grouping
 //!   once it's itself ≥ 1e6 (`1.23e1,234,567`).
 //! - `0 < x < 1`: up to 3 decimals; below `1e-3` scientific (`1.23e-5`).
 //! - Negatives recurse with a `-` prefix; NaN renders `"0"` (legacy-compatible
@@ -109,7 +110,8 @@ pub fn format(value: Decimal, opts: FormatOpts) -> String {
     if approx < 1.0 {
         return format_sub_one(approx);
     }
-    if approx < 1_000.0 {
+    // Plain (comma-grouped) up to a million; scientific at `1e6` and above.
+    if approx < 1e6 {
         return format_plain(approx, opts.max_decimals);
     }
 
@@ -133,14 +135,23 @@ fn format_sub_one(value: f64) -> String {
     format!("{mantissa:.2}e-{}", -exp)
 }
 
-/// Plain tier: `1 <= value < 1000`, capped decimals, trailing zeros trimmed.
+/// Plain tier: `1 <= value < 1e6`, capped decimals, trailing zeros trimmed,
+/// integer part comma-grouped (`12,345`).
 fn format_plain(value: f64, max_decimals: u8) -> String {
     let s = format!("{value:.*}", max_decimals as usize);
-    if max_decimals == 0 {
-        s
-    } else {
-        trim_zeros(&s)
+    let s = if max_decimals == 0 { s } else { trim_zeros(&s) };
+    // Comma-group the integer part; keep any fractional part as-is.
+    match s.split_once('.') {
+        Some((int, frac)) => format!("{}.{frac}", group_int_str(int)),
+        None => group_int_str(&s),
     }
+}
+
+/// Comma-group a non-negative integer string (`"12345"` → `"12,345"`). The
+/// plain tier is bounded below `1e6`, so the value fits an `i64`.
+fn group_int_str(int: &str) -> String {
+    int.parse::<i64>()
+        .map_or_else(|_| int.to_string(), group_thousands)
 }
 
 /// Scientific tier: `m.mm e EXP`, exponent grouped once it's ≥ 1e6.
@@ -285,12 +296,13 @@ mod tests {
 
     #[test]
     fn scientific_tier_is_uniform_across_magnitudes() {
-        // Every value ≥ 1e3 is `m.mm e EXP` — no suffix tier, so a mid value
-        // and a huge value on the same line are directly comparable.
-        assert_eq!(sci(1_000.0), "1.00e3");
-        assert_eq!(sci(1_234.0), "1.23e3");
-        assert_eq!(sci(12_340.0), "1.23e4");
-        assert_eq!(sci(123_400.0), "1.23e5");
+        // Below a million, plain comma-grouped; from `1e6` up every value is
+        // `m.mm e EXP` — no suffix tier, so two large values on the same line
+        // are directly comparable.
+        assert_eq!(sci(1_000.0), "1,000");
+        assert_eq!(sci(1_234.0), "1,234");
+        assert_eq!(sci(12_340.0), "12,340");
+        assert_eq!(sci(123_400.0), "123,400");
         assert_eq!(sci(1_234_000.0), "1.23e6");
         assert_eq!(sci(1.234e9), "1.23e9");
         assert_eq!(sci(1.234e12), "1.23e12");
@@ -325,19 +337,24 @@ mod tests {
     }
 
     #[test]
-    fn pure_scientific_kicks_in_at_1e3() {
+    fn pure_scientific_kicks_in_at_1e6() {
+        // Below a million stays plain comma-grouped; `1e6` is the boundary.
         assert_eq!(format_count(d(999.0), Notation::Scientific), "999");
-        assert_eq!(format_count(d(1_234.0), Notation::Scientific), "1.23e3");
+        assert_eq!(format_count(d(1_234.0), Notation::Scientific), "1,234");
+        assert_eq!(format_count(d(999_999.0), Notation::Scientific), "999,999");
+        assert_eq!(format_count(d(1_000_000.0), Notation::Scientific), "1.00e6");
         assert_eq!(format_count(d(1.234e7), Notation::Scientific), "1.23e7");
     }
 
     #[test]
     fn engineering_snaps_exponent_to_threes() {
-        assert_eq!(format_count(d(1_234.0), Notation::Engineering), "1.23e3");
-        assert_eq!(format_count(d(45_600.0), Notation::Engineering), "45.6e3");
+        // Sub-million values share the plain comma-grouped tier with
+        // scientific; engineering only diverges at `1e6` and above.
+        assert_eq!(format_count(d(1_234.0), Notation::Engineering), "1,234");
+        assert_eq!(format_count(d(45_600.0), Notation::Engineering), "45,600");
         assert_eq!(format_count(d(4.56e19), Notation::Engineering), "45.6e18");
-        // Rounding across the band: 999.6e3 → 1.00e6.
-        assert_eq!(format_count(d(999_600.0), Notation::Engineering), "1.00e6");
+        // Rounding across the band: 999.6e6 → 1.00e9.
+        assert_eq!(format_count(d(9.996e8), Notation::Engineering), "1.00e9");
     }
 
     #[test]
