@@ -6,7 +6,9 @@ use std::time::Duration;
 
 use dioxus::prelude::*;
 use synergismforkd_logic::TackInput;
-use synergismforkd_ui::bridge::{DialogKind, DialogRequest, GameBridge, HostCommand, UiPrefs};
+use synergismforkd_ui::bridge::{
+    BuyAmount, DialogKind, DialogRequest, GameBridge, HostCommand, UiPrefs,
+};
 use synergismforkd_ui::events_map;
 use synergismforkd_ui::gating::Route;
 use synergismforkd_ui::i18n::t;
@@ -171,6 +173,12 @@ async fn handle_host_commands(bridge: &GameBridge, host: &mut SaveHost<LocalStor
                 let fresh = host.reset();
                 let mut state = bridge.state;
                 state.set(fresh);
+                // A fresh game starts at the x1 buy amount; the bulk-buy
+                // selector is run-scoped, so reset it (the other prefs —
+                // theme/notation/confirm — are deliberate and survive).
+                // The root's persistence effect writes the change to storage.
+                let mut prefs = bridge.prefs;
+                prefs.write().buy_amount = BuyAmount::One;
                 bridge.navigate(Route::default());
                 bridge.toast_info("toasts.hard_reset_done");
             }
