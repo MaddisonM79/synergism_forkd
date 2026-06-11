@@ -8,14 +8,16 @@
   flex-direction: column;
   gap: var(--space-2);
   padding: var(--space-4) var(--space-3);
+  /* No hard border wall — the chrome/content color step defines the edge, so
+   * the frame reads as panes that flow, not boxes. */
   background: var(--bg-chrome);
-  border-right: var(--bw) solid var(--border);
   z-index: var(--z-nav);
 }
 
 .sf-rail-title {
-  font-size: var(--fs-lg);
-  font-weight: 700;
+  font-size: var(--fs-md);
+  font-weight: 800;
+  letter-spacing: -0.01em;
   padding: 0 var(--space-3) var(--space-4);
 }
 

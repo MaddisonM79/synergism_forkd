@@ -46,9 +46,9 @@
   --z-toast: 60;
 
   /* Layout */
-  --rail-w: 168px;
+  --rail-w: 148px;
   --header-h: 40px;
   --subnav-h: 36px;
-  --stats-w: 240px;
+  --stats-w: 212px;
   --detail-h: 138px;
 }

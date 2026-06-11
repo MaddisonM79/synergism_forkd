@@ -38,7 +38,7 @@
 .sf-stats {
   grid-area: stats;
   overflow-y: auto;
-  border-left: var(--bw) solid var(--border);
+  /* No hard border wall — the chrome/content color step defines the edge. */
   background: var(--bg-chrome);
   padding: var(--space-4);
   display: flex;
