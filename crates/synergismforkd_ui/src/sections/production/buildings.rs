@@ -533,22 +533,79 @@ impl ResetTier {
         }
     }
 
-    /// The resource accumulated toward the first point, and the threshold
-    /// at which the reset awards ≥ 1 (the divisor in the gain formula —
-    /// `x^p ≥ 1 ⟺ x ≥ divisor` for `p > 0`). Coins for prestige/transcend,
-    /// mythos shards for reincarnation.
-    fn source(self, s: &synergismforkd_logic::GameState) -> (Decimal, f64, Resource) {
+    /// Reset availability + progress, faithful to the legacy `resetCheck`
+    /// thresholds (Synergism.ts:3551 / 3559 / 3629):
+    /// - prestige: `coinsThisPrestige ≥ 1e16` **or** gain ≥ 100
+    /// - transcension: (`coinsThisTranscension ≥ 1e100` **or** gain ≥ 0.5) and
+    ///   not inside a transcension challenge
+    /// - reincarnation: gain > 0.5 and not inside a transcension/reincarnation
+    ///   challenge (purely gain-gated — no coin threshold)
+    fn gate(self, s: &synergismforkd_logic::GameState, gain: Decimal) -> ResetGate {
+        let g = gain.to_number();
         match self {
-            ResetTier::Prestige => (s.coin_counters.coins_this_prestige, 1e12, Resource::Coins),
-            ResetTier::Transcension => (
-                s.coin_counters.coins_this_transcension,
-                1e100,
-                Resource::Coins,
-            ),
+            ResetTier::Prestige => {
+                let current = s.coin_counters.coins_this_prestige;
+                let threshold = Decimal::from_finite(1e16);
+                ResetGate {
+                    available: current >= threshold || g >= 100.0,
+                    current,
+                    threshold,
+                    resource: Resource::Coins,
+                    fraction: log_fraction(current, threshold),
+                }
+            }
+            ResetTier::Transcension => {
+                let current = s.coin_counters.coins_this_transcension;
+                let threshold = Decimal::from_finite(1e100);
+                let in_challenge = s.challenges.current_transcension_challenge != 0;
+                ResetGate {
+                    available: (current >= threshold || g >= 0.5) && !in_challenge,
+                    current,
+                    threshold,
+                    resource: Resource::Coins,
+                    fraction: log_fraction(current, threshold),
+                }
+            }
             ResetTier::Reincarnation => {
-                (s.reset_counters.transcend_shards, 1e300, Resource::Mythos)
+                let in_challenge = s.challenges.current_transcension_challenge != 0
+                    || s.challenges.current_reincarnation_challenge != 0;
+                let threshold = Decimal::from_finite(0.5);
+                ResetGate {
+                    available: g > 0.5 && !in_challenge,
+                    current: gain,
+                    threshold,
+                    resource: Resource::Particles,
+                    fraction: (g / 0.5).clamp(0.0, 1.0),
+                }
             }
         }
+    }
+}
+
+/// Reset availability + the "requires" / progress-bar inputs for one tier.
+struct ResetGate {
+    /// Whether the reset may be performed now (the legacy `resetCheck` gate).
+    available: bool,
+    /// The metric shown in the "requires" line (coins for prestige/transcend,
+    /// the gain for reincarnation).
+    current: Decimal,
+    /// The threshold that metric is measured against.
+    threshold: Decimal,
+    /// Icon for the requires line.
+    resource: Resource,
+    /// Progress-bar fill, 0..=1.
+    fraction: f64,
+}
+
+/// Log-scale progress toward a huge coin threshold, so the bar shows real
+/// movement instead of sitting at ~0 until the very end.
+fn log_fraction(current: Decimal, threshold: Decimal) -> f64 {
+    let cur = current.to_number();
+    let thr = threshold.to_number();
+    if cur <= 1.0 || thr <= 1.0 {
+        0.0
+    } else {
+        (cur.log10() / thr.log10()).clamp(0.0, 1.0)
     }
 }
 
@@ -564,20 +621,13 @@ fn ResetCard(tier: ResetTier) -> Element {
         ResetTier::Transcension => bridge.derived.read().transcend_point_gain,
         ResetTier::Reincarnation => bridge.derived.read().reincarnation_point_gain,
     };
-    let available = gain >= Decimal::one();
-    let (current, threshold, source_resource) = use_slice(move |s| tier.source(s))();
+    let gate = tier.gate(&bridge.state.read(), gain);
+    let available = gate.available;
+    let current = gate.current;
+    let threshold = gate.threshold;
+    let source_resource = gate.resource;
+    let fraction = gate.fraction;
     let notation = bridge.prefs.read().notation;
-
-    // Log-scale fill so the bar shows meaningful progress against the huge
-    // thresholds (1e12 … 1e300) instead of sitting at ~0 until the end.
-    let fraction = {
-        let cur = current.to_number();
-        if cur <= 1.0 {
-            0.0
-        } else {
-            (cur.log10() / threshold.log10()).clamp(0.0, 1.0)
-        }
-    };
 
     let do_reset = use_callback(move |()| {
         bridge.dispatch(PlayerAction::Reset(tier.request()));
@@ -608,7 +658,7 @@ fn ResetCard(tier: ResetTier) -> Element {
                 span { class: "sf-num",
                     {format_value(current, notation)}
                     " / "
-                    {format_value(Decimal::from_finite(threshold), notation)}
+                    {format_value(threshold, notation)}
                     " "
                     ResourceIcon { resource: source_resource }
                 }
