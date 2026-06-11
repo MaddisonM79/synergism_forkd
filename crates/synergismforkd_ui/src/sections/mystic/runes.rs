@@ -18,7 +18,8 @@ use crate::format::format_value;
 use crate::i18n::t;
 
 use super::rune_data::{
-    blessings_unlocked, rune_effect_key, rune_name_key, rune_unlocked, spirits_unlocked, CORE_RUNES,
+    blessing_effect_line, blessings_unlocked, rune_effect_key, rune_name_key, rune_unlocked,
+    spirit_effect_line, spirits_unlocked, CORE_RUNES,
 };
 
 /// Which family a rune card levels — selects the state arrays, cost
@@ -190,6 +191,13 @@ fn RuneCard(family: RuneFamily, index: usize, amount: RuneBuyAmount) -> Element 
     let affordable =
         use_slow_slice(move |s| s.automation.offerings >= family.next_level_offerings(s, index));
     let notation = bridge.prefs.read().notation;
+    // The live effect line: a static blurb for runes; the power-scaled effect
+    // value for blessings/spirits (mirrors the legacy effectsDescription).
+    let effect = use_slice(move |s| match family {
+        RuneFamily::Rune => t(rune_effect_key(index)).to_string(),
+        RuneFamily::Blessing => blessing_effect_line(s, index, notation),
+        RuneFamily::Spirit => spirit_effect_line(s, index, notation),
+    });
 
     let buy = move |_| {
         let action = family.buy_action(&bridge.state.peek(), index, amount);
@@ -210,10 +218,8 @@ fn RuneCard(family: RuneFamily, index: usize, amount: RuneBuyAmount) -> Element 
                     }
                 }
             }
-            if family == RuneFamily::Rune {
-                div { class: "sf-card-row sf-upgrade-effect",
-                    span { {t(rune_effect_key(index))} }
-                }
+            div { class: "sf-card-row sf-upgrade-effect",
+                span { "{effect()}" }
             }
             div { class: "sf-card-row",
                 span { class: "label", {t("runes.next")} }

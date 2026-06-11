@@ -1241,7 +1241,7 @@ fn other_blessing_multipliers(state: &GameState) -> f64 {
 /// wrong (raw blessing level, dropping the rune's own level and the shared
 /// mult). `freeLevels` is deferred (P2.1b, neutral 0). Identity at default
 /// (blessing level 0 → power 0).
-fn rune_blessing_power(state: &GameState, rune: usize) -> f64 {
+pub fn rune_blessing_power(state: &GameState, rune: usize) -> f64 {
     state.runes.rune_blessing_levels[rune]
         * state.runes.rune_levels[rune]
         * other_blessing_multipliers(state)
@@ -1272,7 +1272,7 @@ fn other_spirit_multipliers(state: &GameState) -> f64 {
 /// spirit-level factor; `freeLevels` is deferred (neutral 0, as there). Spirit
 /// levels exist only for the first five runes. Identity at default (spirit
 /// level 0 → power 0).
-fn rune_spirit_power(state: &GameState, rune: usize) -> f64 {
+pub fn rune_spirit_power(state: &GameState, rune: usize) -> f64 {
     state.runes.rune_spirit_levels[rune]
         * state.runes.rune_levels[rune]
         * state.runes.rune_blessing_levels[rune]
