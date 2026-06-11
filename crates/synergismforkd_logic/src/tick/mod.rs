@@ -600,6 +600,22 @@ pub struct BuildingsDerived {
     /// Free accelerators one boost grants
     /// (`5 + 2·r18 + 2·r19 + 3·r20 + cube blessing`).
     pub accelerators_per_boost: f64,
+
+    // ── Upgrade-shop effect inputs (legacy `G.*` read by `upgradetexts`) ──
+    // Surfaced for the Upgrades tab's live effect lines; already computed
+    // mid-tick, captured here so the UI needn't rerun the aggregators.
+    /// `G.totalMultiplier`.
+    pub total_multiplier: f64,
+    /// `G.totalAccelerator`.
+    pub total_accelerator: f64,
+    /// `G.totalAcceleratorBoost`.
+    pub total_accelerator_boost: f64,
+    /// `G.globalMythosMultiplier`.
+    pub global_mythos_multiplier: Decimal,
+    /// `calculateBuildingPower()` — the coin per-building power scalar.
+    pub building_power: f64,
+    /// `calculateGlobalSpeedMult()` — the global time multiplier.
+    pub global_speed_mult: f64,
 }
 
 impl Default for BuildingsDerived {
@@ -618,6 +634,12 @@ impl Default for BuildingsDerived {
             free_accelerator_boost: 0.0,
             boost_power_percent: 0.0,
             accelerators_per_boost: 5.0,
+            total_multiplier: 0.0,
+            total_accelerator: 0.0,
+            total_accelerator_boost: 0.0,
+            global_mythos_multiplier: Decimal::one(),
+            building_power: 1.0,
+            global_speed_mult: 1.0,
         }
     }
 }
@@ -869,6 +891,12 @@ fn derive_buildings_display(
             + 2.0 * researches[19]
             + 3.0 * researches[20]
             + accelerator_cube_blessing_chain(state),
+        total_multiplier: agg.update_all_multiplier.total_multiplier,
+        total_accelerator: agg.update_all_tick.total_accelerator,
+        total_accelerator_boost: compute_total_accelerator_boost(state).total_accelerator_boost,
+        global_mythos_multiplier: agg.global_multipliers.global_mythos_multiplier,
+        building_power: compute_building_power(state),
+        global_speed_mult: compute_global_speed_mult_pre(state),
     }
 }
 

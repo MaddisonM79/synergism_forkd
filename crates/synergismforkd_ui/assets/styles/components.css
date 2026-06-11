@@ -173,6 +173,13 @@
   font-size: var(--fs-sm);
 }
 
+/* The live effect line on an upgrade card. */
+.sf-upgrade-effect {
+  color: var(--text-muted);
+  font-size: var(--fs-xs);
+  line-height: 1.3;
+}
+
 /* An owned upgrade (legacy gold "BOUGHT!" treatment). */
 .sf-card.bought {
   border-color: var(--res-coin);

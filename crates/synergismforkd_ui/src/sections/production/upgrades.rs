@@ -72,6 +72,17 @@ fn UpgradeCard(idx: usize) -> Element {
     let owned = use_slice(move |s| meta(idx).owned(s));
     let affordable = use_slice(move |s| meta(idx).affordable(s));
     let name = t(&format!("upgrades.descriptions.{idx}")).to_string();
+    // Live effect line (the legacy `upgradetexts` value filled into the effect
+    // string). Recomputes from state + this tick's derived surface.
+    let effect = use_memo(move || {
+        let notation = bridge.prefs.read().notation;
+        super::upgrade_effects::effect_text(
+            idx,
+            &bridge.state.read(),
+            &bridge.derived.read(),
+            notation,
+        )
+    });
 
     let buy = move |_| {
         bridge.dispatch(derive::upgrade_buy(&bridge.state.peek(), idx));
@@ -86,6 +97,11 @@ fn UpgradeCard(idx: usize) -> Element {
                     Num { value: cost }
                     " "
                     ResourceIcon { resource: m.resource }
+                }
+            }
+            if let Some(effect_line) = effect() {
+                div { class: "sf-card-row sf-upgrade-effect",
+                    span { "{effect_line}" }
                 }
             }
             div { class: "sf-card-actions",

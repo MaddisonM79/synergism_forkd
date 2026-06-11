@@ -26,6 +26,19 @@ pub fn t(key: &str) -> &str {
     }
 }
 
+/// Look up a key and substitute `{{name}}` placeholders with the given values
+/// (the legacy i18next interpolation, scoped to what the Upgrades tab needs).
+/// An unknown key echoes back verbatim (with placeholders intact).
+#[must_use]
+pub fn t_args(key: &str, args: &[(&str, &str)]) -> String {
+    let mut s = t(key).to_string();
+    for (name, value) in args {
+        let pat = ["{{", name, "}}"].concat();
+        s = s.replace(&pat, value);
+    }
+    s
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
