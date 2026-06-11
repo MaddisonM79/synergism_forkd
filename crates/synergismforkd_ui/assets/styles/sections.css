@@ -236,10 +236,28 @@
   outline: none;
 }
 
-/* Affordable-but-unowned: accent border to invite a click. */
+/* Affordable-but-unowned: accent border + faint accent fill to invite a click. */
 .sf-upg-cell.can {
   border-color: var(--accent-production);
+  background: color-mix(in srgb, var(--accent-production) 14%, var(--bg-surface));
   color: var(--text);
+  font-weight: 600;
+}
+
+/* Revealed but unaffordable: dimmed and non-inviting (a "disabled" look), so the
+ * buyable cells stand out. Still hoverable — the detail card reads from
+ * `onmouseenter`, not CSS — but the cursor and hover give no buy affordance. */
+.sf-upg-cell.cant {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.sf-upg-cell.cant:hover {
+  border-color: var(--border);
+}
+
+.sf-upg-cell.cant:focus-visible {
+  border-color: var(--border-strong);
 }
 
 /* Owned: filled gold (matches the legacy "bought" treatment). */

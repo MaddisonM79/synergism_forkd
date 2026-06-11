@@ -121,12 +121,14 @@ fn UpgradeCell(idx: usize, focused: Signal<Option<usize>>) -> Element {
     // otherwise strobe at 20 Hz when the upgrade autobuyer is draining currency.
     let affordable = use_slow_slice(move |s| meta(idx).affordable(s));
 
+    // Three visual states: owned (filled), affordable (accent — buy now), and
+    // unaffordable (`cant` — dimmed/disabled so the buyable ones stand out).
     let cls = if owned() {
         "sf-upg-cell owned"
     } else if affordable() {
         "sf-upg-cell can"
     } else {
-        "sf-upg-cell"
+        "sf-upg-cell cant"
     };
 
     rsx! {
