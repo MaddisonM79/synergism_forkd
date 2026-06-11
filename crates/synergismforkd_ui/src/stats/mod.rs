@@ -29,7 +29,7 @@ fn CurrencyRow(
                 Num { value }
                 if let Some(rate) = rate {
                     span { class: "sf-res-rate",
-                        " +"
+                        "+"
                         Num { value: rate, rate: true }
                         {t("hud.per_sec")}
                     }
