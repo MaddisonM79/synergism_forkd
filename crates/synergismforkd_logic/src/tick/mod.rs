@@ -64,6 +64,7 @@ use crate::mechanics::researches::{buy_research, BuyResearchInput};
 use crate::mechanics::reset_currency::ResetCurrencyResult;
 use crate::mechanics::resource_gain::{resource_gain, ResourceGainPre};
 use crate::mechanics::rune_levels::{buy_rune_levels, BuyRuneLevelsInput};
+use crate::mechanics::rune_upgrade_progression::{buy_rune_upgrade, BuyRuneUpgradeInput};
 use crate::mechanics::shop_costs::{buy_shop, BuyShopInput};
 use crate::mechanics::talisman_levels::{buy_talisman_level, BuyTalismanLevelInput};
 use crate::mechanics::tesseract_buildings::{buy_tesseract_building, BuyTesseractBuildingInput};
@@ -423,6 +424,10 @@ pub enum BuyRequest {
     AmbrosiaUpgrade(BuyAmbrosiaUpgradeInput),
     /// Routes to [`buy_rune_levels`].
     RuneLevels(BuyRuneLevelsInput),
+    /// Routes to [`buy_rune_upgrade`] on the blessing arrays.
+    RuneBlessing(BuyRuneUpgradeInput),
+    /// Routes to [`buy_rune_upgrade`] on the spirit arrays.
+    RuneSpirit(BuyRuneUpgradeInput),
     /// Routes to [`buy_ant_producer`].
     AntProducer(BuyAntProducerInput),
     /// Routes to [`buy_ant_upgrade`].
@@ -1110,7 +1115,7 @@ fn first_five_effective_rune_level_mult(state: &GameState) -> f64 {
 /// duplication have ported bonus aggregators (coin-log + coin-upgrade driven);
 /// their `getRuneBonusFromAllTalismans` talisman bonus is unported (neutral 0),
 /// and the prism/thrift/SI per-rune bonuses are unported (0). Identity at default.
-fn rune_free_levels(state: &GameState, rune: usize) -> f64 {
+pub fn rune_free_levels(state: &GameState, rune: usize) -> f64 {
     use crate::mechanics::ant_upgrades::free_runes_ant_upgrade_effect;
     use crate::mechanics::rune_level_bonuses::{
         bonus_rune_levels_duplication, bonus_rune_levels_speed, first_five_free_levels,
@@ -1167,12 +1172,50 @@ fn rune_free_levels(state: &GameState, rune: usize) -> f64 {
 /// (neutral, identity at default): the achievement-gated `isUnlocked` gates
 /// (defaulting them to locked would wrongly zero the runes while achievements
 /// are unported, H5) and SI's extra quark-based mult.
-fn first_five_effective_rune_level(state: &GameState, rune: usize) -> f64 {
+pub fn first_five_effective_rune_level(state: &GameState, rune: usize) -> f64 {
     if state.challenges.current_reincarnation_challenge == 9 {
         return 1.0;
     }
     (state.runes.rune_levels[rune] + rune_free_levels(state, rune))
         * first_five_effective_rune_level_mult(state)
+}
+
+/// `getRuneEXPPerOffering(rune)` for a top-level rune — `universalRuneEXPMult`
+/// evaluated from current state at this rune's purchased level (Runes.ts:373).
+/// The C15 rune-EXP reward and salvage multiplier are neutral `1` until those
+/// endgame systems are ported (faithful at pre-ascension progression).
+#[must_use]
+pub fn rune_exp_per_offering(state: &GameState, rune: usize) -> Decimal {
+    use crate::mechanics::rune_exp_multiplier::{
+        universal_rune_exp_mult, UniversalRuneEXPMultInput,
+    };
+    universal_rune_exp_mult(UniversalRuneEXPMultInput {
+        purchased_levels: state.runes.rune_levels.get(rune).copied().unwrap_or(0.0),
+        c1_completions: state.challenges.highest_challenge_completions[1],
+        research_22: state.researches.researches[22],
+        research_23: state.researches.researches[23],
+        upgrade_71: f64::from(state.upgrades.upgrades[71]),
+        research_91: state.researches.researches[91],
+        research_92: state.researches.researches[92],
+        ascension_counter: state.reset_counters.ascension_counter,
+        cube_upgrade_32: state.cube_upgrade_levels.cube_upgrades[32],
+        constant_upgrade_8: state.campaigns.constant_upgrades[8],
+        challenge_15_rune_exp_reward: 1.0,
+        salvage_rune_exp_multiplier: Decimal::one(),
+    })
+}
+
+/// `getLevelsPerOOM(rune)` for a top-level rune. The `levelsPerOOMIncrease()`
+/// term (research 78+, ascension challenges 11/14, talismans, ambrosia, level
+/// milestones) is `0` until ascension-era progression, so this returns the
+/// base slope — exact at pre-ascension and the single future wiring point.
+#[must_use]
+pub fn rune_effective_levels_per_oom(
+    _state: &GameState,
+    _rune: usize,
+    base_levels_per_oom: f64,
+) -> f64 {
+    base_levels_per_oom
 }
 
 /// `otherBlessingMultipliers` (RuneBlessings.ts:42): the shared multiplier on
@@ -7645,6 +7688,24 @@ fn dispatch_buy(
         BuyRequest::AmbrosiaUpgrade(inp) => buy_ambrosia_upgrade(&mut state.ambrosia, *inp),
         BuyRequest::RuneLevels(inp) => {
             buy_rune_levels(&mut state.runes, &mut state.automation.offerings, *inp)
+        }
+        BuyRequest::RuneBlessing(inp) => {
+            buy_rune_upgrade(
+                &mut state.runes.rune_blessing_levels,
+                &mut state.runes.rune_blessing_exp,
+                &mut state.automation.offerings,
+                *inp,
+            );
+            SmallVec::new()
+        }
+        BuyRequest::RuneSpirit(inp) => {
+            buy_rune_upgrade(
+                &mut state.runes.rune_spirit_levels,
+                &mut state.runes.rune_spirit_exp,
+                &mut state.automation.offerings,
+                *inp,
+            );
+            SmallVec::new()
         }
         BuyRequest::AntProducer(inp) => buy_ant_producer(&mut state.ants, *inp),
         BuyRequest::AntUpgrade(inp) => buy_ant_upgrade(&mut state.ants, *inp),

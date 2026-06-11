@@ -59,8 +59,14 @@ pub struct RunesState {
     pub rune_shards: Decimal,
     /// Per-rune blessing level (`player.runeBlessingLevels`).
     pub rune_blessing_levels: [f64; RUNE_COUNT],
+    /// Per-rune blessing EXP accumulator (mirrors `rune_exp` for blessings).
+    /// Only indices `0..5` are used (blessings exist for the first five runes).
+    pub rune_blessing_exp: [f64; RUNE_COUNT],
     /// Per-rune spirit level (`player.runeSpiritLevels`).
     pub rune_spirit_levels: [f64; RUNE_COUNT],
+    /// Per-rune spirit EXP accumulator (mirrors `rune_exp` for spirits).
+    /// Only indices `0..5` are used.
+    pub rune_spirit_exp: [f64; RUNE_COUNT],
     /// Per-rune cached "free level" bonuses accumulated from
     /// talismans / ant upgrades / etc. (kept here so the tick
     /// layer doesn't recompute every read).
@@ -74,7 +80,9 @@ impl Default for RunesState {
             rune_exp: [0.0; RUNE_COUNT],
             rune_shards: Decimal::zero(),
             rune_blessing_levels: [0.0; RUNE_COUNT],
+            rune_blessing_exp: [0.0; RUNE_COUNT],
             rune_spirit_levels: [0.0; RUNE_COUNT],
+            rune_spirit_exp: [0.0; RUNE_COUNT],
             rune_free_levels: [0.0; RUNE_COUNT],
         }
     }
