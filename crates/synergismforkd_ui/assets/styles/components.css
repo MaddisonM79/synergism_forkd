@@ -208,12 +208,25 @@
   display: flex;
   justify-content: space-between;
   align-items: baseline;
+  gap: var(--space-2);
+  /* When a value is too wide for the card, wrap the whole value onto its own
+   * line instead of jamming it against the label or splitting it mid-value. */
+  flex-wrap: wrap;
   font-size: var(--fs-sm);
 }
 
 .sf-card-row .label {
   color: var(--text-muted);
   font-size: var(--fs-xs);
+  flex-shrink: 0;
+}
+
+/* The value side (the element after the label): kept together, right-aligned,
+ * dropping to the next line as a unit when it can't fit beside the label. */
+.sf-card-row > .label + * {
+  margin-left: auto;
+  text-align: right;
+  white-space: nowrap;
 }
 
 .sf-card-actions {
