@@ -22,6 +22,7 @@
 
 use crate::events::{ProducerType, UpgradeTier};
 use crate::mechanics::accelerators::BuyAcceleratorInput;
+use crate::mechanics::achievement_levels::achievement_level_from_points;
 use crate::mechanics::ant_masteries::{
     can_buy_ant_mastery, BuyAntMasteryInput, CanBuyAntMasteryInput, MAX_ANT_MASTERY_LEVEL,
 };
@@ -100,7 +101,7 @@ pub(crate) fn run_auto_buy(state: &mut GameState, pre: &AutomationPre, output: &
 
     // ── Family 6: diamond producers 1..=5 ────────────────────────────
     // toggles[9 + t] && getLevelMilestone(tierNCrystalAutobuy) === 1.
-    let level = state.level.level;
+    let level = achievement_level_from_points(state.achievements.achievement_points);
     for t in 1..=5u8 {
         if state.automation.toggles[9 + t as usize] && crystal_autobuy_unlocked(level, t) {
             let req = BuyRequest::ProducerMax(BuyMaxInput {
@@ -254,15 +255,30 @@ fn ant_upgrade_autobuy_unlocked(state: &GameState, upgrade: u8) -> bool {
                 .is_some_and(|&v| v != 0)
         }
         11 => state.researches.researches[145] > 0.0,
-        12 => get_level_milestone(LevelMilestoneKey::AntSpeed2Autobuyer, state.level.level) > 0.5,
-        13 => get_level_milestone(LevelMilestoneKey::WowCubesAutobuyer, state.level.level) > 0.5,
+        12 => {
+            get_level_milestone(
+                LevelMilestoneKey::AntSpeed2Autobuyer,
+                achievement_level_from_points(state.achievements.achievement_points),
+            ) > 0.5
+        }
+        13 => {
+            get_level_milestone(
+                LevelMilestoneKey::WowCubesAutobuyer,
+                achievement_level_from_points(state.achievements.achievement_points),
+            ) > 0.5
+        }
         14 => {
             get_level_milestone(
                 LevelMilestoneKey::AscensionScoreAutobuyer,
-                state.level.level,
+                achievement_level_from_points(state.achievements.achievement_points),
             ) > 0.5
         }
-        15 => get_level_milestone(LevelMilestoneKey::Mortuus2Autobuyer, state.level.level) > 0.5,
+        15 => {
+            get_level_milestone(
+                LevelMilestoneKey::Mortuus2Autobuyer,
+                achievement_level_from_points(state.achievements.achievement_points),
+            ) > 0.5
+        }
         _ => false,
     }
 }
@@ -577,7 +593,7 @@ fn talisman_level_cap_increase(state: &GameState, talisman: usize, universal: f6
         TALISMAN_HORSE_SHOE => 88.0,
         TALISMAN_ACHIEVEMENT => get_level_milestone(
             LevelMilestoneKey::AchievementTalismanEnhancement,
-            state.level.level,
+            achievement_level_from_points(state.achievements.achievement_points),
         ),
         _ => universal,
     }

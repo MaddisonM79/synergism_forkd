@@ -968,6 +968,12 @@ fn update_progress_unlocks(state: &mut GameState) {
     rc.coin_three_unlocked |= coins >= Decimal::from_finite(100_000.0);
     rc.coin_four_unlocked |= coins >= Decimal::from_finite(4e6);
     rc.generation_unlocked |= prestige_points >= Decimal::from_finite(1e12);
+    // Self-heal the tier unlocks from the reset counts: anyone who has ever
+    // transcended/reincarnated keeps the Mythos / Particle reveal even if a
+    // prior build's reset failed to latch the flag (the reset now sets it
+    // directly — this also recovers saves written before that fix).
+    rc.transcend_unlocked |= rc.transcend_count > 0.0;
+    rc.reincarnate_unlocked |= rc.reincarnation_count > 0.0;
 }
 
 /// Effective ant-upgrade level (legacy `calculateTrueAntLevel`): purchased
@@ -10935,12 +10941,14 @@ mod tests {
             dt: 0.025,
             ..TackInput::default()
         };
-        // Level 0: tier1CrystalAutobuy milestone not met -> no purchase.
+        // Achievement level 0: tier1CrystalAutobuy milestone not met -> no buy.
         let mut low = state.clone();
         let _ = tack(&mut low, &input);
         assert_eq!(low.diamond_producers.tiers[0].owned, 0.0);
-        // Level >= 6 unlocks the milestone -> diamonds auto-buy.
-        state.level.level = 100.0;
+        // tier1CrystalAutobuy unlocks at achievement level 6 (300 points);
+        // the milestone gate reads the achievement-points level, not the
+        // per-tier player level. -> diamonds auto-buy.
+        state.achievements.achievement_points = 300.0;
         let _ = tack(&mut state, &input);
         assert!(state.diamond_producers.tiers[0].owned > 0.0);
     }
@@ -10948,7 +10956,9 @@ mod tests {
     #[test]
     fn auto_buy_crystal_upgrades_gated_on_milestone() {
         let mut state = GameState::default();
-        state.level.level = 1000.0; // unlock all tierNCrystalAutobuy milestones
+        // Achievement level 20 (1000 points) unlocks all tierNCrystalAutobuy
+        // milestones (tier5 has the highest levelReq, 20).
+        state.achievements.achievement_points = 1000.0;
         state.crystal_upgrades.prestige_shards = Decimal::from_finite(1e30);
         let input = TackInput {
             dt: 0.025,

@@ -361,6 +361,9 @@ fn apply_transcension_layer(state: &mut GameState, transcend_point_gain: Decimal
     state.upgrades.transcend_no_coin_or_prestige_upgrades = true;
     state.accelerator.transcend_no_accelerator = true;
     state.multiplier.transcend_no_multiplier = true;
+    // `player.unlocks.transcend = true` (Reset.ts:882) — reveals the Mythos
+    // resource + buildings. Missing this left them hidden after transcending.
+    state.reset_counters.transcend_unlocked = true;
     state.reset_counters.transcend_counter = 0.0;
     state.automation.auto_reset_timer_transcension = 0.0;
 }
@@ -529,6 +532,8 @@ fn apply_reincarnation_layer(
         .reincarnate_no_coin_prestige_transcend_or_generator_upgrades = true;
     state.accelerator.reincarnate_no_accelerator = true;
     state.multiplier.reincarnate_no_multiplier = true;
+    // `player.unlocks.reincarnate = true` (Reset.ts:885).
+    state.reset_counters.reincarnate_unlocked = true;
     state.reset_counters.reincarnation_counter = 0.0;
     state.automation.auto_reset_timer_reincarnation = 0.0;
 }
