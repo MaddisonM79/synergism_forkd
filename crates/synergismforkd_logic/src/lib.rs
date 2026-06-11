@@ -57,6 +57,10 @@ pub use tick::{
 // Host seam: rebuild the achievement-points total from a loaded bitmap (H5).
 pub use mechanics::achievement_points::recompute_achievement_points;
 
+// UI seam: the per-run unlock gates for `BuyRequest::ClickUpgrade` (the
+// Upgrades-tab buy path).
+pub use mechanics::auto_upgrades::ClickUpgradesUnlocks;
+
 // ─── Per-tick aggregator entry points ────────────────────────────────────
 
 pub use mechanics::global_multipliers::{

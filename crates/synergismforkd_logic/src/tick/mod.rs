@@ -42,6 +42,7 @@ use crate::mechanics::achievement_rewards;
 use crate::mechanics::ant_masteries::{buy_ant_mastery, BuyAntMasteryInput};
 use crate::mechanics::ant_producers::{buy_ant_producer, BuyAntProducerInput};
 use crate::mechanics::ant_upgrades::{buy_ant_upgrade, BuyAntUpgradeInput};
+use crate::mechanics::auto_upgrades::{click_upgrades, ClickUpgradesUnlocks};
 use crate::mechanics::blueberry_upgrades::{buy_ambrosia_upgrade, BuyAmbrosiaUpgradeInput};
 use crate::mechanics::challenge_15_rewards;
 use crate::mechanics::constant_upgrades::{buy_constant_upgrade, BuyConstantUpgradeInput};
@@ -392,6 +393,18 @@ pub enum AutoToggle {
 pub enum BuyRequest {
     /// Routes to [`buy_upgrades`].
     Upgrade(BuyUpgradeInput),
+    /// Routes to [`click_upgrades`] — the legacy `clickUpgrades(i)` index
+    /// dispatcher for the shop bitmap (`1..=125`). Picks the currency/mechanic
+    /// from `i` (coin/diamond/mythos/particle via [`buy_upgrades`], automation
+    /// `81..=100` via `buy_autobuyers`, generator `101..=120` via
+    /// `buy_generator`) and is gated on the upgrade being unowned + the tier
+    /// unlock in `unlocks`. The single buy path for the whole Upgrades tab.
+    ClickUpgrade {
+        /// Upgrade index, `1..=125`.
+        i: usize,
+        /// Per-run tier unlock gates (`player.unlocks.*`).
+        unlocks: ClickUpgradesUnlocks,
+    },
     /// Routes to [`buy_research`].
     Research(BuyResearchInput),
     /// Routes to [`buy_gq_upgrade`].
@@ -7524,6 +7537,9 @@ fn dispatch_buy(
     // and prevent the second `&mut` for the currency.)
     match req {
         BuyRequest::Upgrade(inp) => buy_upgrades(&mut state.upgrades, *inp),
+        BuyRequest::ClickUpgrade { i, unlocks } => {
+            click_upgrades(&mut state.upgrades, *unlocks, *i)
+        }
         BuyRequest::Research(inp) => buy_research(&mut state.researches, *inp),
         BuyRequest::GoldenQuarkUpgrade(inp) => buy_gq_upgrade(&mut state.golden_quarks, *inp),
         BuyRequest::OcteractUpgrade(inp) => buy_octeract_upgrade(
@@ -7920,6 +7936,30 @@ mod tests {
             s.coin_counters.coins_this_prestige,
             Decimal::from_finite(100.0)
         );
+    }
+
+    #[test]
+    fn click_upgrade_buys_across_currency_tiers() {
+        // The Upgrades-tab buy path: one BuyRequest::ClickUpgrade routes by
+        // index to coins (1), prestige autobuyers (81) and generators (101).
+        let mut s = GameState::default();
+        s.upgrades.coins = Decimal::from_finite(1e9);
+        s.upgrades.prestige_points = Decimal::from_finite(1e15);
+        let unlocks = ClickUpgradesUnlocks {
+            prestige: true, // 81..=120 require the prestige unlock
+            transcend: false,
+            reincarnate: false,
+        };
+        let mut input = TackInput::default();
+        for i in [1usize, 81, 101] {
+            input
+                .player_actions
+                .push(PlayerAction::Buy(BuyRequest::ClickUpgrade { i, unlocks }));
+        }
+        let _ = tack(&mut s, &input);
+        assert_eq!(s.upgrades.upgrades[1], 1, "coin upgrade 1 bought");
+        assert_eq!(s.upgrades.upgrades[81], 1, "automation upgrade 81 bought");
+        assert_eq!(s.upgrades.upgrades[101], 1, "generator upgrade 101 bought");
     }
 
     #[test]
