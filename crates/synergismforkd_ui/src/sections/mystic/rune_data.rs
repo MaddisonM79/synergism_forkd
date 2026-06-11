@@ -8,11 +8,18 @@ use synergismforkd_logic::mechanics::rune_blessing_effects::{
     duplication_rune_blessing_effects, prism_rune_blessing_effects, speed_rune_blessing_effects,
     superior_intellect_rune_blessing_effects, thrift_rune_blessing_effects,
 };
+use synergismforkd_logic::mechanics::rune_effects::{
+    duplication_rune_effects, prism_rune_effects, speed_rune_effects,
+    superior_intellect_rune_effects, thrift_rune_effects, DuplicationRuneKey, PrismRuneKey,
+    SpeedRuneKey, SuperiorIntellectRuneKey, ThriftRuneKey,
+};
 use synergismforkd_logic::mechanics::rune_spirit_effects::{
     duplication_rune_spirit_effects, prism_rune_spirit_effects, speed_rune_spirit_effects,
     superior_intellect_rune_spirit_effects, thrift_rune_spirit_effects,
 };
-use synergismforkd_logic::tick::{rune_blessing_power, rune_spirit_power};
+use synergismforkd_logic::tick::{
+    first_five_effective_rune_level, rune_blessing_power, rune_spirit_power,
+};
 use synergismforkd_logic::GameState;
 
 use crate::format::{format_value, Notation};
@@ -28,6 +35,88 @@ fn pct(mult: f64, notation: Notation) -> String {
         "+{}%",
         format_value(Decimal::from_finite((mult - 1.0) * 100.0), notation)
     )
+}
+
+/// Format a bare numeric value (no `+`/`%` decoration) for the multi-value
+/// effect lines — the decoration lives in the i18n template.
+fn num(value: f64, notation: Notation) -> String {
+    format_value(Decimal::from_finite(value), notation)
+}
+
+/// Live multi-effect summary for a core rune (`0..5`), computed at the rune's
+/// effective level — the equivalent of the legacy `runes.<rune>.effect`
+/// aggregate line, replacing the former static blurb.
+#[must_use]
+pub fn rune_effect_line(state: &GameState, index: usize, notation: Notation) -> String {
+    let n = first_five_effective_rune_level(state, index);
+    match index {
+        0 => {
+            let accel = 100.0 * speed_rune_effects(n, SpeedRuneKey::AcceleratorPower);
+            let free =
+                (speed_rune_effects(n, SpeedRuneKey::MultiplicativeAccelerators) - 1.0) * 100.0;
+            let speed = (speed_rune_effects(n, SpeedRuneKey::GlobalSpeed) - 1.0) * 100.0;
+            t_args(
+                "runes.effect.speed",
+                &[
+                    ("val", &num(accel, notation)),
+                    ("val2", &num(free, notation)),
+                    ("val3", &num(speed, notation)),
+                ],
+            )
+        }
+        1 => {
+            let boosts = duplication_rune_effects(n, DuplicationRuneKey::MultiplierBoosts);
+            let free = (duplication_rune_effects(n, DuplicationRuneKey::MultiplicativeMultipliers)
+                - 1.0)
+                * 100.0;
+            let tax = 100.0 * (1.0 - duplication_rune_effects(n, DuplicationRuneKey::TaxReduction));
+            t_args(
+                "runes.effect.duplication",
+                &[
+                    ("val", &num(boosts, notation)),
+                    ("val2", &num(free, notation)),
+                    ("val3", &num(tax, notation)),
+                ],
+            )
+        }
+        2 => {
+            let prod = 10f64.powf(prism_rune_effects(n, PrismRuneKey::ProductionLog10));
+            let cost = 10f64.powf(prism_rune_effects(n, PrismRuneKey::CostDivisorLog10));
+            t_args(
+                "runes.effect.prism",
+                &[
+                    ("val", &num(prod, notation)),
+                    ("val2", &num(cost, notation)),
+                ],
+            )
+        }
+        3 => {
+            let delay = thrift_rune_effects(n, ThriftRuneKey::CostDelay);
+            let salvage = thrift_rune_effects(n, ThriftRuneKey::Salvage);
+            let tax = 100.0 * (1.0 - thrift_rune_effects(n, ThriftRuneKey::TaxReduction));
+            t_args(
+                "runes.effect.thrift",
+                &[
+                    ("val", &num(delay, notation)),
+                    ("val2", &num(salvage, notation)),
+                    ("val3", &num(tax, notation)),
+                ],
+            )
+        }
+        _ => {
+            let off = superior_intellect_rune_effects(n, SuperiorIntellectRuneKey::OfferingMult);
+            let obt = superior_intellect_rune_effects(n, SuperiorIntellectRuneKey::ObtainiumMult);
+            let ant = superior_intellect_rune_effects(n, SuperiorIntellectRuneKey::AntSpeed);
+            t_args(
+                "runes.effect.si",
+                &[
+                    ("val", &num(off, notation)),
+                    ("val2", &num(obt, notation)),
+                    ("val3", &num(ant, notation)),
+                ],
+            )
+        }
+    }
 }
 
 /// Live effect line for a rune blessing (`0..5`) — the blessing's single
@@ -143,18 +232,6 @@ pub fn rune_name_key(index: usize) -> &'static str {
         2 => "runes.name.prism",
         3 => "runes.name.thrift",
         _ => "runes.name.si",
-    }
-}
-
-/// i18n key for a core rune's short effect blurb (`0..5`).
-#[must_use]
-pub fn rune_effect_key(index: usize) -> &'static str {
-    match index {
-        0 => "runes.effect.speed",
-        1 => "runes.effect.duplication",
-        2 => "runes.effect.prism",
-        3 => "runes.effect.thrift",
-        _ => "runes.effect.si",
     }
 }
 

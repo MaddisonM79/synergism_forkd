@@ -18,7 +18,7 @@ use crate::format::format_value;
 use crate::i18n::t;
 
 use super::rune_data::{
-    blessing_effect_line, blessings_unlocked, rune_effect_key, rune_name_key, rune_unlocked,
+    blessing_effect_line, blessings_unlocked, rune_effect_line, rune_name_key, rune_unlocked,
     spirit_effect_line, spirits_unlocked, CORE_RUNES,
 };
 
@@ -191,10 +191,10 @@ fn RuneCard(family: RuneFamily, index: usize, amount: RuneBuyAmount) -> Element 
     let affordable =
         use_slow_slice(move |s| s.automation.offerings >= family.next_level_offerings(s, index));
     let notation = bridge.prefs.read().notation;
-    // The live effect line: a static blurb for runes; the power-scaled effect
-    // value for blessings/spirits (mirrors the legacy effectsDescription).
+    // The live effect line: the power-scaled effect value, recomputed from
+    // state for every family (mirrors the legacy effectsDescription).
     let effect = use_slice(move |s| match family {
-        RuneFamily::Rune => t(rune_effect_key(index)).to_string(),
+        RuneFamily::Rune => rune_effect_line(s, index, notation),
         RuneFamily::Blessing => blessing_effect_line(s, index, notation),
         RuneFamily::Spirit => spirit_effect_line(s, index, notation),
     });
