@@ -64,6 +64,34 @@
   padding-bottom: var(--space-1);
 }
 
+/* Resource ledger row: [icon] name ........ value (+rate). Compact inline. */
+.sf-res-row {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  font-size: var(--fs-sm);
+}
+
+.sf-res-row .sf-icon {
+  align-self: center;
+}
+
+.sf-res-name {
+  flex: 1;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.sf-res-val {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.sf-res-rate {
+  color: var(--text-muted);
+  font-size: var(--fs-xs);
+}
+
 .sf-prestige-btn {
   background: var(--accent-production);
   border-color: var(--accent-production);

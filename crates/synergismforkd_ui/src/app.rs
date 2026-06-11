@@ -9,7 +9,6 @@ use dioxus::prelude::*;
 
 use crate::bridge::use_bridge;
 use crate::components::{DialogLayer, ToastStack};
-use crate::hud::ResourceHud;
 use crate::nav::{GroupedNav, SubNav};
 use crate::sections::SectionView;
 use crate::stats::StatsPanel;
@@ -25,9 +24,7 @@ const CRITICAL_CSS: &str = "html,body{margin:0;background:#1a1325;}";
 #[component]
 pub fn App() -> Element {
     let bridge = use_bridge();
-    let prefs = bridge.prefs.read();
-    let theme = prefs.theme;
-    let show_stats = prefs.show_stats_panel;
+    let theme = bridge.prefs.read().theme;
 
     rsx! {
         document::Style { {CRITICAL_CSS} }
@@ -37,16 +34,16 @@ pub fn App() -> Element {
         document::Stylesheet { href: asset!("/assets/styles/components.css") }
         document::Stylesheet { href: asset!("/assets/styles/sections.css") }
 
+        // The right column is always present — it's the resource ledger now.
+        // `show_stats_panel` toggles only the lower stat sections, inside
+        // `StatsPanel` itself.
         div {
-            class: if show_stats { "sf-app" } else { "sf-app no-stats" },
+            class: "sf-app",
             "data-theme": theme.css_value(),
             GroupedNav {}
-            ResourceHud {}
             SubNav {}
             SectionView {}
-            if show_stats {
-                StatsPanel {}
-            }
+            StatsPanel {}
             ToastStack {}
             DialogLayer {}
             div { class: "sf-version", "v{VERSION}" }

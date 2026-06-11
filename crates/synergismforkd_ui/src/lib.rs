@@ -15,7 +15,6 @@ pub mod derive;
 pub mod events_map;
 pub mod format;
 pub mod gating;
-pub mod hud;
 pub mod i18n;
 pub mod nav;
 pub mod sections;

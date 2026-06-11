@@ -17,6 +17,9 @@ pub enum Resource {
     /// crystal upgrades cost.
     Crystals,
     Mythos,
+    /// Mythos Shards (`transcendShards`) — the transcend-layer production
+    /// resource, the analogue of Crystals one layer up.
+    MythosShards,
     Particles,
     Offerings,
     Obtainium,
@@ -34,6 +37,7 @@ impl Resource {
             Resource::Diamonds => "var(--res-diamond)",
             Resource::Crystals => "var(--res-crystal)",
             Resource::Mythos => "var(--res-mythos)",
+            Resource::MythosShards => "var(--res-mythos)",
             Resource::Particles => "var(--res-particle)",
             Resource::Offerings => "var(--res-offering)",
             Resource::Obtainium => "var(--res-obtainium)",
@@ -51,6 +55,7 @@ impl Resource {
             Resource::Diamonds => "hud.diamonds",
             Resource::Crystals => "hud.crystals",
             Resource::Mythos => "hud.mythos",
+            Resource::MythosShards => "hud.mythos_shards",
             Resource::Particles => "hud.particles",
             Resource::Offerings => "hud.offerings",
             Resource::Obtainium => "hud.obtainium",
@@ -71,6 +76,9 @@ impl Resource {
             Resource::Crystals => "M7 3h10l3 5-8 13L4 8z",
             // Four-point star (mythos).
             Resource::Mythos => "M12 2l2.5 7.5L22 12l-7.5 2.5L12 22l-2.5-7.5L2 12l7.5-2.5z",
+            // Twin shards (mythos shards): a shard pair, the transcend-layer
+            // production resource.
+            Resource::MythosShards => "M11 2 4 22l5-3 1-12zM13 2l1 12 5 3z",
             // Dot + orbit hint (particle).
             Resource::Particles => {
                 "M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8zM12 2a10 10 0 0 1 9.5 6.9l-1.9.6A8 8 0 0 0 12 4z"
