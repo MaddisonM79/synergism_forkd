@@ -173,6 +173,13 @@
   font-size: var(--fs-sm);
 }
 
+/* Crystal-upgrades sub-heading under the Diamond producers. */
+.sf-crystal-head {
+  margin-top: var(--space-4);
+  margin-bottom: var(--space-2);
+  font-weight: 600;
+}
+
 /* The live effect line on an upgrade card. */
 .sf-upgrade-effect {
   color: var(--text-muted);

@@ -11,6 +11,7 @@
 use synergismforkd_logic::events::ProducerType;
 use synergismforkd_logic::mechanics::accelerators::BuyAcceleratorInput;
 use synergismforkd_logic::mechanics::challenges::{calc_ecc, ChallengeType};
+use synergismforkd_logic::mechanics::crystal_upgrades::BuyCrystalUpgradesInput;
 use synergismforkd_logic::mechanics::multipliers::BuyMultiplierInput;
 use synergismforkd_logic::mechanics::producers::{BuyMaxInput, BuyProducerInput};
 use synergismforkd_logic::state::BuyAmount as LogicBuyAmount;
@@ -93,6 +94,29 @@ pub fn multiplier_buy(state: &GameState, amount: BuyAmount) -> PlayerAction {
         transcend_ecc: transcend_ecc(state),
         in_transcension_challenge_4: state.challenges.current_transcension_challenge == 4,
         in_reincarnation_challenge_8: state.challenges.current_reincarnation_challenge == 8,
+    }))
+}
+
+/// Crystal-upgrade log10 base costs (`G.crystalUpgradesCost`).
+const CRYSTAL_BASE_COST: [f64; 8] = [6.0, 15.0, 20.0, 40.0, 100.0, 200.0, 500.0, 1000.0];
+/// Crystal-upgrade per-level log10 increments (`G.crystalUpgradeCostIncrement`).
+const CRYSTAL_COST_INCREMENT: [f64; 8] = [8.0, 15.0, 20.0, 40.0, 100.0, 200.0, 500.0, 1000.0];
+
+/// Crystal-upgrade purchase (`i` in `1..=8`). Buys as many levels as the
+/// prestige-shard balance affords (the mechanic solves the max analytically).
+/// `prism_cost_divisor_log10` is `0.0` until the Prism rune effect is surfaced
+/// (cost-neutral).
+#[must_use]
+pub fn crystal_upgrade_buy(state: &GameState, i: u8) -> PlayerAction {
+    let u = usize::from(i - 1);
+    PlayerAction::Buy(BuyRequest::CrystalUpgrade(BuyCrystalUpgradesInput {
+        i,
+        auto: false,
+        prism_cost_divisor_log10: 0.0,
+        crystal_upgrades_cost: CRYSTAL_BASE_COST[u],
+        crystal_upgrade_cost_increment: CRYSTAL_COST_INCREMENT[u],
+        upgrade_73: f64::from(state.upgrades.upgrades[73]),
+        in_any_reincarnation_challenge: state.challenges.current_reincarnation_challenge != 0,
     }))
 }
 

@@ -302,6 +302,63 @@ pub fn effect_text(
     }
 }
 
+/// Crystal-upgrade log10 base costs / per-level increments
+/// (`G.crystalUpgradesCost` / `G.crystalUpgradeCostIncrement`).
+const CRYSTAL_BASE_COST: [f64; 8] = [6.0, 15.0, 20.0, 40.0, 100.0, 200.0, 500.0, 1000.0];
+const CRYSTAL_COST_INCREMENT: [f64; 8] = [8.0, 15.0, 20.0, 40.0, 100.0, 200.0, 500.0, 1000.0];
+
+/// Display cost of the next crystal-upgrade purchase (`i` in `1..=8`) —
+/// `10 ^ (base − prism + increment · floor((level + 0.5 − c)² / 2))`, with the
+/// Prism divisor at `0` until runes are surfaced. Mirrors the legacy
+/// `crystalupgradedescriptions` cost line.
+#[must_use]
+pub fn crystal_cost(i: u8, s: &GameState) -> Decimal {
+    let u = usize::from(i - 1);
+    let level = s.crystal_upgrades.crystal_upgrades[u];
+    let c = if s.upgrades.upgrades[73] > 0 && s.challenges.current_reincarnation_challenge != 0 {
+        10.0
+    } else {
+        0.0
+    };
+    let exp = CRYSTAL_BASE_COST[u]
+        + CRYSTAL_COST_INCREMENT[u] * ((level + 0.5 - c).powi(2) / 2.0).floor();
+    pow10(exp)
+}
+
+/// The live effect line for crystal upgrade `i` (`1..=8`), or `None` to hide it.
+/// Effects 1/2/5 are computable from state; 3/4 need crystal-power helpers and
+/// are hidden for now; 6–8 are unimplemented ("Coming SOON").
+#[must_use]
+pub fn crystal_effect_text(i: u8, s: &GameState, notation: Notation) -> Option<String> {
+    let cu = &s.crystal_upgrades.crystal_upgrades;
+    let one = Decimal::one();
+    let value = match i {
+        // (1 + 0.01·level) ^ achievementPoints.
+        1 => {
+            let ap = s.achievements.achievement_points;
+            Some(fd(1.0 + 0.01 * cu[0]).pow(fd(ap)))
+        }
+        // (1 + level·log10(coins+1)/100) ^ (2 + log2(level+1)).
+        2 => {
+            let coins_log = (s.upgrades.coins + one).log10().to_number();
+            let base = 1.0 + cu[1] * coins_log / 100.0;
+            let exp = 2.0 + (cu[1] + 1.0).log2();
+            Some(fd(base).pow(fd(exp)))
+        }
+        // (1 + level/20) ^ (cc1+cc2+cc3+cc4+cc5).
+        5 => {
+            let cc = &s.challenges.challenge_completions;
+            let sum = cc[1] + cc[2] + cc[3] + cc[4] + cc[5];
+            Some(fd(1.0 + cu[4] / 20.0).pow(fd(sum)))
+        }
+        _ => None,
+    }?;
+    Some(t_args(
+        &format!("upgrades.crystalEffects.{i}"),
+        &[("x", &format_value(value, notation))],
+    ))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

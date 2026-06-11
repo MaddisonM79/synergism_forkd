@@ -219,10 +219,66 @@ fn CoinProducerCard(index: u8) -> Element {
 /// `ProducerType::Diamonds`.
 #[component]
 fn DiamondBuildings() -> Element {
+    // Crystal upgrades 1–2 reveal with the Diamond subtab; 3–5 behind transcend
+    // (legacy `transcendunlock` on `buycrystalupgrade3..5`).
+    let show_crystal_345 = use_slice(|s| s.reset_counters.transcend_unlocked);
     rsx! {
         div { class: "sf-card-grid",
             for index in 1..=5u8 {
                 DiamondProducerCard { key: "{index}", index }
+            }
+        }
+        div { class: "sf-collapsible-title sf-crystal-head", {t("upgrades.crystalUpgrades.heading")} }
+        div { class: "sf-card-grid",
+            for i in 1..=5u8 {
+                if i <= 2 || show_crystal_345() {
+                    CrystalUpgradeCard { key: "c{i}", i }
+                }
+            }
+        }
+    }
+}
+
+/// A crystal upgrade (prestige-shard ladder shown under Diamonds): level, cost
+/// in crystals, live effect (1/2/5), and a buy-to-max button.
+#[component]
+fn CrystalUpgradeCard(i: u8) -> Element {
+    use crate::sections::production::upgrade_effects::{crystal_cost, crystal_effect_text};
+
+    let bridge = use_bridge();
+    let level = use_slice(move |s| s.crystal_upgrades.crystal_upgrades[(i - 1) as usize]);
+    let cost = use_slice(move |s| crystal_cost(i, s));
+    let affordable = use_slice(move |s| s.crystal_upgrades.prestige_shards >= crystal_cost(i, s));
+    let notation = bridge.prefs.read().notation;
+    let effect = use_slice(move |s| crystal_effect_text(i, s, bridge.prefs.peek().notation));
+    let name = t(&format!("upgrades.crystalUpgrades.{i}")).to_string();
+
+    let buy = move |_| {
+        bridge.dispatch(derive::crystal_upgrade_buy(&bridge.state.peek(), i));
+    };
+
+    rsx! {
+        div { class: "sf-card",
+            div { class: "sf-card-title", "{name}" }
+            div { class: "sf-card-row",
+                span { class: "label", {t("upgrades.crystal_level")} }
+                span { {format_value(Decimal::from_finite(level()), notation)} }
+            }
+            div { class: "sf-card-row",
+                span { class: "label", {t("buildings.cost")} }
+                span {
+                    Num { value: cost() }
+                    " "
+                    {t("upgrades.crystal_currency")}
+                }
+            }
+            if let Some(line) = effect() {
+                div { class: "sf-card-row sf-upgrade-effect",
+                    span { "{line}" }
+                }
+            }
+            div { class: "sf-card-actions",
+                button { disabled: !affordable(), onclick: buy, {t("buildings.buy")} }
             }
         }
     }

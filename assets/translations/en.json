@@ -375,5 +375,18 @@
   "upgrades.effects.123": "Effect: Coin Production ^1.025, duh!",
   "upgrades.effects.124": "Effect: 10% faster Reborn ELO creation!",
   "upgrades.effects.125": "+{{x}}% Constant Divisor power.",
-  "upgrades.effect_label": "Effect"
+  "upgrades.effect_label": "Effect",
+  "upgrades.crystalUpgrades.1": "Gain +1% Diamond Building production per level, for each Achievement Point!",
+  "upgrades.crystalEffects.1": "Diamond Building Production x{{x}}",
+  "upgrades.crystalUpgrades.2": "Gain a boost to Crystals based on held coins per level.",
+  "upgrades.crystalEffects.2": "Diamond Building Production x{{x}}",
+  "upgrades.crystalUpgrades.3": "Increase how much each purchased Diamond Building buffs Diamond Building production!",
+  "upgrades.crystalEffects.3": "Bonus: +{{base}} — Diamond Building Production x{{x}}",
+  "upgrades.crystalUpgrades.4": "Add to the Exponent in the Crystal to Coin Multiplier formula!",
+  "upgrades.crystalEffects.4": "Crystal --> Coin Exponent +{{x}}",
+  "upgrades.crystalUpgrades.5": "Gain +5% Diamond Building production per level, per Transcension Challenge completed!",
+  "upgrades.crystalEffects.5": "Diamond Building Production x{{x}}",
+  "upgrades.crystal_level": "Level",
+  "upgrades.crystal_currency": "crystals",
+  "upgrades.crystalUpgrades.heading": "Crystal Upgrades"
 }
