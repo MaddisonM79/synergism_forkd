@@ -34,6 +34,9 @@ pub fn Buildings() -> Element {
     let show_transcend = use_slice(|s| s.reset_counters.prestige_unlocked);
     let show_reincarnate = use_slice(|s| s.reset_counters.transcend_unlocked);
     let any_reset = show_prestige() || show_transcend() || show_reincarnate();
+    // The Mythos building family reveals once you've transcended (legacy
+    // `transcendunlock`), just as Diamond reveals at the prestige unlock.
+    let show_mythos = use_slice(|s| s.reset_counters.transcend_unlocked);
 
     rsx! {
         div { class: "sf-section-head",
@@ -61,6 +64,11 @@ pub fn Buildings() -> Element {
         if show_diamond() {
             Collapsible { title: t("buildings.subtab.diamond").to_string(),
                 DiamondBuildings {}
+            }
+        }
+        if show_mythos() {
+            Collapsible { title: t("buildings.subtab.mythos").to_string(),
+                MythosBuildings {}
             }
         }
     }
@@ -401,6 +409,63 @@ fn DiamondProducerCard(index: u8) -> Element {
                 button { disabled: !affordable(), onclick: buy, {t("buildings.buy")} }
                 if auto_unlocked() {
                     AutoBuyToggle { index: 9 + index as usize }
+                }
+            }
+        }
+    }
+}
+
+/// Mythos (transcension-tier) producers. Spend Mythos (transcend points); all
+/// five tiers reveal together once transcension is unlocked (legacy
+/// `transcendunlock`). Bought via the shared `BuyRequest::Producer` path routed
+/// to `mythos_producers` by `ProducerType::Mythos`.
+#[component]
+fn MythosBuildings() -> Element {
+    rsx! {
+        div { class: "sf-card-grid",
+            for index in 1..=5u8 {
+                MythosProducerCard { key: "{index}", index }
+            }
+        }
+    }
+}
+
+#[component]
+fn MythosProducerCard(index: u8) -> Element {
+    let bridge = use_bridge();
+    let owned = use_slice(move |s| s.mythos_producers.owned(index));
+    let generated = use_slice(move |s| s.mythos_producers.tiers[(index - 1) as usize].generated);
+    let cost = use_slice(move |s| s.mythos_producers.cost(index));
+    let affordable =
+        use_slow_slice(move |s| s.upgrades.transcend_points >= s.mythos_producers.cost(index));
+    // Mythos-producer autobuyers unlock via shop upgrades 93 + index (94–98,
+    // the "Automatically buy Augments/…/Grandmasters" upgrades); toggle slot
+    // 15 + index (the legacy `player.toggles[16..=20]`).
+    let auto_unlocked = use_slice(move |s| s.upgrades.upgrades[93 + index as usize] == 1);
+    let name_key = match index {
+        1 => "buildings.mythos.1",
+        2 => "buildings.mythos.2",
+        3 => "buildings.mythos.3",
+        4 => "buildings.mythos.4",
+        _ => "buildings.mythos.5",
+    };
+
+    let buy = move |_| {
+        let amount = bridge.prefs.peek().buy_amount;
+        let action =
+            derive::producer_buy(&bridge.state.peek(), ProducerType::Mythos, index, amount);
+        bridge.dispatch(action);
+    };
+
+    rsx! {
+        div { class: "sf-card",
+            div { class: "sf-card-title", {t(name_key)} }
+            OwnedRow { owned: owned(), generated: generated() }
+            CostRow { cost: cost(), resource: Resource::Mythos }
+            div { class: "sf-card-actions",
+                button { disabled: !affordable(), onclick: buy, {t("buildings.buy")} }
+                if auto_unlocked() {
+                    AutoBuyToggle { index: 15 + index as usize }
                 }
             }
         }
