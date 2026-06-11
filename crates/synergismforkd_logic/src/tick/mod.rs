@@ -616,6 +616,9 @@ pub struct BuildingsDerived {
     pub building_power: f64,
     /// `calculateGlobalSpeedMult()` — the global time multiplier.
     pub global_speed_mult: f64,
+    /// `(prestigeShards + 1) ^ crystalExponent` — Crystals → Coin production
+    /// multiplier (the legacy "X Crystals, multiplying Coin production by Y").
+    pub crystal_coin_multiplier: Decimal,
 }
 
 impl Default for BuildingsDerived {
@@ -640,6 +643,7 @@ impl Default for BuildingsDerived {
             global_mythos_multiplier: Decimal::one(),
             building_power: 1.0,
             global_speed_mult: 1.0,
+            crystal_coin_multiplier: Decimal::one(),
         }
     }
 }
@@ -897,6 +901,7 @@ fn derive_buildings_display(
         global_mythos_multiplier: agg.global_multipliers.global_mythos_multiplier,
         building_power: compute_building_power(state),
         global_speed_mult: compute_global_speed_mult_pre(state),
+        crystal_coin_multiplier: agg.global_multipliers.crystal_coin_multiplier,
     }
 }
 
@@ -7874,6 +7879,18 @@ mod tests {
             assert_eq!(s.achievements.progressive[slot].cached_points, 0.0);
         }
         assert_eq!(s.achievements.achievement_points, 0.0);
+    }
+
+    #[test]
+    fn crystal_coin_multiplier_surfaced_in_derived() {
+        // Crystals multiply coin production by (prestigeShards + 1)^exp; the
+        // default exponent is 1/3, so 7 crystals → (7 + 1)^(1/3) = 2×. Surfaced
+        // on BuildingsDerived so the UI can display the bonus.
+        let mut s = GameState::default();
+        s.crystal_upgrades.prestige_shards = Decimal::from_finite(7.0);
+        let out = tack(&mut s, &TackInput::default());
+        let m = out.derived.buildings.crystal_coin_multiplier.to_number();
+        assert!((m - 2.0).abs() < 1e-9, "expected ~2.0, got {m}");
     }
 
     #[test]

@@ -18,7 +18,7 @@ use crate::bridge::{use_bridge, use_slice, BuyAmount};
 use crate::components::{Collapsible, Num, Progress, Resource, ResourceIcon, Tooltip};
 use crate::derive;
 use crate::format::format_value;
-use crate::i18n::t;
+use crate::i18n::{t, t_args};
 
 #[component]
 pub fn Buildings() -> Element {
@@ -236,12 +236,35 @@ fn DiamondBuildings() -> Element {
             }
         }
         div { class: "sf-collapsible-title sf-crystal-head", {t("upgrades.crystalUpgrades.heading")} }
+        CrystalBonusLine {}
         div { class: "sf-card-grid",
             for i in 1..=5u8 {
                 if i <= 2 || show_crystal_345() {
                     CrystalUpgradeCard { key: "c{i}", i }
                 }
             }
+        }
+    }
+}
+
+/// The legacy "You have X Crystals, multiplying Coin production by Y×" line —
+/// makes the Crystals → Coin bonus visible (it's applied in the coin
+/// multiplier chain but was otherwise invisible).
+#[component]
+fn CrystalBonusLine() -> Element {
+    let bridge = use_bridge();
+    let crystals = use_slice(|s| s.crystal_upgrades.prestige_shards);
+    let mult = bridge.derived.read().buildings.crystal_coin_multiplier;
+    let notation = bridge.prefs.read().notation;
+    rsx! {
+        div { class: "sf-crystal-bonus",
+            {t_args(
+                "upgrades.crystal_bonus",
+                &[
+                    ("crystals", &format_value(crystals(), notation)),
+                    ("mult", &format_value(mult, notation)),
+                ],
+            )}
         }
     }
 }

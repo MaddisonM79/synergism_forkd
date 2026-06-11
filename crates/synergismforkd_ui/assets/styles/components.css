@@ -180,6 +180,13 @@
   font-weight: 600;
 }
 
+/* The Crystals → Coin production bonus line. */
+.sf-crystal-bonus {
+  margin-bottom: var(--space-3);
+  font-size: var(--fs-sm);
+  color: var(--res-crystal);
+}
+
 /* The live effect line on an upgrade card. */
 .sf-upgrade-effect {
   color: var(--text-muted);

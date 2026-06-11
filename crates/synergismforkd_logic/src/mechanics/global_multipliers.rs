@@ -152,6 +152,10 @@ pub struct GlobalMultipliersResult {
     /// for parity with the legacy implementation (the legacy code sets
     /// `G.antMultiplier` inside `multipliers()` so the shim must too).
     pub ant_multiplier: Decimal,
+    /// `(prestigeShards + 1) ^ crystalExponent` — the Crystals → Coin
+    /// production multiplier (pass-through of `pre.crystal_mult`), surfaced for
+    /// the Buildings display.
+    pub crystal_coin_multiplier: Decimal,
 }
 
 /// Per-tick global-multiplier aggregator. Direct transcription of the legacy
@@ -481,6 +485,7 @@ pub fn compute_global_multipliers(
         mythosupgrade_15,
         global_constant_mult,
         ant_multiplier: pre.ant_multiplier,
+        crystal_coin_multiplier: pre.crystal_mult,
     }
 }
 
