@@ -5,13 +5,15 @@
  * take on the original Synergism purple) with soft lavender text and
  * pastel accents. */
 .sf-app[data-theme="dark"] {
-  --bg-app: #1a1325;
-  --bg-surface: #241a33;
-  --bg-raised: #2e2240;
-  --bg-hover: #3a2b50;
-  /* Side/top chrome (nav rail, HUD, subnav, stats panel). Matches the surface
-   * here — the dark theme intentionally tints its whole frame plum. */
-  --bg-chrome: #241a33;
+  /* A real surface ramp so the UI has figure/ground: recessed chrome (darker
+   * than the content pane) → the content pane → cards that lift above it. */
+  --bg-app: #1c1430; /* the content "table" */
+  --bg-surface: #2a1f3d; /* cards lift above the pane */
+  --bg-raised: #352846; /* buttons / insets / chips */
+  --bg-hover: #43335c;
+  /* Side/top chrome (nav rail, header, subnav, stats, detail): recessed —
+   * darker than the content pane, so the frame reads as behind the content. */
+  --bg-chrome: #140e20;
   --border: #3d2f54;
   --border-strong: #564170;
   --text: #ece6f5;
@@ -56,9 +58,10 @@
   --bg-surface: #eeecf2;    /* near-white lilac — cards lift off the pane */
   --bg-raised: #d9d5e1;     /* insets / buttons / chips — sits between card and pane */
   --bg-hover: #cfcad9;      /* hover wash */
-  /* Side/top chrome (nav rail, HUD, subnav, stats panel): neutral grey at the
-   * pane's value, so the side bars read grey against the lilac content. */
-  --bg-chrome: #d4d3d8;
+  /* Side/top chrome: a touch DARKER than the lilac pane, so the frame recedes
+   * behind the content (the figure/ground the dark theme gets from a dark
+   * chrome). */
+  --bg-chrome: #bbb6c6;
   --border: #b0aabe;        /* lilac-grey, visible on the light cards */
   --border-strong: #908aa0; /* deeper lilac-grey */
   --text: #2a2138;          /* dark aubergine ink (not pure black) */

@@ -22,7 +22,7 @@ fn CurrencyRow(
     #[props(default)] rate: Option<Decimal>,
 ) -> Element {
     rsx! {
-        div { class: "sf-res-row",
+        div { class: "sf-res-row", style: "--row-accent: {resource.css_color()}",
             ResourceIcon { resource }
             span { class: "sf-res-name", {t(resource.label_key())} }
             span { class: "sf-res-val",

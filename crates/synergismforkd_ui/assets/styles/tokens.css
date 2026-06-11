@@ -16,14 +16,24 @@
   --radius-md: 8px;
   --bw: 1px;
 
-  /* Typography. All numerals tabular so HUD/cards don't jitter. */
+  /* Elevation. Cards/dialogs lift off the content pane; chrome sits flush.
+   * Static shadows only — nothing per-frame, safe at the 20 Hz tick. */
+  --shadow-1: 0 1px 2px rgb(0 0 0 / 25%);
+  --shadow-2: 0 3px 12px rgb(0 0 0 / 34%), 0 1px 2px rgb(0 0 0 / 26%);
+  --shadow-pop: 0 10px 28px rgb(0 0 0 / 45%);
+  /* The "lit from above" inner top edge that makes a fill read as material. */
+  --edge-hi: inset 0 1px 0 rgb(255 255 255 / 6%);
+
+  /* Typography. All numerals tabular so HUD/cards don't jitter. The number
+   * face leans rounded so values read as a game HUD, not a spreadsheet. */
   --font-ui: "Segoe UI", system-ui, -apple-system, sans-serif;
-  --font-num: var(--font-ui);
+  --font-num: "SF Pro Rounded", ui-rounded, "Segoe UI", system-ui, sans-serif;
   --fs-xs: 11px;
   --fs-sm: 12.5px;
   --fs-md: 14px;
   --fs-lg: 16px;
-  --fs-xl: 20px;
+  --fs-xl: 22px;
+  --fs-2xl: 28px;
 
   /* Motion */
   --t-fast: 120ms ease;

@@ -19,8 +19,13 @@ pub fn HeaderBar() -> Element {
     let show_transcend = use_slice(|s| s.reset_counters.prestige_unlocked);
     let show_reincarnate = use_slice(|s| s.reset_counters.transcend_unlocked);
 
+    let any = show_prestige() || show_transcend() || show_reincarnate();
+
     rsx! {
         header { class: "sf-header",
+            if any {
+                span { class: "sf-header-label", {t("stats.resets")} }
+            }
             if show_prestige() {
                 ResetGainIcon { label_key: "buildings.prestige", resource: Resource::Diamonds }
             }
