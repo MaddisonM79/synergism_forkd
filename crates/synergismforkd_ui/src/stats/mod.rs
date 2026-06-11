@@ -62,11 +62,6 @@ pub fn StatsPanel() -> Element {
     let show_quarks = use_slice(|s| s.reset_counters.ascension_unlocked);
     let show_gq = use_slice(|s| s.singularity.highest_singularity_count > 0.0);
 
-    // Reset-gain gates (a gain row shows once that reset is reachable).
-    let gain_prestige = use_slice(|s| s.reset_counters.coin_four_unlocked);
-    let gain_transcend = use_slice(|s| s.reset_counters.prestige_unlocked);
-    let gain_reincarnate = use_slice(|s| s.reset_counters.transcend_unlocked);
-
     let derived = bridge.derived.read();
     let b = derived.buildings;
     let prefs = bridge.prefs.read();
@@ -75,7 +70,6 @@ pub fn StatsPanel() -> Element {
     // f64 → display string at the player's notation.
     let fv = move |x: f64| format_value(Decimal::from_finite(x), notation);
 
-    let any_gain = gain_prestige() || gain_transcend() || gain_reincarnate();
     let show_tax = b.tax_divisor > Decimal::one();
 
     rsx! {
@@ -124,45 +118,6 @@ pub fn StatsPanel() -> Element {
             }
 
             if show_stats {
-                if any_gain {
-                    section { class: "sf-stats-section",
-                        div { class: "sf-stats-head", {t("stats.resets")} }
-                        if gain_prestige() {
-                            div { class: "sf-card-row",
-                                span { class: "label", {t("buildings.prestige")} }
-                                span {
-                                    "+"
-                                    Num { value: derived.prestige_point_gain }
-                                    " "
-                                    ResourceIcon { resource: Resource::Diamonds }
-                                }
-                            }
-                        }
-                        if gain_transcend() {
-                            div { class: "sf-card-row",
-                                span { class: "label", {t("buildings.transcend")} }
-                                span {
-                                    "+"
-                                    Num { value: derived.transcend_point_gain }
-                                    " "
-                                    ResourceIcon { resource: Resource::Mythos }
-                                }
-                            }
-                        }
-                        if gain_reincarnate() {
-                            div { class: "sf-card-row",
-                                span { class: "label", {t("buildings.reincarnate")} }
-                                span {
-                                    "+"
-                                    Num { value: derived.reincarnation_point_gain }
-                                    " "
-                                    ResourceIcon { resource: Resource::Particles }
-                                }
-                            }
-                        }
-                    }
-                }
-
                 section { class: "sf-stats-section",
                     div { class: "sf-stats-head", {t("stats.production")} }
                     div { class: "sf-card-row",

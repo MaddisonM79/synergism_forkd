@@ -15,6 +15,7 @@ use synergismforkd_logic::PlayerAction;
 
 use crate::bridge::{use_bridge, use_slice};
 use crate::components::{Collapsible, Num, Progress};
+use crate::detail::{use_detail, DetailTarget};
 use crate::format::format_value;
 use crate::i18n::t;
 
@@ -63,9 +64,6 @@ pub fn Achievements() -> Element {
     let points = use_slice(|s| s.achievements.achievement_points);
     let earned_count = use_memo(move || earned().iter().filter(|&&e| e != 0).count());
 
-    // Which achievement the detail box describes (hover/focus driven).
-    let mut focused = use_signal(|| None::<usize>);
-
     let total = max_points();
     let percent = if total > 0.0 {
         points() / total * 100.0
@@ -94,14 +92,12 @@ pub fn Achievements() -> Element {
         }
         LevelBar { points: points() }
         LevelRewards { points: points() }
-        AchievementDetail { focused: focused(), earned: focused().map(|i| earned()[i] != 0) }
         div { class: "sf-ach-grid",
             for i in 0..ACHIEVEMENTS_LEN {
                 AchievementCell {
                     key: "{i}",
                     index: i,
                     earned: earned()[i] != 0,
-                    on_focus: move |idx| focused.set(Some(idx)),
                 }
             }
         }
@@ -192,18 +188,14 @@ fn LevelRewards(points: f64) -> Element {
     }
 }
 
-/// The persistent info box above the grid: `#N - Name [status]`, the name's
-/// flavor below, then the requirement + progress. Shows a prompt when
-/// nothing is hovered.
+/// The achievement body for the shared bottom detail panel: `#N - Name
+/// [status]`, then the requirement + live progress. Reads earned/progress
+/// from state inline (the panel re-renders at tick rate).
 #[component]
-fn AchievementDetail(focused: Option<usize>, earned: Option<bool>) -> Element {
-    let Some(index) = focused else {
-        return rsx! {
-            div { class: "sf-ach-detail muted", {t("achievements.hover_hint")} }
-        };
-    };
+pub fn AchievementDetailBody(index: usize) -> Element {
+    let bridge = use_bridge();
     let points = ACHIEVEMENT_POINT_VALUES[index];
-    let is_earned = earned == Some(true);
+    let is_earned = bridge.state.read().achievements.achievements[index] != 0;
     let status_cls = if is_earned {
         "sf-ach-status earned"
     } else {
@@ -215,14 +207,12 @@ fn AchievementDetail(focused: Option<usize>, earned: Option<bool>) -> Element {
         "achievements.locked"
     };
     // Live numeric progress (e.g. "34 / 100") for the threshold-backed
-    // achievements. Reading state here subscribes only this small detail box
-    // to the tick — the 509-cell grid stays on its own earned-bitmap memo.
-    let bridge = use_bridge();
+    // achievements.
     let notation = bridge.prefs.read().notation;
     let progress = achievement_progress(&bridge.state.read(), index);
 
     rsx! {
-        div { class: "sf-ach-detail",
+        div { class: "sf-detail-card",
             div { class: "sf-ach-detail-head",
                 span { class: "sf-ach-detail-num", "#{index + 1}" }
                 span { class: "sf-ach-detail-name", " - " {achievements_text::name(index)} }
@@ -251,7 +241,8 @@ fn AchievementDetail(focused: Option<usize>, earned: Option<bool>) -> Element {
 }
 
 #[component]
-fn AchievementCell(index: usize, earned: bool, on_focus: EventHandler<usize>) -> Element {
+fn AchievementCell(index: usize, earned: bool) -> Element {
+    let detail = use_detail();
     let cls = if earned {
         "sf-ach-cell earned"
     } else {
@@ -261,8 +252,8 @@ fn AchievementCell(index: usize, earned: bool, on_focus: EventHandler<usize>) ->
         div {
             class: cls,
             tabindex: "0",
-            onmouseenter: move |_| on_focus.call(index),
-            onfocus: move |_| on_focus.call(index),
+            onmouseenter: move |_| detail.set(DetailTarget::Achievement(index)),
+            onfocus: move |_| detail.set(DetailTarget::Achievement(index)),
             // 1-based label, matching the legacy numbering.
             "{index + 1}"
         }

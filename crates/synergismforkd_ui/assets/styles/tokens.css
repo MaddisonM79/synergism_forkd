@@ -37,6 +37,8 @@
 
   /* Layout */
   --rail-w: 168px;
+  --header-h: 40px;
   --subnav-h: 36px;
   --stats-w: 240px;
+  --detail-h: 150px;
 }

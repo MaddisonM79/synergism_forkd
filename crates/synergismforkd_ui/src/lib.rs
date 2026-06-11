@@ -12,6 +12,7 @@ pub mod app;
 pub mod bridge;
 pub mod components;
 pub mod derive;
+pub mod detail;
 pub mod events_map;
 pub mod format;
 pub mod gating;

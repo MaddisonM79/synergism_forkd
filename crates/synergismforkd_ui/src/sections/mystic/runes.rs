@@ -14,6 +14,7 @@ use synergismforkd_logic::GameState;
 use crate::bridge::{use_bridge, use_slice, use_slow_slice};
 use crate::components::{Collapsible, Num, Resource, ResourceIcon};
 use crate::derive::{self, RuneBuyAmount};
+use crate::detail::{use_detail, DetailTarget, RuneKind};
 use crate::format::format_value;
 use crate::i18n::t;
 
@@ -32,6 +33,24 @@ enum RuneFamily {
 }
 
 impl RuneFamily {
+    /// Map to the panel's pub family tag.
+    fn to_kind(self) -> RuneKind {
+        match self {
+            RuneFamily::Rune => RuneKind::Rune,
+            RuneFamily::Blessing => RuneKind::Blessing,
+            RuneFamily::Spirit => RuneKind::Spirit,
+        }
+    }
+
+    /// Recover the family from the panel's pub tag.
+    fn from_kind(kind: RuneKind) -> Self {
+        match kind {
+            RuneKind::Rune => RuneFamily::Rune,
+            RuneKind::Blessing => RuneFamily::Blessing,
+            RuneKind::Spirit => RuneFamily::Spirit,
+        }
+    }
+
     fn kind(self) -> RuneUpgradeKind {
         match self {
             RuneFamily::Rune => RuneUpgradeKind::Rune,
@@ -187,6 +206,7 @@ fn OfferingAmountToggle() -> Element {
 #[component]
 fn RuneCard(family: RuneFamily, index: usize, amount: RuneBuyAmount) -> Element {
     let bridge = use_bridge();
+    let detail = use_detail();
     let level = use_slice(move |s| family.level(s, index));
     // Effective level only applies to top-level runes.
     let effective = use_slice(move |s| match family {
@@ -197,21 +217,23 @@ fn RuneCard(family: RuneFamily, index: usize, amount: RuneBuyAmount) -> Element 
     let affordable =
         use_slow_slice(move |s| s.automation.offerings >= family.next_level_offerings(s, index));
     let notation = bridge.prefs.read().notation;
-    // The live effect line: the power-scaled effect value, recomputed from
-    // state for every family (mirrors the legacy effectsDescription).
-    let effect = use_slice(move |s| match family {
-        RuneFamily::Rune => rune_effect_line(s, index, notation),
-        RuneFamily::Blessing => blessing_effect_line(s, index, notation),
-        RuneFamily::Spirit => spirit_effect_line(s, index, notation),
-    });
 
     let buy = move |_| {
         let action = family.buy_action(&bridge.state.peek(), index, amount);
         bridge.dispatch(action);
     };
+    // The live effect line lives in the bottom panel now.
+    let target = DetailTarget::Rune {
+        family: family.to_kind(),
+        index,
+    };
 
     rsx! {
-        div { class: "sf-card",
+        div {
+            class: "sf-card",
+            tabindex: "0",
+            onmouseenter: move |_| detail.set(target),
+            onfocus: move |_| detail.set(target),
             div { class: "sf-card-title", {t(rune_name_key(index))} }
             div { class: "sf-card-row",
                 span { class: "label", {t("runes.level")} }
@@ -224,9 +246,6 @@ fn RuneCard(family: RuneFamily, index: usize, amount: RuneBuyAmount) -> Element 
                     }
                 }
             }
-            div { class: "sf-card-row sf-upgrade-effect",
-                span { "{effect()}" }
-            }
             div { class: "sf-card-row",
                 span { class: "label", {t("runes.next")} }
                 span {
@@ -237,6 +256,57 @@ fn RuneCard(family: RuneFamily, index: usize, amount: RuneBuyAmount) -> Element 
             }
             div { class: "sf-card-actions",
                 button { disabled: !affordable(), onclick: buy, {t("runes.spend")} }
+            }
+        }
+    }
+}
+
+/// Rune/blessing/spirit body for the shared bottom detail panel: name, level
+/// (→ effective for top runes), the live effect line, and offerings-to-next.
+#[component]
+pub fn RuneDetailBody(family: RuneKind, index: usize) -> Element {
+    let bridge = use_bridge();
+    let family = RuneFamily::from_kind(family);
+    let notation = bridge.prefs.read().notation;
+    let state = bridge.state.read();
+    let level = family.level(&state, index);
+    let effective = match family {
+        RuneFamily::Rune => first_five_effective_rune_level(&state, index),
+        _ => level,
+    };
+    let cost = family.next_level_offerings(&state, index);
+    let effect = match family {
+        RuneFamily::Rune => rune_effect_line(&state, index, notation),
+        RuneFamily::Blessing => blessing_effect_line(&state, index, notation),
+        RuneFamily::Spirit => spirit_effect_line(&state, index, notation),
+    };
+
+    rsx! {
+        div { class: "sf-detail-card",
+            div { class: "sf-upg-detail-head",
+                span { class: "sf-upg-detail-name", {t(rune_name_key(index))} }
+            }
+            div { class: "sf-card-row",
+                span { class: "label", {t("runes.level")} }
+                span {
+                    {format_value(Decimal::from_finite(level), notation)}
+                    if family == RuneFamily::Rune {
+                        span { class: "sf-free",
+                            " → " {format_value(Decimal::from_finite(effective), notation)}
+                        }
+                    }
+                }
+            }
+            div { class: "sf-card-row sf-upgrade-effect",
+                span { "{effect}" }
+            }
+            div { class: "sf-card-row",
+                span { class: "label", {t("runes.next")} }
+                span {
+                    Num { value: cost }
+                    " "
+                    ResourceIcon { resource: Resource::Offerings }
+                }
             }
         }
     }

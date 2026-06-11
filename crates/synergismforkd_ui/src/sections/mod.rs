@@ -2,6 +2,7 @@
 //! its content panel. Sections beyond the current milestone render the
 //! shared placeholder once their unlock gate opens.
 
+pub mod header;
 pub mod mystic;
 pub mod production;
 pub mod settings;

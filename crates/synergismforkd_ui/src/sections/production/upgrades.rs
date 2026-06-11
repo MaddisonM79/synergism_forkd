@@ -11,6 +11,7 @@ use synergismforkd_logic::{AutoToggle, PlayerAction};
 use crate::bridge::{use_bridge, use_slice, use_slow_slice};
 use crate::components::{Collapsible, Num, ResourceIcon};
 use crate::derive;
+use crate::detail::{use_detail, DetailTarget};
 use crate::i18n::t;
 
 use super::upgrade_data::{meta, shop_upgrades, Shop};
@@ -26,18 +27,10 @@ pub fn Upgrades() -> Element {
             .filter(|&shop| shop_upgrades(shop).any(|m| m.revealed(s)))
             .collect::<Vec<_>>()
     });
-    // Which upgrade the detail card describes (hover/focus/click driven).
-    let focused = use_signal(|| None::<usize>);
 
     rsx! {
         div { class: "sf-section-head",
             h1 { {t("nav.section.upgrades")} }
-        }
-        match focused() {
-            Some(idx) => rsx! { UpgradeDetail { idx } },
-            None => rsx! {
-                div { class: "sf-upg-detail muted", {t("upgrades.hover_hint")} }
-            },
         }
         if visible_shops().is_empty() {
             div { class: "sf-empty-state",
@@ -50,7 +43,7 @@ pub fn Upgrades() -> Element {
                 key: "{shop:?}",
                 title: t(shop.title_key()).to_string(),
                 action: rsx! { ShopAutoToggle { shop } },
-                ShopGrid { shop, focused }
+                ShopGrid { shop }
             }
         }
     }
@@ -94,7 +87,7 @@ fn ShopAutoToggle(shop: Shop) -> Element {
 /// The revealed upgrade squares for one shop, in ascending index (= legacy row)
 /// order.
 #[component]
-fn ShopGrid(shop: Shop, focused: Signal<Option<usize>>) -> Element {
+fn ShopGrid(shop: Shop) -> Element {
     let indices = use_slice(move |s| {
         shop_upgrades(shop)
             .filter(|m| m.revealed(s))
@@ -104,7 +97,7 @@ fn ShopGrid(shop: Shop, focused: Signal<Option<usize>>) -> Element {
     rsx! {
         div { class: "sf-upg-grid",
             for idx in indices() {
-                UpgradeCell { key: "{idx}", idx, focused }
+                UpgradeCell { key: "{idx}", idx }
             }
         }
     }
@@ -113,9 +106,9 @@ fn ShopGrid(shop: Shop, focused: Signal<Option<usize>>) -> Element {
 /// One upgrade square: shows the index, lights by state (owned / affordable /
 /// locked), updates the detail card on hover/focus, and buys on click.
 #[component]
-fn UpgradeCell(idx: usize, focused: Signal<Option<usize>>) -> Element {
+fn UpgradeCell(idx: usize) -> Element {
     let bridge = use_bridge();
-    let mut focused = focused;
+    let detail = use_detail();
     let owned = use_slice(move |s| meta(idx).owned(s));
     // 5 Hz (legacy buttoncolorchange): the affordable→`.can` accent would
     // otherwise strobe at 20 Hz when the upgrade autobuyer is draining currency.
@@ -135,20 +128,18 @@ fn UpgradeCell(idx: usize, focused: Signal<Option<usize>>) -> Element {
         div {
             class: cls,
             tabindex: "0",
-            onmouseenter: move |_| focused.set(Some(idx)),
-            onfocus: move |_| focused.set(Some(idx)),
+            onmouseenter: move |_| detail.set(DetailTarget::Upgrade(idx)),
+            onfocus: move |_| detail.set(DetailTarget::Upgrade(idx)),
             onclick: move |_| bridge.dispatch(derive::upgrade_buy(&bridge.state.peek(), idx)),
             "{idx}"
         }
     }
 }
 
-/// The shared detail card above the grids: name, status, cost, and live effect
-/// for the focused upgrade. Reads state/derived inline (one card, so re-rendering
-/// each tick is cheap) — this also keeps it correct as the focused index changes
-/// without per-index memo capture.
+/// The upgrade body for the shared bottom detail panel: name, status, cost,
+/// and live effect for the focused upgrade. Reads state/derived inline.
 #[component]
-fn UpgradeDetail(idx: usize) -> Element {
+pub fn UpgradeDetailBody(idx: usize) -> Element {
     let bridge = use_bridge();
     let m = meta(idx);
     let state = bridge.state.read();
@@ -170,7 +161,7 @@ fn UpgradeDetail(idx: usize) -> Element {
     };
 
     rsx! {
-        div { class: "sf-upg-detail",
+        div { class: "sf-detail-card",
             div { class: "sf-upg-detail-head",
                 span { class: "sf-upg-detail-num", "#{idx}" }
                 span { class: "sf-upg-detail-name", "{name}" }
