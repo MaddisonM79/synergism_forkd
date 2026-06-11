@@ -8,13 +8,22 @@
 //! [`producer_cost_input`] are the same functions the autobuyers use), so
 //! manual and automatic purchases can never disagree on cost.
 
+use synergismforkd_bignum::Decimal;
 use synergismforkd_logic::events::ProducerType;
 use synergismforkd_logic::mechanics::accelerators::BuyAcceleratorInput;
 use synergismforkd_logic::mechanics::challenges::{calc_ecc, ChallengeType};
 use synergismforkd_logic::mechanics::crystal_upgrades::BuyCrystalUpgradesInput;
 use synergismforkd_logic::mechanics::multipliers::BuyMultiplierInput;
 use synergismforkd_logic::mechanics::producers::{BuyMaxInput, BuyProducerInput};
+use synergismforkd_logic::mechanics::rune_data::RuneUpgradeKind;
+use synergismforkd_logic::mechanics::rune_levels::{
+    max_rune_level_purchase, BuyRuneLevelsInput, MaxRuneLevelPurchaseInput,
+};
+use synergismforkd_logic::mechanics::rune_upgrade_progression::{
+    max_rune_upgrade_purchase, BuyRuneUpgradeInput, MaxRuneUpgradePurchaseInput,
+};
 use synergismforkd_logic::state::BuyAmount as LogicBuyAmount;
+use synergismforkd_logic::tick::{rune_effective_levels_per_oom, rune_exp_per_offering};
 use synergismforkd_logic::{
     producer_cost_input, reduction_value, BuyRequest, ClickUpgradesUnlocks, GameState, PlayerAction,
 };
@@ -135,6 +144,154 @@ pub fn upgrade_buy(state: &GameState, idx: usize) -> PlayerAction {
             reincarnate: state.reset_counters.reincarnate_unlocked,
         },
     })
+}
+
+// ─── Runes / blessings / spirits ────────────────────────────────────────────
+
+/// Offering buy-amount for a rune/blessing/spirit spend (the legacy
+/// `offeringbuyamount` toggle). `Fixed` adds exactly that many levels (capped
+/// by the offerings budget); `Max` buys the most the balance affords.
+#[derive(Clone, Copy, PartialEq)]
+pub enum RuneBuyAmount {
+    /// Add exactly this many levels (budget-capped).
+    Fixed(f64),
+    /// Buy the most levels the offerings balance affords.
+    Max,
+}
+
+/// Top-level rune level purchase by spending offerings. Cost coefficient and
+/// slope come from the logic rune-data table; the EXP-per-offering and any
+/// OOM-increase come from the same logic helpers the (future) auto-sacrifice
+/// path will use, so manual and auto can't disagree.
+#[must_use]
+pub fn rune_buy(state: &GameState, rune: usize, amount: RuneBuyAmount) -> PlayerAction {
+    let kind = RuneUpgradeKind::Rune;
+    let cost_coefficient = kind.cost_coefficient(rune);
+    let levels_per_oom = rune_effective_levels_per_oom(state, rune, kind.levels_per_oom(rune));
+    let exp_per_offering = rune_exp_per_offering(state, rune);
+    let budget = state.automation.offerings;
+    let current_level = state.runes.rune_levels.get(rune).copied().unwrap_or(0.0);
+    let current_rune_exp =
+        Decimal::from_finite(state.runes.rune_exp.get(rune).copied().unwrap_or(0.0));
+
+    let levels_to_add = match amount {
+        RuneBuyAmount::Fixed(n) => n,
+        RuneBuyAmount::Max => {
+            max_rune_level_purchase(MaxRuneLevelPurchaseInput {
+                cost_coefficient,
+                levels_per_oom,
+                current_level,
+                current_rune_exp,
+                rune_exp_per_offering: exp_per_offering,
+                budget,
+                is_unlocked: true,
+            })
+            .levels
+        }
+    };
+
+    PlayerAction::Buy(BuyRequest::RuneLevels(BuyRuneLevelsInput {
+        index: rune,
+        cost_coefficient,
+        levels_per_oom,
+        rune_exp_per_offering: exp_per_offering,
+        levels_to_add,
+        budget,
+    }))
+}
+
+/// Build the shared blessing/spirit buy input. Blessings/spirits spend
+/// offerings at the salvage EXP rate (`= 1` until salvage unlocks), not the
+/// universal rune mult, and have no OOM-increase term.
+fn rune_upgrade_input(
+    state: &GameState,
+    kind: RuneUpgradeKind,
+    index: usize,
+    amount: RuneBuyAmount,
+    current_level: f64,
+    current_exp: f64,
+) -> BuyRuneUpgradeInput {
+    let cost_coefficient = kind.cost_coefficient(index);
+    let levels_per_oom = kind.levels_per_oom(index);
+    let exp_per_offering = Decimal::one();
+    let budget = state.automation.offerings;
+    let current_rune_exp = Decimal::from_finite(current_exp);
+
+    let levels_to_add = match amount {
+        RuneBuyAmount::Fixed(n) => n,
+        RuneBuyAmount::Max => {
+            max_rune_upgrade_purchase(MaxRuneUpgradePurchaseInput {
+                cost_coefficient,
+                levels_per_oom,
+                current_level,
+                current_rune_exp,
+                rune_exp_per_offering: exp_per_offering,
+                budget,
+                upper_limit: 1e9,
+                min_offerings_floor: Decimal::one(),
+            })
+            .levels
+        }
+    };
+
+    BuyRuneUpgradeInput {
+        index,
+        cost_coefficient,
+        levels_per_oom,
+        rune_exp_per_offering: exp_per_offering,
+        levels_to_add,
+        budget,
+    }
+}
+
+/// Rune blessing level purchase by spending offerings.
+#[must_use]
+pub fn rune_blessing_buy(state: &GameState, index: usize, amount: RuneBuyAmount) -> PlayerAction {
+    let level = state
+        .runes
+        .rune_blessing_levels
+        .get(index)
+        .copied()
+        .unwrap_or(0.0);
+    let exp = state
+        .runes
+        .rune_blessing_exp
+        .get(index)
+        .copied()
+        .unwrap_or(0.0);
+    PlayerAction::Buy(BuyRequest::RuneBlessing(rune_upgrade_input(
+        state,
+        RuneUpgradeKind::Blessing,
+        index,
+        amount,
+        level,
+        exp,
+    )))
+}
+
+/// Rune spirit level purchase by spending offerings.
+#[must_use]
+pub fn rune_spirit_buy(state: &GameState, index: usize, amount: RuneBuyAmount) -> PlayerAction {
+    let level = state
+        .runes
+        .rune_spirit_levels
+        .get(index)
+        .copied()
+        .unwrap_or(0.0);
+    let exp = state
+        .runes
+        .rune_spirit_exp
+        .get(index)
+        .copied()
+        .unwrap_or(0.0);
+    PlayerAction::Buy(BuyRequest::RuneSpirit(rune_upgrade_input(
+        state,
+        RuneUpgradeKind::Spirit,
+        index,
+        amount,
+        level,
+        exp,
+    )))
 }
 
 #[cfg(test)]
