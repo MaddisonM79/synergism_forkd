@@ -95,6 +95,11 @@ pub struct UiPrefs {
     /// load as the default (`One`) rather than failing to parse.
     #[serde(default)]
     pub buy_amount: BuyAmount,
+    /// Offering buy-amount for the Runes section (1/10/100/1k/10k/MAX).
+    /// Persisted like `buy_amount`; `#[serde(default)]` so prefs written
+    /// before it existed load as `Fixed(1.0)` rather than failing to parse.
+    #[serde(default)]
+    pub offering_buy_amount: crate::derive::RuneBuyAmount,
     pub theme: Theme,
     /// Ask before a Prestige reset. Per-tier so each can be silenced
     /// independently. `#[serde(default)]` (→ on) so prefs written before the
@@ -125,6 +130,7 @@ impl Default for UiPrefs {
         Self {
             notation: Notation::default(),
             buy_amount: BuyAmount::default(),
+            offering_buy_amount: crate::derive::RuneBuyAmount::default(),
             theme: Theme::default(),
             confirm_prestige: true,
             confirm_transcension: true,

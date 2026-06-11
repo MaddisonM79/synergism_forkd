@@ -102,7 +102,8 @@ impl RuneFamily {
 pub fn Runes() -> Element {
     let bridge = use_bridge();
     let offerings = use_slice(|s| s.automation.offerings);
-    let amount = use_signal(|| RuneBuyAmount::Fixed(1.0));
+    // Persisted UI pref (survives reload), like the buildings buy-amount.
+    let amount = bridge.prefs.read().offering_buy_amount;
 
     // Which runes / panels are revealed (reactive to research / unlocks).
     let visible_runes = use_slice(|s| {
@@ -112,12 +113,11 @@ pub fn Runes() -> Element {
     });
     let show_blessings = use_slice(blessings_unlocked);
     let show_spirits = use_slice(spirits_unlocked);
-    let _ = bridge;
 
     rsx! {
         div { class: "sf-section-head",
             h1 { {t("nav.section.runes")} }
-            OfferingAmountToggle { amount }
+            OfferingAmountToggle {}
         }
         div { class: "sf-rune-offerings",
             {t("runes.offerings")} ": "
@@ -127,14 +127,14 @@ pub fn Runes() -> Element {
         }
         div { class: "sf-card-grid",
             for i in visible_runes() {
-                RuneCard { key: "r{i}", family: RuneFamily::Rune, index: i, amount: amount() }
+                RuneCard { key: "r{i}", family: RuneFamily::Rune, index: i, amount: amount }
             }
         }
         if show_blessings() {
             Collapsible { title: t("runes.blessings").to_string(),
                 div { class: "sf-card-grid",
                     for i in 0..CORE_RUNES {
-                        RuneCard { key: "b{i}", family: RuneFamily::Blessing, index: i, amount: amount() }
+                        RuneCard { key: "b{i}", family: RuneFamily::Blessing, index: i, amount: amount }
                     }
                 }
             }
@@ -143,7 +143,7 @@ pub fn Runes() -> Element {
             Collapsible { title: t("runes.spirits").to_string(),
                 div { class: "sf-card-grid",
                     for i in 0..CORE_RUNES {
-                        RuneCard { key: "s{i}", family: RuneFamily::Spirit, index: i, amount: amount() }
+                        RuneCard { key: "s{i}", family: RuneFamily::Spirit, index: i, amount: amount }
                     }
                 }
             }
@@ -151,9 +151,11 @@ pub fn Runes() -> Element {
     }
 }
 
-/// The 1/10/100/1k/10k/MAX offering buy-amount selector.
+/// The 1/10/100/1k/10k/MAX offering buy-amount selector. Reads/writes the
+/// persisted `offering_buy_amount` pref directly, so the choice survives a
+/// reload (mirrors the buildings `BuyAmountToggle`).
 #[component]
-fn OfferingAmountToggle(amount: Signal<RuneBuyAmount>) -> Element {
+fn OfferingAmountToggle() -> Element {
     const OPTIONS: [(&str, RuneBuyAmount); 6] = [
         ("1", RuneBuyAmount::Fixed(1.0)),
         ("10", RuneBuyAmount::Fixed(10.0)),
@@ -162,15 +164,19 @@ fn OfferingAmountToggle(amount: Signal<RuneBuyAmount>) -> Element {
         ("10k", RuneBuyAmount::Fixed(10_000.0)),
         ("MAX", RuneBuyAmount::Max),
     ];
-    let mut amount = amount;
+    let bridge = use_bridge();
+    let current = bridge.prefs.read().offering_buy_amount;
     rsx! {
         span { class: "label", {t("runes.buy_amount")} }
         div { class: "sf-seg",
             for (label, value) in OPTIONS {
                 button {
                     key: "{label}",
-                    class: if amount() == value { "active" } else { "" },
-                    onclick: move |_| amount.set(value),
+                    class: if current == value { "active" } else { "" },
+                    onclick: move |_| {
+                        let mut prefs = bridge.prefs;
+                        prefs.write().offering_buy_amount = value;
+                    },
                     "{label}"
                 }
             }

@@ -151,12 +151,21 @@ pub fn upgrade_buy(state: &GameState, idx: usize) -> PlayerAction {
 /// Offering buy-amount for a rune/blessing/spirit spend (the legacy
 /// `offeringbuyamount` toggle). `Fixed` adds exactly that many levels (capped
 /// by the offerings budget); `Max` buys the most the balance affords.
-#[derive(Clone, Copy, PartialEq)]
+///
+/// Persisted as a UI preference ([`crate::bridge::UiPrefs`]), so the selected
+/// amount survives a reload like the buildings buy-amount does.
+#[derive(Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum RuneBuyAmount {
     /// Add exactly this many levels (budget-capped).
     Fixed(f64),
     /// Buy the most levels the offerings balance affords.
     Max,
+}
+
+impl Default for RuneBuyAmount {
+    fn default() -> Self {
+        RuneBuyAmount::Fixed(1.0)
+    }
 }
 
 /// Top-level rune level purchase by spending offerings. Cost coefficient and
