@@ -15,7 +15,7 @@ use synergismforkd_logic::PlayerAction;
 
 use crate::bridge::{use_bridge, use_slice};
 use crate::components::{Collapsible, Num, Progress};
-use crate::detail::{use_detail, DetailTarget};
+use crate::detail::{use_detail, DetailBody, DetailTarget};
 use crate::format::format_value;
 use crate::i18n::t;
 
@@ -212,16 +212,11 @@ pub fn AchievementDetailBody(index: usize) -> Element {
     let progress = achievement_progress(&bridge.state.read(), index);
 
     rsx! {
-        div { class: "sf-detail-card",
-            div { class: "sf-detail-head",
-                span { class: "sf-detail-marker", "#{index + 1}" }
-                span { class: "sf-detail-title", {achievements_text::name(index)} }
-                span { class: status_cls, {t(status_key)} }
-            }
-            div { class: "sf-card-row",
-                span { class: "label", {t("achievements.requirement")} }
-                span { {achievements_text::requirement(index)} }
-            }
+        DetailBody {
+            title: achievements_text::name(index).to_string(),
+            marker: Some(rsx! { span { class: "sf-detail-marker", "#{index + 1}" } }),
+            badge: Some(rsx! { span { class: status_cls, {t(status_key)} } }),
+            description: Some(achievements_text::requirement(index).to_string()),
             div { class: "sf-card-row",
                 span { class: "label", {t("detail.reward")} }
                 span { "{points} {t(\"achievements.ap\")}" }

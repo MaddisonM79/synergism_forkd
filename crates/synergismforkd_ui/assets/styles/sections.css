@@ -395,10 +395,19 @@
   align-self: flex-start;
   background: var(--bg-surface);
   border: var(--bw) solid var(--border);
-  border-left: 3px solid var(--accent-production);
+  /* Left edge tints to the hovered thing's resource (set via --card-accent). */
+  border-left: 3px solid var(--card-accent, var(--accent-production));
   border-radius: var(--radius-md);
   box-shadow: var(--edge-hi), var(--shadow-1);
   padding: var(--space-3) var(--space-4);
+}
+
+/* Standardized description blurb in a detail body (between head and rows). */
+.sf-detail-desc {
+  font-size: var(--fs-sm);
+  color: var(--text);
+  line-height: 1.4;
+  margin-bottom: var(--space-2);
 }
 
 /* Empty state: a centered, dimmed prompt so the panel reads as waiting. */

@@ -11,8 +11,8 @@ use synergismforkd_logic::{AutoToggle, PlayerAction};
 use crate::bridge::{use_bridge, use_slice, use_slow_slice};
 use crate::components::{Collapsible, Num, ResourceIcon};
 use crate::derive;
-use crate::detail::{use_detail, DetailTarget};
-use crate::i18n::t;
+use crate::detail::{use_detail, DetailBody, DetailTarget};
+use crate::i18n::{t, t_args};
 
 use super::upgrade_data::{meta, shop_upgrades, Shop};
 
@@ -161,12 +161,11 @@ pub fn UpgradeDetailBody(idx: usize) -> Element {
     };
 
     rsx! {
-        div { class: "sf-detail-card",
-            div { class: "sf-detail-head",
-                span { class: "sf-detail-marker", "#{idx}" }
-                span { class: "sf-detail-title", "{name}" }
-                span { class: status_cls, {t(status_key)} }
-            }
+        DetailBody {
+            title: t_args("upgrades.short", &[("n", &idx.to_string())]),
+            badge: Some(rsx! { span { class: status_cls, {t(status_key)} } }),
+            description: Some(name),
+            accent: Some(m.resource.css_color()),
             div { class: "sf-card-row",
                 span { class: "label", {t("buildings.cost")} }
                 span {

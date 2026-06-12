@@ -17,7 +17,7 @@ use synergismforkd_logic::{AutoToggle, BuyRequest, PlayerAction, ResetRequest};
 use crate::bridge::{use_bridge, use_slice, use_slow_slice, BuyAmount};
 use crate::components::{Collapsible, Num, Progress, Resource, ResourceIcon};
 use crate::derive;
-use crate::detail::{use_detail, BuildingDetail, DetailTarget, ResetKind};
+use crate::detail::{use_detail, BuildingDetail, DetailBody, DetailTarget, ResetKind};
 use crate::format::format_value;
 use crate::i18n::{t, t_args};
 
@@ -861,11 +861,10 @@ pub fn ResetDetailBody(kind: ResetKind) -> Element {
     let (_, body_key) = tier.confirm_keys();
 
     rsx! {
-        div { class: "sf-detail-card",
-            div { class: "sf-detail-head",
-                span { class: "sf-detail-title", {t(tier.title_key())} }
-            }
-            div { class: "sf-upgrade-effect", {t(body_key)} }
+        DetailBody {
+            title: t(tier.title_key()).to_string(),
+            description: Some(t(body_key).to_string()),
+            accent: Some(tier.gain_resource().css_color()),
             div { class: "sf-card-row",
                 span { class: "label", {t("buildings.prestige_gain")} }
                 span {
@@ -907,13 +906,11 @@ pub fn CrystalDetailBody(i: u8) -> Element {
     let has_formula = formula != formula_key;
 
     rsx! {
-        div { class: "sf-detail-card",
-            div { class: "sf-detail-head",
-                span { class: "sf-detail-title", "{name}" }
-            }
-            if has_formula {
-                div { class: "sf-upgrade-formula", "{formula}" }
-            }
+        DetailBody {
+            title: t_args("upgrades.crystal_short", &[("n", &i.to_string())]),
+            description: Some(name),
+            formula: if has_formula { Some(formula.to_string()) } else { None },
+            accent: Some(Resource::Crystals.css_color()),
             div { class: "sf-card-row",
                 span { class: "label", {t("upgrades.crystal_level")} }
                 span { {format_value(Decimal::from_finite(level), notation)} }
@@ -957,10 +954,10 @@ pub fn BuildingDetailBody(which: BuildingDetail) -> Element {
             };
             let percent = (produce / total).to_number() * 100.0;
             rsx! {
-                div { class: "sf-detail-card",
-                    div { class: "sf-detail-head",
-                        span { class: "sf-detail-title", {t(name_key)} }
-                    }
+                DetailBody {
+                    title: t(name_key).to_string(),
+                    marker: Some(rsx! { ResourceIcon { resource: Resource::Coins } }),
+                    accent: Some(Resource::Coins.css_color()),
                     OwnedRow { owned, generated }
                     CostRow { cost, resource: Resource::Coins }
                     div { class: "sf-card-row",
@@ -987,10 +984,10 @@ pub fn BuildingDetailBody(which: BuildingDetail) -> Element {
             let generated = state.diamond_producers.tiers[(tier - 1) as usize].generated;
             let cost = state.diamond_producers.cost(tier);
             rsx! {
-                div { class: "sf-detail-card",
-                    div { class: "sf-detail-head",
-                        span { class: "sf-detail-title", {t(name_key)} }
-                    }
+                DetailBody {
+                    title: t(name_key).to_string(),
+                    marker: Some(rsx! { ResourceIcon { resource: Resource::Diamonds } }),
+                    accent: Some(Resource::Diamonds.css_color()),
                     OwnedRow { owned, generated }
                     CostRow { cost, resource: Resource::Diamonds }
                 }
@@ -1008,10 +1005,10 @@ pub fn BuildingDetailBody(which: BuildingDetail) -> Element {
             let generated = state.mythos_producers.tiers[(tier - 1) as usize].generated;
             let cost = state.mythos_producers.cost(tier);
             rsx! {
-                div { class: "sf-detail-card",
-                    div { class: "sf-detail-head",
-                        span { class: "sf-detail-title", {t(name_key)} }
-                    }
+                DetailBody {
+                    title: t(name_key).to_string(),
+                    marker: Some(rsx! { ResourceIcon { resource: Resource::Mythos } }),
+                    accent: Some(Resource::Mythos.css_color()),
                     OwnedRow { owned, generated }
                     CostRow { cost, resource: Resource::Mythos }
                 }
@@ -1021,10 +1018,10 @@ pub fn BuildingDetailBody(which: BuildingDetail) -> Element {
             let owned = state.accelerator.accelerator_bought;
             let cost = state.accelerator.accelerator_cost;
             rsx! {
-                div { class: "sf-detail-card",
-                    div { class: "sf-detail-head",
-                        span { class: "sf-detail-title", {t("buildings.accelerators")} }
-                    }
+                DetailBody {
+                    title: t("buildings.accelerators").to_string(),
+                    marker: Some(rsx! { ResourceIcon { resource: Resource::Coins } }),
+                    accent: Some(Resource::Coins.css_color()),
                     OwnedRow { owned, generated: Decimal::from_finite(b.free_accelerator) }
                     CostRow { cost, resource: Resource::Coins }
                     div { class: "sf-card-row",
@@ -1047,10 +1044,10 @@ pub fn BuildingDetailBody(which: BuildingDetail) -> Element {
             let owned = state.multiplier.multiplier_bought;
             let cost = state.multiplier.multiplier_cost;
             rsx! {
-                div { class: "sf-detail-card",
-                    div { class: "sf-detail-head",
-                        span { class: "sf-detail-title", {t("buildings.multipliers")} }
-                    }
+                DetailBody {
+                    title: t("buildings.multipliers").to_string(),
+                    marker: Some(rsx! { ResourceIcon { resource: Resource::Coins } }),
+                    accent: Some(Resource::Coins.css_color()),
                     OwnedRow { owned, generated: Decimal::from_finite(b.free_multiplier) }
                     CostRow { cost, resource: Resource::Coins }
                     div { class: "sf-card-row",
@@ -1075,10 +1072,10 @@ pub fn BuildingDetailBody(which: BuildingDetail) -> Element {
             let cost = state.accelerator.accelerator_boost_cost;
             let no_reset = state.upgrades.upgrades[46] >= 1;
             rsx! {
-                div { class: "sf-detail-card",
-                    div { class: "sf-detail-head",
-                        span { class: "sf-detail-title", {t("buildings.accelerator_boost")} }
-                    }
+                DetailBody {
+                    title: t("buildings.accelerator_boost").to_string(),
+                    marker: Some(rsx! { ResourceIcon { resource: Resource::Diamonds } }),
+                    accent: Some(Resource::Diamonds.css_color()),
                     OwnedRow { owned, generated: Decimal::from_finite(b.free_accelerator_boost) }
                     CostRow { cost, resource: Resource::Diamonds }
                     div { class: "sf-card-row",

@@ -9,6 +9,7 @@
   "nav.section.buildings": "Buildings",
   "nav.section.upgrades": "Upgrades",
   "nav.section.stats": "Stats",
+  "upgrades.short": "Upgrade {{n}}",
   "nav.section.achievements": "Achievements",
   "nav.section.runes": "Runes",
   "nav.section.challenges": "Challenges",

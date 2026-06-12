@@ -9,7 +9,7 @@ use synergismforkd_bignum::Decimal;
 
 use crate::bridge::{use_bridge, use_slice};
 use crate::components::{Num, Resource, ResourceIcon};
-use crate::detail::{use_detail, DetailTarget};
+use crate::detail::{use_detail, DetailBody, DetailTarget};
 use crate::i18n::t;
 
 /// One currency chip in the top bar: icon + value (+rate). Hovering/focusing
@@ -79,11 +79,10 @@ pub fn ResourceDetailBody(resource: Resource) -> Element {
     };
 
     rsx! {
-        div { class: "sf-detail-card", style: "--row-accent: {resource.css_color()}",
-            div { class: "sf-detail-head",
-                ResourceIcon { resource }
-                span { class: "sf-detail-title", {t(resource.label_key())} }
-            }
+        DetailBody {
+            title: t(resource.label_key()).to_string(),
+            marker: Some(rsx! { ResourceIcon { resource } }),
+            accent: Some(resource.css_color()),
             div { class: "sf-card-row",
                 span { class: "label", {t("detail.amount")} }
                 span { Num { value } }

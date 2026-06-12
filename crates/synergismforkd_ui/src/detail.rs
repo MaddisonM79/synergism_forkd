@@ -102,6 +102,54 @@ pub fn use_detail() -> Detail {
     use_context()
 }
 
+/// The standardized detail-body shell every hover routes through, so the box
+/// looks identical regardless of source:
+///
+/// ```text
+/// [marker]  Title  ............  [badge]
+/// Description (optional)
+/// Formula (optional)
+/// <rows: cost / level / effect / …>   (children)
+/// ```
+///
+/// `marker` is a leading `#N` tag or resource icon; `badge` is a right-aligned
+/// status; `accent` tints the card's left edge to the relevant resource. Slots
+/// left unset are simply omitted — fill what's relevant per thing.
+#[component]
+pub fn DetailBody(
+    title: String,
+    #[props(default)] marker: Option<Element>,
+    #[props(default)] badge: Option<Element>,
+    #[props(default)] description: Option<String>,
+    #[props(default)] formula: Option<String>,
+    #[props(default)] accent: Option<&'static str>,
+    children: Element,
+) -> Element {
+    let style = accent
+        .map(|a| format!("--card-accent: {a}"))
+        .unwrap_or_default();
+    rsx! {
+        div { class: "sf-detail-card", style: "{style}",
+            div { class: "sf-detail-head",
+                if let Some(marker) = marker {
+                    {marker}
+                }
+                span { class: "sf-detail-title", "{title}" }
+                if let Some(badge) = badge {
+                    {badge}
+                }
+            }
+            if let Some(description) = description {
+                div { class: "sf-detail-desc", "{description}" }
+            }
+            if let Some(formula) = formula {
+                div { class: "sf-upgrade-formula", "{formula}" }
+            }
+            {children}
+        }
+    }
+}
+
 /// The persistent bottom panel: renders the current target's full detail by
 /// dispatching to each section's body component, or a hint before anything is
 /// hovered. Section body components read live state/derived inline.

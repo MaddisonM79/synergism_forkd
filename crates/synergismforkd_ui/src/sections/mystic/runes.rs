@@ -14,7 +14,7 @@ use synergismforkd_logic::GameState;
 use crate::bridge::{use_bridge, use_slice, use_slow_slice};
 use crate::components::{Collapsible, Num, Resource, ResourceIcon};
 use crate::derive::{self, RuneBuyAmount};
-use crate::detail::{use_detail, DetailTarget, RuneKind};
+use crate::detail::{use_detail, DetailBody, DetailTarget, RuneKind};
 use crate::format::format_value;
 use crate::i18n::t;
 
@@ -293,10 +293,10 @@ pub fn RuneDetailBody(family: RuneKind, index: usize) -> Element {
     };
 
     rsx! {
-        div { class: "sf-detail-card",
-            div { class: "sf-detail-head",
-                span { class: "sf-detail-title", {t(rune_name_key(index))} }
-            }
+        DetailBody {
+            title: t(rune_name_key(index)).to_string(),
+            formula: formula_key.map(|k| t(k).to_string()),
+            accent: Some(Resource::Offerings.css_color()),
             div { class: "sf-card-row",
                 span { class: "label", {t("runes.level")} }
                 span {
@@ -310,9 +310,6 @@ pub fn RuneDetailBody(family: RuneKind, index: usize) -> Element {
             }
             div { class: "sf-card-row sf-upgrade-effect",
                 span { "{effect}" }
-            }
-            if let Some(formula_key) = formula_key {
-                div { class: "sf-upgrade-formula", {t(formula_key)} }
             }
             div { class: "sf-card-row",
                 span { class: "label", {t("runes.next")} }
