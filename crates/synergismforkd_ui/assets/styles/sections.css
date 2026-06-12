@@ -377,29 +377,50 @@
  * continuation of the content pane (same background, divided by a top rule),
  * with the active readout lifted onto it as a card — so it feels like a
  * pinned detail, not a sunken tray. */
+/* The detail card floats over the content, bottom-right, like a toast that
+ * doesn't auto-dismiss. `.sf-detail` is the fixed-position wrapper (the
+ * close button anchors to it); `.sf-detail-card` is the surface. */
 .sf-detail {
-  grid-area: detail;
-  display: flex;
-  align-items: flex-start;
-  overflow-y: auto;
-  border-top: var(--bw) solid var(--border);
-  background: var(--bg-app);
-  padding: var(--space-4) var(--space-5);
+  position: fixed;
+  bottom: var(--space-5);
+  right: var(--space-5);
+  width: min(420px, calc(100vw - var(--rail-w) - 2 * var(--space-5)));
+  z-index: var(--z-toast);
 }
 
 .sf-detail-card {
-  /* Cap the width so right-aligned values sit near the content, not flung to
-   * the far edge on wide viewports (`.sf-card-row` is `space-between`). */
-  width: 100%;
-  max-width: 560px;
-  align-self: flex-start;
   background: var(--bg-surface);
   border: var(--bw) solid var(--border);
   /* Left edge tints to the hovered thing's resource (set via --card-accent). */
   border-left: 3px solid var(--card-accent, var(--accent-production));
   border-radius: var(--radius-md);
-  box-shadow: var(--edge-hi), var(--shadow-1);
+  /* A pop shadow so it reads as lifted above the content. */
+  box-shadow: var(--edge-hi), var(--shadow-pop);
   padding: var(--space-3) var(--space-4);
+}
+
+/* Close (✕) chip, top-right of the floating card. */
+.sf-detail-close {
+  position: absolute;
+  top: var(--space-2);
+  right: var(--space-2);
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--fs-xs);
+  line-height: 1;
+  color: var(--text-muted);
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-sm);
+}
+
+.sf-detail-close:hover:not(:disabled) {
+  background: var(--bg-hover);
+  color: var(--text);
 }
 
 /* Standardized description blurb in a detail body (between head and rows). */
@@ -410,18 +431,6 @@
   margin-bottom: var(--space-2);
 }
 
-/* Empty state: a centered, dimmed prompt so the panel reads as waiting. */
-.sf-detail-card.muted {
-  align-self: center;
-  margin: auto;
-  max-width: none;
-  background: none;
-  border: none;
-  box-shadow: none;
-  color: var(--text-muted);
-  font-size: var(--fs-sm);
-}
-
 /* ── Unified detail-card header (every detail body uses the same shape) ──
    [marker (#N or icon)]  Title  ............  [badge (status)] */
 .sf-detail-head {
@@ -429,6 +438,8 @@
   align-items: center;
   gap: var(--space-2);
   margin-bottom: var(--space-2);
+  /* Leave room on the right for the floating card's ✕ close chip. */
+  padding-right: var(--space-5);
 }
 
 .sf-detail-head .sf-icon {

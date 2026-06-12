@@ -17,7 +17,6 @@
 use dioxus::prelude::*;
 
 use crate::components::Resource;
-use crate::i18n::t;
 
 /// Which thing the bottom detail panel is describing. Carries only the
 /// identifier; the panel reads live numbers from state/derived itself.
@@ -83,7 +82,15 @@ impl Detail {
         sig.set(Some(target));
     }
 
-    /// The current target (`None` until the first hover).
+    /// Dismiss the panel (the close button). It stays gone until the next
+    /// hover/focus sets a target again — so the panel is sticky *until* the
+    /// player explicitly closes it.
+    pub fn clear(self) {
+        let mut sig = self.0;
+        sig.set(None);
+    }
+
+    /// The current target (`None` until the first hover, or after a close).
     #[must_use]
     pub fn get(self) -> Option<DetailTarget> {
         *self.0.read()
@@ -150,37 +157,46 @@ pub fn DetailBody(
     }
 }
 
-/// The persistent bottom panel: renders the current target's full detail by
-/// dispatching to each section's body component, or a hint before anything is
-/// hovered. Section body components read live state/derived inline.
+/// The detail panel: a floating, toast-style card pinned to the bottom-right
+/// that shows the current target's full detail. It does NOT auto-dismiss —
+/// hovering anything updates it in place; the ✕ closes it until the next
+/// hover. Renders nothing while there's no target (no reserved space).
+/// Section body components read live state/derived inline.
 #[component]
 pub fn DetailPanel() -> Element {
     let detail = use_detail();
+    // Nothing floats until something is hovered (or after a close).
+    let Some(target) = detail.get() else {
+        return rsx! {};
+    };
     rsx! {
         aside { class: "sf-detail",
-            match detail.get() {
-                None => rsx! {
-                    div { class: "sf-detail-card muted", {t("detail.hint")} }
-                },
-                Some(DetailTarget::Resource(resource)) => rsx! {
+            button {
+                class: "sf-detail-close",
+                "aria-label": "Close",
+                onclick: move |_| detail.clear(),
+                "✕"
+            }
+            match target {
+                DetailTarget::Resource(resource) => rsx! {
                     crate::stats::ResourceDetailBody { resource }
                 },
-                Some(DetailTarget::Achievement(index)) => rsx! {
+                DetailTarget::Achievement(index) => rsx! {
                     crate::sections::production::achievements::AchievementDetailBody { index }
                 },
-                Some(DetailTarget::Upgrade(idx)) => rsx! {
+                DetailTarget::Upgrade(idx) => rsx! {
                     crate::sections::production::upgrades::UpgradeDetailBody { idx }
                 },
-                Some(DetailTarget::CrystalUpgrade(i)) => rsx! {
+                DetailTarget::CrystalUpgrade(i) => rsx! {
                     crate::sections::production::buildings::CrystalDetailBody { i }
                 },
-                Some(DetailTarget::Rune { family, index }) => rsx! {
+                DetailTarget::Rune { family, index } => rsx! {
                     crate::sections::mystic::runes::RuneDetailBody { family, index }
                 },
-                Some(DetailTarget::Building(which)) => rsx! {
+                DetailTarget::Building(which) => rsx! {
                     crate::sections::production::buildings::BuildingDetailBody { which }
                 },
-                Some(DetailTarget::Reset(kind)) => rsx! {
+                DetailTarget::Reset(kind) => rsx! {
                     crate::sections::production::buildings::ResetDetailBody { kind }
                 },
             }
