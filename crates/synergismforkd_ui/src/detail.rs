@@ -35,6 +35,17 @@ pub enum DetailTarget {
     Rune { family: RuneKind, index: usize },
     /// A building-family card.
     Building(BuildingDetail),
+    /// A reset card (prestige / transcension / reincarnation).
+    Reset(ResetKind),
+}
+
+/// Reset tier for [`DetailTarget::Reset`] — a pub mirror of the buildings
+/// section's private `ResetTier`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ResetKind {
+    Prestige,
+    Transcension,
+    Reincarnation,
 }
 
 /// Rune family for [`DetailTarget::Rune`] — a pub mirror of the rune section's
@@ -120,6 +131,9 @@ pub fn DetailPanel() -> Element {
                 },
                 Some(DetailTarget::Building(which)) => rsx! {
                     crate::sections::production::buildings::BuildingDetailBody { which }
+                },
+                Some(DetailTarget::Reset(kind)) => rsx! {
+                    crate::sections::production::buildings::ResetDetailBody { kind }
                 },
             }
         }

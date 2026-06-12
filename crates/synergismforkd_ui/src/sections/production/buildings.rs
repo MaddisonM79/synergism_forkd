@@ -17,7 +17,7 @@ use synergismforkd_logic::{AutoToggle, BuyRequest, PlayerAction, ResetRequest};
 use crate::bridge::{use_bridge, use_slice, use_slow_slice, BuyAmount};
 use crate::components::{Collapsible, Num, Progress, Resource, ResourceIcon};
 use crate::derive;
-use crate::detail::{use_detail, BuildingDetail, DetailTarget};
+use crate::detail::{use_detail, BuildingDetail, DetailTarget, ResetKind};
 use crate::format::format_value;
 use crate::i18n::{t, t_args};
 
@@ -607,6 +607,24 @@ enum ResetTier {
 }
 
 impl ResetTier {
+    /// Map to the detail panel's pub reset tag.
+    fn to_kind(self) -> ResetKind {
+        match self {
+            ResetTier::Prestige => ResetKind::Prestige,
+            ResetTier::Transcension => ResetKind::Transcension,
+            ResetTier::Reincarnation => ResetKind::Reincarnation,
+        }
+    }
+
+    /// Recover the tier from the detail panel's pub tag.
+    fn from_kind(kind: ResetKind) -> Self {
+        match kind {
+            ResetKind::Prestige => ResetTier::Prestige,
+            ResetKind::Transcension => ResetTier::Transcension,
+            ResetKind::Reincarnation => ResetTier::Reincarnation,
+        }
+    }
+
     /// Card title / button label key.
     fn title_key(self) -> &'static str {
         match self {
@@ -744,6 +762,7 @@ fn log_fraction(current: Decimal, threshold: Decimal) -> f64 {
 #[component]
 fn ResetCard(tier: ResetTier) -> Element {
     let bridge = use_bridge();
+    let detail = use_detail();
     let gain = match tier {
         ResetTier::Prestige => bridge.derived.read().prestige_point_gain,
         ResetTier::Transcension => bridge.derived.read().transcend_point_gain,
@@ -769,8 +788,14 @@ fn ResetCard(tier: ResetTier) -> Element {
         }
     };
 
+    let target = DetailTarget::Reset(tier.to_kind());
+
     rsx! {
-        div { class: "sf-card",
+        div {
+            class: "sf-card",
+            tabindex: "0",
+            onmouseenter: move |_| detail.set(target),
+            onfocus: move |_| detail.set(target),
             div { class: "sf-card-title", {t(tier.title_key())} }
             div { class: "sf-card-row",
                 span { class: "label", {t("buildings.prestige_gain")} }
@@ -804,6 +829,50 @@ fn ResetCard(tier: ResetTier) -> Element {
     }
 }
 
+/// Reset body for the shared bottom detail panel: what the reset does, the
+/// gain, and the requirement.
+#[component]
+pub fn ResetDetailBody(kind: ResetKind) -> Element {
+    let bridge = use_bridge();
+    let tier = ResetTier::from_kind(kind);
+    let gain = match tier {
+        ResetTier::Prestige => bridge.derived.read().prestige_point_gain,
+        ResetTier::Transcension => bridge.derived.read().transcend_point_gain,
+        ResetTier::Reincarnation => bridge.derived.read().reincarnation_point_gain,
+    };
+    let gate = tier.gate(&bridge.state.read(), gain);
+    let notation = bridge.prefs.read().notation;
+    let (_, body_key) = tier.confirm_keys();
+
+    rsx! {
+        div { class: "sf-detail-card",
+            div { class: "sf-detail-head",
+                span { class: "sf-detail-title", {t(tier.title_key())} }
+            }
+            div { class: "sf-upgrade-effect", {t(body_key)} }
+            div { class: "sf-card-row",
+                span { class: "label", {t("buildings.prestige_gain")} }
+                span {
+                    "+"
+                    Num { value: gain }
+                    " "
+                    ResourceIcon { resource: tier.gain_resource() }
+                }
+            }
+            div { class: "sf-card-row",
+                span { class: "label", {t("buildings.requires")} }
+                span {
+                    {format_value(gate.current, notation)}
+                    " / "
+                    {format_value(gate.threshold, notation)}
+                    " "
+                    ResourceIcon { resource: gate.resource }
+                }
+            }
+        }
+    }
+}
+
 /// Crystal-upgrade body for the shared bottom detail panel: name, the legacy
 /// math formula (1/2/3/5 only), level, cost, and the live effect line.
 #[component]
@@ -823,8 +892,8 @@ pub fn CrystalDetailBody(i: u8) -> Element {
 
     rsx! {
         div { class: "sf-detail-card",
-            div { class: "sf-upg-detail-head",
-                span { class: "sf-upg-detail-name", "{name}" }
+            div { class: "sf-detail-head",
+                span { class: "sf-detail-title", "{name}" }
             }
             if has_formula {
                 div { class: "sf-upgrade-formula", "{formula}" }
@@ -873,8 +942,8 @@ pub fn BuildingDetailBody(which: BuildingDetail) -> Element {
             let percent = (produce / total).to_number() * 100.0;
             rsx! {
                 div { class: "sf-detail-card",
-                    div { class: "sf-upg-detail-head",
-                        span { class: "sf-upg-detail-name", {t(name_key)} }
+                    div { class: "sf-detail-head",
+                        span { class: "sf-detail-title", {t(name_key)} }
                     }
                     OwnedRow { owned, generated }
                     CostRow { cost, resource: Resource::Coins }
@@ -903,8 +972,8 @@ pub fn BuildingDetailBody(which: BuildingDetail) -> Element {
             let cost = state.diamond_producers.cost(tier);
             rsx! {
                 div { class: "sf-detail-card",
-                    div { class: "sf-upg-detail-head",
-                        span { class: "sf-upg-detail-name", {t(name_key)} }
+                    div { class: "sf-detail-head",
+                        span { class: "sf-detail-title", {t(name_key)} }
                     }
                     OwnedRow { owned, generated }
                     CostRow { cost, resource: Resource::Diamonds }
@@ -924,8 +993,8 @@ pub fn BuildingDetailBody(which: BuildingDetail) -> Element {
             let cost = state.mythos_producers.cost(tier);
             rsx! {
                 div { class: "sf-detail-card",
-                    div { class: "sf-upg-detail-head",
-                        span { class: "sf-upg-detail-name", {t(name_key)} }
+                    div { class: "sf-detail-head",
+                        span { class: "sf-detail-title", {t(name_key)} }
                     }
                     OwnedRow { owned, generated }
                     CostRow { cost, resource: Resource::Mythos }
@@ -937,8 +1006,8 @@ pub fn BuildingDetailBody(which: BuildingDetail) -> Element {
             let cost = state.accelerator.accelerator_cost;
             rsx! {
                 div { class: "sf-detail-card",
-                    div { class: "sf-upg-detail-head",
-                        span { class: "sf-upg-detail-name", {t("buildings.accelerators")} }
+                    div { class: "sf-detail-head",
+                        span { class: "sf-detail-title", {t("buildings.accelerators")} }
                     }
                     OwnedRow { owned, generated: Decimal::from_finite(b.free_accelerator) }
                     CostRow { cost, resource: Resource::Coins }
@@ -963,8 +1032,8 @@ pub fn BuildingDetailBody(which: BuildingDetail) -> Element {
             let cost = state.multiplier.multiplier_cost;
             rsx! {
                 div { class: "sf-detail-card",
-                    div { class: "sf-upg-detail-head",
-                        span { class: "sf-upg-detail-name", {t("buildings.multipliers")} }
+                    div { class: "sf-detail-head",
+                        span { class: "sf-detail-title", {t("buildings.multipliers")} }
                     }
                     OwnedRow { owned, generated: Decimal::from_finite(b.free_multiplier) }
                     CostRow { cost, resource: Resource::Coins }
@@ -991,8 +1060,8 @@ pub fn BuildingDetailBody(which: BuildingDetail) -> Element {
             let no_reset = state.upgrades.upgrades[46] >= 1;
             rsx! {
                 div { class: "sf-detail-card",
-                    div { class: "sf-upg-detail-head",
-                        span { class: "sf-upg-detail-name", {t("buildings.accelerator_boost")} }
+                    div { class: "sf-detail-head",
+                        span { class: "sf-detail-title", {t("buildings.accelerator_boost")} }
                     }
                     OwnedRow { owned, generated: Decimal::from_finite(b.free_accelerator_boost) }
                     CostRow { cost, resource: Resource::Diamonds }

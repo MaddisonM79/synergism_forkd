@@ -80,9 +80,9 @@ pub fn ResourceDetailBody(resource: Resource) -> Element {
 
     rsx! {
         div { class: "sf-detail-card", style: "--row-accent: {resource.css_color()}",
-            div { class: "sf-upg-detail-head",
+            div { class: "sf-detail-head",
                 ResourceIcon { resource }
-                span { class: "sf-upg-detail-name", {t(resource.label_key())} }
+                span { class: "sf-detail-title", {t(resource.label_key())} }
             }
             div { class: "sf-card-row",
                 span { class: "label", {t("detail.amount")} }

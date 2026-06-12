@@ -197,9 +197,9 @@ pub fn AchievementDetailBody(index: usize) -> Element {
     let points = ACHIEVEMENT_POINT_VALUES[index];
     let is_earned = bridge.state.read().achievements.achievements[index] != 0;
     let status_cls = if is_earned {
-        "sf-ach-status earned"
+        "sf-detail-badge ok"
     } else {
-        "sf-ach-status"
+        "sf-detail-badge"
     };
     let status_key = if is_earned {
         "achievements.completed"
@@ -213,27 +213,31 @@ pub fn AchievementDetailBody(index: usize) -> Element {
 
     rsx! {
         div { class: "sf-detail-card",
-            div { class: "sf-ach-detail-head",
-                span { class: "sf-ach-detail-num", "#{index + 1}" }
-                span { class: "sf-ach-detail-name", " - " {achievements_text::name(index)} }
+            div { class: "sf-detail-head",
+                span { class: "sf-detail-marker", "#{index + 1}" }
+                span { class: "sf-detail-title", {achievements_text::name(index)} }
                 span { class: status_cls, {t(status_key)} }
-                span { class: "sf-ach-detail-pts", "{points} {t(\"achievements.ap\")}" }
             }
-            div { class: "sf-ach-detail-req",
-                span { class: "sf-ach-req-label", {t("achievements.requirement")} ": " }
+            div { class: "sf-card-row",
+                span { class: "label", {t("achievements.requirement")} }
                 span { {achievements_text::requirement(index)} }
             }
-            div { class: "sf-ach-detail-progress",
-                if is_earned {
-                    span { class: "sf-ach-progress-done", {t("achievements.progress_done")} }
-                } else if let Some((current, target)) = progress {
-                    span { class: "sf-ach-progress-count",
+            div { class: "sf-card-row",
+                span { class: "label", {t("detail.reward")} }
+                span { "{points} {t(\"achievements.ap\")}" }
+            }
+            div { class: "sf-card-row",
+                span { class: "label", {t("achievements.progress")} }
+                span {
+                    if is_earned {
+                        {t("achievements.progress_done")}
+                    } else if let Some((current, target)) = progress {
                         {format_value(Decimal::from_finite(current.min(target)), notation)}
                         " / "
                         {format_value(Decimal::from_finite(target), notation)}
+                    } else {
+                        {t("achievements.progress_pending")}
                     }
-                } else {
-                    span { class: "sf-ach-progress-pending", {t("achievements.progress_pending")} }
                 }
             }
         }

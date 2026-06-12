@@ -153,18 +153,18 @@ pub fn UpgradeDetailBody(idx: usize) -> Element {
     let effect = super::upgrade_effects::effect_text(idx, &state, &derived, notation);
 
     let (status_key, status_cls) = if owned {
-        ("upgrades.bought", "sf-upg-status owned")
+        ("upgrades.bought", "sf-detail-badge owned")
     } else if affordable {
-        ("upgrades.status_affordable", "sf-upg-status can")
+        ("upgrades.status_affordable", "sf-detail-badge ok")
     } else {
-        ("upgrades.status_locked", "sf-upg-status")
+        ("upgrades.status_locked", "sf-detail-badge")
     };
 
     rsx! {
         div { class: "sf-detail-card",
-            div { class: "sf-upg-detail-head",
-                span { class: "sf-upg-detail-num", "#{idx}" }
-                span { class: "sf-upg-detail-name", "{name}" }
+            div { class: "sf-detail-head",
+                span { class: "sf-detail-marker", "#{idx}" }
+                span { class: "sf-detail-title", "{name}" }
                 span { class: status_cls, {t(status_key)} }
             }
             div { class: "sf-card-row",
@@ -176,7 +176,7 @@ pub fn UpgradeDetailBody(idx: usize) -> Element {
                 }
             }
             if let Some(line) = effect {
-                div { class: "sf-upg-detail-effect", "{line}" }
+                div { class: "sf-upgrade-effect", "{line}" }
             }
         }
     }

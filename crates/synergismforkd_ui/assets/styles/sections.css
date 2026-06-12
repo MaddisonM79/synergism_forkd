@@ -413,24 +413,31 @@
   font-size: var(--fs-sm);
 }
 
-.sf-upg-detail-head {
+/* ── Unified detail-card header (every detail body uses the same shape) ──
+   [marker (#N or icon)]  Title  ............  [badge (status)] */
+.sf-detail-head {
   display: flex;
-  align-items: baseline;
-  gap: var(--space-3);
-  margin-bottom: var(--space-1);
+  align-items: center;
+  gap: var(--space-2);
+  margin-bottom: var(--space-2);
 }
 
-.sf-upg-detail-num {
-  font-variant-numeric: tabular-nums;
+.sf-detail-head .sf-icon {
+  font-size: var(--fs-md);
+}
+
+.sf-detail-marker {
   color: var(--text-muted);
   font-weight: 700;
+  font-variant-numeric: tabular-nums;
 }
 
-.sf-upg-detail-name {
+.sf-detail-title {
   font-weight: 700;
+  font-size: var(--fs-md);
 }
 
-.sf-upg-status {
+.sf-detail-badge {
   margin-left: auto;
   font-size: var(--fs-xs);
   text-transform: uppercase;
@@ -438,82 +445,19 @@
   color: var(--text-muted);
 }
 
-.sf-upg-status.owned {
+.sf-detail-badge.ok {
+  color: var(--ok);
+  font-weight: 700;
+}
+
+.sf-detail-badge.owned {
   color: var(--res-coin);
   font-weight: 700;
 }
 
-.sf-upg-status.can {
-  color: var(--ok);
-  font-weight: 700;
-}
-
-.sf-upg-detail-effect {
-  font-size: var(--fs-sm);
-  color: var(--text-muted);
-  margin-top: var(--space-1);
-}
-
-.sf-ach-detail-head {
-  display: flex;
-  align-items: baseline;
-  gap: var(--space-3);
-  margin-bottom: var(--space-1);
-}
-
-.sf-ach-detail-num {
-  font-variant-numeric: tabular-nums;
-  color: var(--text-muted);
-  font-weight: 700;
-}
-
-.sf-ach-detail-name {
-  font-weight: 700;
-}
-
-.sf-ach-status {
-  font-size: var(--fs-xs);
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: var(--text-muted);
-}
-
-.sf-ach-status.earned {
-  color: var(--ok);
-  font-weight: 700;
-}
-
-.sf-ach-detail-pts {
-  margin-left: auto;
-  color: var(--accent-production);
-  font-weight: 600;
-}
-
-.sf-ach-detail-req {
-  font-size: var(--fs-sm);
-  margin-bottom: var(--space-1);
-}
-
+/* Muted inline label on the achievements page (e.g. the "Next reward:" line). */
 .sf-ach-req-label {
   color: var(--text-muted);
-}
-
-.sf-ach-detail-progress {
-  font-size: var(--fs-xs);
-}
-
-.sf-ach-progress-done {
-  color: var(--ok);
-}
-
-.sf-ach-progress-pending {
-  color: var(--text-muted);
-}
-
-.sf-ach-progress-count {
-  color: var(--accent-production);
-  font-variant-numeric: tabular-nums;
-  font-weight: 600;
 }
 
 /* The wealth-tax banner. */

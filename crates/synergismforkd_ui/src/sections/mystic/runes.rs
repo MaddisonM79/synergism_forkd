@@ -280,11 +280,20 @@ pub fn RuneDetailBody(family: RuneKind, index: usize) -> Element {
         RuneFamily::Blessing => blessing_effect_line(&state, index, notation),
         RuneFamily::Spirit => spirit_effect_line(&state, index, notation),
     };
+    // Core runes show their scaling formula (where n = effective level).
+    let formula_key = match (family, index) {
+        (RuneFamily::Rune, 0) => Some("runes.formula.speed"),
+        (RuneFamily::Rune, 1) => Some("runes.formula.duplication"),
+        (RuneFamily::Rune, 2) => Some("runes.formula.prism"),
+        (RuneFamily::Rune, 3) => Some("runes.formula.thrift"),
+        (RuneFamily::Rune, _) => Some("runes.formula.si"),
+        _ => None,
+    };
 
     rsx! {
         div { class: "sf-detail-card",
-            div { class: "sf-upg-detail-head",
-                span { class: "sf-upg-detail-name", {t(rune_name_key(index))} }
+            div { class: "sf-detail-head",
+                span { class: "sf-detail-title", {t(rune_name_key(index))} }
             }
             div { class: "sf-card-row",
                 span { class: "label", {t("runes.level")} }
@@ -299,6 +308,9 @@ pub fn RuneDetailBody(family: RuneKind, index: usize) -> Element {
             }
             div { class: "sf-card-row sf-upgrade-effect",
                 span { "{effect}" }
+            }
+            if let Some(formula_key) = formula_key {
+                div { class: "sf-upgrade-formula", {t(formula_key)} }
             }
             div { class: "sf-card-row",
                 span { class: "label", {t("runes.next")} }
