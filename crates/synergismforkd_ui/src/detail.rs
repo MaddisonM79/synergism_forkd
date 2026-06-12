@@ -16,12 +16,15 @@
 
 use dioxus::prelude::*;
 
+use crate::components::Resource;
 use crate::i18n::t;
 
 /// Which thing the bottom detail panel is describing. Carries only the
 /// identifier; the panel reads live numbers from state/derived itself.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum DetailTarget {
+    /// A currency in the top resource bar.
+    Resource(Resource),
     /// Achievement by 0-based index.
     Achievement(usize),
     /// Shop upgrade by legacy index.
@@ -99,6 +102,9 @@ pub fn DetailPanel() -> Element {
             match detail.get() {
                 None => rsx! {
                     div { class: "sf-detail-card muted", {t("detail.hint")} }
+                },
+                Some(DetailTarget::Resource(resource)) => rsx! {
+                    crate::stats::ResourceDetailBody { resource }
                 },
                 Some(DetailTarget::Achievement(index)) => rsx! {
                     crate::sections::production::achievements::AchievementDetailBody { index }

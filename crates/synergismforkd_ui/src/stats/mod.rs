@@ -9,18 +9,26 @@ use synergismforkd_bignum::Decimal;
 
 use crate::bridge::{use_bridge, use_slice};
 use crate::components::{Num, Resource, ResourceIcon};
+use crate::detail::{use_detail, DetailTarget};
 use crate::i18n::t;
 
-/// One currency row: icon + name on the left, value (and an optional inline
-/// per-second rate) right-aligned. Compact inline layout.
+/// One currency chip in the top bar: icon + value (+rate). Hovering/focusing
+/// it writes the resource to the bottom detail box (where its name and the
+/// fuller readout live — the chip itself is name-less to stay compact).
 #[component]
 fn CurrencyRow(
     resource: Resource,
     value: Decimal,
     #[props(default)] rate: Option<Decimal>,
 ) -> Element {
+    let detail = use_detail();
     rsx! {
-        div { class: "sf-res-row", style: "--row-accent: {resource.css_color()}",
+        div {
+            class: "sf-res-row",
+            style: "--row-accent: {resource.css_color()}",
+            tabindex: "0",
+            onmouseenter: move |_| detail.set(DetailTarget::Resource(resource)),
+            onfocus: move |_| detail.set(DetailTarget::Resource(resource)),
             ResourceIcon { resource }
             span { class: "sf-res-name", {t(resource.label_key())} }
             span { class: "sf-res-val",
@@ -31,6 +39,68 @@ fn CurrencyRow(
                         Num { value: rate, rate: true }
                         {t("hud.per_sec")}
                     }
+                }
+            }
+        }
+    }
+}
+
+/// Resource body for the bottom detail box: the name the compact chip drops,
+/// plus amount, per-second rate (where one exists), and lifetime total (coins).
+#[component]
+pub fn ResourceDetailBody(resource: Resource) -> Element {
+    let bridge = use_bridge();
+    let state = bridge.state.read();
+    let derived = bridge.derived.read();
+
+    let value = match resource {
+        Resource::Coins => state.upgrades.coins,
+        Resource::Diamonds => state.upgrades.prestige_points,
+        Resource::Crystals => state.crystal_upgrades.prestige_shards,
+        Resource::Mythos => state.upgrades.transcend_points,
+        Resource::MythosShards => state.reset_counters.transcend_shards,
+        Resource::Particles => state.upgrades.reincarnation_points,
+        Resource::Offerings => state.automation.offerings,
+        Resource::Obtainium => state.researches.obtainium,
+        Resource::Quarks => state.quarks.worlds,
+        Resource::GoldenQuarks => state.golden_quarks.golden_quarks,
+        Resource::Ambrosia => Decimal::zero(),
+    };
+    let rate = match resource {
+        Resource::Coins => Some(derived.coins_per_sec),
+        Resource::Crystals => Some(derived.crystals_per_sec),
+        Resource::Offerings => Some(derived.offerings_per_sec),
+        Resource::Obtainium => Some(derived.obtainium_per_sec),
+        _ => None,
+    };
+    let lifetime = match resource {
+        Resource::Coins => Some(state.coin_counters.coins_total),
+        _ => None,
+    };
+
+    rsx! {
+        div { class: "sf-detail-card", style: "--row-accent: {resource.css_color()}",
+            div { class: "sf-upg-detail-head",
+                ResourceIcon { resource }
+                span { class: "sf-upg-detail-name", {t(resource.label_key())} }
+            }
+            div { class: "sf-card-row",
+                span { class: "label", {t("detail.amount")} }
+                span { Num { value } }
+            }
+            if let Some(rate) = rate {
+                div { class: "sf-card-row",
+                    span { class: "label", {t("detail.per_sec")} }
+                    span {
+                        Num { value: rate, rate: true }
+                        {t("hud.per_sec")}
+                    }
+                }
+            }
+            if let Some(lifetime) = lifetime {
+                div { class: "sf-card-row",
+                    span { class: "label", {t("hud.lifetime")} }
+                    span { Num { value: lifetime } }
                 }
             }
         }

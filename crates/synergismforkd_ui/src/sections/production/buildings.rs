@@ -304,12 +304,14 @@ fn CrystalUpgradeCard(i: u8) -> Element {
     let affordable =
         use_slow_slice(move |s| s.crystal_upgrades.prestige_shards >= crystal_cost(i, s));
     let notation = bridge.prefs.read().notation;
-    let name = t(&format!("upgrades.crystalUpgrades.{i}")).to_string();
+    // Compact card title; the full descriptive name + formula + effect live in
+    // the hover/detail box.
+    let name = t_args("upgrades.crystal_short", &[("n", &i.to_string())]);
 
     let buy = move |_| {
         bridge.dispatch(derive::crystal_upgrade_buy(&bridge.state.peek(), i));
     };
-    // Formula + live effect live in the bottom panel now.
+    // Full name + formula + live effect live in the bottom panel now.
     let target = DetailTarget::CrystalUpgrade(i);
 
     rsx! {
