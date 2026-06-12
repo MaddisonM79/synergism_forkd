@@ -13,16 +13,17 @@ body {
 
 .sf-app {
   display: grid;
-  /* Rail on the left, then the content runs full-width above a split bottom
-   * bar: Status (stats) on the left half, the hover/detail box on the right.
-   * No right-side column framing the content. */
-  grid-template-columns: var(--rail-w) 1fr 1fr;
+  /* Rail on the left. The right side stacks: a horizontal resource bar on
+   * top, the section tabs (with reset-gain icons on their right), the
+   * full-width content, and a full-width hover/detail box at the bottom. No
+   * side columns framing the content. */
+  grid-template-columns: var(--rail-w) 1fr;
   grid-template-rows: var(--header-h) var(--subnav-h) 1fr var(--detail-h);
   grid-template-areas:
-    "rail header  header"
-    "rail subnav  subnav"
-    "rail content content"
-    "rail stats   detail";
+    "rail header"
+    "rail subnav"
+    "rail content"
+    "rail detail";
   height: 100vh;
   background: var(--bg-app);
   color: var(--text);

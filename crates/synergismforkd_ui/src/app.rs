@@ -11,7 +11,6 @@ use crate::bridge::use_bridge;
 use crate::components::{DialogLayer, ToastStack};
 use crate::detail::{provide_detail, DetailPanel};
 use crate::nav::{GroupedNav, SubNav};
-use crate::sections::header::HeaderBar;
 use crate::sections::SectionView;
 use crate::stats::StatsPanel;
 
@@ -38,17 +37,15 @@ pub fn App() -> Element {
         document::Stylesheet { href: asset!("/assets/styles/components.css") }
         document::Stylesheet { href: asset!("/assets/styles/sections.css") }
 
-        // The right column is always present — it's the resource ledger now.
-        // `show_stats_panel` toggles only the lower stat sections, inside
-        // `StatsPanel` itself.
+        // Resource bar on top (StatsPanel), tabs + reset icons (SubNav),
+        // full-width content, full-width hover/detail box at the bottom.
         div {
             class: "sf-app",
             "data-theme": theme.css_value(),
             GroupedNav {}
-            HeaderBar {}
+            StatsPanel {}
             SubNav {}
             SectionView {}
-            StatsPanel {}
             DetailPanel {}
             ToastStack {}
             DialogLayer {}

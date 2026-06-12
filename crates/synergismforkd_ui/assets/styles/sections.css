@@ -35,46 +35,34 @@
 }
 
 /* Right-side persistent status panel (reset gains + live stats). */
-/* Status now lives in the LEFT half of the bottom bar — a wide, short panel,
- * continuous with the content pane (divider rules only). Sections flow in a
- * row; the resource ledger wraps into columns so it fits the short height. */
+/* The resource ledger is now the horizontal bar across the top. Icon + value
+ * chips in a single row (scrolls horizontally if it overflows). */
 .sf-stats {
-  grid-area: stats;
-  overflow-y: auto;
-  background: var(--bg-app);
-  border-top: var(--bw) solid var(--border);
-  border-right: var(--bw) solid var(--border);
-  padding: var(--space-4) var(--space-5);
+  grid-area: header;
+  overflow-x: auto;
+  overflow-y: hidden;
+  background: var(--bg-chrome);
+  border-bottom: var(--bw) solid var(--border);
+  padding: 0 var(--space-5);
   display: flex;
-  flex-flow: row wrap;
-  align-content: flex-start;
-  gap: var(--space-3) var(--space-6);
+  align-items: center;
 }
 
-/* The "Status" heading is redundant down here — the layout speaks for itself. */
 .sf-stats-title {
   display: none;
 }
 
-.sf-stats-section {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-  min-width: 140px;
-}
-
-/* The resource ledger takes the full panel width and wraps into auto-fill
- * columns (a tall single column won't fit the short bar). */
 .sf-stats-resources {
-  flex: 1 1 100%;
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-  column-gap: var(--space-6);
-  row-gap: 0;
+  display: flex;
+  align-items: center;
+  flex-wrap: nowrap;
+  gap: var(--space-5);
+  min-width: 0;
 }
 
+/* No "RESOURCES" heading in the bar — the icons carry identity. */
 .sf-stats-resources .sf-stats-head {
-  grid-column: 1 / -1;
+  display: none;
 }
 
 .sf-stats-head {
@@ -86,37 +74,32 @@
   padding-bottom: var(--space-1);
 }
 
-/* Resource ledger row: [icon] name .... value, with the /s rate stacked
-   below the value on the right (the inline form was too cramped). Each row
-   carries its resource color via `--row-accent` (set inline) so the ledger —
-   the cockpit of an idle game — reads in color, not monochrome. */
+/* Resource chip in the top bar: `[icon] value +rate`, inline. Each chip
+   carries its resource color via `--row-accent` (set inline) so the bar reads
+   in color. The name is dropped — the icon carries identity. */
 .sf-res-row {
   display: flex;
-  align-items: flex-start;
-  gap: var(--space-3);
-  padding: var(--space-1) 0 var(--space-1) var(--space-3);
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-1) 0 var(--space-1) var(--space-2);
   border-left: 2px solid var(--row-accent, var(--border));
+  white-space: nowrap;
   font-size: var(--fs-sm);
 }
 
 .sf-res-row .sf-icon {
-  align-self: flex-start;
   font-size: var(--fs-md);
 }
 
 .sf-res-name {
-  flex: 1;
-  color: var(--text-muted);
-  white-space: nowrap;
-  align-self: center;
+  display: none;
 }
 
 .sf-res-val {
   display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  text-align: right;
-  line-height: 1.2;
+  flex-direction: row;
+  align-items: baseline;
+  gap: var(--space-1);
   font-family: var(--font-num);
   font-size: var(--fs-md);
   font-weight: 700;
@@ -368,30 +351,18 @@
   cursor: default;
 }
 
-/* Top header bar: the reset-gain hover-icons, framed as a labeled control
- * group so they read intentional rather than as floating glyphs. */
-.sf-header {
-  grid-area: header;
+/* Reset-gain hover-icons, right-aligned in the section-tab row. */
+.sf-reset-gains {
+  margin-left: auto;
   display: flex;
   align-items: center;
-  gap: var(--space-3);
-  padding: 0 var(--space-5);
-  border-bottom: var(--bw) solid var(--border);
-  background: var(--bg-chrome);
-}
-
-/* The uppercase "Resets" tag leading the cluster. */
-.sf-header-label {
-  font-size: var(--fs-xs);
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: var(--text-muted);
+  gap: var(--space-1);
 }
 
 .sf-header-icon {
   display: inline-flex;
   align-items: center;
-  font-size: var(--fs-lg);
+  font-size: var(--fs-md);
   padding: var(--space-1) var(--space-2);
   border-radius: var(--radius-sm);
   cursor: default;

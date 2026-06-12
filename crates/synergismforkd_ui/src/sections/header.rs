@@ -1,8 +1,7 @@
-//! Top header bar: the reset-gain indicators (Prestige / Transcend /
-//! Reincarnate) as compact hover-icons. Each icon appears once its tier is
-//! reachable (same gates as the old StatsPanel RESETS section) and reveals its
-//! "+gain" on hover. Display-only — the actual reset buttons live in the
-//! Buildings reset strip.
+//! Reset-gain indicators (Prestige / Transcend / Reincarnate) as compact
+//! hover-icons, shown on the right of the section-tab row. Each icon appears
+//! once its tier is reachable and reveals its "+gain" on hover. Display-only —
+//! the actual reset buttons live in the Buildings reset strip.
 
 use dioxus::prelude::*;
 
@@ -10,8 +9,9 @@ use crate::bridge::{use_bridge, use_slice};
 use crate::components::{Num, Resource, ResourceIcon, Tooltip};
 use crate::i18n::t;
 
+/// The reset-gain icon cluster, rendered right-aligned in the sub-nav row.
 #[component]
-pub fn HeaderBar() -> Element {
+pub fn ResetGains() -> Element {
     // Gates mirror the reset progression (a gain shows once that reset is
     // reachable): prestige at coin-four, transcend after a prestige,
     // reincarnate after a transcension.
@@ -19,13 +19,8 @@ pub fn HeaderBar() -> Element {
     let show_transcend = use_slice(|s| s.reset_counters.prestige_unlocked);
     let show_reincarnate = use_slice(|s| s.reset_counters.transcend_unlocked);
 
-    let any = show_prestige() || show_transcend() || show_reincarnate();
-
     rsx! {
-        header { class: "sf-header",
-            if any {
-                span { class: "sf-header-label", {t("stats.resets")} }
-            }
+        div { class: "sf-reset-gains",
             if show_prestige() {
                 ResetGainIcon { label_key: "buildings.prestige", resource: Resource::Diamonds }
             }
