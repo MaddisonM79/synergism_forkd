@@ -132,7 +132,17 @@
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
-  background: var(--bg-surface);
+  /* A left-edge wash in the card's resource color (`--card-accent`, set per
+   * card), fading out toward the right over the surface. Cards that don't set
+   * an accent fall back to a plain surface (the wash resolves to transparent). */
+  background:
+    linear-gradient(
+      to right,
+      color-mix(in srgb, var(--card-accent, transparent) 38%, transparent) 0%,
+      color-mix(in srgb, var(--card-accent, transparent) 16%, transparent) 28%,
+      transparent 58%
+    ),
+    var(--bg-surface);
   border: var(--bw) solid var(--border);
   border-radius: var(--radius-md);
   padding: var(--space-4);

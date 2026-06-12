@@ -221,10 +221,12 @@ fn CoinProducerCard(index: u8) -> Element {
     };
     // Per-second output + % of total production live in the bottom panel now.
     let target = DetailTarget::Building(BuildingDetail::CoinProducer(index));
+    let accent = Resource::Coins.css_color();
 
     rsx! {
         div {
             class: "sf-card",
+            style: "--card-accent: {accent}",
             tabindex: "0",
             onmouseenter: move |_| detail.set(target),
             onfocus: move |_| detail.set(target),
@@ -313,10 +315,12 @@ fn CrystalUpgradeCard(i: u8) -> Element {
     };
     // Full name + formula + live effect live in the bottom panel now.
     let target = DetailTarget::CrystalUpgrade(i);
+    let accent = Resource::Crystals.css_color();
 
     rsx! {
         div {
             class: "sf-card",
+            style: "--card-accent: {accent}",
             tabindex: "0",
             onmouseenter: move |_| detail.set(target),
             onfocus: move |_| detail.set(target),
@@ -381,10 +385,12 @@ fn DiamondProducerCard(index: u8) -> Element {
         bridge.dispatch(action);
     };
     let target = DetailTarget::Building(BuildingDetail::Diamond(index));
+    let accent = Resource::Diamonds.css_color();
 
     rsx! {
         div {
             class: "sf-card",
+            style: "--card-accent: {accent}",
             tabindex: "0",
             onmouseenter: move |_| detail.set(target),
             onfocus: move |_| detail.set(target),
@@ -444,10 +450,12 @@ fn MythosProducerCard(index: u8) -> Element {
         bridge.dispatch(action);
     };
     let target = DetailTarget::Building(BuildingDetail::Mythos(index));
+    let accent = Resource::Mythos.css_color();
 
     rsx! {
         div {
             class: "sf-card",
+            style: "--card-accent: {accent}",
             tabindex: "0",
             onmouseenter: move |_| detail.set(target),
             onfocus: move |_| detail.set(target),
@@ -500,9 +508,11 @@ fn AcceleratorCard() -> Element {
     };
     // Power % + Effect × live in the bottom panel now.
     let target = DetailTarget::Building(BuildingDetail::Accelerator);
+    let accent = Resource::Coins.css_color();
     rsx! {
         div {
             class: "sf-card",
+            style: "--card-accent: {accent}",
             tabindex: "0",
             onmouseenter: move |_| detail.set(target),
             onfocus: move |_| detail.set(target),
@@ -537,9 +547,11 @@ fn MultiplierCard() -> Element {
     };
     // Power × + Effect × live in the bottom panel now.
     let target = DetailTarget::Building(BuildingDetail::Multiplier);
+    let accent = Resource::Coins.css_color();
     rsx! {
         div {
             class: "sf-card",
+            style: "--card-accent: {accent}",
             tabindex: "0",
             onmouseenter: move |_| detail.set(target),
             onfocus: move |_| detail.set(target),
@@ -576,9 +588,11 @@ fn AcceleratorBoostCard() -> Element {
     };
     // Boost grants + the reset/no-reset consequence note live in the panel now.
     let target = DetailTarget::Building(BuildingDetail::AcceleratorBoost);
+    let accent = Resource::Diamonds.css_color();
     rsx! {
         div {
             class: "sf-card",
+            style: "--card-accent: {accent}",
             tabindex: "0",
             onmouseenter: move |_| detail.set(target),
             onfocus: move |_| detail.set(target),
@@ -789,10 +803,12 @@ fn ResetCard(tier: ResetTier) -> Element {
     };
 
     let target = DetailTarget::Reset(tier.to_kind());
+    let accent = tier.gain_resource().css_color();
 
     rsx! {
         div {
             class: "sf-card",
+            style: "--card-accent: {accent}",
             tabindex: "0",
             onmouseenter: move |_| detail.set(target),
             onfocus: move |_| detail.set(target),

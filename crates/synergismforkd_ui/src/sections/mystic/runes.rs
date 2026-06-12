@@ -227,10 +227,12 @@ fn RuneCard(family: RuneFamily, index: usize, amount: RuneBuyAmount) -> Element 
         family: family.to_kind(),
         index,
     };
+    let accent = Resource::Offerings.css_color();
 
     rsx! {
         div {
             class: "sf-card",
+            style: "--card-accent: {accent}",
             tabindex: "0",
             onmouseenter: move |_| detail.set(target),
             onfocus: move |_| detail.set(target),
