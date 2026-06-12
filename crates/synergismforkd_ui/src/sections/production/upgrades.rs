@@ -103,8 +103,124 @@ fn ShopGrid(shop: Shop) -> Element {
     }
 }
 
-/// One upgrade square: shows the index, lights by state (owned / affordable /
-/// locked), updates the detail card on hover/focus, and buys on click.
+/// Painted icon for an upgrade square, where art exists (see `tools/icongen/`).
+/// Covers the Coin (1–20, 121–125), Diamond (21–40), Automation (81–100), and
+/// Generator (101–120) shops. Mythos/Particle and any gap fall back to the
+/// index number. Files are `upgrade<idx>.png`, named for the bitmap index.
+fn upgrade_icon(idx: usize) -> Option<Asset> {
+    Some(match idx {
+        1 => asset!("/assets/pictures/upgrade/upgrade1.png"),
+        2 => asset!("/assets/pictures/upgrade/upgrade2.png"),
+        3 => asset!("/assets/pictures/upgrade/upgrade3.png"),
+        4 => asset!("/assets/pictures/upgrade/upgrade4.png"),
+        5 => asset!("/assets/pictures/upgrade/upgrade5.png"),
+        6 => asset!("/assets/pictures/upgrade/upgrade6.png"),
+        7 => asset!("/assets/pictures/upgrade/upgrade7.png"),
+        8 => asset!("/assets/pictures/upgrade/upgrade8.png"),
+        9 => asset!("/assets/pictures/upgrade/upgrade9.png"),
+        10 => asset!("/assets/pictures/upgrade/upgrade10.png"),
+        11 => asset!("/assets/pictures/upgrade/upgrade11.png"),
+        12 => asset!("/assets/pictures/upgrade/upgrade12.png"),
+        13 => asset!("/assets/pictures/upgrade/upgrade13.png"),
+        14 => asset!("/assets/pictures/upgrade/upgrade14.png"),
+        15 => asset!("/assets/pictures/upgrade/upgrade15.png"),
+        16 => asset!("/assets/pictures/upgrade/upgrade16.png"),
+        17 => asset!("/assets/pictures/upgrade/upgrade17.png"),
+        18 => asset!("/assets/pictures/upgrade/upgrade18.png"),
+        19 => asset!("/assets/pictures/upgrade/upgrade19.png"),
+        20 => asset!("/assets/pictures/upgrade/upgrade20.png"),
+        21 => asset!("/assets/pictures/upgrade/upgrade21.png"),
+        22 => asset!("/assets/pictures/upgrade/upgrade22.png"),
+        23 => asset!("/assets/pictures/upgrade/upgrade23.png"),
+        24 => asset!("/assets/pictures/upgrade/upgrade24.png"),
+        25 => asset!("/assets/pictures/upgrade/upgrade25.png"),
+        26 => asset!("/assets/pictures/upgrade/upgrade26.png"),
+        27 => asset!("/assets/pictures/upgrade/upgrade27.png"),
+        28 => asset!("/assets/pictures/upgrade/upgrade28.png"),
+        29 => asset!("/assets/pictures/upgrade/upgrade29.png"),
+        30 => asset!("/assets/pictures/upgrade/upgrade30.png"),
+        31 => asset!("/assets/pictures/upgrade/upgrade31.png"),
+        32 => asset!("/assets/pictures/upgrade/upgrade32.png"),
+        33 => asset!("/assets/pictures/upgrade/upgrade33.png"),
+        34 => asset!("/assets/pictures/upgrade/upgrade34.png"),
+        35 => asset!("/assets/pictures/upgrade/upgrade35.png"),
+        36 => asset!("/assets/pictures/upgrade/upgrade36.png"),
+        37 => asset!("/assets/pictures/upgrade/upgrade37.png"),
+        38 => asset!("/assets/pictures/upgrade/upgrade38.png"),
+        39 => asset!("/assets/pictures/upgrade/upgrade39.png"),
+        40 => asset!("/assets/pictures/upgrade/upgrade40.png"),
+        41 => asset!("/assets/pictures/upgrade/upgrade41.png"),
+        42 => asset!("/assets/pictures/upgrade/upgrade42.png"),
+        43 => asset!("/assets/pictures/upgrade/upgrade43.png"),
+        44 => asset!("/assets/pictures/upgrade/upgrade44.png"),
+        45 => asset!("/assets/pictures/upgrade/upgrade45.png"),
+        46 => asset!("/assets/pictures/upgrade/upgrade46.png"),
+        47 => asset!("/assets/pictures/upgrade/upgrade47.png"),
+        48 => asset!("/assets/pictures/upgrade/upgrade48.png"),
+        49 => asset!("/assets/pictures/upgrade/upgrade49.png"),
+        50 => asset!("/assets/pictures/upgrade/upgrade50.png"),
+        51 => asset!("/assets/pictures/upgrade/upgrade51.png"),
+        52 => asset!("/assets/pictures/upgrade/upgrade52.png"),
+        53 => asset!("/assets/pictures/upgrade/upgrade53.png"),
+        54 => asset!("/assets/pictures/upgrade/upgrade54.png"),
+        55 => asset!("/assets/pictures/upgrade/upgrade55.png"),
+        56 => asset!("/assets/pictures/upgrade/upgrade56.png"),
+        57 => asset!("/assets/pictures/upgrade/upgrade57.png"),
+        58 => asset!("/assets/pictures/upgrade/upgrade58.png"),
+        59 => asset!("/assets/pictures/upgrade/upgrade59.png"),
+        60 => asset!("/assets/pictures/upgrade/upgrade60.png"),
+        81 => asset!("/assets/pictures/upgrade/upgrade81.png"),
+        82 => asset!("/assets/pictures/upgrade/upgrade82.png"),
+        83 => asset!("/assets/pictures/upgrade/upgrade83.png"),
+        84 => asset!("/assets/pictures/upgrade/upgrade84.png"),
+        85 => asset!("/assets/pictures/upgrade/upgrade85.png"),
+        86 => asset!("/assets/pictures/upgrade/upgrade86.png"),
+        87 => asset!("/assets/pictures/upgrade/upgrade87.png"),
+        88 => asset!("/assets/pictures/upgrade/upgrade88.png"),
+        89 => asset!("/assets/pictures/upgrade/upgrade89.png"),
+        90 => asset!("/assets/pictures/upgrade/upgrade90.png"),
+        91 => asset!("/assets/pictures/upgrade/upgrade91.png"),
+        92 => asset!("/assets/pictures/upgrade/upgrade92.png"),
+        93 => asset!("/assets/pictures/upgrade/upgrade93.png"),
+        94 => asset!("/assets/pictures/upgrade/upgrade94.png"),
+        95 => asset!("/assets/pictures/upgrade/upgrade95.png"),
+        96 => asset!("/assets/pictures/upgrade/upgrade96.png"),
+        97 => asset!("/assets/pictures/upgrade/upgrade97.png"),
+        98 => asset!("/assets/pictures/upgrade/upgrade98.png"),
+        99 => asset!("/assets/pictures/upgrade/upgrade99.png"),
+        100 => asset!("/assets/pictures/upgrade/upgrade100.png"),
+        101 => asset!("/assets/pictures/upgrade/upgrade101.png"),
+        102 => asset!("/assets/pictures/upgrade/upgrade102.png"),
+        103 => asset!("/assets/pictures/upgrade/upgrade103.png"),
+        104 => asset!("/assets/pictures/upgrade/upgrade104.png"),
+        105 => asset!("/assets/pictures/upgrade/upgrade105.png"),
+        106 => asset!("/assets/pictures/upgrade/upgrade106.png"),
+        107 => asset!("/assets/pictures/upgrade/upgrade107.png"),
+        108 => asset!("/assets/pictures/upgrade/upgrade108.png"),
+        109 => asset!("/assets/pictures/upgrade/upgrade109.png"),
+        110 => asset!("/assets/pictures/upgrade/upgrade110.png"),
+        111 => asset!("/assets/pictures/upgrade/upgrade111.png"),
+        112 => asset!("/assets/pictures/upgrade/upgrade112.png"),
+        113 => asset!("/assets/pictures/upgrade/upgrade113.png"),
+        114 => asset!("/assets/pictures/upgrade/upgrade114.png"),
+        115 => asset!("/assets/pictures/upgrade/upgrade115.png"),
+        116 => asset!("/assets/pictures/upgrade/upgrade116.png"),
+        117 => asset!("/assets/pictures/upgrade/upgrade117.png"),
+        118 => asset!("/assets/pictures/upgrade/upgrade118.png"),
+        119 => asset!("/assets/pictures/upgrade/upgrade119.png"),
+        120 => asset!("/assets/pictures/upgrade/upgrade120.png"),
+        121 => asset!("/assets/pictures/upgrade/upgrade121.png"),
+        122 => asset!("/assets/pictures/upgrade/upgrade122.png"),
+        123 => asset!("/assets/pictures/upgrade/upgrade123.png"),
+        124 => asset!("/assets/pictures/upgrade/upgrade124.png"),
+        125 => asset!("/assets/pictures/upgrade/upgrade125.png"),
+        _ => return None,
+    })
+}
+
+/// One upgrade square: shows a painted icon (or the index number where no art
+/// exists yet), lights by state (owned / affordable / locked), updates the
+/// detail card on hover/focus, and buys on click.
 #[component]
 fn UpgradeCell(idx: usize) -> Element {
     let bridge = use_bridge();
@@ -131,7 +247,11 @@ fn UpgradeCell(idx: usize) -> Element {
             onmouseenter: move |_| detail.set(DetailTarget::Upgrade(idx)),
             onfocus: move |_| detail.set(DetailTarget::Upgrade(idx)),
             onclick: move |_| bridge.dispatch(derive::upgrade_buy(&bridge.state.peek(), idx)),
-            "{idx}"
+            if let Some(src) = upgrade_icon(idx) {
+                img { class: "sf-upg-icon", src, alt: "", draggable: "false" }
+            } else {
+                "{idx}"
+            }
         }
     }
 }
@@ -163,6 +283,17 @@ pub fn UpgradeDetailBody(idx: usize) -> Element {
     rsx! {
         DetailBody {
             title: t_args("upgrades.short", &[("n", &idx.to_string())]),
+            // Painted upgrade art where it exists; otherwise the cost-currency
+            // icon (e.g. the not-yet-drawn Particle shop) so the card is never
+            // icon-less.
+            marker: Some(match upgrade_icon(idx) {
+                Some(src) => rsx! {
+                    span { class: "sf-icon sf-icon-img",
+                        img { src, alt: "", draggable: "false" }
+                    }
+                },
+                None => rsx! { ResourceIcon { resource: m.resource } },
+            }),
             badge: Some(rsx! { span { class: status_cls, {t(status_key)} } }),
             description: Some(name),
             accent: Some(m.resource.css_color()),

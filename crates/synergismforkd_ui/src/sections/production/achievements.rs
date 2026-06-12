@@ -214,7 +214,15 @@ pub fn AchievementDetailBody(index: usize) -> Element {
     rsx! {
         DetailBody {
             title: achievements_text::name(index).to_string(),
-            marker: Some(rsx! { span { class: "sf-detail-marker", "#{index + 1}" } }),
+            // Painted medallion where it exists; otherwise the legacy `#N` tag.
+            marker: Some(match achievement_icon(index) {
+                Some(src) => rsx! {
+                    span { class: "sf-icon sf-icon-img",
+                        img { src, alt: "", draggable: "false" }
+                    }
+                },
+                None => rsx! { span { class: "sf-detail-marker", "#{index + 1}" } },
+            }),
             badge: Some(rsx! { span { class: status_cls, {t(status_key)} } }),
             description: Some(achievements_text::requirement(index).to_string()),
             div { class: "sf-card-row",
@@ -239,13 +247,77 @@ pub fn AchievementDetailBody(index: usize) -> Element {
     }
 }
 
+/// Painted medallion for an achievement, where art exists (see `tools/icongen/`).
+/// `index` is 0-based; the file is `ach<index+1>.png`. Cells without art fall
+/// back to the index label. Currently achievements 1–50.
+fn achievement_icon(index: usize) -> Option<Asset> {
+    Some(match index {
+        0 => asset!("/assets/pictures/achievement/ach1.png"),
+        1 => asset!("/assets/pictures/achievement/ach2.png"),
+        2 => asset!("/assets/pictures/achievement/ach3.png"),
+        3 => asset!("/assets/pictures/achievement/ach4.png"),
+        4 => asset!("/assets/pictures/achievement/ach5.png"),
+        5 => asset!("/assets/pictures/achievement/ach6.png"),
+        6 => asset!("/assets/pictures/achievement/ach7.png"),
+        7 => asset!("/assets/pictures/achievement/ach8.png"),
+        8 => asset!("/assets/pictures/achievement/ach9.png"),
+        9 => asset!("/assets/pictures/achievement/ach10.png"),
+        10 => asset!("/assets/pictures/achievement/ach11.png"),
+        11 => asset!("/assets/pictures/achievement/ach12.png"),
+        12 => asset!("/assets/pictures/achievement/ach13.png"),
+        13 => asset!("/assets/pictures/achievement/ach14.png"),
+        14 => asset!("/assets/pictures/achievement/ach15.png"),
+        15 => asset!("/assets/pictures/achievement/ach16.png"),
+        16 => asset!("/assets/pictures/achievement/ach17.png"),
+        17 => asset!("/assets/pictures/achievement/ach18.png"),
+        18 => asset!("/assets/pictures/achievement/ach19.png"),
+        19 => asset!("/assets/pictures/achievement/ach20.png"),
+        20 => asset!("/assets/pictures/achievement/ach21.png"),
+        21 => asset!("/assets/pictures/achievement/ach22.png"),
+        22 => asset!("/assets/pictures/achievement/ach23.png"),
+        23 => asset!("/assets/pictures/achievement/ach24.png"),
+        24 => asset!("/assets/pictures/achievement/ach25.png"),
+        25 => asset!("/assets/pictures/achievement/ach26.png"),
+        26 => asset!("/assets/pictures/achievement/ach27.png"),
+        27 => asset!("/assets/pictures/achievement/ach28.png"),
+        28 => asset!("/assets/pictures/achievement/ach29.png"),
+        29 => asset!("/assets/pictures/achievement/ach30.png"),
+        30 => asset!("/assets/pictures/achievement/ach31.png"),
+        31 => asset!("/assets/pictures/achievement/ach32.png"),
+        32 => asset!("/assets/pictures/achievement/ach33.png"),
+        33 => asset!("/assets/pictures/achievement/ach34.png"),
+        34 => asset!("/assets/pictures/achievement/ach35.png"),
+        35 => asset!("/assets/pictures/achievement/ach36.png"),
+        36 => asset!("/assets/pictures/achievement/ach37.png"),
+        37 => asset!("/assets/pictures/achievement/ach38.png"),
+        38 => asset!("/assets/pictures/achievement/ach39.png"),
+        39 => asset!("/assets/pictures/achievement/ach40.png"),
+        40 => asset!("/assets/pictures/achievement/ach41.png"),
+        41 => asset!("/assets/pictures/achievement/ach42.png"),
+        42 => asset!("/assets/pictures/achievement/ach43.png"),
+        43 => asset!("/assets/pictures/achievement/ach44.png"),
+        44 => asset!("/assets/pictures/achievement/ach45.png"),
+        45 => asset!("/assets/pictures/achievement/ach46.png"),
+        46 => asset!("/assets/pictures/achievement/ach47.png"),
+        47 => asset!("/assets/pictures/achievement/ach48.png"),
+        48 => asset!("/assets/pictures/achievement/ach49.png"),
+        49 => asset!("/assets/pictures/achievement/ach50.png"),
+        _ => return None,
+    })
+}
+
 #[component]
 fn AchievementCell(index: usize, earned: bool) -> Element {
     let detail = use_detail();
-    let cls = if earned {
-        "sf-ach-cell earned"
-    } else {
-        "sf-ach-cell"
+    let icon = achievement_icon(index);
+    // `has-icon` lets the stylesheet swap the gold "earned" fill for a thin
+    // gold border (so the painted medallion isn't washed out) and dim the
+    // locked ones.
+    let cls = match (icon.is_some(), earned) {
+        (true, true) => "sf-ach-cell has-icon earned",
+        (true, false) => "sf-ach-cell has-icon",
+        (false, true) => "sf-ach-cell earned",
+        (false, false) => "sf-ach-cell",
     };
     rsx! {
         div {
@@ -253,8 +325,12 @@ fn AchievementCell(index: usize, earned: bool) -> Element {
             tabindex: "0",
             onmouseenter: move |_| detail.set(DetailTarget::Achievement(index)),
             onfocus: move |_| detail.set(DetailTarget::Achievement(index)),
-            // 1-based label, matching the legacy numbering.
-            "{index + 1}"
+            if let Some(src) = icon {
+                img { class: "sf-ach-icon", src, alt: "", draggable: "false" }
+            } else {
+                // 1-based label, matching the legacy numbering.
+                "{index + 1}"
+            }
         }
     }
 }

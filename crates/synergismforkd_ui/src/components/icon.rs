@@ -65,6 +65,26 @@ impl Resource {
         }
     }
 
+    /// Painted raster icon for this resource, if one has been produced (see
+    /// `tools/icongen/`). Resources with real art render it as an `<img>`;
+    /// the rest fall back to the inline SVG glyph below. Paths resolve
+    /// relative to the UI crate root and are bundled by `asset!`.
+    fn raster(self) -> Option<Asset> {
+        Some(match self {
+            Resource::Coins => asset!("/assets/pictures/currency/coins.png"),
+            Resource::Diamonds => asset!("/assets/pictures/currency/diamonds.png"),
+            Resource::Crystals => asset!("/assets/pictures/currency/crystals.png"),
+            Resource::Mythos => asset!("/assets/pictures/currency/mythos.png"),
+            Resource::MythosShards => asset!("/assets/pictures/currency/mythosshards.png"),
+            Resource::Particles => asset!("/assets/pictures/currency/particles.png"),
+            Resource::Offerings => asset!("/assets/pictures/currency/offerings.png"),
+            Resource::Obtainium => asset!("/assets/pictures/currency/obtainium.png"),
+            Resource::Quarks => asset!("/assets/pictures/currency/quarks.png"),
+            Resource::GoldenQuarks => asset!("/assets/pictures/currency/goldenquarks.png"),
+            Resource::Ambrosia => asset!("/assets/pictures/currency/ambrosia.png"),
+        })
+    }
+
     /// SVG path data (24×24 viewBox, filled with `currentColor`).
     fn path(self) -> &'static str {
         match self {
@@ -108,6 +128,14 @@ impl Resource {
 /// the first paint after a refresh.
 #[component]
 pub fn ResourceIcon(resource: Resource) -> Element {
+    // Painted art where it exists; the colored SVG glyph everywhere else.
+    if let Some(src) = resource.raster() {
+        return rsx! {
+            span { class: "sf-icon sf-icon-img",
+                img { src, alt: "", draggable: "false" }
+            }
+        };
+    }
     rsx! {
         span { class: "sf-icon", style: "color: {resource.css_color()}",
             svg {

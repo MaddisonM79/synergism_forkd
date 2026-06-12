@@ -1,0 +1,16 @@
+A single game icon, painted illustration style — NOT pixel art, NOT flat
+vector, NOT a logo. Soft hand-painted rendering with gentle volumetric
+shading and a delicate rim light. One centered subject filling ~80% of the
+frame, generous even margin, no cropping at the edges. Fully transparent
+background (no scene, no card, no drop shadow on a surface, no border).
+
+House palette is "pastel goth": muted jewel tones over deep plum, lavender
+and periwinkle highlights, restrained saturation, a faint dark outline that
+reads at small sizes. Cohesive across the whole set — same brushwork, same
+light direction (upper-left), same level of detail, so every icon looks like
+it came from one artist.
+
+The icon must remain legible when scaled down to 64×64 pixels: bold silhouette,
+clear focal shape, no fine text or tiny filigree.
+
+Subject:

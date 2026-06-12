@@ -1,0 +1,810 @@
+{
+  "_comment": "Icon specs. id -> assets/pictures/<category>/<id>.png. prompt is appended to style.txt. Upgrade ids match the in-game bitmap index (upgrade<idx>). Regenerate with build_manifest.py.",
+  "icons": [
+    {
+      "id": "coins",
+      "category": "currency",
+      "prompt": "a single gleaming gold coin seen face-on, warm gold (#ecc95c), a soft mythic emblem embossed on its face."
+    },
+    {
+      "id": "quarks",
+      "category": "currency",
+      "prompt": "a glowing teal quark mote (#79dede), a small luminous elementary particle with a faint orbiting wisp, ethereal."
+    },
+    {
+      "id": "goldenquarks",
+      "category": "currency",
+      "prompt": "a radiant five-point golden star-mote (#f5d674), a premium golden quark, brighter and more ornate than an ordinary quark."
+    },
+    {
+      "id": "ambrosia",
+      "category": "currency",
+      "prompt": "a cluster of two dewy sky-blue ambrosia berries (#9ab6f5) with a small leaf, nectar-like sheen."
+    },
+    {
+      "id": "diamonds",
+      "category": "currency",
+      "prompt": "a cut cyan diamond gemstone (#84dbe8), faceted, catching the rim light."
+    },
+    {
+      "id": "crystals",
+      "category": "currency",
+      "prompt": "a small cluster of faceted periwinkle crystal shards (#b7c8f7), sharp angular cut-stone fragments grouped together, soft inner glow."
+    },
+    {
+      "id": "mythos",
+      "category": "currency",
+      "prompt": "a glowing lavender four-point mythos star (#c39bf0), arcane and radiant."
+    },
+    {
+      "id": "mythosshards",
+      "category": "currency",
+      "prompt": "a pair of glowing lavender mythos shards (#c39bf0), twin arcane crystal splinters."
+    },
+    {
+      "id": "particles",
+      "category": "currency",
+      "prompt": "a warm-orange particle mote (#f2a877), a bright energetic spark with a faint motion trail."
+    },
+    {
+      "id": "offerings",
+      "category": "currency",
+      "prompt": "a dusty-rose votive offering flame (#ee8f86), a teardrop of soft sacrificial light."
+    },
+    {
+      "id": "obtainium",
+      "category": "currency",
+      "prompt": "a pink hexagonal essence crystal (#ee8cc6), a glowing six-sided gem of knowledge."
+    },
+    {
+      "id": "upgrade6",
+      "category": "upgrade",
+      "prompt": "an upward-pointing boost arrow over a cluster of small gold coins and tiny factory shapes \u2014 all production rising. Rendered in warm gold and plum tones."
+    },
+    {
+      "id": "upgrade7",
+      "category": "upgrade",
+      "prompt": "a glowing multiplication 'x' symbol fed by an alchemist's flask \u2014 free multipliers from alchemy. Rendered in warm gold and plum tones."
+    },
+    {
+      "id": "upgrade8",
+      "category": "upgrade",
+      "prompt": "speed chevrons (an accelerator) beside a multiplication 'x' \u2014 free accelerators from multipliers. Rendered in warm gold and plum tones."
+    },
+    {
+      "id": "upgrade9",
+      "category": "upgrade",
+      "prompt": "a multiplication 'x' symbol beside three forward speed chevrons \u2014 free multipliers from accelerators. Rendered in warm gold and plum tones."
+    },
+    {
+      "id": "upgrade10",
+      "category": "upgrade",
+      "prompt": "a worker's hard hat resting on a rising stack of coins \u2014 workers improved by investments. Rendered in warm gold and plum tones."
+    },
+    {
+      "id": "upgrade11",
+      "category": "upgrade",
+      "prompt": "three forward speed chevrons energizing a small gear \u2014 accelerators boosting generation. Rendered in warm gold and plum tones."
+    },
+    {
+      "id": "upgrade12",
+      "category": "upgrade",
+      "prompt": "a small cyan diamond with a rising x1.01 growth curve \u2014 prestige compounding production. Rendered in warm gold and plum tones."
+    },
+    {
+      "id": "upgrade13",
+      "category": "upgrade",
+      "prompt": "an ornate rune-augment sigil over a coin stack \u2014 augments buffing investments. Rendered in warm gold and plum tones."
+    },
+    {
+      "id": "upgrade14",
+      "category": "upgrade",
+      "prompt": "speed chevrons feeding a small printing press \u2014 accelerators buffing printers. Rendered in warm gold and plum tones."
+    },
+    {
+      "id": "upgrade15",
+      "category": "upgrade",
+      "prompt": "speed chevrons feeding a coin-mint stamp \u2014 accelerators buffing mints. Rendered in warm gold and plum tones."
+    },
+    {
+      "id": "upgrade16",
+      "category": "upgrade",
+      "prompt": "speed chevrons beside a cyan diamond \u2014 acceleration buffing diamond gain. Rendered in warm gold and plum tones."
+    },
+    {
+      "id": "upgrade17",
+      "category": "upgrade",
+      "prompt": "a coin-mint stamp blazing with light and a bold x10^100 glow \u2014 massive mint multiplier. Rendered in warm gold and plum tones."
+    },
+    {
+      "id": "upgrade18",
+      "category": "upgrade",
+      "prompt": "a printing press beside a glowing lavender mythos shard \u2014 printers powered by mythos shards. Rendered in warm gold and plum tones."
+    },
+    {
+      "id": "upgrade19",
+      "category": "upgrade",
+      "prompt": "a coin stack beside a lavender four-point mythos star \u2014 investments powered by mythos. Rendered in warm gold and plum tones."
+    },
+    {
+      "id": "upgrade20",
+      "category": "upgrade",
+      "prompt": "a worker's hard hat haloed by a bold exponent '11' power-glow \u2014 coin upgrade raised to the 11th power. Rendered in warm gold and plum tones."
+    },
+    {
+      "id": "upgrade21",
+      "category": "upgrade",
+      "prompt": "a radiant cyan diamond emitting a multiplication 'x' and five speed chevrons \u2014 a generous burst of free multipliers and accelerators. Rendered in cyan-diamond and periwinkle tones."
+    },
+    {
+      "id": "upgrade22",
+      "category": "upgrade",
+      "prompt": "a cyan diamond emitting a multiplication 'x' and four speed chevrons. Rendered in cyan-diamond and periwinkle tones."
+    },
+    {
+      "id": "upgrade23",
+      "category": "upgrade",
+      "prompt": "a cyan diamond emitting a multiplication 'x' and three speed chevrons. Rendered in cyan-diamond and periwinkle tones."
+    },
+    {
+      "id": "upgrade24",
+      "category": "upgrade",
+      "prompt": "a cyan diamond emitting a multiplication 'x' and two speed chevrons. Rendered in cyan-diamond and periwinkle tones."
+    },
+    {
+      "id": "upgrade25",
+      "category": "upgrade",
+      "prompt": "a cyan diamond emitting a multiplication 'x' and one speed chevron. Rendered in cyan-diamond and periwinkle tones."
+    },
+    {
+      "id": "upgrade26",
+      "category": "upgrade",
+      "prompt": "a single speed chevron bursting with extra energy \u2014 a free accelerator boost. Rendered in cyan-diamond and periwinkle tones."
+    },
+    {
+      "id": "upgrade27",
+      "category": "upgrade",
+      "prompt": "a glowing blue speed rune glyph drawing power from scattered coins. Rendered in cyan-diamond and periwinkle tones."
+    },
+    {
+      "id": "upgrade28",
+      "category": "upgrade",
+      "prompt": "a glowing duplication rune glyph above small factory buildings. Rendered in cyan-diamond and periwinkle tones."
+    },
+    {
+      "id": "upgrade29",
+      "category": "upgrade",
+      "prompt": "a glowing speed rune glyph above small factory buildings. Rendered in cyan-diamond and periwinkle tones."
+    },
+    {
+      "id": "upgrade30",
+      "category": "upgrade",
+      "prompt": "a glowing duplication rune glyph drawing power from scattered coins. Rendered in cyan-diamond and periwinkle tones."
+    },
+    {
+      "id": "upgrade31",
+      "category": "upgrade",
+      "prompt": "a bursting accelerator-boost chevron above small factory buildings. Rendered in cyan-diamond and periwinkle tones."
+    },
+    {
+      "id": "upgrade32",
+      "category": "upgrade",
+      "prompt": "three forward speed chevrons drawing from a cyan diamond \u2014 free accelerators from diamonds. Rendered in cyan-diamond and periwinkle tones."
+    },
+    {
+      "id": "upgrade33",
+      "category": "upgrade",
+      "prompt": "a multiplication 'x' beside a bursting accelerator-boost chevron. Rendered in cyan-diamond and periwinkle tones."
+    },
+    {
+      "id": "upgrade34",
+      "category": "upgrade",
+      "prompt": "a multiplication 'x' with a bold +3% tag \u2014 more free multipliers. Rendered in cyan-diamond and periwinkle tones."
+    },
+    {
+      "id": "upgrade35",
+      "category": "upgrade",
+      "prompt": "a multiplication 'x' with a bold +2% tag \u2014 more free multipliers. Rendered in cyan-diamond and periwinkle tones."
+    },
+    {
+      "id": "upgrade36",
+      "category": "upgrade",
+      "prompt": "a periwinkle crystal multiplied by a cyan diamond, radiant. Rendered in cyan-diamond and periwinkle tones."
+    },
+    {
+      "id": "upgrade37",
+      "category": "upgrade",
+      "prompt": "a lavender mythos shard beside a cyan diamond with a faint logarithm curve. Rendered in cyan-diamond and periwinkle tones."
+    },
+    {
+      "id": "upgrade38",
+      "category": "upgrade",
+      "prompt": "a dusty-rose offering flame with a small boost-rocket and a +20% tag. Rendered in cyan-diamond and periwinkle tones."
+    },
+    {
+      "id": "upgrade39",
+      "category": "upgrade",
+      "prompt": "a stylized ant sprinting with speed lines and a +60% tag. Rendered in cyan-diamond and periwinkle tones."
+    },
+    {
+      "id": "upgrade40",
+      "category": "upgrade",
+      "prompt": "a stylized ant on a small altar with a reward sparkle and a +25% tag. Rendered in cyan-diamond and periwinkle tones."
+    },
+    {
+      "id": "upgrade41",
+      "category": "upgrade",
+      "prompt": "a lavender four-point mythos star radiating an upward production boost. Rendered in arcane lavender mythos tones."
+    },
+    {
+      "id": "upgrade42",
+      "category": "upgrade",
+      "prompt": "a pair of lavender mythos shards beside a cyan diamond \u2014 shards powered by diamonds. Rendered in arcane lavender mythos tones."
+    },
+    {
+      "id": "upgrade43",
+      "category": "upgrade",
+      "prompt": "a gold coin haloed by a transcension rebirth swirl \u2014 coin production per transcension. Rendered in arcane lavender mythos tones."
+    },
+    {
+      "id": "upgrade44",
+      "category": "upgrade",
+      "prompt": "a lavender mythos star inside a transcension rebirth swirl \u2014 more mythos per transcension. Rendered in arcane lavender mythos tones."
+    },
+    {
+      "id": "upgrade45",
+      "category": "upgrade",
+      "prompt": "three forward speed chevrons drawing from a pair of mythos shards. Rendered in arcane lavender mythos tones."
+    },
+    {
+      "id": "upgrade46",
+      "category": "upgrade",
+      "prompt": "a bursting accelerator-boost chevron behind a small protective shield \u2014 stronger boosts that don't reset. Rendered in arcane lavender mythos tones."
+    },
+    {
+      "id": "upgrade47",
+      "category": "upgrade",
+      "prompt": "a pair of mythos shards beside a small achievement-point trophy star. Rendered in arcane lavender mythos tones."
+    },
+    {
+      "id": "upgrade48",
+      "category": "upgrade",
+      "prompt": "speed chevrons and a multiplication 'x' radiating shared production power. Rendered in arcane lavender mythos tones."
+    },
+    {
+      "id": "upgrade49",
+      "category": "upgrade",
+      "prompt": "a multiplication 'x' fed by a lavender mythos star \u2014 free multipliers from mythos. Rendered in arcane lavender mythos tones."
+    },
+    {
+      "id": "upgrade50",
+      "category": "upgrade",
+      "prompt": "crossed challenge swords with speed chevrons and a multiplication 'x' \u2014 a challenge-only boost. Rendered in arcane lavender mythos tones."
+    },
+    {
+      "id": "upgrade51",
+      "category": "upgrade",
+      "prompt": "an arcane mythos building tower lifted by a bursting accelerator boost. Rendered in arcane lavender mythos tones."
+    },
+    {
+      "id": "upgrade52",
+      "category": "upgrade",
+      "prompt": "an arcane mythos building tower haloed by a small rising exponent. Rendered in arcane lavender mythos tones."
+    },
+    {
+      "id": "upgrade53",
+      "category": "upgrade",
+      "prompt": "an ornate augment rune spilling lavender mythos shards. Rendered in arcane lavender mythos tones."
+    },
+    {
+      "id": "upgrade54",
+      "category": "upgrade",
+      "prompt": "a wizard's pointed hat conjuring a glowing enchantment sigil. Rendered in arcane lavender mythos tones."
+    },
+    {
+      "id": "upgrade55",
+      "category": "upgrade",
+      "prompt": "a grandmaster's crowned staff beside a glowing oracle eye. Rendered in arcane lavender mythos tones."
+    },
+    {
+      "id": "upgrade56",
+      "category": "upgrade",
+      "prompt": "a worker's hard hat blazing with a bold x10^5000 exponent glow. Rendered in arcane lavender mythos tones."
+    },
+    {
+      "id": "upgrade57",
+      "category": "upgrade",
+      "prompt": "a rising coin stack blazing with a bold x10^7500 exponent glow. Rendered in arcane lavender mythos tones."
+    },
+    {
+      "id": "upgrade58",
+      "category": "upgrade",
+      "prompt": "a printing press blazing with a bold x10^15000 exponent glow. Rendered in arcane lavender mythos tones."
+    },
+    {
+      "id": "upgrade59",
+      "category": "upgrade",
+      "prompt": "a coin-mint stamp blazing with a bold x10^25000 exponent glow. Rendered in arcane lavender mythos tones."
+    },
+    {
+      "id": "upgrade60",
+      "category": "upgrade",
+      "prompt": "an alchemist's flask blazing with a bold x10^35000 exponent glow. Rendered in arcane lavender mythos tones."
+    },
+    {
+      "id": "upgrade81",
+      "category": "upgrade",
+      "prompt": "a robotic clockwork arm picking up a worker's hard hat \u2014 auto-buy workers. Rendered as brass-and-violet clockwork in a pastel-goth palette."
+    },
+    {
+      "id": "upgrade82",
+      "category": "upgrade",
+      "prompt": "a robotic clockwork arm over a rising coin stack \u2014 auto-buy investments. Rendered as brass-and-violet clockwork in a pastel-goth palette."
+    },
+    {
+      "id": "upgrade83",
+      "category": "upgrade",
+      "prompt": "a robotic clockwork arm over a printing press \u2014 auto-buy printers. Rendered as brass-and-violet clockwork in a pastel-goth palette."
+    },
+    {
+      "id": "upgrade84",
+      "category": "upgrade",
+      "prompt": "a robotic clockwork arm over a coin-mint stamp \u2014 auto-buy mints. Rendered as brass-and-violet clockwork in a pastel-goth palette."
+    },
+    {
+      "id": "upgrade85",
+      "category": "upgrade",
+      "prompt": "a robotic clockwork arm over an alchemist's flask \u2014 auto-buy alchemies. Rendered as brass-and-violet clockwork in a pastel-goth palette."
+    },
+    {
+      "id": "upgrade86",
+      "category": "upgrade",
+      "prompt": "a gear meshed with three speed chevrons \u2014 auto-buy accelerators. Rendered as brass-and-violet clockwork in a pastel-goth palette."
+    },
+    {
+      "id": "upgrade87",
+      "category": "upgrade",
+      "prompt": "a gear meshed with a multiplication 'x' \u2014 auto-buy multipliers. Rendered as brass-and-violet clockwork in a pastel-goth palette."
+    },
+    {
+      "id": "upgrade88",
+      "category": "upgrade",
+      "prompt": "a gear meshed with a bursting accelerator-boost chevron \u2014 auto-buy accelerator boosts. Rendered as brass-and-violet clockwork in a pastel-goth palette."
+    },
+    {
+      "id": "upgrade89",
+      "category": "upgrade",
+      "prompt": "a gear wrapped around a lavender transcension star \u2014 unlock auto transcensions. Rendered as brass-and-violet clockwork in a pastel-goth palette."
+    },
+    {
+      "id": "upgrade90",
+      "category": "upgrade",
+      "prompt": "a gear meshed with interlocked generator cogs \u2014 auto-buy the generator shop. Rendered as brass-and-violet clockwork in a pastel-goth palette."
+    },
+    {
+      "id": "upgrade91",
+      "category": "upgrade",
+      "prompt": "a gear stamped with a gold coin upgrade tile \u2014 auto-buy coin upgrades. Rendered as brass-and-violet clockwork in a pastel-goth palette."
+    },
+    {
+      "id": "upgrade92",
+      "category": "upgrade",
+      "prompt": "a gear stamped with a cyan diamond upgrade tile \u2014 auto-buy diamond upgrades. Rendered as brass-and-violet clockwork in a pastel-goth palette."
+    },
+    {
+      "id": "upgrade93",
+      "category": "upgrade",
+      "prompt": "a cyan diamond dripping steadily beside a small clock \u2014 passive diamond income per second. Rendered as brass-and-violet clockwork in a pastel-goth palette."
+    },
+    {
+      "id": "upgrade94",
+      "category": "upgrade",
+      "prompt": "a gear meshed with an ornate augment rune \u2014 auto-buy augments. Rendered as brass-and-violet clockwork in a pastel-goth palette."
+    },
+    {
+      "id": "upgrade95",
+      "category": "upgrade",
+      "prompt": "a gear meshed with a glowing enchantment sigil \u2014 auto-buy enchantments. Rendered as brass-and-violet clockwork in a pastel-goth palette."
+    },
+    {
+      "id": "upgrade96",
+      "category": "upgrade",
+      "prompt": "a gear beside a wizard's pointed hat \u2014 auto-buy wizards. Rendered as brass-and-violet clockwork in a pastel-goth palette."
+    },
+    {
+      "id": "upgrade97",
+      "category": "upgrade",
+      "prompt": "a gear beside an oracle's glowing eye \u2014 auto-buy oracles. Rendered as brass-and-violet clockwork in a pastel-goth palette."
+    },
+    {
+      "id": "upgrade98",
+      "category": "upgrade",
+      "prompt": "a gear beside a grandmaster's crowned staff \u2014 auto-buy grandmasters. Rendered as brass-and-violet clockwork in a pastel-goth palette."
+    },
+    {
+      "id": "upgrade99",
+      "category": "upgrade",
+      "prompt": "a gear stamped with a lavender mythos upgrade tile \u2014 auto-buy mythos upgrades. Rendered as brass-and-violet clockwork in a pastel-goth palette."
+    },
+    {
+      "id": "upgrade100",
+      "category": "upgrade",
+      "prompt": "a lavender mythos star dripping steadily beside a small clock \u2014 passive mythos income per second. Rendered as brass-and-violet clockwork in a pastel-goth palette."
+    },
+    {
+      "id": "upgrade101",
+      "category": "upgrade",
+      "prompt": "an alchemist's flask linked by an arrow to a coin-mint stamp \u2014 alchemies produce mints. Rendered in teal-and-periwinkle machinery tones."
+    },
+    {
+      "id": "upgrade102",
+      "category": "upgrade",
+      "prompt": "a coin-mint stamp linked by an arrow to a printing press \u2014 mints produce printers. Rendered in teal-and-periwinkle machinery tones."
+    },
+    {
+      "id": "upgrade103",
+      "category": "upgrade",
+      "prompt": "a printing press linked by an arrow to a rising coin stack \u2014 printers produce investments. Rendered in teal-and-periwinkle machinery tones."
+    },
+    {
+      "id": "upgrade104",
+      "category": "upgrade",
+      "prompt": "a rising coin stack linked by an arrow to a worker's hard hat \u2014 investments produce workers. Rendered in teal-and-periwinkle machinery tones."
+    },
+    {
+      "id": "upgrade105",
+      "category": "upgrade",
+      "prompt": "a worker's hard hat linked by an arrow to an alchemist's flask \u2014 workers produce alchemies. Rendered in teal-and-periwinkle machinery tones."
+    },
+    {
+      "id": "upgrade106",
+      "category": "upgrade",
+      "prompt": "an industrial refinery tower linked to an alchemist's flask with a small exponent 0.10. Rendered in teal-and-periwinkle machinery tones."
+    },
+    {
+      "id": "upgrade107",
+      "category": "upgrade",
+      "prompt": "an industrial refinery and flask with a rising exponent 0.25. Rendered in teal-and-periwinkle machinery tones."
+    },
+    {
+      "id": "upgrade108",
+      "category": "upgrade",
+      "prompt": "an industrial refinery and flask with a rising exponent 0.50. Rendered in teal-and-periwinkle machinery tones."
+    },
+    {
+      "id": "upgrade109",
+      "category": "upgrade",
+      "prompt": "an industrial refinery and flask with a rising exponent 0.75. Rendered in teal-and-periwinkle machinery tones."
+    },
+    {
+      "id": "upgrade110",
+      "category": "upgrade",
+      "prompt": "an industrial refinery and flask with a maxed exponent 1.0, glowing. Rendered in teal-and-periwinkle machinery tones."
+    },
+    {
+      "id": "upgrade111",
+      "category": "upgrade",
+      "prompt": "an ornate augment rune linked to a mysterious Pandora box with a small exponent 0.08. Rendered in teal-and-periwinkle machinery tones."
+    },
+    {
+      "id": "upgrade112",
+      "category": "upgrade",
+      "prompt": "an augment rune and Pandora box with a rising exponent 0.16. Rendered in teal-and-periwinkle machinery tones."
+    },
+    {
+      "id": "upgrade113",
+      "category": "upgrade",
+      "prompt": "an augment rune and Pandora box with a rising exponent 0.24. Rendered in teal-and-periwinkle machinery tones."
+    },
+    {
+      "id": "upgrade114",
+      "category": "upgrade",
+      "prompt": "an augment rune and Pandora box with a rising exponent 0.32. Rendered in teal-and-periwinkle machinery tones."
+    },
+    {
+      "id": "upgrade115",
+      "category": "upgrade",
+      "prompt": "an augment rune and Pandora box with a maxed exponent 0.40, glowing. Rendered in teal-and-periwinkle machinery tones."
+    },
+    {
+      "id": "upgrade116",
+      "category": "upgrade",
+      "prompt": "a glowing proton particle linked to a grandmaster's crowned staff with a small exponent 0.05. Rendered in teal-and-periwinkle machinery tones."
+    },
+    {
+      "id": "upgrade117",
+      "category": "upgrade",
+      "prompt": "a proton and grandmaster staff with a rising exponent 0.10. Rendered in teal-and-periwinkle machinery tones."
+    },
+    {
+      "id": "upgrade118",
+      "category": "upgrade",
+      "prompt": "a proton and grandmaster staff with a rising exponent 0.15. Rendered in teal-and-periwinkle machinery tones."
+    },
+    {
+      "id": "upgrade119",
+      "category": "upgrade",
+      "prompt": "a proton and grandmaster staff with a rising exponent 0.20. Rendered in teal-and-periwinkle machinery tones."
+    },
+    {
+      "id": "upgrade120",
+      "category": "upgrade",
+      "prompt": "a proton and grandmaster staff with a maxed exponent 0.25, glowing. Rendered in teal-and-periwinkle machinery tones."
+    },
+    {
+      "id": "upgrade121",
+      "category": "upgrade",
+      "prompt": "a percent sign cut in half over coins, a sly 'taxes halved' motif. Rendered in warm gold and plum tones."
+    },
+    {
+      "id": "upgrade122",
+      "category": "upgrade",
+      "prompt": "a periwinkle crystal with an upward cap bracket expanding \u2014 crystal cap raised. Rendered in warm gold and plum tones."
+    },
+    {
+      "id": "upgrade123",
+      "category": "upgrade",
+      "prompt": "a coin stack with a bold rising exponent arrow \u2014 coin production raised to a power, more exponents. Rendered in warm gold and plum tones."
+    },
+    {
+      "id": "upgrade124",
+      "category": "upgrade",
+      "prompt": "a champion's ELO medal wreathed in a rebirth swirl, glowing faster. Rendered in warm gold and plum tones."
+    },
+    {
+      "id": "upgrade125",
+      "category": "upgrade",
+      "prompt": "a constant-symbol divisor crest marked with challenge tally notches. Rendered in warm gold and plum tones."
+    },
+    {
+      "id": "ach1",
+      "category": "achievement",
+      "prompt": "a gleaming gold commemorative medallion embossed with a magnifying glass crossing a star \u2014 the achievement-hunter badge, slim ribbon, soft pastel-goth palette."
+    },
+    {
+      "id": "ach2",
+      "category": "achievement",
+      "prompt": "a weathered bronze commemorative achievement medallion embossed with a worker's hard hat, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach3",
+      "category": "achievement",
+      "prompt": "a weathered bronze commemorative achievement medallion embossed with a worker's hard hat, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach4",
+      "category": "achievement",
+      "prompt": "a polished silver commemorative achievement medallion embossed with a worker's hard hat, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach5",
+      "category": "achievement",
+      "prompt": "a polished silver commemorative achievement medallion embossed with a worker's hard hat, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach6",
+      "category": "achievement",
+      "prompt": "a gleaming gold commemorative achievement medallion embossed with a worker's hard hat, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach7",
+      "category": "achievement",
+      "prompt": "a gleaming gold commemorative achievement medallion embossed with a worker's hard hat, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach8",
+      "category": "achievement",
+      "prompt": "an iridescent prismatic commemorative achievement medallion embossed with a worker's hard hat, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach9",
+      "category": "achievement",
+      "prompt": "a weathered bronze commemorative achievement medallion embossed with a rising stack of gold coins with a small 'stonks' up-arrow, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach10",
+      "category": "achievement",
+      "prompt": "a weathered bronze commemorative achievement medallion embossed with a rising stack of gold coins with a small 'stonks' up-arrow, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach11",
+      "category": "achievement",
+      "prompt": "a polished silver commemorative achievement medallion embossed with a rising stack of gold coins with a small 'stonks' up-arrow, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach12",
+      "category": "achievement",
+      "prompt": "a polished silver commemorative achievement medallion embossed with a rising stack of gold coins with a small 'stonks' up-arrow, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach13",
+      "category": "achievement",
+      "prompt": "a gleaming gold commemorative achievement medallion embossed with a rising stack of gold coins with a small 'stonks' up-arrow, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach14",
+      "category": "achievement",
+      "prompt": "a gleaming gold commemorative achievement medallion embossed with a rising stack of gold coins with a small 'stonks' up-arrow, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach15",
+      "category": "achievement",
+      "prompt": "an iridescent prismatic commemorative achievement medallion embossed with a rising stack of gold coins with a small 'stonks' up-arrow, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach16",
+      "category": "achievement",
+      "prompt": "a weathered bronze commemorative achievement medallion embossed with a small printing press, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach17",
+      "category": "achievement",
+      "prompt": "a weathered bronze commemorative achievement medallion embossed with a small printing press, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach18",
+      "category": "achievement",
+      "prompt": "a polished silver commemorative achievement medallion embossed with a small printing press, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach19",
+      "category": "achievement",
+      "prompt": "a polished silver commemorative achievement medallion embossed with a small printing press, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach20",
+      "category": "achievement",
+      "prompt": "a gleaming gold commemorative achievement medallion embossed with a small printing press, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach21",
+      "category": "achievement",
+      "prompt": "a gleaming gold commemorative achievement medallion embossed with a small printing press, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach22",
+      "category": "achievement",
+      "prompt": "an iridescent prismatic commemorative achievement medallion embossed with a small printing press, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach23",
+      "category": "achievement",
+      "prompt": "a weathered bronze commemorative achievement medallion embossed with a coin-mint stamp, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach24",
+      "category": "achievement",
+      "prompt": "a weathered bronze commemorative achievement medallion embossed with a coin-mint stamp, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach25",
+      "category": "achievement",
+      "prompt": "a polished silver commemorative achievement medallion embossed with a coin-mint stamp, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach26",
+      "category": "achievement",
+      "prompt": "a polished silver commemorative achievement medallion embossed with a coin-mint stamp, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach27",
+      "category": "achievement",
+      "prompt": "a gleaming gold commemorative achievement medallion embossed with a coin-mint stamp, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach28",
+      "category": "achievement",
+      "prompt": "a gleaming gold commemorative achievement medallion embossed with a coin-mint stamp, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach29",
+      "category": "achievement",
+      "prompt": "an iridescent prismatic commemorative achievement medallion embossed with a coin-mint stamp, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach30",
+      "category": "achievement",
+      "prompt": "a weathered bronze commemorative achievement medallion embossed with an alchemist's bubbling flask, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach31",
+      "category": "achievement",
+      "prompt": "a weathered bronze commemorative achievement medallion embossed with an alchemist's bubbling flask, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach32",
+      "category": "achievement",
+      "prompt": "a polished silver commemorative achievement medallion embossed with an alchemist's flask glowing with an eerie arcane sigil, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach33",
+      "category": "achievement",
+      "prompt": "a polished silver commemorative achievement medallion embossed with an alchemist's flask glowing with an eerie arcane sigil, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach34",
+      "category": "achievement",
+      "prompt": "a gleaming gold commemorative achievement medallion embossed with an alchemist's flask glowing with an eerie arcane sigil, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach35",
+      "category": "achievement",
+      "prompt": "a gleaming gold commemorative achievement medallion embossed with an alchemist's bubbling flask, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach36",
+      "category": "achievement",
+      "prompt": "an iridescent prismatic commemorative achievement medallion embossed with an alchemist's bubbling flask, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach37",
+      "category": "achievement",
+      "prompt": "a weathered bronze commemorative achievement medallion embossed with a cut cyan diamond, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach38",
+      "category": "achievement",
+      "prompt": "a weathered bronze commemorative achievement medallion embossed with a cut cyan diamond, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach39",
+      "category": "achievement",
+      "prompt": "a polished silver commemorative achievement medallion embossed with a cut cyan diamond, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach40",
+      "category": "achievement",
+      "prompt": "a polished silver commemorative achievement medallion embossed with a cut cyan diamond, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach41",
+      "category": "achievement",
+      "prompt": "a gleaming gold commemorative achievement medallion embossed with a cut cyan diamond, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach42",
+      "category": "achievement",
+      "prompt": "a gleaming gold commemorative achievement medallion embossed with a cut cyan diamond, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach43",
+      "category": "achievement",
+      "prompt": "an iridescent prismatic commemorative achievement medallion embossed with a cut cyan diamond, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach44",
+      "category": "achievement",
+      "prompt": "a weathered bronze commemorative achievement medallion embossed with a lavender four-point mythos star, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach45",
+      "category": "achievement",
+      "prompt": "a weathered bronze commemorative achievement medallion embossed with a lavender four-point mythos star, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach46",
+      "category": "achievement",
+      "prompt": "a polished silver commemorative achievement medallion embossed with a lavender four-point mythos star, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach47",
+      "category": "achievement",
+      "prompt": "a polished silver commemorative achievement medallion embossed with a lavender four-point mythos star, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach48",
+      "category": "achievement",
+      "prompt": "a gleaming gold commemorative achievement medallion embossed with a lavender four-point mythos star, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach49",
+      "category": "achievement",
+      "prompt": "a gleaming gold commemorative achievement medallion embossed with a lavender four-point mythos star, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach50",
+      "category": "achievement",
+      "prompt": "an iridescent prismatic commemorative achievement medallion embossed with a lavender four-point mythos star, a slim ribbon at the base, soft pastel-goth palette."
+    }
+  ]
+}

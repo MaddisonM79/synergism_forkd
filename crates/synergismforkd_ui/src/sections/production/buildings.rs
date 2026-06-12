@@ -908,6 +908,9 @@ pub fn CrystalDetailBody(i: u8) -> Element {
     rsx! {
         DetailBody {
             title: t_args("crystals.short", &[("n", &i.to_string())]),
+            // No painted crystal-upgrade art yet — show the Crystals cost icon
+            // so the card has a marker (matches the building detail cards).
+            marker: Some(rsx! { ResourceIcon { resource: Resource::Crystals } }),
             description: Some(name),
             formula: if has_formula { Some(formula.to_string()) } else { None },
             accent: Some(Resource::Crystals.css_color()),
