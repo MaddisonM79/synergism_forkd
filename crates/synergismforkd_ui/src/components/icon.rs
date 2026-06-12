@@ -51,17 +51,17 @@ impl Resource {
     #[must_use]
     pub fn label_key(self) -> &'static str {
         match self {
-            Resource::Coins => "hud.coins",
-            Resource::Diamonds => "hud.diamonds",
-            Resource::Crystals => "hud.crystals",
-            Resource::Mythos => "hud.mythos",
-            Resource::MythosShards => "hud.mythos_shards",
-            Resource::Particles => "hud.particles",
-            Resource::Offerings => "hud.offerings",
-            Resource::Obtainium => "hud.obtainium",
-            Resource::Quarks => "hud.quarks",
-            Resource::GoldenQuarks => "hud.golden_quarks",
-            Resource::Ambrosia => "hud.ambrosia",
+            Resource::Coins => "resources.coins.name",
+            Resource::Diamonds => "resources.diamonds.name",
+            Resource::Crystals => "resources.crystals.name",
+            Resource::Mythos => "resources.mythos.name",
+            Resource::MythosShards => "resources.mythos_shards.name",
+            Resource::Particles => "resources.particles.name",
+            Resource::Offerings => "resources.offerings.name",
+            Resource::Obtainium => "resources.obtainium.name",
+            Resource::Quarks => "resources.quarks.name",
+            Resource::GoldenQuarks => "resources.golden_quarks.name",
+            Resource::Ambrosia => "resources.ambrosia.name",
         }
     }
 

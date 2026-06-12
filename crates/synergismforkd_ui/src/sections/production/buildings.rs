@@ -259,7 +259,7 @@ fn DiamondBuildings() -> Element {
                 DiamondProducerCard { key: "{index}", index }
             }
         }
-        div { class: "sf-collapsible-title sf-crystal-head", {t("upgrades.crystalUpgrades.heading")} }
+        div { class: "sf-collapsible-title sf-crystal-head", {t("crystals.heading")} }
         CrystalBonusLine {}
         div { class: "sf-card-grid",
             for i in 1..=5u8 {
@@ -283,7 +283,7 @@ fn CrystalBonusLine() -> Element {
     rsx! {
         div { class: "sf-crystal-bonus",
             {t_args(
-                "upgrades.crystal_bonus",
+                "crystals.bonus",
                 &[
                     ("crystals", &format_value(crystals(), notation)),
                     ("mult", &format_value(mult, notation)),
@@ -308,7 +308,7 @@ fn CrystalUpgradeCard(i: u8) -> Element {
     let notation = bridge.prefs.read().notation;
     // Compact card title; the full descriptive name + formula + effect live in
     // the hover/detail box.
-    let name = t_args("upgrades.crystal_short", &[("n", &i.to_string())]);
+    let name = t_args("crystals.short", &[("n", &i.to_string())]);
 
     let buy = move |_| {
         bridge.dispatch(derive::crystal_upgrade_buy(&bridge.state.peek(), i));
@@ -326,7 +326,7 @@ fn CrystalUpgradeCard(i: u8) -> Element {
             onfocus: move |_| detail.set(target),
             div { class: "sf-card-title", "{name}" }
             div { class: "sf-card-row",
-                span { class: "label", {t("upgrades.crystal_level")} }
+                span { class: "label", {t("crystals.level")} }
                 span { {format_value(Decimal::from_finite(level()), notation)} }
             }
             div { class: "sf-card-row",
@@ -897,22 +897,22 @@ pub fn CrystalDetailBody(i: u8) -> Element {
     let bridge = use_bridge();
     let state = bridge.state.read();
     let notation = bridge.prefs.read().notation;
-    let name = t(&format!("upgrades.crystalUpgrades.{i}")).to_string();
+    let name = t(&format!("crystals.{i}.desc")).to_string();
     let level = state.crystal_upgrades.crystal_upgrades[(i - 1) as usize];
     let cost = crystal_cost(i, &state);
     let effect = crystal_effect_text(i, &state, notation);
-    let formula_key = format!("upgrades.crystalFormula.{i}");
+    let formula_key = format!("crystals.{i}.formula");
     let formula = t(&formula_key);
     let has_formula = formula != formula_key;
 
     rsx! {
         DetailBody {
-            title: t_args("upgrades.crystal_short", &[("n", &i.to_string())]),
+            title: t_args("crystals.short", &[("n", &i.to_string())]),
             description: Some(name),
             formula: if has_formula { Some(formula.to_string()) } else { None },
             accent: Some(Resource::Crystals.css_color()),
             div { class: "sf-card-row",
-                span { class: "label", {t("upgrades.crystal_level")} }
+                span { class: "label", {t("crystals.level")} }
                 span { {format_value(Decimal::from_finite(level), notation)} }
             }
             CostRow { cost, resource: Resource::Crystals }

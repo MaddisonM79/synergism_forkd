@@ -56,7 +56,7 @@ pub fn rune_effect_line(state: &GameState, index: usize, notation: Notation) -> 
                 (speed_rune_effects(n, SpeedRuneKey::MultiplicativeAccelerators) - 1.0) * 100.0;
             let speed = (speed_rune_effects(n, SpeedRuneKey::GlobalSpeed) - 1.0) * 100.0;
             t_args(
-                "runes.effect.speed",
+                "runes.speed.effect",
                 &[
                     ("val", &num(accel, notation)),
                     ("val2", &num(free, notation)),
@@ -71,7 +71,7 @@ pub fn rune_effect_line(state: &GameState, index: usize, notation: Notation) -> 
                 * 100.0;
             let tax = 100.0 * (1.0 - duplication_rune_effects(n, DuplicationRuneKey::TaxReduction));
             t_args(
-                "runes.effect.duplication",
+                "runes.duplication.effect",
                 &[
                     ("val", &num(boosts, notation)),
                     ("val2", &num(free, notation)),
@@ -83,7 +83,7 @@ pub fn rune_effect_line(state: &GameState, index: usize, notation: Notation) -> 
             let prod = 10f64.powf(prism_rune_effects(n, PrismRuneKey::ProductionLog10));
             let cost = 10f64.powf(prism_rune_effects(n, PrismRuneKey::CostDivisorLog10));
             t_args(
-                "runes.effect.prism",
+                "runes.prism.effect",
                 &[
                     ("val", &num(prod, notation)),
                     ("val2", &num(cost, notation)),
@@ -95,7 +95,7 @@ pub fn rune_effect_line(state: &GameState, index: usize, notation: Notation) -> 
             let salvage = thrift_rune_effects(n, ThriftRuneKey::Salvage);
             let tax = 100.0 * (1.0 - thrift_rune_effects(n, ThriftRuneKey::TaxReduction));
             t_args(
-                "runes.effect.thrift",
+                "runes.thrift.effect",
                 &[
                     ("val", &num(delay, notation)),
                     ("val2", &num(salvage, notation)),
@@ -108,7 +108,7 @@ pub fn rune_effect_line(state: &GameState, index: usize, notation: Notation) -> 
             let obt = superior_intellect_rune_effects(n, SuperiorIntellectRuneKey::ObtainiumMult);
             let ant = superior_intellect_rune_effects(n, SuperiorIntellectRuneKey::AntSpeed);
             t_args(
-                "runes.effect.si",
+                "runes.si.effect",
                 &[
                     ("val", &num(off, notation)),
                     ("val2", &num(obt, notation)),
@@ -126,14 +126,14 @@ pub fn blessing_effect_line(state: &GameState, index: usize, notation: Notation)
     let p = rune_blessing_power(state, index);
     match index {
         0 => t_args(
-            "runes.blessing.speed",
+            "runes.speed.blessing",
             &[(
                 "val",
                 &pct(speed_rune_blessing_effects(p).global_speed, notation),
             )],
         ),
         1 => t_args(
-            "runes.blessing.duplication",
+            "runes.duplication.blessing",
             &[(
                 "val",
                 &pct(
@@ -143,14 +143,14 @@ pub fn blessing_effect_line(state: &GameState, index: usize, notation: Notation)
             )],
         ),
         2 => t_args(
-            "runes.blessing.prism",
+            "runes.prism.blessing",
             &[(
                 "val",
                 &pct(prism_rune_blessing_effects(p).ant_sacrifice_mult, notation),
             )],
         ),
         3 => t_args(
-            "runes.blessing.thrift",
+            "runes.thrift.blessing",
             &[(
                 "val",
                 &pct(
@@ -160,7 +160,7 @@ pub fn blessing_effect_line(state: &GameState, index: usize, notation: Notation)
             )],
         ),
         _ => t_args(
-            "runes.blessing.si",
+            "runes.si.blessing",
             &[(
                 "val",
                 &format_value(
@@ -180,21 +180,21 @@ pub fn spirit_effect_line(state: &GameState, index: usize, notation: Notation) -
     let p = rune_spirit_power(state, index);
     match index {
         0 => t_args(
-            "runes.spirit.speed",
+            "runes.speed.spirit",
             &[(
                 "val",
                 &pct(speed_rune_spirit_effects(p).global_speed, notation),
             )],
         ),
         1 => t_args(
-            "runes.spirit.duplication",
+            "runes.duplication.spirit",
             &[(
                 "val",
                 &pct(duplication_rune_spirit_effects(p).wow_cubes, notation),
             )],
         ),
         2 => t_args(
-            "runes.spirit.prism",
+            "runes.prism.spirit",
             &[(
                 "val",
                 &format_value(
@@ -204,14 +204,14 @@ pub fn spirit_effect_line(state: &GameState, index: usize, notation: Notation) -
             )],
         ),
         3 => t_args(
-            "runes.spirit.thrift",
+            "runes.thrift.spirit",
             &[(
                 "val",
                 &pct(thrift_rune_spirit_effects(p).offerings, notation),
             )],
         ),
         _ => t_args(
-            "runes.spirit.si",
+            "runes.si.spirit",
             &[(
                 "val",
                 &pct(
@@ -227,11 +227,11 @@ pub fn spirit_effect_line(state: &GameState, index: usize, notation: Notation) -
 #[must_use]
 pub fn rune_name_key(index: usize) -> &'static str {
     match index {
-        0 => "runes.name.speed",
-        1 => "runes.name.duplication",
-        2 => "runes.name.prism",
-        3 => "runes.name.thrift",
-        _ => "runes.name.si",
+        0 => "runes.speed.name",
+        1 => "runes.duplication.name",
+        2 => "runes.prism.name",
+        3 => "runes.thrift.name",
+        _ => "runes.si.name",
     }
 }
 

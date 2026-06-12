@@ -284,11 +284,11 @@ pub fn RuneDetailBody(family: RuneKind, index: usize) -> Element {
     };
     // Core runes show their scaling formula (where n = effective level).
     let formula_key = match (family, index) {
-        (RuneFamily::Rune, 0) => Some("runes.formula.speed"),
-        (RuneFamily::Rune, 1) => Some("runes.formula.duplication"),
-        (RuneFamily::Rune, 2) => Some("runes.formula.prism"),
-        (RuneFamily::Rune, 3) => Some("runes.formula.thrift"),
-        (RuneFamily::Rune, _) => Some("runes.formula.si"),
+        (RuneFamily::Rune, 0) => Some("runes.speed.formula"),
+        (RuneFamily::Rune, 1) => Some("runes.duplication.formula"),
+        (RuneFamily::Rune, 2) => Some("runes.prism.formula"),
+        (RuneFamily::Rune, 3) => Some("runes.thrift.formula"),
+        (RuneFamily::Rune, _) => Some("runes.si.formula"),
         _ => None,
     };
 
