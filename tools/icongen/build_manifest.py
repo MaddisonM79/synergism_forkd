@@ -165,6 +165,31 @@ for first, motif in ACH_GROUPS:
         ACH[a] = (f"{TIERS[i]} commemorative achievement medallion embossed with "
                   f"{m}, a slim ribbon at the base, soft pastel-goth palette.")
 
+# Achievements 51-100 — variable-length groups (Particles, the "without X"
+# restriction vows, out-of-order generator buys, challenge exits, and the
+# No-Multiplier / No-Accelerator / No-Shards / Cost+ challenge-completion
+# ladders). (first, count, motif); tier spreads bronze->prismatic over the run.
+def spread_tier(i, length):
+    return "a gleaming gold" if length <= 1 else TIERS[round(i * 6 / (length - 1))]
+
+ACH2_GROUPS = [
+    (51, 7, "a warm-orange glowing particle mote"),
+    (58, 3, "a multiplication 'x' symbol crossed out by a prohibition slash"),
+    (61, 4, "forward speed chevrons crossed out by a prohibition slash"),
+    (65, 7, "a coin-upgrade tile crossed out by a prohibition slash — a miser's vow"),
+    (72, 4, "interlocking generator cogs stamped with an out-of-order numeral"),
+    (76, 3, "an exit doorway with a scatter of escaping gold coins"),
+    (79, 7, "a crossed-swords challenge crest over a struck-through multiplication 'x'"),
+    (86, 7, "a crossed-swords challenge crest over struck-through speed chevrons"),
+    (93, 7, "a crossed-swords challenge crest over a struck-through lavender mythos shard"),
+    (100, 1, "a price tag with a bold upward arrow — rising costs"),
+]
+for first, count, motif in ACH2_GROUPS:
+    for i in range(count):
+        ACH[first + i] = (f"{spread_tier(i, count)} commemorative achievement medallion "
+                          f"embossed with {motif}, a slim ribbon at the base, soft "
+                          f"pastel-goth palette.")
+
 icons = [{"id": cid, "category": "currency", "prompt": p} for cid, p in CURRENCY]
 for idx in sorted(U):
     icons.append({"id": f"upgrade{idx}", "category": "upgrade", "prompt": U[idx]})
