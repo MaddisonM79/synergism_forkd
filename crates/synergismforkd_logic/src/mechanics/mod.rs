@@ -63,6 +63,7 @@ pub mod reset_currency;
 pub mod reset_time_and_auto_obtainium;
 pub mod resource_gain;
 pub mod rune_blessing_effects;
+pub mod rune_data;
 pub mod rune_effects;
 pub mod rune_exp_multiplier;
 pub mod rune_level_bonuses;

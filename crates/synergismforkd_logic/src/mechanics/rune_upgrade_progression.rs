@@ -201,6 +201,91 @@ pub fn max_rune_upgrade_purchase(
     }
 }
 
+// ─── Manual buy ─────────────────────────────────────────────────────────────
+
+/// Inputs to [`buy_rune_upgrade`] (rune blessings and spirits). Mirrors
+/// [`crate::mechanics::rune_levels::BuyRuneLevelsInput`] but with the per-call
+/// buy-amount cap baked into `levels_to_add` (the caller passes the
+/// buy-amount toggle, or the planner's `levels` for buy-max).
+#[derive(Debug, Clone, Copy)]
+pub struct BuyRuneUpgradeInput {
+    /// Core rune index (`0..5`). Out-of-range is a no-op.
+    pub index: usize,
+    /// `costCoefficient` for this blessing/spirit.
+    pub cost_coefficient: Decimal,
+    /// `levelsPerOOM` for this blessing/spirit.
+    pub levels_per_oom: f64,
+    /// EXP yielded per offering — for blessings/spirits this is the salvage
+    /// multiplier (`= 1` until salvage unlocks), not the universal rune mult.
+    pub rune_exp_per_offering: Decimal,
+    /// Levels to add this purchase (the buy-amount toggle, or the buy-max
+    /// planner's `levels`). `budget` caps how many actually land.
+    pub levels_to_add: f64,
+    /// Offerings the caller authorizes spending.
+    pub budget: Decimal,
+}
+
+/// Buy levels for a rune blessing or spirit by spending offerings — the
+/// blessing/spirit twin of [`crate::mechanics::rune_levels::buy_rune_levels`].
+/// `levels`/`exp` are the family's per-rune arrays
+/// (`rune_blessing_levels`/`rune_blessing_exp` or the spirit pair). Adds EXP
+/// toward `level + levels_to_add`, banks partial EXP when the budget falls
+/// short, re-derives the level from EXP, and spends from `offerings`. No event
+/// (the UI re-renders from state).
+pub fn buy_rune_upgrade(
+    levels: &mut [f64],
+    exp: &mut [f64],
+    offerings: &mut Decimal,
+    input: BuyRuneUpgradeInput,
+) {
+    if input.index >= levels.len()
+        || input.index >= exp.len()
+        || input.budget <= Decimal::zero()
+        || input.levels_to_add < 1.0
+        || input.rune_exp_per_offering <= Decimal::zero()
+    {
+        return;
+    }
+
+    let before = levels[input.index];
+    let current_exp = Decimal::from_finite(exp[input.index]);
+    let target_level = before + input.levels_to_add;
+
+    let exp_left = rune_upgrade_exp_left_to_level(
+        input.cost_coefficient,
+        target_level,
+        input.levels_per_oom,
+        current_exp,
+    );
+    let offerings_required = (exp_left / input.rune_exp_per_offering)
+        .ceil()
+        .max(Decimal::one());
+
+    let (new_exp, budget_used) = if offerings_required > input.budget {
+        (
+            current_exp + input.budget * input.rune_exp_per_offering,
+            input.budget,
+        )
+    } else {
+        (
+            rune_upgrade_exp_to_level(input.cost_coefficient, target_level, input.levels_per_oom),
+            offerings_required,
+        )
+    };
+    exp[input.index] = new_exp.to_number();
+    *offerings -= budget_used;
+
+    let derived =
+        rune_upgrade_level_from_exp(new_exp, input.cost_coefficient, input.levels_per_oom);
+    levels[input.index] = if derived.needs_float_bump {
+        derived.levels + 1.0
+    } else {
+        derived.levels
+    };
+
+    *offerings = (*offerings).max(Decimal::zero());
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -303,6 +388,54 @@ mod tests {
         let result = max_rune_upgrade_purchase(input);
         assert_eq!(result.levels, 1.0);
         assert!(result.exp_required > Decimal::one());
+    }
+
+    #[test]
+    fn buy_rune_upgrade_levels_and_spends() {
+        // coeff 100, oom 5, exp/offering 1 → 900 offerings reaches level 5.
+        let mut levels = [0.0_f64; 10];
+        let mut exp = [0.0_f64; 10];
+        let mut offerings = Decimal::from_finite(900.0);
+        buy_rune_upgrade(
+            &mut levels,
+            &mut exp,
+            &mut offerings,
+            BuyRuneUpgradeInput {
+                index: 0,
+                cost_coefficient: Decimal::from_finite(100.0),
+                levels_per_oom: 5.0,
+                rune_exp_per_offering: Decimal::one(),
+                levels_to_add: 5.0,
+                budget: Decimal::from_finite(900.0),
+            },
+        );
+        assert_eq!(levels[0], 5.0);
+        assert_eq!(offerings.to_number(), 0.0);
+    }
+
+    #[test]
+    fn buy_rune_upgrade_banks_partial_when_short() {
+        // Budget of 100 can't reach level 5 (needs 900); banks partial EXP,
+        // lands below the target, spends the whole budget.
+        let mut levels = [0.0_f64; 10];
+        let mut exp = [0.0_f64; 10];
+        let mut offerings = Decimal::from_finite(100.0);
+        buy_rune_upgrade(
+            &mut levels,
+            &mut exp,
+            &mut offerings,
+            BuyRuneUpgradeInput {
+                index: 0,
+                cost_coefficient: Decimal::from_finite(100.0),
+                levels_per_oom: 5.0,
+                rune_exp_per_offering: Decimal::one(),
+                levels_to_add: 5.0,
+                budget: Decimal::from_finite(100.0),
+            },
+        );
+        assert!(levels[0] < 5.0);
+        assert!(exp[0] > 0.0);
+        assert_eq!(offerings.to_number(), 0.0);
     }
 
     #[test]

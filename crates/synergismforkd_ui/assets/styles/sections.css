@@ -10,7 +10,9 @@
 
 .sf-section-head h1 {
   margin: 0;
-  font-size: var(--fs-xl);
+  font-size: var(--fs-2xl);
+  font-weight: 800;
+  letter-spacing: -0.01em;
   flex: 1;
 }
 
@@ -33,26 +35,34 @@
 }
 
 /* Right-side persistent status panel (reset gains + live stats). */
+/* The resource ledger is now the horizontal bar across the top. Icon + value
+ * chips in a single row (scrolls horizontally if it overflows). */
 .sf-stats {
-  grid-area: stats;
-  overflow-y: auto;
-  border-left: var(--bw) solid var(--border);
-  background: var(--bg-surface);
-  padding: var(--space-4);
+  grid-area: header;
+  overflow-x: auto;
+  overflow-y: hidden;
+  background: var(--bg-chrome);
+  border-bottom: var(--bw) solid var(--border);
+  padding: 0 var(--space-5);
   display: flex;
-  flex-direction: column;
-  gap: var(--space-5);
+  align-items: center;
 }
 
 .sf-stats-title {
-  font-size: var(--fs-lg);
-  font-weight: 700;
+  display: none;
 }
 
-.sf-stats-section {
+.sf-stats-resources {
   display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
+  align-items: center;
+  flex-wrap: nowrap;
+  gap: var(--space-5);
+  min-width: 0;
+}
+
+/* No "RESOURCES" heading in the bar — the icons carry identity. */
+.sf-stats-resources .sf-stats-head {
+  display: none;
 }
 
 .sf-stats-head {
@@ -64,11 +74,56 @@
   padding-bottom: var(--space-1);
 }
 
+/* Resource chip in the top bar: `[icon] value +rate`, inline. Each chip
+   carries its resource color via `--row-accent` (set inline) so the bar reads
+   in color. The name is dropped — the icon carries identity. */
+.sf-res-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-1) 0 var(--space-1) var(--space-2);
+  border-left: 2px solid var(--row-accent, var(--border));
+  white-space: nowrap;
+  font-size: var(--fs-sm);
+}
+
+.sf-res-row .sf-icon {
+  font-size: var(--fs-md);
+}
+
+.sf-res-name {
+  display: none;
+}
+
+.sf-res-val {
+  display: flex;
+  flex-direction: row;
+  align-items: baseline;
+  gap: var(--space-1);
+  font-family: var(--font-num);
+  font-size: var(--fs-md);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--row-accent, var(--text));
+}
+
+.sf-res-rate {
+  color: var(--text-muted);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+}
+
 .sf-prestige-btn {
   background: var(--accent-production);
   border-color: var(--accent-production);
   color: var(--text-inverse);
   font-weight: 700;
+}
+
+/* Reset-ready beacon: a steady glow while the reset can actually be performed
+   (the button is only enabled when available). */
+.sf-prestige-btn:not(:disabled) {
+  box-shadow: 0 0 10px color-mix(in srgb, var(--accent-production) 55%, transparent);
 }
 
 /* Cascade-generated (+free) counts and contribution percentages. */
@@ -215,6 +270,16 @@
   gap: var(--space-2);
 }
 
+/* Runes: the offerings-on-hand line above the rune grid. */
+.sf-rune-offerings {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  color: var(--text-muted);
+  font-size: var(--fs-sm);
+  margin-bottom: var(--space-4);
+}
+
 .sf-upg-cell {
   display: flex;
   align-items: center;
@@ -236,10 +301,45 @@
   outline: none;
 }
 
-/* Affordable-but-unowned: accent border to invite a click. */
+/* Affordable-but-unowned: accent border + faint accent fill to invite a click,
+   plus a slow halo pulse so the buyable cells actively beckon. */
 .sf-upg-cell.can {
   border-color: var(--accent-production);
+  background: color-mix(in srgb, var(--accent-production) 14%, var(--bg-surface));
   color: var(--text);
+  font-weight: 600;
+}
+
+@keyframes sf-afford-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent-production) 45%, transparent);
+  }
+  50% {
+    box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent-production) 0%, transparent);
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .sf-upg-cell.can {
+    animation: sf-afford-pulse 2.4s ease-in-out infinite;
+  }
+}
+
+/* Revealed but unaffordable: dimmed and non-inviting (a "disabled" look), so the
+ * buyable cells stand out. Still hoverable — the detail card reads from
+ * `onmouseenter`, not CSS — but the cursor and hover give no buy affordance. */
+.sf-upg-cell.cant {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.sf-upg-cell.cant:hover {
+  border-color: var(--border);
+}
+
+.sf-upg-cell.cant:focus-visible {
+  border-color: var(--border-strong);
 }
 
 /* Owned: filled gold (matches the legacy "bought" treatment). */
@@ -251,42 +351,113 @@
   cursor: default;
 }
 
-.sf-upg-detail {
-  min-height: 56px;
-  margin-bottom: var(--space-4);
-  padding: var(--space-3) var(--space-4);
-  border: var(--bw) solid var(--border);
-  border-left: 3px solid var(--accent-production);
-  border-radius: var(--radius-sm);
-  background: var(--bg-surface);
-}
-
-.sf-upg-detail.muted {
-  border-left-color: var(--border);
-  color: var(--text-muted);
-  font-size: var(--fs-sm);
+/* Reset-gain hover-icons, right-aligned in the section-tab row. */
+.sf-reset-gains {
+  margin-left: auto;
   display: flex;
   align-items: center;
+  gap: var(--space-1);
 }
 
-.sf-upg-detail-head {
+.sf-header-icon {
+  display: inline-flex;
+  align-items: center;
+  font-size: var(--fs-md);
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-sm);
+  cursor: default;
+  transition: background var(--t-fast);
+}
+
+.sf-header-icon:hover {
+  background: var(--bg-hover);
+}
+
+/* Bottom detail panel: the one shared description surface. It reads as a
+ * continuation of the content pane (same background, divided by a top rule),
+ * with the active readout lifted onto it as a card — so it feels like a
+ * pinned detail, not a sunken tray. */
+/* The detail card floats over the content, bottom-right, like a toast that
+ * doesn't auto-dismiss. `.sf-detail` is the fixed-position wrapper (the
+ * close button anchors to it); `.sf-detail-card` is the surface. */
+.sf-detail {
+  position: fixed;
+  bottom: var(--space-5);
+  right: var(--space-5);
+  width: min(420px, calc(100vw - var(--rail-w) - 2 * var(--space-5)));
+  z-index: var(--z-toast);
+}
+
+.sf-detail-card {
+  background: var(--bg-surface);
+  border: var(--bw) solid var(--border);
+  /* Left edge tints to the hovered thing's resource (set via --card-accent). */
+  border-left: 3px solid var(--card-accent, var(--accent-production));
+  border-radius: var(--radius-md);
+  /* A pop shadow so it reads as lifted above the content. */
+  box-shadow: var(--edge-hi), var(--shadow-pop);
+  padding: var(--space-3) var(--space-4);
+}
+
+/* Close (✕) chip, top-right of the floating card. */
+.sf-detail-close {
+  position: absolute;
+  top: var(--space-2);
+  right: var(--space-2);
+  width: 22px;
+  height: 22px;
+  padding: 0;
   display: flex;
-  align-items: baseline;
-  gap: var(--space-3);
-  margin-bottom: var(--space-1);
+  align-items: center;
+  justify-content: center;
+  font-size: var(--fs-xs);
+  line-height: 1;
+  color: var(--text-muted);
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-sm);
 }
 
-.sf-upg-detail-num {
-  font-variant-numeric: tabular-nums;
+.sf-detail-close:hover:not(:disabled) {
+  background: var(--bg-hover);
+  color: var(--text);
+}
+
+/* Standardized description blurb in a detail body (between head and rows). */
+.sf-detail-desc {
+  font-size: var(--fs-sm);
+  color: var(--text);
+  line-height: 1.4;
+  margin-bottom: var(--space-2);
+}
+
+/* ── Unified detail-card header (every detail body uses the same shape) ──
+   [marker (#N or icon)]  Title  ............  [badge (status)] */
+.sf-detail-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-bottom: var(--space-2);
+  /* Leave room on the right for the floating card's ✕ close chip. */
+  padding-right: var(--space-5);
+}
+
+.sf-detail-head .sf-icon {
+  font-size: var(--fs-md);
+}
+
+.sf-detail-marker {
   color: var(--text-muted);
   font-weight: 700;
+  font-variant-numeric: tabular-nums;
 }
 
-.sf-upg-detail-name {
+.sf-detail-title {
   font-weight: 700;
+  font-size: var(--fs-md);
 }
 
-.sf-upg-status {
+.sf-detail-badge {
   margin-left: auto;
   font-size: var(--fs-xs);
   text-transform: uppercase;
@@ -294,101 +465,19 @@
   color: var(--text-muted);
 }
 
-.sf-upg-status.owned {
+.sf-detail-badge.ok {
+  color: var(--ok);
+  font-weight: 700;
+}
+
+.sf-detail-badge.owned {
   color: var(--res-coin);
   font-weight: 700;
 }
 
-.sf-upg-status.can {
-  color: var(--ok);
-  font-weight: 700;
-}
-
-.sf-upg-detail-effect {
-  font-size: var(--fs-sm);
-  color: var(--text-muted);
-  margin-top: var(--space-1);
-}
-
-/* Persistent detail box above the grid (replaces per-cell tooltips). */
-.sf-ach-detail {
-  min-height: 56px;
-  margin-bottom: var(--space-4);
-  padding: var(--space-3) var(--space-4);
-  border: var(--bw) solid var(--border);
-  border-left: 3px solid var(--accent-production);
-  border-radius: var(--radius-sm);
-  background: var(--bg-surface);
-}
-
-.sf-ach-detail.muted {
-  border-left-color: var(--border);
-  color: var(--text-muted);
-  font-size: var(--fs-sm);
-  display: flex;
-  align-items: center;
-}
-
-.sf-ach-detail-head {
-  display: flex;
-  align-items: baseline;
-  gap: var(--space-3);
-  margin-bottom: var(--space-1);
-}
-
-.sf-ach-detail-num {
-  font-variant-numeric: tabular-nums;
-  color: var(--text-muted);
-  font-weight: 700;
-}
-
-.sf-ach-detail-name {
-  font-weight: 700;
-}
-
-.sf-ach-status {
-  font-size: var(--fs-xs);
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: var(--text-muted);
-}
-
-.sf-ach-status.earned {
-  color: var(--ok);
-  font-weight: 700;
-}
-
-.sf-ach-detail-pts {
-  margin-left: auto;
-  color: var(--accent-production);
-  font-weight: 600;
-}
-
-.sf-ach-detail-req {
-  font-size: var(--fs-sm);
-  margin-bottom: var(--space-1);
-}
-
+/* Muted inline label on the achievements page (e.g. the "Next reward:" line). */
 .sf-ach-req-label {
   color: var(--text-muted);
-}
-
-.sf-ach-detail-progress {
-  font-size: var(--fs-xs);
-}
-
-.sf-ach-progress-done {
-  color: var(--ok);
-}
-
-.sf-ach-progress-pending {
-  color: var(--text-muted);
-}
-
-.sf-ach-progress-count {
-  color: var(--accent-production);
-  font-variant-numeric: tabular-nums;
-  font-weight: 600;
 }
 
 /* The wealth-tax banner. */
@@ -445,6 +534,13 @@
 
 .sf-settings-block .sf-settings-row {
   margin-bottom: var(--space-3);
+}
+
+/* Block-level explanatory line under a Settings heading (before the rows). */
+.sf-settings-subhint {
+  margin: 0 0 var(--space-3);
+  color: var(--text-muted);
+  font-size: var(--fs-xs);
 }
 
 /* Danger zone: visually quarantined destructive actions. */

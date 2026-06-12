@@ -9,7 +9,7 @@ use dioxus::prelude::*;
 
 use crate::bridge::use_bridge;
 use crate::components::{DialogLayer, ToastStack};
-use crate::hud::ResourceHud;
+use crate::detail::{provide_detail, DetailPanel};
 use crate::nav::{GroupedNav, SubNav};
 use crate::sections::SectionView;
 use crate::stats::StatsPanel;
@@ -25,9 +25,9 @@ const CRITICAL_CSS: &str = "html,body{margin:0;background:#1a1325;}";
 #[component]
 pub fn App() -> Element {
     let bridge = use_bridge();
-    let prefs = bridge.prefs.read();
-    let theme = prefs.theme;
-    let show_stats = prefs.show_stats_panel;
+    let theme = bridge.prefs.read().theme;
+    // Ephemeral UI-only context: which item the bottom detail panel describes.
+    provide_detail();
 
     rsx! {
         document::Style { {CRITICAL_CSS} }
@@ -37,16 +37,16 @@ pub fn App() -> Element {
         document::Stylesheet { href: asset!("/assets/styles/components.css") }
         document::Stylesheet { href: asset!("/assets/styles/sections.css") }
 
+        // Resource bar on top (StatsPanel), tabs + reset icons (SubNav),
+        // full-width content, full-width hover/detail box at the bottom.
         div {
-            class: if show_stats { "sf-app" } else { "sf-app no-stats" },
+            class: "sf-app",
             "data-theme": theme.css_value(),
             GroupedNav {}
-            ResourceHud {}
+            StatsPanel {}
             SubNav {}
             SectionView {}
-            if show_stats {
-                StatsPanel {}
-            }
+            DetailPanel {}
             ToastStack {}
             DialogLayer {}
             div { class: "sf-version", "v{VERSION}" }

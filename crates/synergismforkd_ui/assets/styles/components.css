@@ -8,14 +8,16 @@
   flex-direction: column;
   gap: var(--space-2);
   padding: var(--space-4) var(--space-3);
-  background: var(--bg-surface);
-  border-right: var(--bw) solid var(--border);
+  /* No hard border wall — the chrome/content color step defines the edge, so
+   * the frame reads as panes that flow, not boxes. */
+  background: var(--bg-chrome);
   z-index: var(--z-nav);
 }
 
 .sf-rail-title {
-  font-size: var(--fs-lg);
-  font-weight: 700;
+  font-size: var(--fs-md);
+  font-weight: 800;
+  letter-spacing: -0.01em;
   padding: 0 var(--space-3) var(--space-4);
 }
 
@@ -57,7 +59,7 @@
   align-items: center;
   gap: var(--space-2);
   padding: 0 var(--space-5);
-  background: var(--bg-surface);
+  background: var(--bg-chrome);
   border-bottom: var(--bw) solid var(--border);
 }
 
@@ -80,38 +82,6 @@
   color: var(--text);
   border-bottom-color: var(--accent, var(--info));
   font-weight: 600;
-}
-
-/* ---- HUD ---- */
-
-.sf-hud {
-  grid-area: hud;
-  display: flex;
-  align-items: center;
-  gap: var(--space-4);
-  padding: 0 var(--space-5);
-  background: var(--bg-surface);
-  border-bottom: var(--bw) solid var(--border);
-}
-
-.sf-hud-spacer {
-  flex: 1;
-}
-
-.sf-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-2);
-  padding: var(--space-1) var(--space-3);
-  background: var(--bg-raised);
-  border: var(--bw) solid var(--border);
-  border-radius: var(--radius-md);
-  font-size: var(--fs-sm);
-}
-
-.sf-chip .sf-chip-rate {
-  color: var(--text-muted);
-  font-size: var(--fs-xs);
 }
 
 /* ---- Content area ---- */
@@ -162,15 +132,39 @@
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
-  background: var(--bg-surface);
+  /* A left-edge wash in the card's resource color (`--card-accent`, set per
+   * card), fading out toward the right over the surface. Cards that don't set
+   * an accent fall back to a plain surface (the wash resolves to transparent). */
+  background:
+    linear-gradient(
+      to right,
+      color-mix(in srgb, var(--card-accent, transparent) 19%, transparent) 0%,
+      color-mix(in srgb, var(--card-accent, transparent) 8%, transparent) 28%,
+      transparent 58%
+    ),
+    var(--bg-surface);
   border: var(--bw) solid var(--border);
   border-radius: var(--radius-md);
   padding: var(--space-4);
+  /* Lift the card off the content pane + a lit top edge so it reads as a
+   * physical surface, not a bordered table cell. */
+  box-shadow: var(--edge-hi), var(--shadow-1);
+  transition: box-shadow var(--t-fast), transform var(--t-fast),
+    border-color var(--t-fast);
+}
+
+/* Cards are hoverable (they drive the detail panel) — lift slightly to make
+ * that interactivity legible. */
+.sf-card:hover {
+  box-shadow: var(--edge-hi), var(--shadow-2);
+  transform: translateY(-1px);
+  border-color: var(--border-strong);
 }
 
 .sf-card-title {
-  font-weight: 600;
-  font-size: var(--fs-sm);
+  font-weight: 700;
+  font-size: var(--fs-md);
+  letter-spacing: 0.01em;
 }
 
 /* Crystal-upgrades sub-heading under the Diamond producers. */
@@ -253,6 +247,18 @@
   margin-left: 0;
 }
 
+/* Consequence note on a card (e.g. the Accelerator Boost reset warning). */
+.sf-boost-note {
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+  margin-top: var(--space-1);
+  line-height: 1.3;
+}
+
+.sf-boost-note.warn {
+  color: var(--warn);
+}
+
 .sf-card-actions {
   display: flex;
   gap: var(--space-2);
@@ -263,6 +269,15 @@
   flex: 1;
   font-size: var(--fs-sm);
   padding: var(--space-2) var(--space-2);
+}
+
+/* Affordable buy buttons read as "go": an accent outline + accent label, so a
+ * buyable card invites the click without shouting (the prestige button and
+ * autobuy toggle keep their own filled treatments). */
+.sf-card-actions button:not(.sf-auto-toggle):not(.sf-prestige-btn):not(:disabled) {
+  border-color: color-mix(in srgb, var(--accent-production) 55%, var(--border));
+  color: var(--accent-production);
+  font-weight: 600;
 }
 
 /* Building autobuyer enable toggle (shown once unlocked). Off = dim, on =
@@ -353,23 +368,35 @@
   margin-bottom: var(--space-5);
 }
 
+/* Header row: the toggle button plus an optional trailing action (e.g. a
+   per-section autobuy toggle). The bottom border lives here so it spans the
+   full width including the action. */
+.sf-collapsible-head-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  border-bottom: var(--bw) solid var(--border);
+  margin-bottom: var(--space-4);
+}
+
+.sf-collapsible-head-row:hover {
+  border-color: var(--border-strong);
+}
+
 .sf-collapsible-head {
   display: flex;
   align-items: center;
   gap: var(--space-3);
-  width: 100%;
+  flex: 1;
   text-align: left;
   background: transparent;
   border: none;
-  border-bottom: var(--bw) solid var(--border);
   border-radius: 0;
   padding: var(--space-2) 0;
-  margin-bottom: var(--space-4);
 }
 
 .sf-collapsible-head:hover:not(:disabled) {
   background: transparent;
-  border-color: var(--border-strong);
 }
 
 .sf-collapsible-chevron {
@@ -404,6 +431,7 @@
   background: var(--bg-surface);
   border: var(--bw) solid var(--border-strong);
   border-radius: var(--radius-md);
+  box-shadow: var(--edge-hi), var(--shadow-pop);
   padding: var(--space-5);
   display: flex;
   flex-direction: column;
@@ -465,8 +493,8 @@
 .sf-toast-stack {
   position: fixed;
   right: var(--space-5);
-  /* Below the HUD bar, top-right. */
-  top: calc(var(--hud-h) + var(--space-3));
+  /* Top-right, just inside the window edge. */
+  top: var(--space-5);
   display: flex;
   flex-direction: column;
   gap: var(--space-3);

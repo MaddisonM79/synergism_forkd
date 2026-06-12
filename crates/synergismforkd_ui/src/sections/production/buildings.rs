@@ -14,9 +14,10 @@ use synergismforkd_bignum::Decimal;
 use synergismforkd_logic::events::ProducerType;
 use synergismforkd_logic::{AutoToggle, BuyRequest, PlayerAction, ResetRequest};
 
-use crate::bridge::{use_bridge, use_slice, BuyAmount};
-use crate::components::{Collapsible, Num, Progress, Resource, ResourceIcon, Tooltip};
+use crate::bridge::{use_bridge, use_slice, use_slow_slice, BuyAmount};
+use crate::components::{Collapsible, Num, Progress, Resource, ResourceIcon};
 use crate::derive;
+use crate::detail::{use_detail, BuildingDetail, DetailBody, DetailTarget, ResetKind};
 use crate::format::format_value;
 use crate::i18n::{t, t_args};
 
@@ -34,6 +35,9 @@ pub fn Buildings() -> Element {
     let show_transcend = use_slice(|s| s.reset_counters.prestige_unlocked);
     let show_reincarnate = use_slice(|s| s.reset_counters.transcend_unlocked);
     let any_reset = show_prestige() || show_transcend() || show_reincarnate();
+    // The Mythos building family reveals once you've transcended (legacy
+    // `transcendunlock`), just as Diamond reveals at the prestige unlock.
+    let show_mythos = use_slice(|s| s.reset_counters.transcend_unlocked);
 
     rsx! {
         div { class: "sf-section-head",
@@ -61,6 +65,11 @@ pub fn Buildings() -> Element {
         if show_diamond() {
             Collapsible { title: t("buildings.subtab.diamond").to_string(),
                 DiamondBuildings {}
+            }
+        }
+        if show_mythos() {
+            Collapsible { title: t("buildings.subtab.mythos").to_string(),
+                MythosBuildings {}
             }
         }
     }
@@ -188,12 +197,15 @@ fn AutoBuyToggle(index: usize) -> Element {
 #[component]
 fn CoinProducerCard(index: u8) -> Element {
     let bridge = use_bridge();
+    let detail = use_detail();
     let owned = use_slice(move |s| s.coin_producers.owned(index));
     // Autobuyer unlocks via automation upgrade 80+t (Upgrades → Automation).
     let auto_unlocked = use_slice(move |s| s.upgrades.upgrades[80 + index as usize] == 1);
     let generated = use_slice(move |s| s.coin_producers.tiers[(index - 1) as usize].generated);
     let cost = use_slice(move |s| s.coin_producers.cost(index));
-    let affordable = use_slice(move |s| s.upgrades.coins >= s.coin_producers.cost(index));
+    // Throttled to 5 Hz (legacy buttoncolorchange): drives the Buy button's
+    // disabled state, which would otherwise strobe at 20 Hz under the autobuyer.
+    let affordable = use_slow_slice(move |s| s.upgrades.coins >= s.coin_producers.cost(index));
     let name_key = match index {
         1 => "buildings.coin.1",
         2 => "buildings.coin.2",
@@ -202,40 +214,25 @@ fn CoinProducerCard(index: u8) -> Element {
         _ => "buildings.coin.5",
     };
 
-    // Per-second output + % of total production (legacy buildtext rows).
-    let derived = bridge.derived.read();
-    let b = &derived.buildings;
-    let produce = b.coin_produce[(index - 1) as usize];
-    let per_sec = produce / b.tax_divisor * Decimal::from_finite(40.0);
-    let total = if b.coin_produce_total > Decimal::zero() {
-        b.coin_produce_total
-    } else {
-        Decimal::one()
-    };
-    let percent = (produce / total).to_number() * 100.0;
-    let notation = bridge.prefs.read().notation;
-
     let buy = move |_| {
         let amount = bridge.prefs.peek().buy_amount;
         let action = derive::producer_buy(&bridge.state.peek(), ProducerType::Coin, index, amount);
         bridge.dispatch(action);
     };
+    // Per-second output + % of total production live in the bottom panel now.
+    let target = DetailTarget::Building(BuildingDetail::CoinProducer(index));
+    let accent = Resource::Coins.css_color();
 
     rsx! {
-        div { class: "sf-card",
+        div {
+            class: "sf-card",
+            style: "--card-accent: {accent}",
+            tabindex: "0",
+            onmouseenter: move |_| detail.set(target),
+            onfocus: move |_| detail.set(target),
             div { class: "sf-card-title", {t(name_key)} }
             OwnedRow { owned: owned(), generated: generated() }
             CostRow { cost: cost(), resource: Resource::Coins }
-            div { class: "sf-card-row sf-persec",
-                span { class: "label", {t("buildings.per_sec")} }
-                Tooltip {
-                    tip: rsx! { span { {format_value(Decimal::from_finite(percent), notation)} "% " {t("buildings.of_total")} } },
-                    span {
-                        Num { value: per_sec }
-                        span { class: "sf-free", " ({format_value(Decimal::from_finite(percent), notation)}%)" }
-                    }
-                }
-            }
             div { class: "sf-card-actions",
                 button { disabled: !affordable(), onclick: buy, {t("buildings.buy")} }
                 if auto_unlocked() {
@@ -262,7 +259,7 @@ fn DiamondBuildings() -> Element {
                 DiamondProducerCard { key: "{index}", index }
             }
         }
-        div { class: "sf-collapsible-title sf-crystal-head", {t("upgrades.crystalUpgrades.heading")} }
+        div { class: "sf-collapsible-title sf-crystal-head", {t("crystals.heading")} }
         CrystalBonusLine {}
         div { class: "sf-card-grid",
             for i in 1..=5u8 {
@@ -286,7 +283,7 @@ fn CrystalBonusLine() -> Element {
     rsx! {
         div { class: "sf-crystal-bonus",
             {t_args(
-                "upgrades.crystal_bonus",
+                "crystals.bonus",
                 &[
                     ("crystals", &format_value(crystals(), notation)),
                     ("mult", &format_value(mult, notation)),
@@ -300,33 +297,36 @@ fn CrystalBonusLine() -> Element {
 /// in crystals, live effect (1/2/5), and a buy-to-max button.
 #[component]
 fn CrystalUpgradeCard(i: u8) -> Element {
-    use crate::sections::production::upgrade_effects::{crystal_cost, crystal_effect_text};
+    use crate::sections::production::upgrade_effects::crystal_cost;
 
     let bridge = use_bridge();
+    let detail = use_detail();
     let level = use_slice(move |s| s.crystal_upgrades.crystal_upgrades[(i - 1) as usize]);
     let cost = use_slice(move |s| crystal_cost(i, s));
-    let affordable = use_slice(move |s| s.crystal_upgrades.prestige_shards >= crystal_cost(i, s));
+    let affordable =
+        use_slow_slice(move |s| s.crystal_upgrades.prestige_shards >= crystal_cost(i, s));
     let notation = bridge.prefs.read().notation;
-    let effect = use_slice(move |s| crystal_effect_text(i, s, bridge.prefs.peek().notation));
-    let name = t(&format!("upgrades.crystalUpgrades.{i}")).to_string();
-    // The legacy explicit math formula (crystals 1/2/3/5 only). A missing key
-    // echoes itself, so render the line only when a real formula is present.
-    let formula_key = format!("upgrades.crystalFormula.{i}");
-    let formula = t(&formula_key);
-    let has_formula = formula != formula_key;
+    // Compact card title; the full descriptive name + formula + effect live in
+    // the hover/detail box.
+    let name = t_args("crystals.short", &[("n", &i.to_string())]);
 
     let buy = move |_| {
         bridge.dispatch(derive::crystal_upgrade_buy(&bridge.state.peek(), i));
     };
+    // Full name + formula + live effect live in the bottom panel now.
+    let target = DetailTarget::CrystalUpgrade(i);
+    let accent = Resource::Crystals.css_color();
 
     rsx! {
-        div { class: "sf-card",
+        div {
+            class: "sf-card",
+            style: "--card-accent: {accent}",
+            tabindex: "0",
+            onmouseenter: move |_| detail.set(target),
+            onfocus: move |_| detail.set(target),
             div { class: "sf-card-title", "{name}" }
-            if has_formula {
-                div { class: "sf-upgrade-formula", "{formula}" }
-            }
             div { class: "sf-card-row",
-                span { class: "label", {t("upgrades.crystal_level")} }
+                span { class: "label", {t("crystals.level")} }
                 span { {format_value(Decimal::from_finite(level()), notation)} }
             }
             div { class: "sf-card-row",
@@ -335,11 +335,6 @@ fn CrystalUpgradeCard(i: u8) -> Element {
                     Num { value: cost() }
                     " "
                     ResourceIcon { resource: Resource::Crystals }
-                }
-            }
-            if let Some(line) = effect() {
-                div { class: "sf-card-row sf-upgrade-effect",
-                    span { "{line}" }
                 }
             }
             div { class: "sf-card-actions",
@@ -352,11 +347,12 @@ fn CrystalUpgradeCard(i: u8) -> Element {
 #[component]
 fn DiamondProducerCard(index: u8) -> Element {
     let bridge = use_bridge();
+    let detail = use_detail();
     let owned = use_slice(move |s| s.diamond_producers.owned(index));
     let generated = use_slice(move |s| s.diamond_producers.tiers[(index - 1) as usize].generated);
     let cost = use_slice(move |s| s.diamond_producers.cost(index));
     let affordable =
-        use_slice(move |s| s.upgrades.prestige_points >= s.diamond_producers.cost(index));
+        use_slow_slice(move |s| s.upgrades.prestige_points >= s.diamond_producers.cost(index));
     // Diamond-producer autobuyers unlock via Synergism-level milestones
     // (tier-N crystal autobuy); toggle slot 9 + tier.
     let auto_unlocked = use_slice(move |s| {
@@ -388,9 +384,16 @@ fn DiamondProducerCard(index: u8) -> Element {
             derive::producer_buy(&bridge.state.peek(), ProducerType::Diamonds, index, amount);
         bridge.dispatch(action);
     };
+    let target = DetailTarget::Building(BuildingDetail::Diamond(index));
+    let accent = Resource::Diamonds.css_color();
 
     rsx! {
-        div { class: "sf-card",
+        div {
+            class: "sf-card",
+            style: "--card-accent: {accent}",
+            tabindex: "0",
+            onmouseenter: move |_| detail.set(target),
+            onfocus: move |_| detail.set(target),
             div { class: "sf-card-title", {t(name_key)} }
             OwnedRow { owned: owned(), generated: generated() }
             CostRow { cost: cost(), resource: Resource::Diamonds }
@@ -398,6 +401,71 @@ fn DiamondProducerCard(index: u8) -> Element {
                 button { disabled: !affordable(), onclick: buy, {t("buildings.buy")} }
                 if auto_unlocked() {
                     AutoBuyToggle { index: 9 + index as usize }
+                }
+            }
+        }
+    }
+}
+
+/// Mythos (transcension-tier) producers. Spend Mythos (transcend points); all
+/// five tiers reveal together once transcension is unlocked (legacy
+/// `transcendunlock`). Bought via the shared `BuyRequest::Producer` path routed
+/// to `mythos_producers` by `ProducerType::Mythos`.
+#[component]
+fn MythosBuildings() -> Element {
+    rsx! {
+        div { class: "sf-card-grid",
+            for index in 1..=5u8 {
+                MythosProducerCard { key: "{index}", index }
+            }
+        }
+    }
+}
+
+#[component]
+fn MythosProducerCard(index: u8) -> Element {
+    let bridge = use_bridge();
+    let detail = use_detail();
+    let owned = use_slice(move |s| s.mythos_producers.owned(index));
+    let generated = use_slice(move |s| s.mythos_producers.tiers[(index - 1) as usize].generated);
+    let cost = use_slice(move |s| s.mythos_producers.cost(index));
+    let affordable =
+        use_slow_slice(move |s| s.upgrades.transcend_points >= s.mythos_producers.cost(index));
+    // Mythos-producer autobuyers unlock via shop upgrades 93 + index (94–98,
+    // the "Automatically buy Augments/…/Grandmasters" upgrades); toggle slot
+    // 15 + index (the legacy `player.toggles[16..=20]`).
+    let auto_unlocked = use_slice(move |s| s.upgrades.upgrades[93 + index as usize] == 1);
+    let name_key = match index {
+        1 => "buildings.mythos.1",
+        2 => "buildings.mythos.2",
+        3 => "buildings.mythos.3",
+        4 => "buildings.mythos.4",
+        _ => "buildings.mythos.5",
+    };
+
+    let buy = move |_| {
+        let amount = bridge.prefs.peek().buy_amount;
+        let action =
+            derive::producer_buy(&bridge.state.peek(), ProducerType::Mythos, index, amount);
+        bridge.dispatch(action);
+    };
+    let target = DetailTarget::Building(BuildingDetail::Mythos(index));
+    let accent = Resource::Mythos.css_color();
+
+    rsx! {
+        div {
+            class: "sf-card",
+            style: "--card-accent: {accent}",
+            tabindex: "0",
+            onmouseenter: move |_| detail.set(target),
+            onfocus: move |_| detail.set(target),
+            div { class: "sf-card-title", {t(name_key)} }
+            OwnedRow { owned: owned(), generated: generated() }
+            CostRow { cost: cost(), resource: Resource::Mythos }
+            div { class: "sf-card-actions",
+                button { disabled: !affordable(), onclick: buy, {t("buildings.buy")} }
+                if auto_unlocked() {
+                    AutoBuyToggle { index: 15 + index as usize }
                 }
             }
         }
@@ -428,38 +496,32 @@ fn TaxLine() -> Element {
 #[component]
 fn AcceleratorCard() -> Element {
     let bridge = use_bridge();
+    let detail = use_detail();
     let owned = use_slice(|s| s.accelerator.accelerator_bought);
     let cost = use_slice(|s| s.accelerator.accelerator_cost);
-    let affordable = use_slice(|s| s.upgrades.coins >= s.accelerator.accelerator_cost);
+    let affordable = use_slow_slice(|s| s.upgrades.coins >= s.accelerator.accelerator_cost);
     let auto_unlocked = use_slice(|s| s.upgrades.upgrades[86] == 1);
-    let derived = bridge.derived.read();
-    let b = &derived.buildings;
-    let notation = bridge.prefs.read().notation;
+    let generated = bridge.derived.read().buildings.free_accelerator;
     let buy = move |_| {
         let amount = bridge.prefs.peek().buy_amount;
         bridge.dispatch(derive::accelerator_buy(&bridge.state.peek(), amount));
     };
+    // Power % + Effect × live in the bottom panel now.
+    let target = DetailTarget::Building(BuildingDetail::Accelerator);
+    let accent = Resource::Coins.css_color();
     rsx! {
-        div { class: "sf-card",
+        div {
+            class: "sf-card",
+            style: "--card-accent: {accent}",
+            tabindex: "0",
+            onmouseenter: move |_| detail.set(target),
+            onfocus: move |_| detail.set(target),
             div { class: "sf-card-title", {t("buildings.accelerators")} }
             OwnedRow {
                 owned: owned(),
-                generated: Decimal::from_finite(b.free_accelerator),
+                generated: Decimal::from_finite(generated),
             }
             CostRow { cost: cost(), resource: Resource::Coins }
-            div { class: "sf-card-row",
-                span { class: "label", {t("buildings.power")} }
-                span { class: "sf-num",
-                    "{format_value(Decimal::from_finite(b.accelerator_power_percent), notation)}%"
-                }
-            }
-            div { class: "sf-card-row",
-                span { class: "label", {t("buildings.effect")} }
-                span {
-                    Num { value: b.accelerator_effect, rate: true }
-                    "×"
-                }
-            }
             div { class: "sf-card-actions",
                 button { disabled: !affordable(), onclick: buy, {t("buildings.buy")} }
                 if auto_unlocked() {
@@ -473,39 +535,32 @@ fn AcceleratorCard() -> Element {
 #[component]
 fn MultiplierCard() -> Element {
     let bridge = use_bridge();
+    let detail = use_detail();
     let owned = use_slice(|s| s.multiplier.multiplier_bought);
     let cost = use_slice(|s| s.multiplier.multiplier_cost);
-    let affordable = use_slice(|s| s.upgrades.coins >= s.multiplier.multiplier_cost);
+    let affordable = use_slow_slice(|s| s.upgrades.coins >= s.multiplier.multiplier_cost);
     let auto_unlocked = use_slice(|s| s.upgrades.upgrades[87] == 1);
-    let derived = bridge.derived.read();
-    let b = &derived.buildings;
-    let notation = bridge.prefs.read().notation;
+    let generated = bridge.derived.read().buildings.free_multiplier;
     let buy = move |_| {
         let amount = bridge.prefs.peek().buy_amount;
         bridge.dispatch(derive::multiplier_buy(&bridge.state.peek(), amount));
     };
+    // Power × + Effect × live in the bottom panel now.
+    let target = DetailTarget::Building(BuildingDetail::Multiplier);
+    let accent = Resource::Coins.css_color();
     rsx! {
-        div { class: "sf-card",
+        div {
+            class: "sf-card",
+            style: "--card-accent: {accent}",
+            tabindex: "0",
+            onmouseenter: move |_| detail.set(target),
+            onfocus: move |_| detail.set(target),
             div { class: "sf-card-title", {t("buildings.multipliers")} }
             OwnedRow {
                 owned: owned(),
-                generated: Decimal::from_finite(b.free_multiplier),
+                generated: Decimal::from_finite(generated),
             }
             CostRow { cost: cost(), resource: Resource::Coins }
-            div { class: "sf-card-row",
-                span { class: "label", {t("buildings.power")} }
-                span { class: "sf-num",
-                    {format_value(Decimal::from_finite(b.multiplier_power), notation)}
-                    "×"
-                }
-            }
-            div { class: "sf-card-row",
-                span { class: "label", {t("buildings.effect")} }
-                span {
-                    Num { value: b.multiplier_effect, rate: true }
-                    "×"
-                }
-            }
             div { class: "sf-card-actions",
                 button { disabled: !affordable(), onclick: buy, {t("buildings.buy")} }
                 if auto_unlocked() {
@@ -521,37 +576,32 @@ fn MultiplierCard() -> Element {
 #[component]
 fn AcceleratorBoostCard() -> Element {
     let bridge = use_bridge();
+    let detail = use_detail();
     let owned = use_slice(|s| s.accelerator.accelerator_boost_bought);
     let cost = use_slice(|s| s.accelerator.accelerator_boost_cost);
     let affordable =
-        use_slice(|s| s.upgrades.prestige_points >= s.accelerator.accelerator_boost_cost);
+        use_slow_slice(|s| s.upgrades.prestige_points >= s.accelerator.accelerator_boost_cost);
     let auto_unlocked = use_slice(|s| s.upgrades.upgrades[88] == 1 && s.upgrades.upgrades[46] == 1);
-    let derived = bridge.derived.read();
-    let b = &derived.buildings;
-    let notation = bridge.prefs.read().notation;
+    let generated = bridge.derived.read().buildings.free_accelerator_boost;
     let buy = move |_| {
         bridge.dispatch(PlayerAction::Buy(BuyRequest::AcceleratorBoost));
     };
+    // Boost grants + the reset/no-reset consequence note live in the panel now.
+    let target = DetailTarget::Building(BuildingDetail::AcceleratorBoost);
+    let accent = Resource::Diamonds.css_color();
     rsx! {
-        div { class: "sf-card",
+        div {
+            class: "sf-card",
+            style: "--card-accent: {accent}",
+            tabindex: "0",
+            onmouseenter: move |_| detail.set(target),
+            onfocus: move |_| detail.set(target),
             div { class: "sf-card-title", {t("buildings.accelerator_boost")} }
             OwnedRow {
                 owned: owned(),
-                generated: Decimal::from_finite(b.free_accelerator_boost),
+                generated: Decimal::from_finite(generated),
             }
             CostRow { cost: cost(), resource: Resource::Diamonds }
-            div { class: "sf-card-row",
-                span { class: "label", {t("buildings.boost_grants")} }
-                Tooltip {
-                    tip: rsx! { span { {t("buildings.boost_warning")} } },
-                    span { class: "sf-num",
-                        "+{format_value(Decimal::from_finite(b.boost_power_percent), notation)}% · "
-                        {format_value(Decimal::from_finite(b.accelerators_per_boost), notation)}
-                        " "
-                        {t("buildings.accelerators")}
-                    }
-                }
-            }
             div { class: "sf-card-actions",
                 button { disabled: !affordable(), onclick: buy, {t("buildings.buy")} }
                 if auto_unlocked() {
@@ -571,6 +621,24 @@ enum ResetTier {
 }
 
 impl ResetTier {
+    /// Map to the detail panel's pub reset tag.
+    fn to_kind(self) -> ResetKind {
+        match self {
+            ResetTier::Prestige => ResetKind::Prestige,
+            ResetTier::Transcension => ResetKind::Transcension,
+            ResetTier::Reincarnation => ResetKind::Reincarnation,
+        }
+    }
+
+    /// Recover the tier from the detail panel's pub tag.
+    fn from_kind(kind: ResetKind) -> Self {
+        match kind {
+            ResetKind::Prestige => ResetTier::Prestige,
+            ResetKind::Transcension => ResetTier::Transcension,
+            ResetKind::Reincarnation => ResetTier::Reincarnation,
+        }
+    }
+
     /// Card title / button label key.
     fn title_key(self) -> &'static str {
         match self {
@@ -603,6 +671,16 @@ impl ResetTier {
             ResetTier::Prestige => ResetRequest::Prestige,
             ResetTier::Transcension => ResetRequest::Transcension,
             ResetTier::Reincarnation => ResetRequest::Reincarnation,
+        }
+    }
+
+    /// Whether this tier's reset should pop a confirm dialog, per the
+    /// independent Settings toggles.
+    fn confirm_enabled(self, prefs: &crate::bridge::UiPrefs) -> bool {
+        match self {
+            ResetTier::Prestige => prefs.confirm_prestige,
+            ResetTier::Transcension => prefs.confirm_transcension,
+            ResetTier::Reincarnation => prefs.confirm_reincarnation,
         }
     }
 
@@ -698,6 +776,7 @@ fn log_fraction(current: Decimal, threshold: Decimal) -> f64 {
 #[component]
 fn ResetCard(tier: ResetTier) -> Element {
     let bridge = use_bridge();
+    let detail = use_detail();
     let gain = match tier {
         ResetTier::Prestige => bridge.derived.read().prestige_point_gain,
         ResetTier::Transcension => bridge.derived.read().transcend_point_gain,
@@ -715,7 +794,7 @@ fn ResetCard(tier: ResetTier) -> Element {
         bridge.dispatch(PlayerAction::Reset(tier.request()));
     });
     let on_click = move |_| {
-        if bridge.prefs.peek().confirm_resets {
+        if tier.confirm_enabled(&bridge.prefs.peek()) {
             let (tk, bk) = tier.confirm_keys();
             bridge.confirm(tk, bk, do_reset);
         } else {
@@ -723,8 +802,16 @@ fn ResetCard(tier: ResetTier) -> Element {
         }
     };
 
+    let target = DetailTarget::Reset(tier.to_kind());
+    let accent = tier.gain_resource().css_color();
+
     rsx! {
-        div { class: "sf-card",
+        div {
+            class: "sf-card",
+            style: "--card-accent: {accent}",
+            tabindex: "0",
+            onmouseenter: move |_| detail.set(target),
+            onfocus: move |_| detail.set(target),
             div { class: "sf-card-title", {t(tier.title_key())} }
             div { class: "sf-card-row",
                 span { class: "label", {t("buildings.prestige_gain")} }
@@ -752,6 +839,259 @@ fn ResetCard(tier: ResetTier) -> Element {
                     disabled: !available,
                     onclick: on_click,
                     {t(tier.title_key())}
+                }
+            }
+        }
+    }
+}
+
+/// Reset body for the shared bottom detail panel: what the reset does, the
+/// gain, and the requirement.
+#[component]
+pub fn ResetDetailBody(kind: ResetKind) -> Element {
+    let bridge = use_bridge();
+    let tier = ResetTier::from_kind(kind);
+    let gain = match tier {
+        ResetTier::Prestige => bridge.derived.read().prestige_point_gain,
+        ResetTier::Transcension => bridge.derived.read().transcend_point_gain,
+        ResetTier::Reincarnation => bridge.derived.read().reincarnation_point_gain,
+    };
+    let gate = tier.gate(&bridge.state.read(), gain);
+    let notation = bridge.prefs.read().notation;
+    let (_, body_key) = tier.confirm_keys();
+
+    rsx! {
+        DetailBody {
+            title: t(tier.title_key()).to_string(),
+            description: Some(t(body_key).to_string()),
+            accent: Some(tier.gain_resource().css_color()),
+            div { class: "sf-card-row",
+                span { class: "label", {t("buildings.prestige_gain")} }
+                span {
+                    "+"
+                    Num { value: gain }
+                    " "
+                    ResourceIcon { resource: tier.gain_resource() }
+                }
+            }
+            div { class: "sf-card-row",
+                span { class: "label", {t("buildings.requires")} }
+                span {
+                    {format_value(gate.current, notation)}
+                    " / "
+                    {format_value(gate.threshold, notation)}
+                    " "
+                    ResourceIcon { resource: gate.resource }
+                }
+            }
+        }
+    }
+}
+
+/// Crystal-upgrade body for the shared bottom detail panel: name, the legacy
+/// math formula (1/2/3/5 only), level, cost, and the live effect line.
+#[component]
+pub fn CrystalDetailBody(i: u8) -> Element {
+    use crate::sections::production::upgrade_effects::{crystal_cost, crystal_effect_text};
+
+    let bridge = use_bridge();
+    let state = bridge.state.read();
+    let notation = bridge.prefs.read().notation;
+    let name = t(&format!("crystals.{i}.desc")).to_string();
+    let level = state.crystal_upgrades.crystal_upgrades[(i - 1) as usize];
+    let cost = crystal_cost(i, &state);
+    let effect = crystal_effect_text(i, &state, notation);
+    let formula_key = format!("crystals.{i}.formula");
+    let formula = t(&formula_key);
+    let has_formula = formula != formula_key;
+
+    rsx! {
+        DetailBody {
+            title: t_args("crystals.short", &[("n", &i.to_string())]),
+            description: Some(name),
+            formula: if has_formula { Some(formula.to_string()) } else { None },
+            accent: Some(Resource::Crystals.css_color()),
+            div { class: "sf-card-row",
+                span { class: "label", {t("crystals.level")} }
+                span { {format_value(Decimal::from_finite(level), notation)} }
+            }
+            CostRow { cost, resource: Resource::Crystals }
+            if let Some(line) = effect {
+                div { class: "sf-card-row sf-upgrade-effect", span { "{line}" } }
+            }
+        }
+    }
+}
+
+/// Building-card body for the shared bottom detail panel: the full readout
+/// (owned/cost plus the verbose derived rows the slim cards dropped).
+#[component]
+pub fn BuildingDetailBody(which: BuildingDetail) -> Element {
+    let bridge = use_bridge();
+    let state = bridge.state.read();
+    let derived = bridge.derived.read();
+    let b = &derived.buildings;
+    let notation = bridge.prefs.read().notation;
+
+    match which {
+        BuildingDetail::CoinProducer(tier) => {
+            let name_key = match tier {
+                1 => "buildings.coin.1",
+                2 => "buildings.coin.2",
+                3 => "buildings.coin.3",
+                4 => "buildings.coin.4",
+                _ => "buildings.coin.5",
+            };
+            let owned = state.coin_producers.owned(tier);
+            let generated = state.coin_producers.tiers[(tier - 1) as usize].generated;
+            let cost = state.coin_producers.cost(tier);
+            let produce = b.coin_produce[(tier - 1) as usize];
+            let per_sec = produce / b.tax_divisor * Decimal::from_finite(40.0);
+            let total = if b.coin_produce_total > Decimal::zero() {
+                b.coin_produce_total
+            } else {
+                Decimal::one()
+            };
+            let percent = (produce / total).to_number() * 100.0;
+            rsx! {
+                DetailBody {
+                    title: t(name_key).to_string(),
+                    marker: Some(rsx! { ResourceIcon { resource: Resource::Coins } }),
+                    accent: Some(Resource::Coins.css_color()),
+                    OwnedRow { owned, generated }
+                    CostRow { cost, resource: Resource::Coins }
+                    div { class: "sf-card-row",
+                        span { class: "label", {t("buildings.per_sec")} }
+                        span {
+                            Num { value: per_sec }
+                            span { class: "sf-free",
+                                " ({format_value(Decimal::from_finite(percent), notation)}%)"
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        BuildingDetail::Diamond(tier) => {
+            let name_key = match tier {
+                1 => "buildings.diamond.1",
+                2 => "buildings.diamond.2",
+                3 => "buildings.diamond.3",
+                4 => "buildings.diamond.4",
+                _ => "buildings.diamond.5",
+            };
+            let owned = state.diamond_producers.owned(tier);
+            let generated = state.diamond_producers.tiers[(tier - 1) as usize].generated;
+            let cost = state.diamond_producers.cost(tier);
+            rsx! {
+                DetailBody {
+                    title: t(name_key).to_string(),
+                    marker: Some(rsx! { ResourceIcon { resource: Resource::Diamonds } }),
+                    accent: Some(Resource::Diamonds.css_color()),
+                    OwnedRow { owned, generated }
+                    CostRow { cost, resource: Resource::Diamonds }
+                }
+            }
+        }
+        BuildingDetail::Mythos(tier) => {
+            let name_key = match tier {
+                1 => "buildings.mythos.1",
+                2 => "buildings.mythos.2",
+                3 => "buildings.mythos.3",
+                4 => "buildings.mythos.4",
+                _ => "buildings.mythos.5",
+            };
+            let owned = state.mythos_producers.owned(tier);
+            let generated = state.mythos_producers.tiers[(tier - 1) as usize].generated;
+            let cost = state.mythos_producers.cost(tier);
+            rsx! {
+                DetailBody {
+                    title: t(name_key).to_string(),
+                    marker: Some(rsx! { ResourceIcon { resource: Resource::Mythos } }),
+                    accent: Some(Resource::Mythos.css_color()),
+                    OwnedRow { owned, generated }
+                    CostRow { cost, resource: Resource::Mythos }
+                }
+            }
+        }
+        BuildingDetail::Accelerator => {
+            let owned = state.accelerator.accelerator_bought;
+            let cost = state.accelerator.accelerator_cost;
+            rsx! {
+                DetailBody {
+                    title: t("buildings.accelerators").to_string(),
+                    marker: Some(rsx! { ResourceIcon { resource: Resource::Coins } }),
+                    accent: Some(Resource::Coins.css_color()),
+                    OwnedRow { owned, generated: Decimal::from_finite(b.free_accelerator) }
+                    CostRow { cost, resource: Resource::Coins }
+                    div { class: "sf-card-row",
+                        span { class: "label", {t("buildings.power")} }
+                        span { class: "sf-num",
+                            "{format_value(Decimal::from_finite(b.accelerator_power_percent), notation)}%"
+                        }
+                    }
+                    div { class: "sf-card-row",
+                        span { class: "label", {t("buildings.effect")} }
+                        span {
+                            Num { value: b.accelerator_effect, rate: true }
+                            "×"
+                        }
+                    }
+                }
+            }
+        }
+        BuildingDetail::Multiplier => {
+            let owned = state.multiplier.multiplier_bought;
+            let cost = state.multiplier.multiplier_cost;
+            rsx! {
+                DetailBody {
+                    title: t("buildings.multipliers").to_string(),
+                    marker: Some(rsx! { ResourceIcon { resource: Resource::Coins } }),
+                    accent: Some(Resource::Coins.css_color()),
+                    OwnedRow { owned, generated: Decimal::from_finite(b.free_multiplier) }
+                    CostRow { cost, resource: Resource::Coins }
+                    div { class: "sf-card-row",
+                        span { class: "label", {t("buildings.power")} }
+                        span { class: "sf-num",
+                            {format_value(Decimal::from_finite(b.multiplier_power), notation)}
+                            "×"
+                        }
+                    }
+                    div { class: "sf-card-row",
+                        span { class: "label", {t("buildings.effect")} }
+                        span {
+                            Num { value: b.multiplier_effect, rate: true }
+                            "×"
+                        }
+                    }
+                }
+            }
+        }
+        BuildingDetail::AcceleratorBoost => {
+            let owned = state.accelerator.accelerator_boost_bought;
+            let cost = state.accelerator.accelerator_boost_cost;
+            let no_reset = state.upgrades.upgrades[46] >= 1;
+            rsx! {
+                DetailBody {
+                    title: t("buildings.accelerator_boost").to_string(),
+                    marker: Some(rsx! { ResourceIcon { resource: Resource::Diamonds } }),
+                    accent: Some(Resource::Diamonds.css_color()),
+                    OwnedRow { owned, generated: Decimal::from_finite(b.free_accelerator_boost) }
+                    CostRow { cost, resource: Resource::Diamonds }
+                    div { class: "sf-card-row",
+                        span { class: "label", {t("buildings.boost_grants")} }
+                        span { class: "sf-num",
+                            "+{format_value(Decimal::from_finite(b.boost_power_percent), notation)}% · "
+                            {format_value(Decimal::from_finite(b.accelerators_per_boost), notation)}
+                            " "
+                            {t("buildings.accelerators")}
+                        }
+                    }
+                    if no_reset {
+                        div { class: "sf-boost-note", {t("buildings.boost_safe")} }
+                    } else {
+                        div { class: "sf-boost-note warn", {t("buildings.boost_warning")} }
+                    }
                 }
             }
         }

@@ -95,13 +95,24 @@ pub struct UiPrefs {
     /// load as the default (`One`) rather than failing to parse.
     #[serde(default)]
     pub buy_amount: BuyAmount,
+    /// Offering buy-amount for the Runes section (1/10/100/1k/10k/MAX).
+    /// Persisted like `buy_amount`; `#[serde(default)]` so prefs written
+    /// before it existed load as `Fixed(1.0)` rather than failing to parse.
+    #[serde(default)]
+    pub offering_buy_amount: crate::derive::RuneBuyAmount,
     pub theme: Theme,
-    /// Ask before prestiging ("don't ask again" unchecks this).
-    pub confirm_resets: bool,
-    /// Show the right-side Status panel (reset gains + live stats).
-    /// `#[serde(default)]` so older saves load with the panel on.
+    /// Ask before a Prestige reset. Per-tier so each can be silenced
+    /// independently. `#[serde(default)]` (→ on) so prefs written before the
+    /// per-tier split — which had a single `confirm_resets` field — load with
+    /// confirmations on rather than failing to parse.
     #[serde(default = "default_true")]
-    pub show_stats_panel: bool,
+    pub confirm_prestige: bool,
+    /// Ask before a Transcension reset.
+    #[serde(default = "default_true")]
+    pub confirm_transcension: bool,
+    /// Ask before a Reincarnation reset.
+    #[serde(default = "default_true")]
+    pub confirm_reincarnation: bool,
 }
 
 /// `serde(default)` helper: a `bool` field defaults to `false`, but a missing
@@ -115,9 +126,11 @@ impl Default for UiPrefs {
         Self {
             notation: Notation::default(),
             buy_amount: BuyAmount::default(),
+            offering_buy_amount: crate::derive::RuneBuyAmount::default(),
             theme: Theme::default(),
-            confirm_resets: true,
-            show_stats_panel: true,
+            confirm_prestige: true,
+            confirm_transcension: true,
+            confirm_reincarnation: true,
         }
     }
 }
@@ -191,6 +204,12 @@ pub struct GameBridge {
     pub route: Signal<Route>,
     /// HUD numbers derived per tick.
     pub derived: Signal<DerivedTickStats>,
+    /// 5 Hz UI pulse — the legacy `slowUpdates` / `buttoncolorchange` cadence
+    /// (`Synergism.ts:4540`, 200 ms). Drives throttled visual state, chiefly
+    /// buy-button affordability, so it doesn't strobe at the 20 Hz tick rate
+    /// when an autobuyer drains the currency past a cost threshold every tick.
+    /// Incremented every 4th tick by the loop driver. See [`use_slow_slice`].
+    pub slow_pulse: Signal<u32>,
     /// Toast id counter.
     toast_seq: Signal<u64>,
 }
@@ -211,6 +230,7 @@ impl GameBridge {
                 prefs: Signal::new(prefs),
                 route: Signal::new(Route::default()),
                 derived: Signal::new(DerivedTickStats::default()),
+                slow_pulse: Signal::new(0),
                 toast_seq: Signal::new(0),
             }
         })
@@ -294,4 +314,27 @@ where
 {
     let bridge = use_bridge();
     use_memo(move || select(&bridge.state.read()))
+}
+
+/// Like [`use_slice`], but recomputes only on the 5 Hz [`GameBridge::slow_pulse`]
+/// rather than every tick. It subscribes to the pulse and reads state via
+/// `peek` (non-reactive), so the value is a ≤200 ms-stale snapshot.
+///
+/// Use this for throttled *visual* state — buy-button `disabled`, affordability
+/// coloring — that would otherwise strobe at 20 Hz when an autobuyer drains the
+/// currency past a cost threshold every tick. The legacy game refreshes exactly
+/// this state at 5 Hz (`buttoncolorchange` in `slowUpdates`). Do **not** use it
+/// for numbers shown live (owned / cost / per-sec) — those want [`use_slice`].
+pub fn use_slow_slice<T, F>(select: F) -> Memo<T>
+where
+    T: PartialEq + 'static,
+    F: Fn(&GameState) -> T + 'static,
+{
+    let bridge = use_bridge();
+    use_memo(move || {
+        // Subscribe to the 5 Hz pulse only; the state read below is a
+        // non-reactive snapshot, so this memo ignores the 20 Hz tick.
+        let _ = bridge.slow_pulse.read();
+        select(&bridge.state.peek())
+    })
 }

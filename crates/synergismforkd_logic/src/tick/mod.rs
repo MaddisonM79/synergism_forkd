@@ -64,6 +64,7 @@ use crate::mechanics::researches::{buy_research, BuyResearchInput};
 use crate::mechanics::reset_currency::ResetCurrencyResult;
 use crate::mechanics::resource_gain::{resource_gain, ResourceGainPre};
 use crate::mechanics::rune_levels::{buy_rune_levels, BuyRuneLevelsInput};
+use crate::mechanics::rune_upgrade_progression::{buy_rune_upgrade, BuyRuneUpgradeInput};
 use crate::mechanics::shop_costs::{buy_shop, BuyShopInput};
 use crate::mechanics::talisman_levels::{buy_talisman_level, BuyTalismanLevelInput};
 use crate::mechanics::tesseract_buildings::{buy_tesseract_building, BuyTesseractBuildingInput};
@@ -389,6 +390,9 @@ pub enum AutoToggle {
     /// 7, boost 8, diamond producers 10-14, mythos 16-20, particle 22-26).
     /// Out-of-range is ignored.
     BuildingAutobuy(usize),
+    /// `automation.shop_toggles.<field>` — an upgrade-family autobuy enable
+    /// (the legacy `player.shoptoggles`). Read by the upgrade-tab autobuyer.
+    ShopAutobuy(crate::state::ShopAutobuyKind),
 }
 
 /// Per-mechanic dispatcher for the eight `buy_*` purchase loops. The
@@ -420,6 +424,10 @@ pub enum BuyRequest {
     AmbrosiaUpgrade(BuyAmbrosiaUpgradeInput),
     /// Routes to [`buy_rune_levels`].
     RuneLevels(BuyRuneLevelsInput),
+    /// Routes to [`buy_rune_upgrade`] on the blessing arrays.
+    RuneBlessing(BuyRuneUpgradeInput),
+    /// Routes to [`buy_rune_upgrade`] on the spirit arrays.
+    RuneSpirit(BuyRuneUpgradeInput),
     /// Routes to [`buy_ant_producer`].
     AntProducer(BuyAntProducerInput),
     /// Routes to [`buy_ant_upgrade`].
@@ -560,6 +568,15 @@ pub struct DerivedTickStats {
     /// Coins gained per real second at this tick's production + speed
     /// multiplier (tax-capped).
     pub coins_per_sec: Decimal,
+    /// Crystals (prestige shards) produced per real second by the diamond
+    /// buildings — the prestige-tier analogue of `coins_per_sec`.
+    pub crystals_per_sec: Decimal,
+    /// Obtainium gained per real second from auto-obtainium (0 unless
+    /// research 61 — automatic obtainium — is owned).
+    pub obtainium_per_sec: Decimal,
+    /// Offerings gained per real second from the passive auto-offering
+    /// trickle (0 until challenge 3 is first cleared).
+    pub offerings_per_sec: Decimal,
     /// Prestige points the next prestige would award (`G.prestigePointGain`).
     pub prestige_point_gain: Decimal,
     /// Transcend points the next transcension would award.
@@ -837,9 +854,35 @@ pub fn tack(state: &mut GameState, input: &TackInput) -> TickOutput {
     // The coin rate composes the base-tick gain (`resource_gain`'s `addcoin`
     // per 0.025 s) with the same speed multiplier phase_generation ran on.
     let per_sec_scale = Decimal::from_finite(40.0 * automation_pre.global_time_multiplier);
+    // Crystals/sec: the tier-1 diamond-building production (`produce_diamonds`)
+    // scaled like coins — generated+owned × base rate × crystal multiplier ×
+    // the 40×speed per-second scale.
+    let d0 = &state.diamond_producers.tiers[0];
+    let crystals_per_sec = (d0.generated + Decimal::from_finite(d0.owned))
+        * Decimal::from_finite(resource_gain_pre.first_produce_diamonds)
+        * resource_gain_pre.global_crystal_multiplier
+        * per_sec_scale;
+    // Obtainium/sec: the auto-obtainium gain evaluated for 1 s (it's linear in
+    // dt). Only credited when research 61 is owned, so the rate is 0 otherwise.
+    let obtainium_per_sec = if state.researches.researches[61] == 1.0 {
+        compute_obtainium_gain(state, 1.0, reset_gains.reincarnation_point_gain)
+    } else {
+        Decimal::zero()
+    };
+    // Offerings/sec: the passive auto-offering trickle adds `dt / 2` to a
+    // counter each tick and floors it into offerings → a flat 0.5/s, gated on
+    // having ever cleared challenge 3.
+    let offerings_per_sec = if state.challenges.highest_challenge_completions[3] > 0.0 {
+        Decimal::from_finite(0.5)
+    } else {
+        Decimal::zero()
+    };
     output.derived = DerivedTickStats {
         coins_per_sec: crate::mechanics::resource_gain::coin_gain_per_base_tick(&resource_gain_pre)
             * per_sec_scale,
+        crystals_per_sec,
+        obtainium_per_sec,
+        offerings_per_sec,
         prestige_point_gain: reset_gains.prestige_point_gain,
         transcend_point_gain: reset_gains.transcend_point_gain,
         reincarnation_point_gain: reset_gains.reincarnation_point_gain,
@@ -925,6 +968,12 @@ fn update_progress_unlocks(state: &mut GameState) {
     rc.coin_three_unlocked |= coins >= Decimal::from_finite(100_000.0);
     rc.coin_four_unlocked |= coins >= Decimal::from_finite(4e6);
     rc.generation_unlocked |= prestige_points >= Decimal::from_finite(1e12);
+    // Self-heal the tier unlocks from the reset counts: anyone who has ever
+    // transcended/reincarnated keeps the Mythos / Particle reveal even if a
+    // prior build's reset failed to latch the flag (the reset now sets it
+    // directly — this also recovers saves written before that fix).
+    rc.transcend_unlocked |= rc.transcend_count > 0.0;
+    rc.reincarnate_unlocked |= rc.reincarnation_count > 0.0;
 }
 
 /// Effective ant-upgrade level (legacy `calculateTrueAntLevel`): purchased
@@ -1072,7 +1121,7 @@ fn first_five_effective_rune_level_mult(state: &GameState) -> f64 {
 /// duplication have ported bonus aggregators (coin-log + coin-upgrade driven);
 /// their `getRuneBonusFromAllTalismans` talisman bonus is unported (neutral 0),
 /// and the prism/thrift/SI per-rune bonuses are unported (0). Identity at default.
-fn rune_free_levels(state: &GameState, rune: usize) -> f64 {
+pub fn rune_free_levels(state: &GameState, rune: usize) -> f64 {
     use crate::mechanics::ant_upgrades::free_runes_ant_upgrade_effect;
     use crate::mechanics::rune_level_bonuses::{
         bonus_rune_levels_duplication, bonus_rune_levels_speed, first_five_free_levels,
@@ -1129,12 +1178,50 @@ fn rune_free_levels(state: &GameState, rune: usize) -> f64 {
 /// (neutral, identity at default): the achievement-gated `isUnlocked` gates
 /// (defaulting them to locked would wrongly zero the runes while achievements
 /// are unported, H5) and SI's extra quark-based mult.
-fn first_five_effective_rune_level(state: &GameState, rune: usize) -> f64 {
+pub fn first_five_effective_rune_level(state: &GameState, rune: usize) -> f64 {
     if state.challenges.current_reincarnation_challenge == 9 {
         return 1.0;
     }
     (state.runes.rune_levels[rune] + rune_free_levels(state, rune))
         * first_five_effective_rune_level_mult(state)
+}
+
+/// `getRuneEXPPerOffering(rune)` for a top-level rune — `universalRuneEXPMult`
+/// evaluated from current state at this rune's purchased level (Runes.ts:373).
+/// The C15 rune-EXP reward and salvage multiplier are neutral `1` until those
+/// endgame systems are ported (faithful at pre-ascension progression).
+#[must_use]
+pub fn rune_exp_per_offering(state: &GameState, rune: usize) -> Decimal {
+    use crate::mechanics::rune_exp_multiplier::{
+        universal_rune_exp_mult, UniversalRuneEXPMultInput,
+    };
+    universal_rune_exp_mult(UniversalRuneEXPMultInput {
+        purchased_levels: state.runes.rune_levels.get(rune).copied().unwrap_or(0.0),
+        c1_completions: state.challenges.highest_challenge_completions[1],
+        research_22: state.researches.researches[22],
+        research_23: state.researches.researches[23],
+        upgrade_71: f64::from(state.upgrades.upgrades[71]),
+        research_91: state.researches.researches[91],
+        research_92: state.researches.researches[92],
+        ascension_counter: state.reset_counters.ascension_counter,
+        cube_upgrade_32: state.cube_upgrade_levels.cube_upgrades[32],
+        constant_upgrade_8: state.campaigns.constant_upgrades[8],
+        challenge_15_rune_exp_reward: 1.0,
+        salvage_rune_exp_multiplier: Decimal::one(),
+    })
+}
+
+/// `getLevelsPerOOM(rune)` for a top-level rune. The `levelsPerOOMIncrease()`
+/// term (research 78+, ascension challenges 11/14, talismans, ambrosia, level
+/// milestones) is `0` until ascension-era progression, so this returns the
+/// base slope — exact at pre-ascension and the single future wiring point.
+#[must_use]
+pub fn rune_effective_levels_per_oom(
+    _state: &GameState,
+    _rune: usize,
+    base_levels_per_oom: f64,
+) -> f64 {
+    base_levels_per_oom
 }
 
 /// `otherBlessingMultipliers` (RuneBlessings.ts:42): the shared multiplier on
@@ -1160,7 +1247,7 @@ fn other_blessing_multipliers(state: &GameState) -> f64 {
 /// wrong (raw blessing level, dropping the rune's own level and the shared
 /// mult). `freeLevels` is deferred (P2.1b, neutral 0). Identity at default
 /// (blessing level 0 → power 0).
-fn rune_blessing_power(state: &GameState, rune: usize) -> f64 {
+pub fn rune_blessing_power(state: &GameState, rune: usize) -> f64 {
     state.runes.rune_blessing_levels[rune]
         * state.runes.rune_levels[rune]
         * other_blessing_multipliers(state)
@@ -1191,7 +1278,7 @@ fn other_spirit_multipliers(state: &GameState) -> f64 {
 /// spirit-level factor; `freeLevels` is deferred (neutral 0, as there). Spirit
 /// levels exist only for the first five runes. Identity at default (spirit
 /// level 0 → power 0).
-fn rune_spirit_power(state: &GameState, rune: usize) -> f64 {
+pub fn rune_spirit_power(state: &GameState, rune: usize) -> f64 {
     state.runes.rune_spirit_levels[rune]
         * state.runes.rune_levels[rune]
         * state.runes.rune_blessing_levels[rune]
@@ -6147,6 +6234,10 @@ fn compute_resource_gain_pre(
         prestige_point_gain: reset.prestige_point_gain,
         transcend_point_gain: reset.transcend_point_gain,
         reincarnation_point_gain: reset.reincarnation_point_gain,
+        // Coin generator-cascade multipliers (from the accelerator aggregator).
+        generator_power: agg.update_all_tick.generator_power,
+        u_fourteen_multi: agg.update_all_tick.u_fourteen_multi,
+        u_fifteen_multi: agg.update_all_tick.u_fifteen_multi,
     }
 }
 
@@ -6733,6 +6824,7 @@ fn set_automation_toggle(state: &mut GameState, target: AutoToggle, enabled: boo
                 *flag = enabled;
             }
         }
+        AutoToggle::ShopAutobuy(kind) => auto.shop_toggles.set(kind, enabled),
     }
 }
 
@@ -6957,6 +7049,15 @@ fn phase_generation(
     state.reset_counters.transcend_shards = result.transcend_shards;
     state.reset_counters.reincarnation_shards = result.reincarnation_shards;
     state.campaigns.ascend_shards = result.ascend_shards;
+
+    // ─── Coin generated counters (generator upgrades 101-105) ────────────
+    // All five tiers update here — upgrade 105 feeds tier 5 (Alchemies) from
+    // tier 1 (Workers), so unlike the cascades below, tier 5 is not terminal.
+    state.coin_producers.tiers[0].generated = result.first_generated_coin;
+    state.coin_producers.tiers[1].generated = result.second_generated_coin;
+    state.coin_producers.tiers[2].generated = result.third_generated_coin;
+    state.coin_producers.tiers[3].generated = result.fourth_generated_coin;
+    state.coin_producers.tiers[4].generated = result.fifth_generated_coin;
 
     // ─── Generated counters (tier 1..4; tier 5 is terminal) ──────────────
     state.diamond_producers.tiers[0].generated = result.first_generated_diamonds;
@@ -7593,6 +7694,24 @@ fn dispatch_buy(
         BuyRequest::AmbrosiaUpgrade(inp) => buy_ambrosia_upgrade(&mut state.ambrosia, *inp),
         BuyRequest::RuneLevels(inp) => {
             buy_rune_levels(&mut state.runes, &mut state.automation.offerings, *inp)
+        }
+        BuyRequest::RuneBlessing(inp) => {
+            buy_rune_upgrade(
+                &mut state.runes.rune_blessing_levels,
+                &mut state.runes.rune_blessing_exp,
+                &mut state.automation.offerings,
+                *inp,
+            );
+            SmallVec::new()
+        }
+        BuyRequest::RuneSpirit(inp) => {
+            buy_rune_upgrade(
+                &mut state.runes.rune_spirit_levels,
+                &mut state.runes.rune_spirit_exp,
+                &mut state.automation.offerings,
+                *inp,
+            );
+            SmallVec::new()
         }
         BuyRequest::AntProducer(inp) => buy_ant_producer(&mut state.ants, *inp),
         BuyRequest::AntUpgrade(inp) => buy_ant_upgrade(&mut state.ants, *inp),
@@ -10822,12 +10941,14 @@ mod tests {
             dt: 0.025,
             ..TackInput::default()
         };
-        // Level 0: tier1CrystalAutobuy milestone not met -> no purchase.
+        // Achievement level 0: tier1CrystalAutobuy milestone not met -> no buy.
         let mut low = state.clone();
         let _ = tack(&mut low, &input);
         assert_eq!(low.diamond_producers.tiers[0].owned, 0.0);
-        // Level >= 6 unlocks the milestone -> diamonds auto-buy.
-        state.level.level = 100.0;
+        // tier1CrystalAutobuy unlocks at achievement level 6 (300 points);
+        // the milestone gate reads the achievement-points level, not the
+        // per-tier player level. -> diamonds auto-buy.
+        state.achievements.achievement_points = 300.0;
         let _ = tack(&mut state, &input);
         assert!(state.diamond_producers.tiers[0].owned > 0.0);
     }
@@ -10835,7 +10956,9 @@ mod tests {
     #[test]
     fn auto_buy_crystal_upgrades_gated_on_milestone() {
         let mut state = GameState::default();
-        state.level.level = 1000.0; // unlock all tierNCrystalAutobuy milestones
+        // Achievement level 20 (1000 points) unlocks all tierNCrystalAutobuy
+        // milestones (tier5 has the highest levelReq, 20).
+        state.achievements.achievement_points = 1000.0;
         state.crystal_upgrades.prestige_shards = Decimal::from_finite(1e30);
         let input = TackInput {
             dt: 0.025,
@@ -10939,6 +11062,46 @@ mod tests {
         };
         let _ = tack(&mut state, &input);
         assert!((state.crystal_upgrades.prestige_shards.to_number() - 50.0).abs() < 1e-9);
+    }
+
+    #[test]
+    fn coin_generator_cascade_writes_back_through_tack() {
+        // End-to-end regression: generator upgrade 101 (Alchemies → Coin Mints)
+        // must grow tier-4 coin `generated`. The original bug was that
+        // `phase_generation` never wrote coin `generated` back, so the whole
+        // generator chain (101-105) was inert and Coin Mints showed "+0".
+        let mut state = GameState::default();
+        state.upgrades.upgrades[101] = 1; // Alchemies → Coin Mints
+        state.coin_producers.tiers[4].owned = 100.0; // 100 Alchemies
+        let input = TackInput {
+            dt: 0.05,
+            ..TackInput::default()
+        };
+        let _ = tack(&mut state, &input);
+        // gen_dt = 0.05 / 0.05 = 1; tier-4 (Coin Mints) += (0 + 100) * 1 * 1 = 100.
+        assert!((state.coin_producers.tiers[3].generated.to_number() - 100.0).abs() < 1e-9);
+    }
+
+    #[test]
+    fn hud_per_second_rates_track_continuous_producers() {
+        // The HUD shows `/s` for continuously-produced resources. Verify each
+        // rate surfaces through the derived stats.
+        let mut state = GameState::default();
+        state.diamond_producers.tiers[0].owned = 100.0; // produces Crystals
+        state.challenges.highest_challenge_completions[3] = 1.0; // offering trickle on
+        let input = TackInput {
+            dt: 0.05,
+            ..TackInput::default()
+        };
+        let out = tack(&mut state, &input);
+        assert!(
+            out.derived.crystals_per_sec.to_number() > 0.0,
+            "diamond buildings produce crystals/s"
+        );
+        // Passive auto-offering trickle is a flat 0.5/s once c3 is cleared.
+        assert!((out.derived.offerings_per_sec.to_number() - 0.5).abs() < 1e-9);
+        // Auto-obtainium is gated on research 61 (off here) → no rate.
+        assert_eq!(out.derived.obtainium_per_sec.to_number(), 0.0);
     }
 
     #[test]

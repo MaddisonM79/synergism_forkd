@@ -9,6 +9,7 @@ use synergismforkd_logic::TackInput;
 use synergismforkd_ui::bridge::{
     BuyAmount, DialogKind, DialogRequest, GameBridge, HostCommand, UiPrefs,
 };
+use synergismforkd_ui::derive::RuneBuyAmount;
 use synergismforkd_ui::events_map;
 use synergismforkd_ui::gating::Route;
 use synergismforkd_ui::i18n::t;
@@ -46,6 +47,9 @@ pub async fn run(
 
     let mut last_s = platform::perf_now_s();
     let mut was_hidden = platform::document_hidden();
+    // Tick counter for the 5 Hz UI pulse (every 4th tick at 50 ms = 200 ms,
+    // the legacy `slowUpdates`/`buttoncolorchange` cadence).
+    let mut tick_count: u64 = 0;
     // Previous-tick achievement bitmap; diffed each tick to toast new
     // unlocks. Seeded from the (already catch-up'd) booted state so we
     // don't toast everything earned before this session.
@@ -88,6 +92,16 @@ pub async fn run(
         if *bridge.derived.peek() != output.derived {
             let mut signal = bridge.derived;
             signal.set(output.derived);
+        }
+
+        // 5 Hz UI pulse: fire every 4th tick so throttled visual state
+        // (buy-button affordability) settles at the legacy `slowUpdates`
+        // cadence instead of strobing at 20 Hz under an active autobuyer.
+        tick_count = tick_count.wrapping_add(1);
+        if tick_count % 4 == 0 {
+            let mut pulse = bridge.slow_pulse;
+            let next = pulse.peek().wrapping_add(1);
+            pulse.set(next);
         }
 
         events_map::apply(&bridge, &output.events);
@@ -174,11 +188,15 @@ async fn handle_host_commands(bridge: &GameBridge, host: &mut SaveHost<LocalStor
                 let mut state = bridge.state;
                 state.set(fresh);
                 // A fresh game starts at the x1 buy amount; the bulk-buy
-                // selector is run-scoped, so reset it (the other prefs —
+                // selectors are run-scoped, so reset both (the other prefs —
                 // theme/notation/confirm — are deliberate and survive).
                 // The root's persistence effect writes the change to storage.
                 let mut prefs = bridge.prefs;
-                prefs.write().buy_amount = BuyAmount::One;
+                {
+                    let mut w = prefs.write();
+                    w.buy_amount = BuyAmount::One;
+                    w.offering_buy_amount = RuneBuyAmount::default();
+                }
                 bridge.navigate(Route::default());
                 bridge.toast_info("toasts.hard_reset_done");
             }

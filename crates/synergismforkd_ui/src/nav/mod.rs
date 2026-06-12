@@ -69,6 +69,8 @@ pub fn SubNav() -> Element {
                     {t(section.label_key())}
                 }
             }
+            // Reset-gain icons sit on the right of the tab row.
+            crate::sections::header::ResetGains {}
         }
     }
 }

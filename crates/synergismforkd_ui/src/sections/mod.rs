@@ -2,6 +2,8 @@
 //! its content panel. Sections beyond the current milestone render the
 //! shared placeholder once their unlock gate opens.
 
+pub mod header;
+pub mod mystic;
 pub mod production;
 pub mod settings;
 
@@ -20,7 +22,9 @@ pub fn SectionView() -> Element {
             match section {
                 Section::Buildings => rsx! { production::buildings::Buildings {} },
                 Section::Upgrades => rsx! { production::upgrades::Upgrades {} },
+                Section::Stats => rsx! { production::stats::StatsPage {} },
                 Section::Achievements => rsx! { production::achievements::Achievements {} },
+                Section::Runes => rsx! { mystic::runes::Runes {} },
                 Section::Settings => rsx! { settings::page::Settings {} },
                 _ => rsx! { div { class: "sf-placeholder", {t("nav.placeholder")} } },
             }

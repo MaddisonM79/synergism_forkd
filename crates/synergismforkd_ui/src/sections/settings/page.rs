@@ -16,8 +16,96 @@ pub fn Settings() -> Element {
             h1 { {t("nav.group.settings")} }
         }
         AppearanceSection {}
+        ConfirmationsSection {}
         SavesSection {}
         DangerZone {}
+    }
+}
+
+/// Which reset tier a [`ConfirmRow`] toggles. Mirrors the three reset cards on
+/// the Buildings page; kept local so Settings doesn't depend on that module.
+#[derive(Clone, Copy, PartialEq)]
+enum ConfirmTier {
+    Prestige,
+    Transcension,
+    Reincarnation,
+}
+
+impl ConfirmTier {
+    const ALL: [ConfirmTier; 3] = [Self::Prestige, Self::Transcension, Self::Reincarnation];
+
+    /// Row label — reuses the reset-button labels.
+    fn label_key(self) -> &'static str {
+        match self {
+            Self::Prestige => "buildings.prestige",
+            Self::Transcension => "buildings.transcend",
+            Self::Reincarnation => "buildings.reincarnate",
+        }
+    }
+
+    fn get(self, p: &UiPrefs) -> bool {
+        match self {
+            Self::Prestige => p.confirm_prestige,
+            Self::Transcension => p.confirm_transcension,
+            Self::Reincarnation => p.confirm_reincarnation,
+        }
+    }
+
+    fn set(self, p: &mut UiPrefs, on: bool) {
+        match self {
+            Self::Prestige => p.confirm_prestige = on,
+            Self::Transcension => p.confirm_transcension = on,
+            Self::Reincarnation => p.confirm_reincarnation = on,
+        }
+    }
+}
+
+/// Confirmations: one independent On/Off toggle per reset tier. With a toggle
+/// Off, that reset fires immediately; On pops the confirm dialog.
+#[component]
+fn ConfirmationsSection() -> Element {
+    rsx! {
+        section { class: "sf-settings-block",
+            h2 { {t("settings.confirmations.title")} }
+            div { class: "sf-settings-subhint", {t("settings.confirmations.hint")} }
+            for tier in ConfirmTier::ALL {
+                ConfirmRow { key: "{tier.label_key()}", tier }
+            }
+        }
+    }
+}
+
+/// A single reset-tier confirmation toggle row.
+#[component]
+fn ConfirmRow(tier: ConfirmTier) -> Element {
+    let bridge = use_bridge();
+    let on = tier.get(&bridge.prefs.read());
+    rsx! {
+        div { class: "sf-settings-row",
+            div { class: "text",
+                div { {t(tier.label_key())} }
+            }
+            div { class: "sf-seg",
+                button {
+                    class: if on { "active" } else { "" },
+                    onclick: move |_| {
+                        let mut prefs = bridge.prefs;
+                        let mut w = prefs.write();
+                        tier.set(&mut w, true);
+                    },
+                    {t("settings.on")}
+                }
+                button {
+                    class: if on { "" } else { "active" },
+                    onclick: move |_| {
+                        let mut prefs = bridge.prefs;
+                        let mut w = prefs.write();
+                        tier.set(&mut w, false);
+                    },
+                    {t("settings.off")}
+                }
+            }
+        }
     }
 }
 
@@ -26,7 +114,6 @@ pub fn Settings() -> Element {
 fn AppearanceSection() -> Element {
     let bridge = use_bridge();
     let current = bridge.prefs.read().theme;
-    let stats_on = bridge.prefs.read().show_stats_panel;
     rsx! {
         section { class: "sf-settings-block",
             h2 { {t("settings.appearance.title")} }
@@ -45,30 +132,6 @@ fn AppearanceSection() -> Element {
                             },
                             {t(theme.label_key())}
                         }
-                    }
-                }
-            }
-            div { class: "sf-settings-row",
-                div { class: "text",
-                    div { {t("settings.stats_panel.title")} }
-                    div { class: "hint", {t("settings.stats_panel.hint")} }
-                }
-                div { class: "sf-seg",
-                    button {
-                        class: if stats_on { "active" } else { "" },
-                        onclick: move |_| {
-                            let mut prefs = bridge.prefs;
-                            prefs.write().show_stats_panel = true;
-                        },
-                        {t("settings.on")}
-                    }
-                    button {
-                        class: if stats_on { "" } else { "active" },
-                        onclick: move |_| {
-                            let mut prefs = bridge.prefs;
-                            prefs.write().show_stats_panel = false;
-                        },
-                        {t("settings.off")}
                     }
                 }
             }

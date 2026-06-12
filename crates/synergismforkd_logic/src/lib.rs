@@ -33,7 +33,7 @@ pub mod tick;
 
 // ─── Composed loop-edge types ────────────────────────────────────────────
 
-pub use state::{GameState, RngPurpose, RngState};
+pub use state::{GameState, RngPurpose, RngState, ShopAutobuyKind};
 
 // ─── Events ──────────────────────────────────────────────────────────────
 
