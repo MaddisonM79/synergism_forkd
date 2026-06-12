@@ -138,8 +138,8 @@
   background:
     linear-gradient(
       to right,
-      color-mix(in srgb, var(--card-accent, transparent) 38%, transparent) 0%,
-      color-mix(in srgb, var(--card-accent, transparent) 16%, transparent) 28%,
+      color-mix(in srgb, var(--card-accent, transparent) 19%, transparent) 0%,
+      color-mix(in srgb, var(--card-accent, transparent) 8%, transparent) 28%,
       transparent 58%
     ),
     var(--bg-surface);
