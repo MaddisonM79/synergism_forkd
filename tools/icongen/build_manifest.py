@@ -300,9 +300,14 @@ ACH10_GROUPS = [
     (495, 6, "a glowing promo-code ticket stamped with a plus sign"),
 ]
 
+# Achievements 501-509 — the final "Code: add" promo block (same ticket motif).
+ACH11_GROUPS = [
+    (501, 9, "a glowing promo-code ticket stamped with a plus sign"),
+]
+
 for first, count, motif in (ACH2_GROUPS + ACH3_GROUPS + ACH4_GROUPS + ACH5_GROUPS
                             + ACH6_GROUPS + ACH7_GROUPS + ACH8_GROUPS + ACH9_GROUPS
-                            + ACH10_GROUPS):
+                            + ACH10_GROUPS + ACH11_GROUPS):
     for i in range(count):
         ACH[first + i] = (f"{spread_tier(i, count)} commemorative achievement medallion "
                           f"embossed with {motif}, a slim ribbon at the base, soft "
