@@ -702,6 +702,16 @@ fn achievement_icon(index: usize) -> Option<Asset> {
         447 => asset!("/assets/pictures/achievement/ach448.png"),
         448 => asset!("/assets/pictures/achievement/ach449.png"),
         449 => asset!("/assets/pictures/achievement/ach450.png"),
+        450 => asset!("/assets/pictures/achievement/ach451.png"),
+        451 => asset!("/assets/pictures/achievement/ach452.png"),
+        452 => asset!("/assets/pictures/achievement/ach453.png"),
+        453 => asset!("/assets/pictures/achievement/ach454.png"),
+        454 => asset!("/assets/pictures/achievement/ach455.png"),
+        455 => asset!("/assets/pictures/achievement/ach456.png"),
+        456 => asset!("/assets/pictures/achievement/ach457.png"),
+        457 => asset!("/assets/pictures/achievement/ach458.png"),
+        458 => asset!("/assets/pictures/achievement/ach459.png"),
+        459 => asset!("/assets/pictures/achievement/ach460.png"),
         _ => return None,
     })
 }

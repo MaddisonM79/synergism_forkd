@@ -290,8 +290,19 @@ ACH9_GROUPS = [
     (437, 14, "a cut cyan diamond"),
 ]
 
+# Achievements 451-500 — Prestige/Transcend/Reincarnate count ladders, Anthill
+# Sacrifice, and the "Code: add" promo achievements (new ticket motif).
+ACH10_GROUPS = [
+    (451, 1, "a cut cyan diamond"),
+    (452, 15, "a lavender four-point mythos star"),
+    (467, 15, "a warm-orange glowing particle mote"),
+    (482, 13, "a stylized ant on a sacrificial altar with a reward sparkle"),
+    (495, 6, "a glowing promo-code ticket stamped with a plus sign"),
+]
+
 for first, count, motif in (ACH2_GROUPS + ACH3_GROUPS + ACH4_GROUPS + ACH5_GROUPS
-                            + ACH6_GROUPS + ACH7_GROUPS + ACH8_GROUPS + ACH9_GROUPS):
+                            + ACH6_GROUPS + ACH7_GROUPS + ACH8_GROUPS + ACH9_GROUPS
+                            + ACH10_GROUPS):
     for i in range(count):
         ACH[first + i] = (f"{spread_tier(i, count)} commemorative achievement medallion "
                           f"embossed with {motif}, a slim ribbon at the base, soft "
