@@ -184,7 +184,19 @@ ACH2_GROUPS = [
     (93, 7, "a crossed-swords challenge crest over a struck-through lavender mythos shard"),
     (100, 1, "a price tag with a bold upward arrow — rising costs"),
 ]
-for first, count, motif in ACH2_GROUPS:
+# Achievements 101-150 — challenge-completion ladders (Cost+, Reduced Diamonds,
+# Tax+, No Accel/Mult, Cost++, No Runes, Sadistic I) plus two accelerator buys.
+ACH3_GROUPS = [
+    (101, 6, "a crossed-swords challenge crest over a price tag with an upward arrow — rising costs"),
+    (107, 7, "a crossed-swords challenge crest over a pickaxe striking a small cyan diamond"),
+    (114, 7, "a crossed-swords challenge crest over a tax percent-sign with an upward arrow"),
+    (121, 7, "a crossed-swords challenge crest over struck-through speed chevrons and a struck-through multiplication 'x'"),
+    (128, 7, "a crossed-swords challenge crest over a price tag with two steep upward arrows"),
+    (135, 7, "a crossed-swords challenge crest over a struck-through glowing rune glyph"),
+    (142, 7, "a menacing horned skull challenge crest — a sadistic trial"),
+    (149, 2, "forward speed chevrons — an accelerator"),
+]
+for first, count, motif in ACH2_GROUPS + ACH3_GROUPS:
     for i in range(count):
         ACH[first + i] = (f"{spread_tier(i, count)} commemorative achievement medallion "
                           f"embossed with {motif}, a slim ribbon at the base, soft "

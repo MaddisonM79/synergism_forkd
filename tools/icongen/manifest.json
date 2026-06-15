@@ -1055,6 +1055,256 @@
       "id": "ach100",
       "category": "achievement",
       "prompt": "a gleaming gold commemorative achievement medallion embossed with a price tag with a bold upward arrow \u2014 rising costs, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach101",
+      "category": "achievement",
+      "prompt": "a weathered bronze commemorative achievement medallion embossed with a crossed-swords challenge crest over a price tag with an upward arrow \u2014 rising costs, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach102",
+      "category": "achievement",
+      "prompt": "a weathered bronze commemorative achievement medallion embossed with a crossed-swords challenge crest over a price tag with an upward arrow \u2014 rising costs, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach103",
+      "category": "achievement",
+      "prompt": "a polished silver commemorative achievement medallion embossed with a crossed-swords challenge crest over a price tag with an upward arrow \u2014 rising costs, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach104",
+      "category": "achievement",
+      "prompt": "a gleaming gold commemorative achievement medallion embossed with a crossed-swords challenge crest over a price tag with an upward arrow \u2014 rising costs, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach105",
+      "category": "achievement",
+      "prompt": "a gleaming gold commemorative achievement medallion embossed with a crossed-swords challenge crest over a price tag with an upward arrow \u2014 rising costs, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach106",
+      "category": "achievement",
+      "prompt": "an iridescent prismatic commemorative achievement medallion embossed with a crossed-swords challenge crest over a price tag with an upward arrow \u2014 rising costs, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach107",
+      "category": "achievement",
+      "prompt": "a weathered bronze commemorative achievement medallion embossed with a crossed-swords challenge crest over a pickaxe striking a small cyan diamond, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach108",
+      "category": "achievement",
+      "prompt": "a weathered bronze commemorative achievement medallion embossed with a crossed-swords challenge crest over a pickaxe striking a small cyan diamond, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach109",
+      "category": "achievement",
+      "prompt": "a polished silver commemorative achievement medallion embossed with a crossed-swords challenge crest over a pickaxe striking a small cyan diamond, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach110",
+      "category": "achievement",
+      "prompt": "a polished silver commemorative achievement medallion embossed with a crossed-swords challenge crest over a pickaxe striking a small cyan diamond, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach111",
+      "category": "achievement",
+      "prompt": "a gleaming gold commemorative achievement medallion embossed with a crossed-swords challenge crest over a pickaxe striking a small cyan diamond, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach112",
+      "category": "achievement",
+      "prompt": "a gleaming gold commemorative achievement medallion embossed with a crossed-swords challenge crest over a pickaxe striking a small cyan diamond, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach113",
+      "category": "achievement",
+      "prompt": "an iridescent prismatic commemorative achievement medallion embossed with a crossed-swords challenge crest over a pickaxe striking a small cyan diamond, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach114",
+      "category": "achievement",
+      "prompt": "a weathered bronze commemorative achievement medallion embossed with a crossed-swords challenge crest over a tax percent-sign with an upward arrow, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach115",
+      "category": "achievement",
+      "prompt": "a weathered bronze commemorative achievement medallion embossed with a crossed-swords challenge crest over a tax percent-sign with an upward arrow, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach116",
+      "category": "achievement",
+      "prompt": "a polished silver commemorative achievement medallion embossed with a crossed-swords challenge crest over a tax percent-sign with an upward arrow, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach117",
+      "category": "achievement",
+      "prompt": "a polished silver commemorative achievement medallion embossed with a crossed-swords challenge crest over a tax percent-sign with an upward arrow, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach118",
+      "category": "achievement",
+      "prompt": "a gleaming gold commemorative achievement medallion embossed with a crossed-swords challenge crest over a tax percent-sign with an upward arrow, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach119",
+      "category": "achievement",
+      "prompt": "a gleaming gold commemorative achievement medallion embossed with a crossed-swords challenge crest over a tax percent-sign with an upward arrow, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach120",
+      "category": "achievement",
+      "prompt": "an iridescent prismatic commemorative achievement medallion embossed with a crossed-swords challenge crest over a tax percent-sign with an upward arrow, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach121",
+      "category": "achievement",
+      "prompt": "a weathered bronze commemorative achievement medallion embossed with a crossed-swords challenge crest over struck-through speed chevrons and a struck-through multiplication 'x', a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach122",
+      "category": "achievement",
+      "prompt": "a weathered bronze commemorative achievement medallion embossed with a crossed-swords challenge crest over struck-through speed chevrons and a struck-through multiplication 'x', a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach123",
+      "category": "achievement",
+      "prompt": "a polished silver commemorative achievement medallion embossed with a crossed-swords challenge crest over struck-through speed chevrons and a struck-through multiplication 'x', a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach124",
+      "category": "achievement",
+      "prompt": "a polished silver commemorative achievement medallion embossed with a crossed-swords challenge crest over struck-through speed chevrons and a struck-through multiplication 'x', a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach125",
+      "category": "achievement",
+      "prompt": "a gleaming gold commemorative achievement medallion embossed with a crossed-swords challenge crest over struck-through speed chevrons and a struck-through multiplication 'x', a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach126",
+      "category": "achievement",
+      "prompt": "a gleaming gold commemorative achievement medallion embossed with a crossed-swords challenge crest over struck-through speed chevrons and a struck-through multiplication 'x', a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach127",
+      "category": "achievement",
+      "prompt": "an iridescent prismatic commemorative achievement medallion embossed with a crossed-swords challenge crest over struck-through speed chevrons and a struck-through multiplication 'x', a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach128",
+      "category": "achievement",
+      "prompt": "a weathered bronze commemorative achievement medallion embossed with a crossed-swords challenge crest over a price tag with two steep upward arrows, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach129",
+      "category": "achievement",
+      "prompt": "a weathered bronze commemorative achievement medallion embossed with a crossed-swords challenge crest over a price tag with two steep upward arrows, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach130",
+      "category": "achievement",
+      "prompt": "a polished silver commemorative achievement medallion embossed with a crossed-swords challenge crest over a price tag with two steep upward arrows, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach131",
+      "category": "achievement",
+      "prompt": "a polished silver commemorative achievement medallion embossed with a crossed-swords challenge crest over a price tag with two steep upward arrows, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach132",
+      "category": "achievement",
+      "prompt": "a gleaming gold commemorative achievement medallion embossed with a crossed-swords challenge crest over a price tag with two steep upward arrows, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach133",
+      "category": "achievement",
+      "prompt": "a gleaming gold commemorative achievement medallion embossed with a crossed-swords challenge crest over a price tag with two steep upward arrows, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach134",
+      "category": "achievement",
+      "prompt": "an iridescent prismatic commemorative achievement medallion embossed with a crossed-swords challenge crest over a price tag with two steep upward arrows, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach135",
+      "category": "achievement",
+      "prompt": "a weathered bronze commemorative achievement medallion embossed with a crossed-swords challenge crest over a struck-through glowing rune glyph, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach136",
+      "category": "achievement",
+      "prompt": "a weathered bronze commemorative achievement medallion embossed with a crossed-swords challenge crest over a struck-through glowing rune glyph, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach137",
+      "category": "achievement",
+      "prompt": "a polished silver commemorative achievement medallion embossed with a crossed-swords challenge crest over a struck-through glowing rune glyph, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach138",
+      "category": "achievement",
+      "prompt": "a polished silver commemorative achievement medallion embossed with a crossed-swords challenge crest over a struck-through glowing rune glyph, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach139",
+      "category": "achievement",
+      "prompt": "a gleaming gold commemorative achievement medallion embossed with a crossed-swords challenge crest over a struck-through glowing rune glyph, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach140",
+      "category": "achievement",
+      "prompt": "a gleaming gold commemorative achievement medallion embossed with a crossed-swords challenge crest over a struck-through glowing rune glyph, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach141",
+      "category": "achievement",
+      "prompt": "an iridescent prismatic commemorative achievement medallion embossed with a crossed-swords challenge crest over a struck-through glowing rune glyph, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach142",
+      "category": "achievement",
+      "prompt": "a weathered bronze commemorative achievement medallion embossed with a menacing horned skull challenge crest \u2014 a sadistic trial, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach143",
+      "category": "achievement",
+      "prompt": "a weathered bronze commemorative achievement medallion embossed with a menacing horned skull challenge crest \u2014 a sadistic trial, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach144",
+      "category": "achievement",
+      "prompt": "a polished silver commemorative achievement medallion embossed with a menacing horned skull challenge crest \u2014 a sadistic trial, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach145",
+      "category": "achievement",
+      "prompt": "a polished silver commemorative achievement medallion embossed with a menacing horned skull challenge crest \u2014 a sadistic trial, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach146",
+      "category": "achievement",
+      "prompt": "a gleaming gold commemorative achievement medallion embossed with a menacing horned skull challenge crest \u2014 a sadistic trial, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach147",
+      "category": "achievement",
+      "prompt": "a gleaming gold commemorative achievement medallion embossed with a menacing horned skull challenge crest \u2014 a sadistic trial, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach148",
+      "category": "achievement",
+      "prompt": "an iridescent prismatic commemorative achievement medallion embossed with a menacing horned skull challenge crest \u2014 a sadistic trial, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach149",
+      "category": "achievement",
+      "prompt": "a weathered bronze commemorative achievement medallion embossed with forward speed chevrons \u2014 an accelerator, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach150",
+      "category": "achievement",
+      "prompt": "an iridescent prismatic commemorative achievement medallion embossed with forward speed chevrons \u2014 an accelerator, a slim ribbon at the base, soft pastel-goth palette."
     }
   ]
 }
