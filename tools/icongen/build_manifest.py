@@ -196,7 +196,20 @@ ACH3_GROUPS = [
     (142, 7, "a menacing horned skull challenge crest — a sadistic trial"),
     (149, 2, "forward speed chevrons — an accelerator"),
 ]
-for first, count, motif in ACH2_GROUPS + ACH3_GROUPS:
+# Achievements 151-200 — purchase ladders (Accelerators/Multipliers/Boosts),
+# Galactic Crumbs, Immortal-ELO + Ant tiers, Ascensions, math constants, and
+# the Reduced-Ants challenge.
+ACH4_GROUPS = [
+    (151, 5, "forward speed chevrons — an accelerator"),
+    (156, 7, "a bold multiplication 'x' symbol"),
+    (163, 7, "a bursting accelerator-boost chevron"),
+    (170, 7, "a glowing golden galactic breadcrumb morsel — a cosmic crumb"),
+    (177, 7, "a stylized ant beside a champion's ELO medal"),
+    (184, 7, "an upward ascension burst of radiant rising rays"),
+    (191, 7, "a glowing mathematical constant symbol pi"),
+    (198, 3, "a crossed-swords challenge crest over a struck-through ant"),
+]
+for first, count, motif in ACH2_GROUPS + ACH3_GROUPS + ACH4_GROUPS:
     for i in range(count):
         ACH[first + i] = (f"{spread_tier(i, count)} commemorative achievement medallion "
                           f"embossed with {motif}, a slim ribbon at the base, soft "
