@@ -281,8 +281,17 @@ ACH8_GROUPS = [
     (397, 4, "a glowing blue speed rune glyph"),
 ]
 
+# Achievements 401-450 — Speed Rune level & free-level milestones, Campaign
+# Tokens (new token motif), and the Prestige-count ladder.
+ACH9_GROUPS = [
+    (401, 11, "a glowing blue speed rune glyph"),
+    (412, 15, "a blue speed rune glyph haloed with bonus free-level sparkles"),
+    (427, 10, "a glowing engraved campaign token coin"),
+    (437, 14, "a cut cyan diamond"),
+]
+
 for first, count, motif in (ACH2_GROUPS + ACH3_GROUPS + ACH4_GROUPS + ACH5_GROUPS
-                            + ACH6_GROUPS + ACH7_GROUPS + ACH8_GROUPS):
+                            + ACH6_GROUPS + ACH7_GROUPS + ACH8_GROUPS + ACH9_GROUPS):
     for i in range(count):
         ACH[first + i] = (f"{spread_tier(i, count)} commemorative achievement medallion "
                           f"embossed with {motif}, a slim ribbon at the base, soft "
