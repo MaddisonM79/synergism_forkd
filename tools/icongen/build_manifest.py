@@ -220,14 +220,31 @@ ACH5_GROUPS = [
     (233, 3, "a radiant blessing halo over a blue speed rune"),
     (236, 3, "an ethereal spirit wisp swirling around a blue speed rune"),
 ]
-# 239-250 are deliberately cryptic "secret/hint" achievements — give them a
+# 239-253 are deliberately cryptic "secret/hint" achievements — give them a
 # uniform sealed-mystery medallion rather than spoiling the goal.
-for _a in range(239, 251):
+for _a in list(range(239, 251)) + [251, 252, 253]:
     ACH[_a] = ("an enigmatic obsidian commemorative medallion sealed with a glowing "
                "question mark — a mysterious secret achievement, a slim ribbon at the "
                "base, soft pastel-goth palette.")
 
-for first, count, motif in ACH2_GROUPS + ACH3_GROUPS + ACH4_GROUPS + ACH5_GROUPS:
+# Achievements 254-300 — Ascension-score & total-ascension tiers, math constants,
+# the Singularity reset ladder (new black-hole motif), and big producer/prestige
+# milestones reusing the established producer motifs.
+ACH6_GROUPS = [
+    (254, 7, "an upward ascension burst with a glowing score star"),
+    (261, 7, "an upward ascension burst of radiant rising rays"),
+    (268, 7, "a glowing mathematical constant symbol pi"),
+    (275, 7, "a swirling singularity black-hole vortex ringed with golden motes"),
+    (282, 3, "a worker's hard hat"),
+    (285, 3, "a rising stack of gold coins"),
+    (288, 3, "a small printing press"),
+    (291, 3, "a coin-mint stamp"),
+    (294, 3, "an alchemist's bubbling flask"),
+    (297, 3, "a cut cyan diamond"),
+    (300, 1, "a lavender four-point mythos star"),
+]
+
+for first, count, motif in ACH2_GROUPS + ACH3_GROUPS + ACH4_GROUPS + ACH5_GROUPS + ACH6_GROUPS:
     for i in range(count):
         ACH[first + i] = (f"{spread_tier(i, count)} commemorative achievement medallion "
                           f"embossed with {motif}, a slim ribbon at the base, soft "
