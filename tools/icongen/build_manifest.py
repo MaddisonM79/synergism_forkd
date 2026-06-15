@@ -267,8 +267,22 @@ ACH7_GROUPS = [
     (348, 3, "a stylized ant beside a champion's ELO medal"),
 ]
 
+# Achievements 351-400 — extreme Ascension/constant tiers, high-count challenge
+# ladders, and Speed Blessing/Spirit/Rune level milestones.
+ACH8_GROUPS = [
+    (351, 6, "an upward ascension burst of radiant rising rays"),
+    (357, 6, "a glowing mathematical constant symbol pi"),
+    (363, 5, "a crossed-swords challenge crest over a struck-through ant"),
+    (368, 5, "a crossed-swords challenge crest over a struck-through reincarnation particle swirl"),
+    (373, 5, "a crossed-swords challenge crest over a tax percent-sign with three steep upward arrows"),
+    (378, 5, "a crossed-swords challenge crest over a struck-through research light-bulb"),
+    (383, 7, "a radiant blessing halo over a blue speed rune"),
+    (390, 7, "an ethereal spirit wisp swirling around a blue speed rune"),
+    (397, 4, "a glowing blue speed rune glyph"),
+]
+
 for first, count, motif in (ACH2_GROUPS + ACH3_GROUPS + ACH4_GROUPS + ACH5_GROUPS
-                            + ACH6_GROUPS + ACH7_GROUPS):
+                            + ACH6_GROUPS + ACH7_GROUPS + ACH8_GROUPS):
     for i in range(count):
         ACH[first + i] = (f"{spread_tier(i, count)} commemorative achievement medallion "
                           f"embossed with {motif}, a slim ribbon at the base, soft "
