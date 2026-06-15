@@ -244,7 +244,31 @@ ACH6_GROUPS = [
     (300, 1, "a lavender four-point mythos star"),
 ]
 
-for first, count, motif in ACH2_GROUPS + ACH3_GROUPS + ACH4_GROUPS + ACH5_GROUPS + ACH6_GROUPS:
+# Achievements 301-350 — deep prestige/transcend/reincarnate goals and high-count
+# repeats of every challenge ladder + producer/crumb/ELO milestones. All reuse
+# the established motifs.
+ACH7_GROUPS = [
+    (301, 2, "a lavender four-point mythos star"),
+    (303, 3, "a warm-orange glowing particle mote"),
+    (306, 3, "a crossed-swords challenge crest over a struck-through multiplication 'x'"),
+    (309, 3, "a crossed-swords challenge crest over struck-through speed chevrons"),
+    (312, 3, "a crossed-swords challenge crest over a struck-through lavender mythos shard"),
+    (315, 3, "a crossed-swords challenge crest over a price tag with an upward arrow — rising costs"),
+    (318, 3, "a crossed-swords challenge crest over a pickaxe striking a small cyan diamond"),
+    (321, 3, "a crossed-swords challenge crest over a tax percent-sign with an upward arrow"),
+    (324, 3, "a crossed-swords challenge crest over struck-through speed chevrons and a struck-through multiplication 'x'"),
+    (327, 3, "a crossed-swords challenge crest over a price tag with two steep upward arrows"),
+    (330, 3, "a crossed-swords challenge crest over a struck-through glowing rune glyph"),
+    (333, 3, "a menacing horned skull challenge crest — a sadistic trial"),
+    (336, 3, "forward speed chevrons — an accelerator"),
+    (339, 3, "a bold multiplication 'x' symbol"),
+    (342, 3, "a bursting accelerator-boost chevron"),
+    (345, 3, "a glowing golden galactic breadcrumb morsel — a cosmic crumb"),
+    (348, 3, "a stylized ant beside a champion's ELO medal"),
+]
+
+for first, count, motif in (ACH2_GROUPS + ACH3_GROUPS + ACH4_GROUPS + ACH5_GROUPS
+                            + ACH6_GROUPS + ACH7_GROUPS):
     for i in range(count):
         ACH[first + i] = (f"{spread_tier(i, count)} commemorative achievement medallion "
                           f"embossed with {motif}, a slim ribbon at the base, soft "
