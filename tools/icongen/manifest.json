@@ -332,6 +332,106 @@
       "prompt": "an alchemist's flask blazing with a bold x10^35000 exponent glow. Rendered in arcane lavender mythos tones."
     },
     {
+      "id": "upgrade61",
+      "category": "upgrade",
+      "prompt": "a glowing orange particle with a small +7 salvage spark \u2014 welcome to reincarnation. Rendered in warm-orange particle tones with plum shadows."
+    },
+    {
+      "id": "upgrade62",
+      "category": "upgrade",
+      "prompt": "a dusty-rose offering flame beside a challenge-completion tally. Rendered in warm-orange particle tones with plum shadows."
+    },
+    {
+      "id": "upgrade63",
+      "category": "upgrade",
+      "prompt": "a periwinkle crystal supercharged by a swirl of orange particles. Rendered in warm-orange particle tones with plum shadows."
+    },
+    {
+      "id": "upgrade64",
+      "category": "upgrade",
+      "prompt": "a lavender mythos shard supercharged by a swirl of orange particles. Rendered in warm-orange particle tones with plum shadows."
+    },
+    {
+      "id": "upgrade65",
+      "category": "upgrade",
+      "prompt": "a bright burst of orange particles with a bold x5 glow. Rendered in warm-orange particle tones with plum shadows."
+    },
+    {
+      "id": "upgrade66",
+      "category": "upgrade",
+      "prompt": "five small rune glyphs lifted by a + coefficient boost. Rendered in warm-orange particle tones with plum shadows."
+    },
+    {
+      "id": "upgrade67",
+      "category": "upgrade",
+      "prompt": "a glowing atom orbited by tiny orange particle motes. Rendered in warm-orange particle tones with plum shadows."
+    },
+    {
+      "id": "upgrade68",
+      "category": "upgrade",
+      "prompt": "a multiplication 'x' fed by a rising tax percent-sign. Rendered in warm-orange particle tones with plum shadows."
+    },
+    {
+      "id": "upgrade69",
+      "category": "upgrade",
+      "prompt": "a pink hexagonal obtainium gem fed by orange particles. Rendered in warm-orange particle tones with plum shadows."
+    },
+    {
+      "id": "upgrade70",
+      "category": "upgrade",
+      "prompt": "a clock face speeding up, ringed with orange particles. Rendered in warm-orange particle tones with plum shadows."
+    },
+    {
+      "id": "upgrade71",
+      "category": "upgrade",
+      "prompt": "a rune glyph soaking up EXP sparks from an offering flame. Rendered in warm-orange particle tones with plum shadows."
+    },
+    {
+      "id": "upgrade72",
+      "category": "upgrade",
+      "prompt": "a pink obtainium hexagon multiplied by challenge tally marks. Rendered in warm-orange particle tones with plum shadows."
+    },
+    {
+      "id": "upgrade73",
+      "category": "upgrade",
+      "prompt": "a bursting accelerator-boost chevron inside a challenge crest. Rendered in warm-orange particle tones with plum shadows."
+    },
+    {
+      "id": "upgrade74",
+      "category": "upgrade",
+      "prompt": "a pink obtainium hexagon fed by a small hoard of offering flames. Rendered in warm-orange particle tones with plum shadows."
+    },
+    {
+      "id": "upgrade75",
+      "category": "upgrade",
+      "prompt": "a dusty-rose offering flame fed by a small hoard of obtainium gems. Rendered in warm-orange particle tones with plum shadows."
+    },
+    {
+      "id": "upgrade76",
+      "category": "upgrade",
+      "prompt": "a stylized ant sprinting with a bold x5 speed burst. Rendered in warm-orange particle tones with plum shadows."
+    },
+    {
+      "id": "upgrade77",
+      "category": "upgrade",
+      "prompt": "a worker ant carrying a small speed-multiplier symbol. Rendered in warm-orange particle tones with plum shadows."
+    },
+    {
+      "id": "upgrade78",
+      "category": "upgrade",
+      "prompt": "a stylized ant accelerated by a rising offerings curve. Rendered in warm-orange particle tones with plum shadows."
+    },
+    {
+      "id": "upgrade79",
+      "category": "upgrade",
+      "prompt": "a stylized ant supercharged by a global-speed vortex. Rendered in warm-orange particle tones with plum shadows."
+    },
+    {
+      "id": "upgrade80",
+      "category": "upgrade",
+      "prompt": "a stylized ant earning an ELO medal beside a sacrificial altar. Rendered in warm-orange particle tones with plum shadows."
+    },
+    {
       "id": "upgrade81",
       "category": "upgrade",
       "prompt": "a robotic clockwork arm picking up a worker's hard hat \u2014 auto-buy workers. Rendered as brass-and-violet clockwork in a pastel-goth palette."
@@ -3100,6 +3200,96 @@
       "id": "ach509",
       "category": "achievement",
       "prompt": "an iridescent prismatic commemorative achievement medallion embossed with a glowing promo-code ticket stamped with a plus sign, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "coin1",
+      "category": "building",
+      "prompt": "a hard-hatted worker laborer with a pickaxe, warm gold tones."
+    },
+    {
+      "id": "coin2",
+      "category": "building",
+      "prompt": "a briefcase overflowing with gold coins \u2014 an investment, warm gold tones."
+    },
+    {
+      "id": "coin3",
+      "category": "building",
+      "prompt": "a coin printing press machine stamping gold coins, warm gold tones."
+    },
+    {
+      "id": "coin4",
+      "category": "building",
+      "prompt": "a coin-minting stamp press striking gold coins, warm gold tones."
+    },
+    {
+      "id": "coin5",
+      "category": "building",
+      "prompt": "an alchemist's flask transmuting liquid into gold, warm gold tones."
+    },
+    {
+      "id": "diamond1",
+      "category": "building",
+      "prompt": "an industrial refinery tower with pipes, cyan-diamond tones."
+    },
+    {
+      "id": "diamond2",
+      "category": "building",
+      "prompt": "a coal power plant with smokestacks, cyan-diamond tones."
+    },
+    {
+      "id": "diamond3",
+      "category": "building",
+      "prompt": "a coal mining drilling rig, cyan-diamond tones."
+    },
+    {
+      "id": "diamond4",
+      "category": "building",
+      "prompt": "a pickaxe striking a large cyan diamond, cyan tones."
+    },
+    {
+      "id": "diamond5",
+      "category": "building",
+      "prompt": "an ornate mysterious Pandora's box glowing cyan."
+    },
+    {
+      "id": "mythos1",
+      "category": "building",
+      "prompt": "an ornate arcane augment rune sigil, lavender mythos tones."
+    },
+    {
+      "id": "mythos2",
+      "category": "building",
+      "prompt": "a glowing enchantment scroll with a sigil, lavender mythos tones."
+    },
+    {
+      "id": "mythos3",
+      "category": "building",
+      "prompt": "a wizard's pointed star-speckled hat, lavender mythos tones."
+    },
+    {
+      "id": "mythos4",
+      "category": "building",
+      "prompt": "a glowing oracle's all-seeing eye orb, lavender mythos tones."
+    },
+    {
+      "id": "mythos5",
+      "category": "building",
+      "prompt": "a grandmaster's crowned staff, lavender mythos tones."
+    },
+    {
+      "id": "accelerator",
+      "category": "building",
+      "prompt": "a glowing speedometer with forward speed chevrons, gold-and-cyan tones."
+    },
+    {
+      "id": "multiplier",
+      "category": "building",
+      "prompt": "a bold ornate multiplication 'x' emblem, gold tones."
+    },
+    {
+      "id": "acceleratorboost",
+      "category": "building",
+      "prompt": "a bursting rocket-boost chevron with energy sparks, cyan tones."
     }
   ]
 }

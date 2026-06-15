@@ -25,6 +25,7 @@ DIA  = " Rendered in cyan-diamond and periwinkle tones."
 AUTO = " Rendered as brass-and-violet clockwork in a pastel-goth palette."
 GEN  = " Rendered in teal-and-periwinkle machinery tones."
 MYTH = " Rendered in arcane lavender mythos tones."
+PART = " Rendered in warm-orange particle tones with plum shadows."
 
 # idx -> subject (the icon's focal idea, drawn from the effect text)
 U = {
@@ -134,7 +135,52 @@ U = {
  58: "a printing press blazing with a bold x10^15000 exponent glow." + MYTH,
  59: "a coin-mint stamp blazing with a bold x10^25000 exponent glow." + MYTH,
  60: "an alchemist's flask blazing with a bold x10^35000 exponent glow." + MYTH,
+ # --- Particle shop 61..80 (reincarnation / obtainium / ant themed) ---
+ 61: "a glowing orange particle with a small +7 salvage spark — welcome to reincarnation." + PART,
+ 62: "a dusty-rose offering flame beside a challenge-completion tally." + PART,
+ 63: "a periwinkle crystal supercharged by a swirl of orange particles." + PART,
+ 64: "a lavender mythos shard supercharged by a swirl of orange particles." + PART,
+ 65: "a bright burst of orange particles with a bold x5 glow." + PART,
+ 66: "five small rune glyphs lifted by a + coefficient boost." + PART,
+ 67: "a glowing atom orbited by tiny orange particle motes." + PART,
+ 68: "a multiplication 'x' fed by a rising tax percent-sign." + PART,
+ 69: "a pink hexagonal obtainium gem fed by orange particles." + PART,
+ 70: "a clock face speeding up, ringed with orange particles." + PART,
+ 71: "a rune glyph soaking up EXP sparks from an offering flame." + PART,
+ 72: "a pink obtainium hexagon multiplied by challenge tally marks." + PART,
+ 73: "a bursting accelerator-boost chevron inside a challenge crest." + PART,
+ 74: "a pink obtainium hexagon fed by a small hoard of offering flames." + PART,
+ 75: "a dusty-rose offering flame fed by a small hoard of obtainium gems." + PART,
+ 76: "a stylized ant sprinting with a bold x5 speed burst." + PART,
+ 77: "a worker ant carrying a small speed-multiplier symbol." + PART,
+ 78: "a stylized ant accelerated by a rising offerings curve." + PART,
+ 79: "a stylized ant supercharged by a global-speed vortex." + PART,
+ 80: "a stylized ant earning an ELO medal beside a sacrificial altar." + PART,
 }
+
+# Building / producer cards — painted object/character icons (not medallions),
+# tinted per economy layer. ids: coin1-5 / diamond1-5 / mythos1-5 + the three
+# special buildings. Category "building".
+BUILDINGS = [
+    ("coin1", "a hard-hatted worker laborer with a pickaxe, warm gold tones."),
+    ("coin2", "a briefcase overflowing with gold coins — an investment, warm gold tones."),
+    ("coin3", "a coin printing press machine stamping gold coins, warm gold tones."),
+    ("coin4", "a coin-minting stamp press striking gold coins, warm gold tones."),
+    ("coin5", "an alchemist's flask transmuting liquid into gold, warm gold tones."),
+    ("diamond1", "an industrial refinery tower with pipes, cyan-diamond tones."),
+    ("diamond2", "a coal power plant with smokestacks, cyan-diamond tones."),
+    ("diamond3", "a coal mining drilling rig, cyan-diamond tones."),
+    ("diamond4", "a pickaxe striking a large cyan diamond, cyan tones."),
+    ("diamond5", "an ornate mysterious Pandora's box glowing cyan."),
+    ("mythos1", "an ornate arcane augment rune sigil, lavender mythos tones."),
+    ("mythos2", "a glowing enchantment scroll with a sigil, lavender mythos tones."),
+    ("mythos3", "a wizard's pointed star-speckled hat, lavender mythos tones."),
+    ("mythos4", "a glowing oracle's all-seeing eye orb, lavender mythos tones."),
+    ("mythos5", "a grandmaster's crowned staff, lavender mythos tones."),
+    ("accelerator", "a glowing speedometer with forward speed chevrons, gold-and-cyan tones."),
+    ("multiplier", "a bold ornate multiplication 'x' emblem, gold tones."),
+    ("acceleratorboost", "a bursting rocket-boost chevron with energy sparks, cyan tones."),
+]
 
 # --- Achievements: medallion/badge style, distinct from the upgrade "object"
 # look. Each is the goal's motif embossed on a metal medallion; the metal tier
@@ -318,6 +364,8 @@ for idx in sorted(U):
     icons.append({"id": f"upgrade{idx}", "category": "upgrade", "prompt": U[idx]})
 for idx in sorted(ACH):
     icons.append({"id": f"ach{idx}", "category": "achievement", "prompt": ACH[idx]})
+for bid, bp in BUILDINGS:
+    icons.append({"id": bid, "category": "building", "prompt": bp})
 
 out = {"_comment": "Icon specs. id -> assets/pictures/<category>/<id>.png. prompt is appended to style.txt. Upgrade ids match the in-game bitmap index (upgrade<idx>). Regenerate with build_manifest.py.", "icons": icons}
 p = pathlib.Path("tools/icongen/manifest.json")
