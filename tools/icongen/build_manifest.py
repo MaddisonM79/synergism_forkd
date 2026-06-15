@@ -209,7 +209,25 @@ ACH4_GROUPS = [
     (191, 7, "a glowing mathematical constant symbol pi"),
     (198, 3, "a crossed-swords challenge crest over a struck-through ant"),
 ]
-for first, count, motif in ACH2_GROUPS + ACH3_GROUPS + ACH4_GROUPS:
+# Achievements 201-250 — more challenge ladders (Reduced Ants, No Reincarnation,
+# Tax+++, No Research), Ascension-score tiers, and Rune Blessing/Spirit levels.
+ACH5_GROUPS = [
+    (201, 4, "a crossed-swords challenge crest over a struck-through ant"),
+    (205, 7, "a crossed-swords challenge crest over a struck-through reincarnation particle swirl"),
+    (212, 7, "a crossed-swords challenge crest over a tax percent-sign with three steep upward arrows"),
+    (219, 7, "a crossed-swords challenge crest over a struck-through research light-bulb"),
+    (226, 7, "an upward ascension burst with a glowing score star"),
+    (233, 3, "a radiant blessing halo over a blue speed rune"),
+    (236, 3, "an ethereal spirit wisp swirling around a blue speed rune"),
+]
+# 239-250 are deliberately cryptic "secret/hint" achievements — give them a
+# uniform sealed-mystery medallion rather than spoiling the goal.
+for _a in range(239, 251):
+    ACH[_a] = ("an enigmatic obsidian commemorative medallion sealed with a glowing "
+               "question mark — a mysterious secret achievement, a slim ribbon at the "
+               "base, soft pastel-goth palette.")
+
+for first, count, motif in ACH2_GROUPS + ACH3_GROUPS + ACH4_GROUPS + ACH5_GROUPS:
     for i in range(count):
         ACH[first + i] = (f"{spread_tier(i, count)} commemorative achievement medallion "
                           f"embossed with {motif}, a slim ribbon at the base, soft "
