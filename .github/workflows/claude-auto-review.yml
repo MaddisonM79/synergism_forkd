@@ -23,12 +23,13 @@ jobs:
           persist-credentials: false
 
       - name: Automatic PR Review
-        uses: anthropics/claude-code-action@fbda2eb1bdc90d319b8d853f5deb53bca199a7c1 # beta
+        uses: anthropics/claude-code-action@fbda2eb1bdc90d319b8d853f5deb53bca199a7c1 # v1
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-          timeout_minutes: "60"
           use_sticky_comment: "true"
-          direct_prompt: |
+          # Supplying `prompt` runs the action automatically (no @claude trigger
+          # phrase needed). This is the v1 replacement for the old `direct_prompt`.
+          prompt: |
             Please review this pull request and provide comprehensive feedback.
 
             Focus on:
@@ -41,4 +42,7 @@ jobs:
 
             Provide constructive feedback with specific suggestions for improvement.
             Use inline comments to highlight specific areas of concern.
-          # allowed_tools: "mcp__github__create_pending_pull_request_review,mcp__github__add_pull_request_review_comment_to_pending_review,mcp__github__submit_pending_pull_request_review,mcp__github__get_pull_request_diff"
+          # v1 moves CLI-level options (timeout, max turns, tool allowlist, model)
+          # into `claude_args`. See https://github.com/anthropics/claude-code-action
+          claude_args: |
+            --max-turns 30

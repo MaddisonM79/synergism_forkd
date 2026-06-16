@@ -31,13 +31,15 @@ jobs:
           persist-credentials: false
 
       - name: Run Claude PR Action
-        uses: anthropics/claude-code-action@fbda2eb1bdc90d319b8d853f5deb53bca199a7c1 # beta
+        uses: anthropics/claude-code-action@fbda2eb1bdc90d319b8d853f5deb53bca199a7c1 # v1
         with:
           # anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           # Or use OAuth token instead:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-          timeout_minutes: "60"
-          # mode: tag  # Default: responds to @claude mentions
+          # Default (no `prompt`) = tag mode: responds to @claude mentions.
+          # v1 moves CLI-level options into `claude_args`, e.g.:
+          # claude_args: |
+          #   --max-turns 30
           # Optional: Restrict network access to specific domains only
           # experimental_allowed_domains: |
           #   .anthropic.com
