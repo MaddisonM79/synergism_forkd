@@ -1,0 +1,6 @@
+.venv/
+__pycache__/
+*.pyc
+gen.log
+contact_sheet.png
+*_sheet.png

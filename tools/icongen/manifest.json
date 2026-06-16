@@ -1,0 +1,3295 @@
+{
+  "_comment": "Icon specs. id -> assets/pictures/<category>/<id>.png. prompt is appended to style.txt. Upgrade ids match the in-game bitmap index (upgrade<idx>). Regenerate with build_manifest.py.",
+  "icons": [
+    {
+      "id": "coins",
+      "category": "currency",
+      "prompt": "a single gleaming gold coin seen face-on, warm gold (#ecc95c), a soft mythic emblem embossed on its face."
+    },
+    {
+      "id": "quarks",
+      "category": "currency",
+      "prompt": "a glowing teal quark mote (#79dede), a small luminous elementary particle with a faint orbiting wisp, ethereal."
+    },
+    {
+      "id": "goldenquarks",
+      "category": "currency",
+      "prompt": "a radiant five-point golden star-mote (#f5d674), a premium golden quark, brighter and more ornate than an ordinary quark."
+    },
+    {
+      "id": "ambrosia",
+      "category": "currency",
+      "prompt": "a cluster of two dewy sky-blue ambrosia berries (#9ab6f5) with a small leaf, nectar-like sheen."
+    },
+    {
+      "id": "diamonds",
+      "category": "currency",
+      "prompt": "a cut cyan diamond gemstone (#84dbe8), faceted, catching the rim light."
+    },
+    {
+      "id": "crystals",
+      "category": "currency",
+      "prompt": "a small cluster of faceted periwinkle crystal shards (#b7c8f7), sharp angular cut-stone fragments grouped together, soft inner glow."
+    },
+    {
+      "id": "mythos",
+      "category": "currency",
+      "prompt": "a glowing lavender four-point mythos star (#c39bf0), arcane and radiant."
+    },
+    {
+      "id": "mythosshards",
+      "category": "currency",
+      "prompt": "a pair of glowing lavender mythos shards (#c39bf0), twin arcane crystal splinters."
+    },
+    {
+      "id": "particles",
+      "category": "currency",
+      "prompt": "a warm-orange particle mote (#f2a877), a bright energetic spark with a faint motion trail."
+    },
+    {
+      "id": "offerings",
+      "category": "currency",
+      "prompt": "a dusty-rose votive offering flame (#ee8f86), a teardrop of soft sacrificial light."
+    },
+    {
+      "id": "obtainium",
+      "category": "currency",
+      "prompt": "a pink hexagonal essence crystal (#ee8cc6), a glowing six-sided gem of knowledge."
+    },
+    {
+      "id": "upgrade6",
+      "category": "upgrade",
+      "prompt": "an upward-pointing boost arrow over a cluster of small gold coins and tiny factory shapes \u2014 all production rising. Rendered in warm gold and plum tones."
+    },
+    {
+      "id": "upgrade7",
+      "category": "upgrade",
+      "prompt": "a glowing multiplication 'x' symbol fed by an alchemist's flask \u2014 free multipliers from alchemy. Rendered in warm gold and plum tones."
+    },
+    {
+      "id": "upgrade8",
+      "category": "upgrade",
+      "prompt": "speed chevrons (an accelerator) beside a multiplication 'x' \u2014 free accelerators from multipliers. Rendered in warm gold and plum tones."
+    },
+    {
+      "id": "upgrade9",
+      "category": "upgrade",
+      "prompt": "a multiplication 'x' symbol beside three forward speed chevrons \u2014 free multipliers from accelerators. Rendered in warm gold and plum tones."
+    },
+    {
+      "id": "upgrade10",
+      "category": "upgrade",
+      "prompt": "a worker's hard hat resting on a rising stack of coins \u2014 workers improved by investments. Rendered in warm gold and plum tones."
+    },
+    {
+      "id": "upgrade11",
+      "category": "upgrade",
+      "prompt": "three forward speed chevrons energizing a small gear \u2014 accelerators boosting generation. Rendered in warm gold and plum tones."
+    },
+    {
+      "id": "upgrade12",
+      "category": "upgrade",
+      "prompt": "a small cyan diamond with a rising x1.01 growth curve \u2014 prestige compounding production. Rendered in warm gold and plum tones."
+    },
+    {
+      "id": "upgrade13",
+      "category": "upgrade",
+      "prompt": "an ornate rune-augment sigil over a coin stack \u2014 augments buffing investments. Rendered in warm gold and plum tones."
+    },
+    {
+      "id": "upgrade14",
+      "category": "upgrade",
+      "prompt": "speed chevrons feeding a small printing press \u2014 accelerators buffing printers. Rendered in warm gold and plum tones."
+    },
+    {
+      "id": "upgrade15",
+      "category": "upgrade",
+      "prompt": "speed chevrons feeding a coin-mint stamp \u2014 accelerators buffing mints. Rendered in warm gold and plum tones."
+    },
+    {
+      "id": "upgrade16",
+      "category": "upgrade",
+      "prompt": "speed chevrons beside a cyan diamond \u2014 acceleration buffing diamond gain. Rendered in warm gold and plum tones."
+    },
+    {
+      "id": "upgrade17",
+      "category": "upgrade",
+      "prompt": "a coin-mint stamp blazing with light and a bold x10^100 glow \u2014 massive mint multiplier. Rendered in warm gold and plum tones."
+    },
+    {
+      "id": "upgrade18",
+      "category": "upgrade",
+      "prompt": "a printing press beside a glowing lavender mythos shard \u2014 printers powered by mythos shards. Rendered in warm gold and plum tones."
+    },
+    {
+      "id": "upgrade19",
+      "category": "upgrade",
+      "prompt": "a coin stack beside a lavender four-point mythos star \u2014 investments powered by mythos. Rendered in warm gold and plum tones."
+    },
+    {
+      "id": "upgrade20",
+      "category": "upgrade",
+      "prompt": "a worker's hard hat haloed by a bold exponent '11' power-glow \u2014 coin upgrade raised to the 11th power. Rendered in warm gold and plum tones."
+    },
+    {
+      "id": "upgrade21",
+      "category": "upgrade",
+      "prompt": "a radiant cyan diamond emitting a multiplication 'x' and five speed chevrons \u2014 a generous burst of free multipliers and accelerators. Rendered in cyan-diamond and periwinkle tones."
+    },
+    {
+      "id": "upgrade22",
+      "category": "upgrade",
+      "prompt": "a cyan diamond emitting a multiplication 'x' and four speed chevrons. Rendered in cyan-diamond and periwinkle tones."
+    },
+    {
+      "id": "upgrade23",
+      "category": "upgrade",
+      "prompt": "a cyan diamond emitting a multiplication 'x' and three speed chevrons. Rendered in cyan-diamond and periwinkle tones."
+    },
+    {
+      "id": "upgrade24",
+      "category": "upgrade",
+      "prompt": "a cyan diamond emitting a multiplication 'x' and two speed chevrons. Rendered in cyan-diamond and periwinkle tones."
+    },
+    {
+      "id": "upgrade25",
+      "category": "upgrade",
+      "prompt": "a cyan diamond emitting a multiplication 'x' and one speed chevron. Rendered in cyan-diamond and periwinkle tones."
+    },
+    {
+      "id": "upgrade26",
+      "category": "upgrade",
+      "prompt": "a single speed chevron bursting with extra energy \u2014 a free accelerator boost. Rendered in cyan-diamond and periwinkle tones."
+    },
+    {
+      "id": "upgrade27",
+      "category": "upgrade",
+      "prompt": "a glowing blue speed rune glyph drawing power from scattered coins. Rendered in cyan-diamond and periwinkle tones."
+    },
+    {
+      "id": "upgrade28",
+      "category": "upgrade",
+      "prompt": "a glowing duplication rune glyph above small factory buildings. Rendered in cyan-diamond and periwinkle tones."
+    },
+    {
+      "id": "upgrade29",
+      "category": "upgrade",
+      "prompt": "a glowing speed rune glyph above small factory buildings. Rendered in cyan-diamond and periwinkle tones."
+    },
+    {
+      "id": "upgrade30",
+      "category": "upgrade",
+      "prompt": "a glowing duplication rune glyph drawing power from scattered coins. Rendered in cyan-diamond and periwinkle tones."
+    },
+    {
+      "id": "upgrade31",
+      "category": "upgrade",
+      "prompt": "a bursting accelerator-boost chevron above small factory buildings. Rendered in cyan-diamond and periwinkle tones."
+    },
+    {
+      "id": "upgrade32",
+      "category": "upgrade",
+      "prompt": "three forward speed chevrons drawing from a cyan diamond \u2014 free accelerators from diamonds. Rendered in cyan-diamond and periwinkle tones."
+    },
+    {
+      "id": "upgrade33",
+      "category": "upgrade",
+      "prompt": "a multiplication 'x' beside a bursting accelerator-boost chevron. Rendered in cyan-diamond and periwinkle tones."
+    },
+    {
+      "id": "upgrade34",
+      "category": "upgrade",
+      "prompt": "a multiplication 'x' with a bold +3% tag \u2014 more free multipliers. Rendered in cyan-diamond and periwinkle tones."
+    },
+    {
+      "id": "upgrade35",
+      "category": "upgrade",
+      "prompt": "a multiplication 'x' with a bold +2% tag \u2014 more free multipliers. Rendered in cyan-diamond and periwinkle tones."
+    },
+    {
+      "id": "upgrade36",
+      "category": "upgrade",
+      "prompt": "a periwinkle crystal multiplied by a cyan diamond, radiant. Rendered in cyan-diamond and periwinkle tones."
+    },
+    {
+      "id": "upgrade37",
+      "category": "upgrade",
+      "prompt": "a lavender mythos shard beside a cyan diamond with a faint logarithm curve. Rendered in cyan-diamond and periwinkle tones."
+    },
+    {
+      "id": "upgrade38",
+      "category": "upgrade",
+      "prompt": "a dusty-rose offering flame with a small boost-rocket and a +20% tag. Rendered in cyan-diamond and periwinkle tones."
+    },
+    {
+      "id": "upgrade39",
+      "category": "upgrade",
+      "prompt": "a stylized ant sprinting with speed lines and a +60% tag. Rendered in cyan-diamond and periwinkle tones."
+    },
+    {
+      "id": "upgrade40",
+      "category": "upgrade",
+      "prompt": "a stylized ant on a small altar with a reward sparkle and a +25% tag. Rendered in cyan-diamond and periwinkle tones."
+    },
+    {
+      "id": "upgrade41",
+      "category": "upgrade",
+      "prompt": "a lavender four-point mythos star radiating an upward production boost. Rendered in arcane lavender mythos tones."
+    },
+    {
+      "id": "upgrade42",
+      "category": "upgrade",
+      "prompt": "a pair of lavender mythos shards beside a cyan diamond \u2014 shards powered by diamonds. Rendered in arcane lavender mythos tones."
+    },
+    {
+      "id": "upgrade43",
+      "category": "upgrade",
+      "prompt": "a gold coin haloed by a transcension rebirth swirl \u2014 coin production per transcension. Rendered in arcane lavender mythos tones."
+    },
+    {
+      "id": "upgrade44",
+      "category": "upgrade",
+      "prompt": "a lavender mythos star inside a transcension rebirth swirl \u2014 more mythos per transcension. Rendered in arcane lavender mythos tones."
+    },
+    {
+      "id": "upgrade45",
+      "category": "upgrade",
+      "prompt": "three forward speed chevrons drawing from a pair of mythos shards. Rendered in arcane lavender mythos tones."
+    },
+    {
+      "id": "upgrade46",
+      "category": "upgrade",
+      "prompt": "a bursting accelerator-boost chevron behind a small protective shield \u2014 stronger boosts that don't reset. Rendered in arcane lavender mythos tones."
+    },
+    {
+      "id": "upgrade47",
+      "category": "upgrade",
+      "prompt": "a pair of mythos shards beside a small achievement-point trophy star. Rendered in arcane lavender mythos tones."
+    },
+    {
+      "id": "upgrade48",
+      "category": "upgrade",
+      "prompt": "speed chevrons and a multiplication 'x' radiating shared production power. Rendered in arcane lavender mythos tones."
+    },
+    {
+      "id": "upgrade49",
+      "category": "upgrade",
+      "prompt": "a multiplication 'x' fed by a lavender mythos star \u2014 free multipliers from mythos. Rendered in arcane lavender mythos tones."
+    },
+    {
+      "id": "upgrade50",
+      "category": "upgrade",
+      "prompt": "crossed challenge swords with speed chevrons and a multiplication 'x' \u2014 a challenge-only boost. Rendered in arcane lavender mythos tones."
+    },
+    {
+      "id": "upgrade51",
+      "category": "upgrade",
+      "prompt": "an arcane mythos building tower lifted by a bursting accelerator boost. Rendered in arcane lavender mythos tones."
+    },
+    {
+      "id": "upgrade52",
+      "category": "upgrade",
+      "prompt": "an arcane mythos building tower haloed by a small rising exponent. Rendered in arcane lavender mythos tones."
+    },
+    {
+      "id": "upgrade53",
+      "category": "upgrade",
+      "prompt": "an ornate augment rune spilling lavender mythos shards. Rendered in arcane lavender mythos tones."
+    },
+    {
+      "id": "upgrade54",
+      "category": "upgrade",
+      "prompt": "a wizard's pointed hat conjuring a glowing enchantment sigil. Rendered in arcane lavender mythos tones."
+    },
+    {
+      "id": "upgrade55",
+      "category": "upgrade",
+      "prompt": "a grandmaster's crowned staff beside a glowing oracle eye. Rendered in arcane lavender mythos tones."
+    },
+    {
+      "id": "upgrade56",
+      "category": "upgrade",
+      "prompt": "a worker's hard hat blazing with a bold x10^5000 exponent glow. Rendered in arcane lavender mythos tones."
+    },
+    {
+      "id": "upgrade57",
+      "category": "upgrade",
+      "prompt": "a rising coin stack blazing with a bold x10^7500 exponent glow. Rendered in arcane lavender mythos tones."
+    },
+    {
+      "id": "upgrade58",
+      "category": "upgrade",
+      "prompt": "a printing press blazing with a bold x10^15000 exponent glow. Rendered in arcane lavender mythos tones."
+    },
+    {
+      "id": "upgrade59",
+      "category": "upgrade",
+      "prompt": "a coin-mint stamp blazing with a bold x10^25000 exponent glow. Rendered in arcane lavender mythos tones."
+    },
+    {
+      "id": "upgrade60",
+      "category": "upgrade",
+      "prompt": "an alchemist's flask blazing with a bold x10^35000 exponent glow. Rendered in arcane lavender mythos tones."
+    },
+    {
+      "id": "upgrade61",
+      "category": "upgrade",
+      "prompt": "a glowing orange particle with a small +7 salvage spark \u2014 welcome to reincarnation. Rendered in warm-orange particle tones with plum shadows."
+    },
+    {
+      "id": "upgrade62",
+      "category": "upgrade",
+      "prompt": "a dusty-rose offering flame beside a challenge-completion tally. Rendered in warm-orange particle tones with plum shadows."
+    },
+    {
+      "id": "upgrade63",
+      "category": "upgrade",
+      "prompt": "a periwinkle crystal supercharged by a swirl of orange particles. Rendered in warm-orange particle tones with plum shadows."
+    },
+    {
+      "id": "upgrade64",
+      "category": "upgrade",
+      "prompt": "a lavender mythos shard supercharged by a swirl of orange particles. Rendered in warm-orange particle tones with plum shadows."
+    },
+    {
+      "id": "upgrade65",
+      "category": "upgrade",
+      "prompt": "a bright burst of orange particles with a bold x5 glow. Rendered in warm-orange particle tones with plum shadows."
+    },
+    {
+      "id": "upgrade66",
+      "category": "upgrade",
+      "prompt": "five small rune glyphs lifted by a + coefficient boost. Rendered in warm-orange particle tones with plum shadows."
+    },
+    {
+      "id": "upgrade67",
+      "category": "upgrade",
+      "prompt": "a glowing atom orbited by tiny orange particle motes. Rendered in warm-orange particle tones with plum shadows."
+    },
+    {
+      "id": "upgrade68",
+      "category": "upgrade",
+      "prompt": "a multiplication 'x' fed by a rising tax percent-sign. Rendered in warm-orange particle tones with plum shadows."
+    },
+    {
+      "id": "upgrade69",
+      "category": "upgrade",
+      "prompt": "a pink hexagonal obtainium gem fed by orange particles. Rendered in warm-orange particle tones with plum shadows."
+    },
+    {
+      "id": "upgrade70",
+      "category": "upgrade",
+      "prompt": "a clock face speeding up, ringed with orange particles. Rendered in warm-orange particle tones with plum shadows."
+    },
+    {
+      "id": "upgrade71",
+      "category": "upgrade",
+      "prompt": "a rune glyph soaking up EXP sparks from an offering flame. Rendered in warm-orange particle tones with plum shadows."
+    },
+    {
+      "id": "upgrade72",
+      "category": "upgrade",
+      "prompt": "a pink obtainium hexagon multiplied by challenge tally marks. Rendered in warm-orange particle tones with plum shadows."
+    },
+    {
+      "id": "upgrade73",
+      "category": "upgrade",
+      "prompt": "a bursting accelerator-boost chevron inside a challenge crest. Rendered in warm-orange particle tones with plum shadows."
+    },
+    {
+      "id": "upgrade74",
+      "category": "upgrade",
+      "prompt": "a pink obtainium hexagon fed by a small hoard of offering flames. Rendered in warm-orange particle tones with plum shadows."
+    },
+    {
+      "id": "upgrade75",
+      "category": "upgrade",
+      "prompt": "a dusty-rose offering flame fed by a small hoard of obtainium gems. Rendered in warm-orange particle tones with plum shadows."
+    },
+    {
+      "id": "upgrade76",
+      "category": "upgrade",
+      "prompt": "a stylized ant sprinting with a bold x5 speed burst. Rendered in warm-orange particle tones with plum shadows."
+    },
+    {
+      "id": "upgrade77",
+      "category": "upgrade",
+      "prompt": "a worker ant carrying a small speed-multiplier symbol. Rendered in warm-orange particle tones with plum shadows."
+    },
+    {
+      "id": "upgrade78",
+      "category": "upgrade",
+      "prompt": "a stylized ant accelerated by a rising offerings curve. Rendered in warm-orange particle tones with plum shadows."
+    },
+    {
+      "id": "upgrade79",
+      "category": "upgrade",
+      "prompt": "a stylized ant supercharged by a global-speed vortex. Rendered in warm-orange particle tones with plum shadows."
+    },
+    {
+      "id": "upgrade80",
+      "category": "upgrade",
+      "prompt": "a stylized ant earning an ELO medal beside a sacrificial altar. Rendered in warm-orange particle tones with plum shadows."
+    },
+    {
+      "id": "upgrade81",
+      "category": "upgrade",
+      "prompt": "a robotic clockwork arm picking up a worker's hard hat \u2014 auto-buy workers. Rendered as brass-and-violet clockwork in a pastel-goth palette."
+    },
+    {
+      "id": "upgrade82",
+      "category": "upgrade",
+      "prompt": "a robotic clockwork arm over a rising coin stack \u2014 auto-buy investments. Rendered as brass-and-violet clockwork in a pastel-goth palette."
+    },
+    {
+      "id": "upgrade83",
+      "category": "upgrade",
+      "prompt": "a robotic clockwork arm over a printing press \u2014 auto-buy printers. Rendered as brass-and-violet clockwork in a pastel-goth palette."
+    },
+    {
+      "id": "upgrade84",
+      "category": "upgrade",
+      "prompt": "a robotic clockwork arm over a coin-mint stamp \u2014 auto-buy mints. Rendered as brass-and-violet clockwork in a pastel-goth palette."
+    },
+    {
+      "id": "upgrade85",
+      "category": "upgrade",
+      "prompt": "a robotic clockwork arm over an alchemist's flask \u2014 auto-buy alchemies. Rendered as brass-and-violet clockwork in a pastel-goth palette."
+    },
+    {
+      "id": "upgrade86",
+      "category": "upgrade",
+      "prompt": "a gear meshed with three speed chevrons \u2014 auto-buy accelerators. Rendered as brass-and-violet clockwork in a pastel-goth palette."
+    },
+    {
+      "id": "upgrade87",
+      "category": "upgrade",
+      "prompt": "a gear meshed with a multiplication 'x' \u2014 auto-buy multipliers. Rendered as brass-and-violet clockwork in a pastel-goth palette."
+    },
+    {
+      "id": "upgrade88",
+      "category": "upgrade",
+      "prompt": "a gear meshed with a bursting accelerator-boost chevron \u2014 auto-buy accelerator boosts. Rendered as brass-and-violet clockwork in a pastel-goth palette."
+    },
+    {
+      "id": "upgrade89",
+      "category": "upgrade",
+      "prompt": "a gear wrapped around a lavender transcension star \u2014 unlock auto transcensions. Rendered as brass-and-violet clockwork in a pastel-goth palette."
+    },
+    {
+      "id": "upgrade90",
+      "category": "upgrade",
+      "prompt": "a gear meshed with interlocked generator cogs \u2014 auto-buy the generator shop. Rendered as brass-and-violet clockwork in a pastel-goth palette."
+    },
+    {
+      "id": "upgrade91",
+      "category": "upgrade",
+      "prompt": "a gear stamped with a gold coin upgrade tile \u2014 auto-buy coin upgrades. Rendered as brass-and-violet clockwork in a pastel-goth palette."
+    },
+    {
+      "id": "upgrade92",
+      "category": "upgrade",
+      "prompt": "a gear stamped with a cyan diamond upgrade tile \u2014 auto-buy diamond upgrades. Rendered as brass-and-violet clockwork in a pastel-goth palette."
+    },
+    {
+      "id": "upgrade93",
+      "category": "upgrade",
+      "prompt": "a cyan diamond dripping steadily beside a small clock \u2014 passive diamond income per second. Rendered as brass-and-violet clockwork in a pastel-goth palette."
+    },
+    {
+      "id": "upgrade94",
+      "category": "upgrade",
+      "prompt": "a gear meshed with an ornate augment rune \u2014 auto-buy augments. Rendered as brass-and-violet clockwork in a pastel-goth palette."
+    },
+    {
+      "id": "upgrade95",
+      "category": "upgrade",
+      "prompt": "a gear meshed with a glowing enchantment sigil \u2014 auto-buy enchantments. Rendered as brass-and-violet clockwork in a pastel-goth palette."
+    },
+    {
+      "id": "upgrade96",
+      "category": "upgrade",
+      "prompt": "a gear beside a wizard's pointed hat \u2014 auto-buy wizards. Rendered as brass-and-violet clockwork in a pastel-goth palette."
+    },
+    {
+      "id": "upgrade97",
+      "category": "upgrade",
+      "prompt": "a gear beside an oracle's glowing eye \u2014 auto-buy oracles. Rendered as brass-and-violet clockwork in a pastel-goth palette."
+    },
+    {
+      "id": "upgrade98",
+      "category": "upgrade",
+      "prompt": "a gear beside a grandmaster's crowned staff \u2014 auto-buy grandmasters. Rendered as brass-and-violet clockwork in a pastel-goth palette."
+    },
+    {
+      "id": "upgrade99",
+      "category": "upgrade",
+      "prompt": "a gear stamped with a lavender mythos upgrade tile \u2014 auto-buy mythos upgrades. Rendered as brass-and-violet clockwork in a pastel-goth palette."
+    },
+    {
+      "id": "upgrade100",
+      "category": "upgrade",
+      "prompt": "a lavender mythos star dripping steadily beside a small clock \u2014 passive mythos income per second. Rendered as brass-and-violet clockwork in a pastel-goth palette."
+    },
+    {
+      "id": "upgrade101",
+      "category": "upgrade",
+      "prompt": "an alchemist's flask linked by an arrow to a coin-mint stamp \u2014 alchemies produce mints. Rendered in teal-and-periwinkle machinery tones."
+    },
+    {
+      "id": "upgrade102",
+      "category": "upgrade",
+      "prompt": "a coin-mint stamp linked by an arrow to a printing press \u2014 mints produce printers. Rendered in teal-and-periwinkle machinery tones."
+    },
+    {
+      "id": "upgrade103",
+      "category": "upgrade",
+      "prompt": "a printing press linked by an arrow to a rising coin stack \u2014 printers produce investments. Rendered in teal-and-periwinkle machinery tones."
+    },
+    {
+      "id": "upgrade104",
+      "category": "upgrade",
+      "prompt": "a rising coin stack linked by an arrow to a worker's hard hat \u2014 investments produce workers. Rendered in teal-and-periwinkle machinery tones."
+    },
+    {
+      "id": "upgrade105",
+      "category": "upgrade",
+      "prompt": "a worker's hard hat linked by an arrow to an alchemist's flask \u2014 workers produce alchemies. Rendered in teal-and-periwinkle machinery tones."
+    },
+    {
+      "id": "upgrade106",
+      "category": "upgrade",
+      "prompt": "an industrial refinery tower linked to an alchemist's flask with a small exponent 0.10. Rendered in teal-and-periwinkle machinery tones."
+    },
+    {
+      "id": "upgrade107",
+      "category": "upgrade",
+      "prompt": "an industrial refinery and flask with a rising exponent 0.25. Rendered in teal-and-periwinkle machinery tones."
+    },
+    {
+      "id": "upgrade108",
+      "category": "upgrade",
+      "prompt": "an industrial refinery and flask with a rising exponent 0.50. Rendered in teal-and-periwinkle machinery tones."
+    },
+    {
+      "id": "upgrade109",
+      "category": "upgrade",
+      "prompt": "an industrial refinery and flask with a rising exponent 0.75. Rendered in teal-and-periwinkle machinery tones."
+    },
+    {
+      "id": "upgrade110",
+      "category": "upgrade",
+      "prompt": "an industrial refinery and flask with a maxed exponent 1.0, glowing. Rendered in teal-and-periwinkle machinery tones."
+    },
+    {
+      "id": "upgrade111",
+      "category": "upgrade",
+      "prompt": "an ornate augment rune linked to a mysterious Pandora box with a small exponent 0.08. Rendered in teal-and-periwinkle machinery tones."
+    },
+    {
+      "id": "upgrade112",
+      "category": "upgrade",
+      "prompt": "an augment rune and Pandora box with a rising exponent 0.16. Rendered in teal-and-periwinkle machinery tones."
+    },
+    {
+      "id": "upgrade113",
+      "category": "upgrade",
+      "prompt": "an augment rune and Pandora box with a rising exponent 0.24. Rendered in teal-and-periwinkle machinery tones."
+    },
+    {
+      "id": "upgrade114",
+      "category": "upgrade",
+      "prompt": "an augment rune and Pandora box with a rising exponent 0.32. Rendered in teal-and-periwinkle machinery tones."
+    },
+    {
+      "id": "upgrade115",
+      "category": "upgrade",
+      "prompt": "an augment rune and Pandora box with a maxed exponent 0.40, glowing. Rendered in teal-and-periwinkle machinery tones."
+    },
+    {
+      "id": "upgrade116",
+      "category": "upgrade",
+      "prompt": "a glowing proton particle linked to a grandmaster's crowned staff with a small exponent 0.05. Rendered in teal-and-periwinkle machinery tones."
+    },
+    {
+      "id": "upgrade117",
+      "category": "upgrade",
+      "prompt": "a proton and grandmaster staff with a rising exponent 0.10. Rendered in teal-and-periwinkle machinery tones."
+    },
+    {
+      "id": "upgrade118",
+      "category": "upgrade",
+      "prompt": "a proton and grandmaster staff with a rising exponent 0.15. Rendered in teal-and-periwinkle machinery tones."
+    },
+    {
+      "id": "upgrade119",
+      "category": "upgrade",
+      "prompt": "a proton and grandmaster staff with a rising exponent 0.20. Rendered in teal-and-periwinkle machinery tones."
+    },
+    {
+      "id": "upgrade120",
+      "category": "upgrade",
+      "prompt": "a proton and grandmaster staff with a maxed exponent 0.25, glowing. Rendered in teal-and-periwinkle machinery tones."
+    },
+    {
+      "id": "upgrade121",
+      "category": "upgrade",
+      "prompt": "a percent sign cut in half over coins, a sly 'taxes halved' motif. Rendered in warm gold and plum tones."
+    },
+    {
+      "id": "upgrade122",
+      "category": "upgrade",
+      "prompt": "a periwinkle crystal with an upward cap bracket expanding \u2014 crystal cap raised. Rendered in warm gold and plum tones."
+    },
+    {
+      "id": "upgrade123",
+      "category": "upgrade",
+      "prompt": "a coin stack with a bold rising exponent arrow \u2014 coin production raised to a power, more exponents. Rendered in warm gold and plum tones."
+    },
+    {
+      "id": "upgrade124",
+      "category": "upgrade",
+      "prompt": "a champion's ELO medal wreathed in a rebirth swirl, glowing faster. Rendered in warm gold and plum tones."
+    },
+    {
+      "id": "upgrade125",
+      "category": "upgrade",
+      "prompt": "a constant-symbol divisor crest marked with challenge tally notches. Rendered in warm gold and plum tones."
+    },
+    {
+      "id": "ach1",
+      "category": "achievement",
+      "prompt": "a gleaming gold commemorative medallion embossed with a magnifying glass crossing a star \u2014 the achievement-hunter badge, slim ribbon, soft pastel-goth palette."
+    },
+    {
+      "id": "ach2",
+      "category": "achievement",
+      "prompt": "a weathered bronze commemorative achievement medallion embossed with a worker's hard hat, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach3",
+      "category": "achievement",
+      "prompt": "a weathered bronze commemorative achievement medallion embossed with a worker's hard hat, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach4",
+      "category": "achievement",
+      "prompt": "a polished silver commemorative achievement medallion embossed with a worker's hard hat, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach5",
+      "category": "achievement",
+      "prompt": "a polished silver commemorative achievement medallion embossed with a worker's hard hat, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach6",
+      "category": "achievement",
+      "prompt": "a gleaming gold commemorative achievement medallion embossed with a worker's hard hat, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach7",
+      "category": "achievement",
+      "prompt": "a gleaming gold commemorative achievement medallion embossed with a worker's hard hat, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach8",
+      "category": "achievement",
+      "prompt": "an iridescent prismatic commemorative achievement medallion embossed with a worker's hard hat, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach9",
+      "category": "achievement",
+      "prompt": "a weathered bronze commemorative achievement medallion embossed with a rising stack of gold coins with a small 'stonks' up-arrow, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach10",
+      "category": "achievement",
+      "prompt": "a weathered bronze commemorative achievement medallion embossed with a rising stack of gold coins with a small 'stonks' up-arrow, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach11",
+      "category": "achievement",
+      "prompt": "a polished silver commemorative achievement medallion embossed with a rising stack of gold coins with a small 'stonks' up-arrow, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach12",
+      "category": "achievement",
+      "prompt": "a polished silver commemorative achievement medallion embossed with a rising stack of gold coins with a small 'stonks' up-arrow, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach13",
+      "category": "achievement",
+      "prompt": "a gleaming gold commemorative achievement medallion embossed with a rising stack of gold coins with a small 'stonks' up-arrow, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach14",
+      "category": "achievement",
+      "prompt": "a gleaming gold commemorative achievement medallion embossed with a rising stack of gold coins with a small 'stonks' up-arrow, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach15",
+      "category": "achievement",
+      "prompt": "an iridescent prismatic commemorative achievement medallion embossed with a rising stack of gold coins with a small 'stonks' up-arrow, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach16",
+      "category": "achievement",
+      "prompt": "a weathered bronze commemorative achievement medallion embossed with a small printing press, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach17",
+      "category": "achievement",
+      "prompt": "a weathered bronze commemorative achievement medallion embossed with a small printing press, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach18",
+      "category": "achievement",
+      "prompt": "a polished silver commemorative achievement medallion embossed with a small printing press, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach19",
+      "category": "achievement",
+      "prompt": "a polished silver commemorative achievement medallion embossed with a small printing press, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach20",
+      "category": "achievement",
+      "prompt": "a gleaming gold commemorative achievement medallion embossed with a small printing press, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach21",
+      "category": "achievement",
+      "prompt": "a gleaming gold commemorative achievement medallion embossed with a small printing press, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach22",
+      "category": "achievement",
+      "prompt": "an iridescent prismatic commemorative achievement medallion embossed with a small printing press, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach23",
+      "category": "achievement",
+      "prompt": "a weathered bronze commemorative achievement medallion embossed with a coin-mint stamp, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach24",
+      "category": "achievement",
+      "prompt": "a weathered bronze commemorative achievement medallion embossed with a coin-mint stamp, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach25",
+      "category": "achievement",
+      "prompt": "a polished silver commemorative achievement medallion embossed with a coin-mint stamp, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach26",
+      "category": "achievement",
+      "prompt": "a polished silver commemorative achievement medallion embossed with a coin-mint stamp, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach27",
+      "category": "achievement",
+      "prompt": "a gleaming gold commemorative achievement medallion embossed with a coin-mint stamp, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach28",
+      "category": "achievement",
+      "prompt": "a gleaming gold commemorative achievement medallion embossed with a coin-mint stamp, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach29",
+      "category": "achievement",
+      "prompt": "an iridescent prismatic commemorative achievement medallion embossed with a coin-mint stamp, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach30",
+      "category": "achievement",
+      "prompt": "a weathered bronze commemorative achievement medallion embossed with an alchemist's bubbling flask, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach31",
+      "category": "achievement",
+      "prompt": "a weathered bronze commemorative achievement medallion embossed with an alchemist's bubbling flask, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach32",
+      "category": "achievement",
+      "prompt": "a polished silver commemorative achievement medallion embossed with an alchemist's flask glowing with an eerie arcane sigil, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach33",
+      "category": "achievement",
+      "prompt": "a polished silver commemorative achievement medallion embossed with an alchemist's flask glowing with an eerie arcane sigil, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach34",
+      "category": "achievement",
+      "prompt": "a gleaming gold commemorative achievement medallion embossed with an alchemist's flask glowing with an eerie arcane sigil, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach35",
+      "category": "achievement",
+      "prompt": "a gleaming gold commemorative achievement medallion embossed with an alchemist's bubbling flask, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach36",
+      "category": "achievement",
+      "prompt": "an iridescent prismatic commemorative achievement medallion embossed with an alchemist's bubbling flask, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach37",
+      "category": "achievement",
+      "prompt": "a weathered bronze commemorative achievement medallion embossed with a cut cyan diamond, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach38",
+      "category": "achievement",
+      "prompt": "a weathered bronze commemorative achievement medallion embossed with a cut cyan diamond, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach39",
+      "category": "achievement",
+      "prompt": "a polished silver commemorative achievement medallion embossed with a cut cyan diamond, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach40",
+      "category": "achievement",
+      "prompt": "a polished silver commemorative achievement medallion embossed with a cut cyan diamond, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach41",
+      "category": "achievement",
+      "prompt": "a gleaming gold commemorative achievement medallion embossed with a cut cyan diamond, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach42",
+      "category": "achievement",
+      "prompt": "a gleaming gold commemorative achievement medallion embossed with a cut cyan diamond, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach43",
+      "category": "achievement",
+      "prompt": "an iridescent prismatic commemorative achievement medallion embossed with a cut cyan diamond, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach44",
+      "category": "achievement",
+      "prompt": "a weathered bronze commemorative achievement medallion embossed with a lavender four-point mythos star, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach45",
+      "category": "achievement",
+      "prompt": "a weathered bronze commemorative achievement medallion embossed with a lavender four-point mythos star, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach46",
+      "category": "achievement",
+      "prompt": "a polished silver commemorative achievement medallion embossed with a lavender four-point mythos star, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach47",
+      "category": "achievement",
+      "prompt": "a polished silver commemorative achievement medallion embossed with a lavender four-point mythos star, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach48",
+      "category": "achievement",
+      "prompt": "a gleaming gold commemorative achievement medallion embossed with a lavender four-point mythos star, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach49",
+      "category": "achievement",
+      "prompt": "a gleaming gold commemorative achievement medallion embossed with a lavender four-point mythos star, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach50",
+      "category": "achievement",
+      "prompt": "an iridescent prismatic commemorative achievement medallion embossed with a lavender four-point mythos star, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach51",
+      "category": "achievement",
+      "prompt": "a weathered bronze commemorative achievement medallion embossed with a warm-orange glowing particle mote, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach52",
+      "category": "achievement",
+      "prompt": "a weathered bronze commemorative achievement medallion embossed with a warm-orange glowing particle mote, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach53",
+      "category": "achievement",
+      "prompt": "a polished silver commemorative achievement medallion embossed with a warm-orange glowing particle mote, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach54",
+      "category": "achievement",
+      "prompt": "a polished silver commemorative achievement medallion embossed with a warm-orange glowing particle mote, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach55",
+      "category": "achievement",
+      "prompt": "a gleaming gold commemorative achievement medallion embossed with a warm-orange glowing particle mote, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach56",
+      "category": "achievement",
+      "prompt": "a gleaming gold commemorative achievement medallion embossed with a warm-orange glowing particle mote, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach57",
+      "category": "achievement",
+      "prompt": "an iridescent prismatic commemorative achievement medallion embossed with a warm-orange glowing particle mote, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach58",
+      "category": "achievement",
+      "prompt": "a weathered bronze commemorative achievement medallion embossed with a multiplication 'x' symbol crossed out by a prohibition slash, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach59",
+      "category": "achievement",
+      "prompt": "a polished silver commemorative achievement medallion embossed with a multiplication 'x' symbol crossed out by a prohibition slash, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach60",
+      "category": "achievement",
+      "prompt": "an iridescent prismatic commemorative achievement medallion embossed with a multiplication 'x' symbol crossed out by a prohibition slash, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach61",
+      "category": "achievement",
+      "prompt": "a weathered bronze commemorative achievement medallion embossed with forward speed chevrons crossed out by a prohibition slash, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach62",
+      "category": "achievement",
+      "prompt": "a polished silver commemorative achievement medallion embossed with forward speed chevrons crossed out by a prohibition slash, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach63",
+      "category": "achievement",
+      "prompt": "a gleaming gold commemorative achievement medallion embossed with forward speed chevrons crossed out by a prohibition slash, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach64",
+      "category": "achievement",
+      "prompt": "an iridescent prismatic commemorative achievement medallion embossed with forward speed chevrons crossed out by a prohibition slash, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach65",
+      "category": "achievement",
+      "prompt": "a weathered bronze commemorative achievement medallion embossed with a coin-upgrade tile crossed out by a prohibition slash \u2014 a miser's vow, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach66",
+      "category": "achievement",
+      "prompt": "a weathered bronze commemorative achievement medallion embossed with a coin-upgrade tile crossed out by a prohibition slash \u2014 a miser's vow, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach67",
+      "category": "achievement",
+      "prompt": "a polished silver commemorative achievement medallion embossed with a coin-upgrade tile crossed out by a prohibition slash \u2014 a miser's vow, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach68",
+      "category": "achievement",
+      "prompt": "a polished silver commemorative achievement medallion embossed with a coin-upgrade tile crossed out by a prohibition slash \u2014 a miser's vow, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach69",
+      "category": "achievement",
+      "prompt": "a gleaming gold commemorative achievement medallion embossed with a coin-upgrade tile crossed out by a prohibition slash \u2014 a miser's vow, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach70",
+      "category": "achievement",
+      "prompt": "a gleaming gold commemorative achievement medallion embossed with a coin-upgrade tile crossed out by a prohibition slash \u2014 a miser's vow, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach71",
+      "category": "achievement",
+      "prompt": "an iridescent prismatic commemorative achievement medallion embossed with a coin-upgrade tile crossed out by a prohibition slash \u2014 a miser's vow, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach72",
+      "category": "achievement",
+      "prompt": "a weathered bronze commemorative achievement medallion embossed with interlocking generator cogs stamped with an out-of-order numeral, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach73",
+      "category": "achievement",
+      "prompt": "a polished silver commemorative achievement medallion embossed with interlocking generator cogs stamped with an out-of-order numeral, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach74",
+      "category": "achievement",
+      "prompt": "a gleaming gold commemorative achievement medallion embossed with interlocking generator cogs stamped with an out-of-order numeral, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach75",
+      "category": "achievement",
+      "prompt": "an iridescent prismatic commemorative achievement medallion embossed with interlocking generator cogs stamped with an out-of-order numeral, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach76",
+      "category": "achievement",
+      "prompt": "a weathered bronze commemorative achievement medallion embossed with an exit doorway with a scatter of escaping gold coins, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach77",
+      "category": "achievement",
+      "prompt": "a polished silver commemorative achievement medallion embossed with an exit doorway with a scatter of escaping gold coins, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach78",
+      "category": "achievement",
+      "prompt": "an iridescent prismatic commemorative achievement medallion embossed with an exit doorway with a scatter of escaping gold coins, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach79",
+      "category": "achievement",
+      "prompt": "a weathered bronze commemorative achievement medallion embossed with a crossed-swords challenge crest over a struck-through multiplication 'x', a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach80",
+      "category": "achievement",
+      "prompt": "a weathered bronze commemorative achievement medallion embossed with a crossed-swords challenge crest over a struck-through multiplication 'x', a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach81",
+      "category": "achievement",
+      "prompt": "a polished silver commemorative achievement medallion embossed with a crossed-swords challenge crest over a struck-through multiplication 'x', a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach82",
+      "category": "achievement",
+      "prompt": "a polished silver commemorative achievement medallion embossed with a crossed-swords challenge crest over a struck-through multiplication 'x', a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach83",
+      "category": "achievement",
+      "prompt": "a gleaming gold commemorative achievement medallion embossed with a crossed-swords challenge crest over a struck-through multiplication 'x', a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach84",
+      "category": "achievement",
+      "prompt": "a gleaming gold commemorative achievement medallion embossed with a crossed-swords challenge crest over a struck-through multiplication 'x', a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach85",
+      "category": "achievement",
+      "prompt": "an iridescent prismatic commemorative achievement medallion embossed with a crossed-swords challenge crest over a struck-through multiplication 'x', a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach86",
+      "category": "achievement",
+      "prompt": "a weathered bronze commemorative achievement medallion embossed with a crossed-swords challenge crest over struck-through speed chevrons, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach87",
+      "category": "achievement",
+      "prompt": "a weathered bronze commemorative achievement medallion embossed with a crossed-swords challenge crest over struck-through speed chevrons, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach88",
+      "category": "achievement",
+      "prompt": "a polished silver commemorative achievement medallion embossed with a crossed-swords challenge crest over struck-through speed chevrons, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach89",
+      "category": "achievement",
+      "prompt": "a polished silver commemorative achievement medallion embossed with a crossed-swords challenge crest over struck-through speed chevrons, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach90",
+      "category": "achievement",
+      "prompt": "a gleaming gold commemorative achievement medallion embossed with a crossed-swords challenge crest over struck-through speed chevrons, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach91",
+      "category": "achievement",
+      "prompt": "a gleaming gold commemorative achievement medallion embossed with a crossed-swords challenge crest over struck-through speed chevrons, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach92",
+      "category": "achievement",
+      "prompt": "an iridescent prismatic commemorative achievement medallion embossed with a crossed-swords challenge crest over struck-through speed chevrons, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach93",
+      "category": "achievement",
+      "prompt": "a weathered bronze commemorative achievement medallion embossed with a crossed-swords challenge crest over a struck-through lavender mythos shard, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach94",
+      "category": "achievement",
+      "prompt": "a weathered bronze commemorative achievement medallion embossed with a crossed-swords challenge crest over a struck-through lavender mythos shard, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach95",
+      "category": "achievement",
+      "prompt": "a polished silver commemorative achievement medallion embossed with a crossed-swords challenge crest over a struck-through lavender mythos shard, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach96",
+      "category": "achievement",
+      "prompt": "a polished silver commemorative achievement medallion embossed with a crossed-swords challenge crest over a struck-through lavender mythos shard, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach97",
+      "category": "achievement",
+      "prompt": "a gleaming gold commemorative achievement medallion embossed with a crossed-swords challenge crest over a struck-through lavender mythos shard, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach98",
+      "category": "achievement",
+      "prompt": "a gleaming gold commemorative achievement medallion embossed with a crossed-swords challenge crest over a struck-through lavender mythos shard, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach99",
+      "category": "achievement",
+      "prompt": "an iridescent prismatic commemorative achievement medallion embossed with a crossed-swords challenge crest over a struck-through lavender mythos shard, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach100",
+      "category": "achievement",
+      "prompt": "a gleaming gold commemorative achievement medallion embossed with a price tag with a bold upward arrow \u2014 rising costs, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach101",
+      "category": "achievement",
+      "prompt": "a weathered bronze commemorative achievement medallion embossed with a crossed-swords challenge crest over a price tag with an upward arrow \u2014 rising costs, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach102",
+      "category": "achievement",
+      "prompt": "a weathered bronze commemorative achievement medallion embossed with a crossed-swords challenge crest over a price tag with an upward arrow \u2014 rising costs, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach103",
+      "category": "achievement",
+      "prompt": "a polished silver commemorative achievement medallion embossed with a crossed-swords challenge crest over a price tag with an upward arrow \u2014 rising costs, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach104",
+      "category": "achievement",
+      "prompt": "a gleaming gold commemorative achievement medallion embossed with a crossed-swords challenge crest over a price tag with an upward arrow \u2014 rising costs, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach105",
+      "category": "achievement",
+      "prompt": "a gleaming gold commemorative achievement medallion embossed with a crossed-swords challenge crest over a price tag with an upward arrow \u2014 rising costs, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach106",
+      "category": "achievement",
+      "prompt": "an iridescent prismatic commemorative achievement medallion embossed with a crossed-swords challenge crest over a price tag with an upward arrow \u2014 rising costs, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach107",
+      "category": "achievement",
+      "prompt": "a weathered bronze commemorative achievement medallion embossed with a crossed-swords challenge crest over a pickaxe striking a small cyan diamond, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach108",
+      "category": "achievement",
+      "prompt": "a weathered bronze commemorative achievement medallion embossed with a crossed-swords challenge crest over a pickaxe striking a small cyan diamond, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach109",
+      "category": "achievement",
+      "prompt": "a polished silver commemorative achievement medallion embossed with a crossed-swords challenge crest over a pickaxe striking a small cyan diamond, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach110",
+      "category": "achievement",
+      "prompt": "a polished silver commemorative achievement medallion embossed with a crossed-swords challenge crest over a pickaxe striking a small cyan diamond, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach111",
+      "category": "achievement",
+      "prompt": "a gleaming gold commemorative achievement medallion embossed with a crossed-swords challenge crest over a pickaxe striking a small cyan diamond, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach112",
+      "category": "achievement",
+      "prompt": "a gleaming gold commemorative achievement medallion embossed with a crossed-swords challenge crest over a pickaxe striking a small cyan diamond, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach113",
+      "category": "achievement",
+      "prompt": "an iridescent prismatic commemorative achievement medallion embossed with a crossed-swords challenge crest over a pickaxe striking a small cyan diamond, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach114",
+      "category": "achievement",
+      "prompt": "a weathered bronze commemorative achievement medallion embossed with a crossed-swords challenge crest over a tax percent-sign with an upward arrow, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach115",
+      "category": "achievement",
+      "prompt": "a weathered bronze commemorative achievement medallion embossed with a crossed-swords challenge crest over a tax percent-sign with an upward arrow, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach116",
+      "category": "achievement",
+      "prompt": "a polished silver commemorative achievement medallion embossed with a crossed-swords challenge crest over a tax percent-sign with an upward arrow, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach117",
+      "category": "achievement",
+      "prompt": "a polished silver commemorative achievement medallion embossed with a crossed-swords challenge crest over a tax percent-sign with an upward arrow, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach118",
+      "category": "achievement",
+      "prompt": "a gleaming gold commemorative achievement medallion embossed with a crossed-swords challenge crest over a tax percent-sign with an upward arrow, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach119",
+      "category": "achievement",
+      "prompt": "a gleaming gold commemorative achievement medallion embossed with a crossed-swords challenge crest over a tax percent-sign with an upward arrow, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach120",
+      "category": "achievement",
+      "prompt": "an iridescent prismatic commemorative achievement medallion embossed with a crossed-swords challenge crest over a tax percent-sign with an upward arrow, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach121",
+      "category": "achievement",
+      "prompt": "a weathered bronze commemorative achievement medallion embossed with a crossed-swords challenge crest over struck-through speed chevrons and a struck-through multiplication 'x', a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach122",
+      "category": "achievement",
+      "prompt": "a weathered bronze commemorative achievement medallion embossed with a crossed-swords challenge crest over struck-through speed chevrons and a struck-through multiplication 'x', a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach123",
+      "category": "achievement",
+      "prompt": "a polished silver commemorative achievement medallion embossed with a crossed-swords challenge crest over struck-through speed chevrons and a struck-through multiplication 'x', a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach124",
+      "category": "achievement",
+      "prompt": "a polished silver commemorative achievement medallion embossed with a crossed-swords challenge crest over struck-through speed chevrons and a struck-through multiplication 'x', a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach125",
+      "category": "achievement",
+      "prompt": "a gleaming gold commemorative achievement medallion embossed with a crossed-swords challenge crest over struck-through speed chevrons and a struck-through multiplication 'x', a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach126",
+      "category": "achievement",
+      "prompt": "a gleaming gold commemorative achievement medallion embossed with a crossed-swords challenge crest over struck-through speed chevrons and a struck-through multiplication 'x', a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach127",
+      "category": "achievement",
+      "prompt": "an iridescent prismatic commemorative achievement medallion embossed with a crossed-swords challenge crest over struck-through speed chevrons and a struck-through multiplication 'x', a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach128",
+      "category": "achievement",
+      "prompt": "a weathered bronze commemorative achievement medallion embossed with a crossed-swords challenge crest over a price tag with two steep upward arrows, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach129",
+      "category": "achievement",
+      "prompt": "a weathered bronze commemorative achievement medallion embossed with a crossed-swords challenge crest over a price tag with two steep upward arrows, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach130",
+      "category": "achievement",
+      "prompt": "a polished silver commemorative achievement medallion embossed with a crossed-swords challenge crest over a price tag with two steep upward arrows, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach131",
+      "category": "achievement",
+      "prompt": "a polished silver commemorative achievement medallion embossed with a crossed-swords challenge crest over a price tag with two steep upward arrows, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach132",
+      "category": "achievement",
+      "prompt": "a gleaming gold commemorative achievement medallion embossed with a crossed-swords challenge crest over a price tag with two steep upward arrows, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach133",
+      "category": "achievement",
+      "prompt": "a gleaming gold commemorative achievement medallion embossed with a crossed-swords challenge crest over a price tag with two steep upward arrows, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach134",
+      "category": "achievement",
+      "prompt": "an iridescent prismatic commemorative achievement medallion embossed with a crossed-swords challenge crest over a price tag with two steep upward arrows, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach135",
+      "category": "achievement",
+      "prompt": "a weathered bronze commemorative achievement medallion embossed with a crossed-swords challenge crest over a struck-through glowing rune glyph, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach136",
+      "category": "achievement",
+      "prompt": "a weathered bronze commemorative achievement medallion embossed with a crossed-swords challenge crest over a struck-through glowing rune glyph, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach137",
+      "category": "achievement",
+      "prompt": "a polished silver commemorative achievement medallion embossed with a crossed-swords challenge crest over a struck-through glowing rune glyph, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach138",
+      "category": "achievement",
+      "prompt": "a polished silver commemorative achievement medallion embossed with a crossed-swords challenge crest over a struck-through glowing rune glyph, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach139",
+      "category": "achievement",
+      "prompt": "a gleaming gold commemorative achievement medallion embossed with a crossed-swords challenge crest over a struck-through glowing rune glyph, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach140",
+      "category": "achievement",
+      "prompt": "a gleaming gold commemorative achievement medallion embossed with a crossed-swords challenge crest over a struck-through glowing rune glyph, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach141",
+      "category": "achievement",
+      "prompt": "an iridescent prismatic commemorative achievement medallion embossed with a crossed-swords challenge crest over a struck-through glowing rune glyph, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach142",
+      "category": "achievement",
+      "prompt": "a weathered bronze commemorative achievement medallion embossed with a menacing horned skull challenge crest \u2014 a sadistic trial, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach143",
+      "category": "achievement",
+      "prompt": "a weathered bronze commemorative achievement medallion embossed with a menacing horned skull challenge crest \u2014 a sadistic trial, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach144",
+      "category": "achievement",
+      "prompt": "a polished silver commemorative achievement medallion embossed with a menacing horned skull challenge crest \u2014 a sadistic trial, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach145",
+      "category": "achievement",
+      "prompt": "a polished silver commemorative achievement medallion embossed with a menacing horned skull challenge crest \u2014 a sadistic trial, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach146",
+      "category": "achievement",
+      "prompt": "a gleaming gold commemorative achievement medallion embossed with a menacing horned skull challenge crest \u2014 a sadistic trial, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach147",
+      "category": "achievement",
+      "prompt": "a gleaming gold commemorative achievement medallion embossed with a menacing horned skull challenge crest \u2014 a sadistic trial, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach148",
+      "category": "achievement",
+      "prompt": "an iridescent prismatic commemorative achievement medallion embossed with a menacing horned skull challenge crest \u2014 a sadistic trial, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach149",
+      "category": "achievement",
+      "prompt": "a weathered bronze commemorative achievement medallion embossed with forward speed chevrons \u2014 an accelerator, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach150",
+      "category": "achievement",
+      "prompt": "an iridescent prismatic commemorative achievement medallion embossed with forward speed chevrons \u2014 an accelerator, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach151",
+      "category": "achievement",
+      "prompt": "a weathered bronze commemorative achievement medallion embossed with forward speed chevrons \u2014 an accelerator, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach152",
+      "category": "achievement",
+      "prompt": "a polished silver commemorative achievement medallion embossed with forward speed chevrons \u2014 an accelerator, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach153",
+      "category": "achievement",
+      "prompt": "a polished silver commemorative achievement medallion embossed with forward speed chevrons \u2014 an accelerator, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach154",
+      "category": "achievement",
+      "prompt": "a gleaming gold commemorative achievement medallion embossed with forward speed chevrons \u2014 an accelerator, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach155",
+      "category": "achievement",
+      "prompt": "an iridescent prismatic commemorative achievement medallion embossed with forward speed chevrons \u2014 an accelerator, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach156",
+      "category": "achievement",
+      "prompt": "a weathered bronze commemorative achievement medallion embossed with a bold multiplication 'x' symbol, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach157",
+      "category": "achievement",
+      "prompt": "a weathered bronze commemorative achievement medallion embossed with a bold multiplication 'x' symbol, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach158",
+      "category": "achievement",
+      "prompt": "a polished silver commemorative achievement medallion embossed with a bold multiplication 'x' symbol, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach159",
+      "category": "achievement",
+      "prompt": "a polished silver commemorative achievement medallion embossed with a bold multiplication 'x' symbol, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach160",
+      "category": "achievement",
+      "prompt": "a gleaming gold commemorative achievement medallion embossed with a bold multiplication 'x' symbol, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach161",
+      "category": "achievement",
+      "prompt": "a gleaming gold commemorative achievement medallion embossed with a bold multiplication 'x' symbol, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach162",
+      "category": "achievement",
+      "prompt": "an iridescent prismatic commemorative achievement medallion embossed with a bold multiplication 'x' symbol, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach163",
+      "category": "achievement",
+      "prompt": "a weathered bronze commemorative achievement medallion embossed with a bursting accelerator-boost chevron, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach164",
+      "category": "achievement",
+      "prompt": "a weathered bronze commemorative achievement medallion embossed with a bursting accelerator-boost chevron, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach165",
+      "category": "achievement",
+      "prompt": "a polished silver commemorative achievement medallion embossed with a bursting accelerator-boost chevron, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach166",
+      "category": "achievement",
+      "prompt": "a polished silver commemorative achievement medallion embossed with a bursting accelerator-boost chevron, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach167",
+      "category": "achievement",
+      "prompt": "a gleaming gold commemorative achievement medallion embossed with a bursting accelerator-boost chevron, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach168",
+      "category": "achievement",
+      "prompt": "a gleaming gold commemorative achievement medallion embossed with a bursting accelerator-boost chevron, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach169",
+      "category": "achievement",
+      "prompt": "an iridescent prismatic commemorative achievement medallion embossed with a bursting accelerator-boost chevron, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach170",
+      "category": "achievement",
+      "prompt": "a weathered bronze commemorative achievement medallion embossed with a glowing golden galactic breadcrumb morsel \u2014 a cosmic crumb, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach171",
+      "category": "achievement",
+      "prompt": "a weathered bronze commemorative achievement medallion embossed with a glowing golden galactic breadcrumb morsel \u2014 a cosmic crumb, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach172",
+      "category": "achievement",
+      "prompt": "a polished silver commemorative achievement medallion embossed with a glowing golden galactic breadcrumb morsel \u2014 a cosmic crumb, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach173",
+      "category": "achievement",
+      "prompt": "a polished silver commemorative achievement medallion embossed with a glowing golden galactic breadcrumb morsel \u2014 a cosmic crumb, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach174",
+      "category": "achievement",
+      "prompt": "a gleaming gold commemorative achievement medallion embossed with a glowing golden galactic breadcrumb morsel \u2014 a cosmic crumb, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach175",
+      "category": "achievement",
+      "prompt": "a gleaming gold commemorative achievement medallion embossed with a glowing golden galactic breadcrumb morsel \u2014 a cosmic crumb, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach176",
+      "category": "achievement",
+      "prompt": "an iridescent prismatic commemorative achievement medallion embossed with a glowing golden galactic breadcrumb morsel \u2014 a cosmic crumb, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach177",
+      "category": "achievement",
+      "prompt": "a weathered bronze commemorative achievement medallion embossed with a stylized ant beside a champion's ELO medal, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach178",
+      "category": "achievement",
+      "prompt": "a weathered bronze commemorative achievement medallion embossed with a stylized ant beside a champion's ELO medal, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach179",
+      "category": "achievement",
+      "prompt": "a polished silver commemorative achievement medallion embossed with a stylized ant beside a champion's ELO medal, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach180",
+      "category": "achievement",
+      "prompt": "a polished silver commemorative achievement medallion embossed with a stylized ant beside a champion's ELO medal, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach181",
+      "category": "achievement",
+      "prompt": "a gleaming gold commemorative achievement medallion embossed with a stylized ant beside a champion's ELO medal, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach182",
+      "category": "achievement",
+      "prompt": "a gleaming gold commemorative achievement medallion embossed with a stylized ant beside a champion's ELO medal, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach183",
+      "category": "achievement",
+      "prompt": "an iridescent prismatic commemorative achievement medallion embossed with a stylized ant beside a champion's ELO medal, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach184",
+      "category": "achievement",
+      "prompt": "a weathered bronze commemorative achievement medallion embossed with an upward ascension burst of radiant rising rays, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach185",
+      "category": "achievement",
+      "prompt": "a weathered bronze commemorative achievement medallion embossed with an upward ascension burst of radiant rising rays, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach186",
+      "category": "achievement",
+      "prompt": "a polished silver commemorative achievement medallion embossed with an upward ascension burst of radiant rising rays, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach187",
+      "category": "achievement",
+      "prompt": "a polished silver commemorative achievement medallion embossed with an upward ascension burst of radiant rising rays, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach188",
+      "category": "achievement",
+      "prompt": "a gleaming gold commemorative achievement medallion embossed with an upward ascension burst of radiant rising rays, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach189",
+      "category": "achievement",
+      "prompt": "a gleaming gold commemorative achievement medallion embossed with an upward ascension burst of radiant rising rays, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach190",
+      "category": "achievement",
+      "prompt": "an iridescent prismatic commemorative achievement medallion embossed with an upward ascension burst of radiant rising rays, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach191",
+      "category": "achievement",
+      "prompt": "a weathered bronze commemorative achievement medallion embossed with a glowing mathematical constant symbol pi, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach192",
+      "category": "achievement",
+      "prompt": "a weathered bronze commemorative achievement medallion embossed with a glowing mathematical constant symbol pi, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach193",
+      "category": "achievement",
+      "prompt": "a polished silver commemorative achievement medallion embossed with a glowing mathematical constant symbol pi, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach194",
+      "category": "achievement",
+      "prompt": "a polished silver commemorative achievement medallion embossed with a glowing mathematical constant symbol pi, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach195",
+      "category": "achievement",
+      "prompt": "a gleaming gold commemorative achievement medallion embossed with a glowing mathematical constant symbol pi, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach196",
+      "category": "achievement",
+      "prompt": "a gleaming gold commemorative achievement medallion embossed with a glowing mathematical constant symbol pi, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach197",
+      "category": "achievement",
+      "prompt": "an iridescent prismatic commemorative achievement medallion embossed with a glowing mathematical constant symbol pi, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach198",
+      "category": "achievement",
+      "prompt": "a weathered bronze commemorative achievement medallion embossed with a crossed-swords challenge crest over a struck-through ant, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach199",
+      "category": "achievement",
+      "prompt": "a polished silver commemorative achievement medallion embossed with a crossed-swords challenge crest over a struck-through ant, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach200",
+      "category": "achievement",
+      "prompt": "an iridescent prismatic commemorative achievement medallion embossed with a crossed-swords challenge crest over a struck-through ant, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach201",
+      "category": "achievement",
+      "prompt": "a weathered bronze commemorative achievement medallion embossed with a crossed-swords challenge crest over a struck-through ant, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach202",
+      "category": "achievement",
+      "prompt": "a polished silver commemorative achievement medallion embossed with a crossed-swords challenge crest over a struck-through ant, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach203",
+      "category": "achievement",
+      "prompt": "a gleaming gold commemorative achievement medallion embossed with a crossed-swords challenge crest over a struck-through ant, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach204",
+      "category": "achievement",
+      "prompt": "an iridescent prismatic commemorative achievement medallion embossed with a crossed-swords challenge crest over a struck-through ant, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach205",
+      "category": "achievement",
+      "prompt": "a weathered bronze commemorative achievement medallion embossed with a crossed-swords challenge crest over a struck-through reincarnation particle swirl, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach206",
+      "category": "achievement",
+      "prompt": "a weathered bronze commemorative achievement medallion embossed with a crossed-swords challenge crest over a struck-through reincarnation particle swirl, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach207",
+      "category": "achievement",
+      "prompt": "a polished silver commemorative achievement medallion embossed with a crossed-swords challenge crest over a struck-through reincarnation particle swirl, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach208",
+      "category": "achievement",
+      "prompt": "a polished silver commemorative achievement medallion embossed with a crossed-swords challenge crest over a struck-through reincarnation particle swirl, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach209",
+      "category": "achievement",
+      "prompt": "a gleaming gold commemorative achievement medallion embossed with a crossed-swords challenge crest over a struck-through reincarnation particle swirl, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach210",
+      "category": "achievement",
+      "prompt": "a gleaming gold commemorative achievement medallion embossed with a crossed-swords challenge crest over a struck-through reincarnation particle swirl, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach211",
+      "category": "achievement",
+      "prompt": "an iridescent prismatic commemorative achievement medallion embossed with a crossed-swords challenge crest over a struck-through reincarnation particle swirl, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach212",
+      "category": "achievement",
+      "prompt": "a weathered bronze commemorative achievement medallion embossed with a crossed-swords challenge crest over a tax percent-sign with three steep upward arrows, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach213",
+      "category": "achievement",
+      "prompt": "a weathered bronze commemorative achievement medallion embossed with a crossed-swords challenge crest over a tax percent-sign with three steep upward arrows, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach214",
+      "category": "achievement",
+      "prompt": "a polished silver commemorative achievement medallion embossed with a crossed-swords challenge crest over a tax percent-sign with three steep upward arrows, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach215",
+      "category": "achievement",
+      "prompt": "a polished silver commemorative achievement medallion embossed with a crossed-swords challenge crest over a tax percent-sign with three steep upward arrows, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach216",
+      "category": "achievement",
+      "prompt": "a gleaming gold commemorative achievement medallion embossed with a crossed-swords challenge crest over a tax percent-sign with three steep upward arrows, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach217",
+      "category": "achievement",
+      "prompt": "a gleaming gold commemorative achievement medallion embossed with a crossed-swords challenge crest over a tax percent-sign with three steep upward arrows, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach218",
+      "category": "achievement",
+      "prompt": "an iridescent prismatic commemorative achievement medallion embossed with a crossed-swords challenge crest over a tax percent-sign with three steep upward arrows, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach219",
+      "category": "achievement",
+      "prompt": "a weathered bronze commemorative achievement medallion embossed with a crossed-swords challenge crest over a struck-through research light-bulb, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach220",
+      "category": "achievement",
+      "prompt": "a weathered bronze commemorative achievement medallion embossed with a crossed-swords challenge crest over a struck-through research light-bulb, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach221",
+      "category": "achievement",
+      "prompt": "a polished silver commemorative achievement medallion embossed with a crossed-swords challenge crest over a struck-through research light-bulb, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach222",
+      "category": "achievement",
+      "prompt": "a polished silver commemorative achievement medallion embossed with a crossed-swords challenge crest over a struck-through research light-bulb, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach223",
+      "category": "achievement",
+      "prompt": "a gleaming gold commemorative achievement medallion embossed with a crossed-swords challenge crest over a struck-through research light-bulb, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach224",
+      "category": "achievement",
+      "prompt": "a gleaming gold commemorative achievement medallion embossed with a crossed-swords challenge crest over a struck-through research light-bulb, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach225",
+      "category": "achievement",
+      "prompt": "an iridescent prismatic commemorative achievement medallion embossed with a crossed-swords challenge crest over a struck-through research light-bulb, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach226",
+      "category": "achievement",
+      "prompt": "a weathered bronze commemorative achievement medallion embossed with an upward ascension burst with a glowing score star, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach227",
+      "category": "achievement",
+      "prompt": "a weathered bronze commemorative achievement medallion embossed with an upward ascension burst with a glowing score star, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach228",
+      "category": "achievement",
+      "prompt": "a polished silver commemorative achievement medallion embossed with an upward ascension burst with a glowing score star, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach229",
+      "category": "achievement",
+      "prompt": "a polished silver commemorative achievement medallion embossed with an upward ascension burst with a glowing score star, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach230",
+      "category": "achievement",
+      "prompt": "a gleaming gold commemorative achievement medallion embossed with an upward ascension burst with a glowing score star, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach231",
+      "category": "achievement",
+      "prompt": "a gleaming gold commemorative achievement medallion embossed with an upward ascension burst with a glowing score star, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach232",
+      "category": "achievement",
+      "prompt": "an iridescent prismatic commemorative achievement medallion embossed with an upward ascension burst with a glowing score star, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach233",
+      "category": "achievement",
+      "prompt": "a weathered bronze commemorative achievement medallion embossed with a radiant blessing halo over a blue speed rune, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach234",
+      "category": "achievement",
+      "prompt": "a polished silver commemorative achievement medallion embossed with a radiant blessing halo over a blue speed rune, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach235",
+      "category": "achievement",
+      "prompt": "an iridescent prismatic commemorative achievement medallion embossed with a radiant blessing halo over a blue speed rune, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach236",
+      "category": "achievement",
+      "prompt": "a weathered bronze commemorative achievement medallion embossed with an ethereal spirit wisp swirling around a blue speed rune, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach237",
+      "category": "achievement",
+      "prompt": "a polished silver commemorative achievement medallion embossed with an ethereal spirit wisp swirling around a blue speed rune, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach238",
+      "category": "achievement",
+      "prompt": "an iridescent prismatic commemorative achievement medallion embossed with an ethereal spirit wisp swirling around a blue speed rune, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach239",
+      "category": "achievement",
+      "prompt": "an enigmatic obsidian commemorative medallion sealed with a glowing question mark \u2014 a mysterious secret achievement, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach240",
+      "category": "achievement",
+      "prompt": "an enigmatic obsidian commemorative medallion sealed with a glowing question mark \u2014 a mysterious secret achievement, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach241",
+      "category": "achievement",
+      "prompt": "an enigmatic obsidian commemorative medallion sealed with a glowing question mark \u2014 a mysterious secret achievement, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach242",
+      "category": "achievement",
+      "prompt": "an enigmatic obsidian commemorative medallion sealed with a glowing question mark \u2014 a mysterious secret achievement, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach243",
+      "category": "achievement",
+      "prompt": "an enigmatic obsidian commemorative medallion sealed with a glowing question mark \u2014 a mysterious secret achievement, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach244",
+      "category": "achievement",
+      "prompt": "an enigmatic obsidian commemorative medallion sealed with a glowing question mark \u2014 a mysterious secret achievement, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach245",
+      "category": "achievement",
+      "prompt": "an enigmatic obsidian commemorative medallion sealed with a glowing question mark \u2014 a mysterious secret achievement, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach246",
+      "category": "achievement",
+      "prompt": "an enigmatic obsidian commemorative medallion sealed with a glowing question mark \u2014 a mysterious secret achievement, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach247",
+      "category": "achievement",
+      "prompt": "an enigmatic obsidian commemorative medallion sealed with a glowing question mark \u2014 a mysterious secret achievement, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach248",
+      "category": "achievement",
+      "prompt": "an enigmatic obsidian commemorative medallion sealed with a glowing question mark \u2014 a mysterious secret achievement, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach249",
+      "category": "achievement",
+      "prompt": "an enigmatic obsidian commemorative medallion sealed with a glowing question mark \u2014 a mysterious secret achievement, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach250",
+      "category": "achievement",
+      "prompt": "an enigmatic obsidian commemorative medallion sealed with a glowing question mark \u2014 a mysterious secret achievement, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach251",
+      "category": "achievement",
+      "prompt": "an enigmatic obsidian commemorative medallion sealed with a glowing question mark \u2014 a mysterious secret achievement, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach252",
+      "category": "achievement",
+      "prompt": "an enigmatic obsidian commemorative medallion sealed with a glowing question mark \u2014 a mysterious secret achievement, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach253",
+      "category": "achievement",
+      "prompt": "an enigmatic obsidian commemorative medallion sealed with a glowing question mark \u2014 a mysterious secret achievement, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach254",
+      "category": "achievement",
+      "prompt": "a weathered bronze commemorative achievement medallion embossed with an upward ascension burst with a glowing score star, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach255",
+      "category": "achievement",
+      "prompt": "a weathered bronze commemorative achievement medallion embossed with an upward ascension burst with a glowing score star, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach256",
+      "category": "achievement",
+      "prompt": "a polished silver commemorative achievement medallion embossed with an upward ascension burst with a glowing score star, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach257",
+      "category": "achievement",
+      "prompt": "a polished silver commemorative achievement medallion embossed with an upward ascension burst with a glowing score star, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach258",
+      "category": "achievement",
+      "prompt": "a gleaming gold commemorative achievement medallion embossed with an upward ascension burst with a glowing score star, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach259",
+      "category": "achievement",
+      "prompt": "a gleaming gold commemorative achievement medallion embossed with an upward ascension burst with a glowing score star, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach260",
+      "category": "achievement",
+      "prompt": "an iridescent prismatic commemorative achievement medallion embossed with an upward ascension burst with a glowing score star, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach261",
+      "category": "achievement",
+      "prompt": "a weathered bronze commemorative achievement medallion embossed with an upward ascension burst of radiant rising rays, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach262",
+      "category": "achievement",
+      "prompt": "a weathered bronze commemorative achievement medallion embossed with an upward ascension burst of radiant rising rays, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach263",
+      "category": "achievement",
+      "prompt": "a polished silver commemorative achievement medallion embossed with an upward ascension burst of radiant rising rays, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach264",
+      "category": "achievement",
+      "prompt": "a polished silver commemorative achievement medallion embossed with an upward ascension burst of radiant rising rays, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach265",
+      "category": "achievement",
+      "prompt": "a gleaming gold commemorative achievement medallion embossed with an upward ascension burst of radiant rising rays, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach266",
+      "category": "achievement",
+      "prompt": "a gleaming gold commemorative achievement medallion embossed with an upward ascension burst of radiant rising rays, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach267",
+      "category": "achievement",
+      "prompt": "an iridescent prismatic commemorative achievement medallion embossed with an upward ascension burst of radiant rising rays, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach268",
+      "category": "achievement",
+      "prompt": "a weathered bronze commemorative achievement medallion embossed with a glowing mathematical constant symbol pi, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach269",
+      "category": "achievement",
+      "prompt": "a weathered bronze commemorative achievement medallion embossed with a glowing mathematical constant symbol pi, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach270",
+      "category": "achievement",
+      "prompt": "a polished silver commemorative achievement medallion embossed with a glowing mathematical constant symbol pi, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach271",
+      "category": "achievement",
+      "prompt": "a polished silver commemorative achievement medallion embossed with a glowing mathematical constant symbol pi, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach272",
+      "category": "achievement",
+      "prompt": "a gleaming gold commemorative achievement medallion embossed with a glowing mathematical constant symbol pi, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach273",
+      "category": "achievement",
+      "prompt": "a gleaming gold commemorative achievement medallion embossed with a glowing mathematical constant symbol pi, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach274",
+      "category": "achievement",
+      "prompt": "an iridescent prismatic commemorative achievement medallion embossed with a glowing mathematical constant symbol pi, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach275",
+      "category": "achievement",
+      "prompt": "a weathered bronze commemorative achievement medallion embossed with a swirling singularity black-hole vortex ringed with golden motes, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach276",
+      "category": "achievement",
+      "prompt": "a weathered bronze commemorative achievement medallion embossed with a swirling singularity black-hole vortex ringed with golden motes, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach277",
+      "category": "achievement",
+      "prompt": "a polished silver commemorative achievement medallion embossed with a swirling singularity black-hole vortex ringed with golden motes, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach278",
+      "category": "achievement",
+      "prompt": "a polished silver commemorative achievement medallion embossed with a swirling singularity black-hole vortex ringed with golden motes, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach279",
+      "category": "achievement",
+      "prompt": "a gleaming gold commemorative achievement medallion embossed with a swirling singularity black-hole vortex ringed with golden motes, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach280",
+      "category": "achievement",
+      "prompt": "a gleaming gold commemorative achievement medallion embossed with a swirling singularity black-hole vortex ringed with golden motes, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach281",
+      "category": "achievement",
+      "prompt": "an iridescent prismatic commemorative achievement medallion embossed with a swirling singularity black-hole vortex ringed with golden motes, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach282",
+      "category": "achievement",
+      "prompt": "a weathered bronze commemorative achievement medallion embossed with a worker's hard hat, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach283",
+      "category": "achievement",
+      "prompt": "a polished silver commemorative achievement medallion embossed with a worker's hard hat, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach284",
+      "category": "achievement",
+      "prompt": "an iridescent prismatic commemorative achievement medallion embossed with a worker's hard hat, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach285",
+      "category": "achievement",
+      "prompt": "a weathered bronze commemorative achievement medallion embossed with a rising stack of gold coins, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach286",
+      "category": "achievement",
+      "prompt": "a polished silver commemorative achievement medallion embossed with a rising stack of gold coins, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach287",
+      "category": "achievement",
+      "prompt": "an iridescent prismatic commemorative achievement medallion embossed with a rising stack of gold coins, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach288",
+      "category": "achievement",
+      "prompt": "a weathered bronze commemorative achievement medallion embossed with a small printing press, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach289",
+      "category": "achievement",
+      "prompt": "a polished silver commemorative achievement medallion embossed with a small printing press, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach290",
+      "category": "achievement",
+      "prompt": "an iridescent prismatic commemorative achievement medallion embossed with a small printing press, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach291",
+      "category": "achievement",
+      "prompt": "a weathered bronze commemorative achievement medallion embossed with a coin-mint stamp, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach292",
+      "category": "achievement",
+      "prompt": "a polished silver commemorative achievement medallion embossed with a coin-mint stamp, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach293",
+      "category": "achievement",
+      "prompt": "an iridescent prismatic commemorative achievement medallion embossed with a coin-mint stamp, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach294",
+      "category": "achievement",
+      "prompt": "a weathered bronze commemorative achievement medallion embossed with an alchemist's bubbling flask, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach295",
+      "category": "achievement",
+      "prompt": "a polished silver commemorative achievement medallion embossed with an alchemist's bubbling flask, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach296",
+      "category": "achievement",
+      "prompt": "an iridescent prismatic commemorative achievement medallion embossed with an alchemist's bubbling flask, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach297",
+      "category": "achievement",
+      "prompt": "a weathered bronze commemorative achievement medallion embossed with a cut cyan diamond, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach298",
+      "category": "achievement",
+      "prompt": "a polished silver commemorative achievement medallion embossed with a cut cyan diamond, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach299",
+      "category": "achievement",
+      "prompt": "an iridescent prismatic commemorative achievement medallion embossed with a cut cyan diamond, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach300",
+      "category": "achievement",
+      "prompt": "a gleaming gold commemorative achievement medallion embossed with a lavender four-point mythos star, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach301",
+      "category": "achievement",
+      "prompt": "a weathered bronze commemorative achievement medallion embossed with a lavender four-point mythos star, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach302",
+      "category": "achievement",
+      "prompt": "an iridescent prismatic commemorative achievement medallion embossed with a lavender four-point mythos star, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach303",
+      "category": "achievement",
+      "prompt": "a weathered bronze commemorative achievement medallion embossed with a warm-orange glowing particle mote, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach304",
+      "category": "achievement",
+      "prompt": "a polished silver commemorative achievement medallion embossed with a warm-orange glowing particle mote, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach305",
+      "category": "achievement",
+      "prompt": "an iridescent prismatic commemorative achievement medallion embossed with a warm-orange glowing particle mote, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach306",
+      "category": "achievement",
+      "prompt": "a weathered bronze commemorative achievement medallion embossed with a crossed-swords challenge crest over a struck-through multiplication 'x', a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach307",
+      "category": "achievement",
+      "prompt": "a polished silver commemorative achievement medallion embossed with a crossed-swords challenge crest over a struck-through multiplication 'x', a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach308",
+      "category": "achievement",
+      "prompt": "an iridescent prismatic commemorative achievement medallion embossed with a crossed-swords challenge crest over a struck-through multiplication 'x', a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach309",
+      "category": "achievement",
+      "prompt": "a weathered bronze commemorative achievement medallion embossed with a crossed-swords challenge crest over struck-through speed chevrons, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach310",
+      "category": "achievement",
+      "prompt": "a polished silver commemorative achievement medallion embossed with a crossed-swords challenge crest over struck-through speed chevrons, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach311",
+      "category": "achievement",
+      "prompt": "an iridescent prismatic commemorative achievement medallion embossed with a crossed-swords challenge crest over struck-through speed chevrons, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach312",
+      "category": "achievement",
+      "prompt": "a weathered bronze commemorative achievement medallion embossed with a crossed-swords challenge crest over a struck-through lavender mythos shard, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach313",
+      "category": "achievement",
+      "prompt": "a polished silver commemorative achievement medallion embossed with a crossed-swords challenge crest over a struck-through lavender mythos shard, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach314",
+      "category": "achievement",
+      "prompt": "an iridescent prismatic commemorative achievement medallion embossed with a crossed-swords challenge crest over a struck-through lavender mythos shard, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach315",
+      "category": "achievement",
+      "prompt": "a weathered bronze commemorative achievement medallion embossed with a crossed-swords challenge crest over a price tag with an upward arrow \u2014 rising costs, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach316",
+      "category": "achievement",
+      "prompt": "a polished silver commemorative achievement medallion embossed with a crossed-swords challenge crest over a price tag with an upward arrow \u2014 rising costs, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach317",
+      "category": "achievement",
+      "prompt": "an iridescent prismatic commemorative achievement medallion embossed with a crossed-swords challenge crest over a price tag with an upward arrow \u2014 rising costs, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach318",
+      "category": "achievement",
+      "prompt": "a weathered bronze commemorative achievement medallion embossed with a crossed-swords challenge crest over a pickaxe striking a small cyan diamond, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach319",
+      "category": "achievement",
+      "prompt": "a polished silver commemorative achievement medallion embossed with a crossed-swords challenge crest over a pickaxe striking a small cyan diamond, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach320",
+      "category": "achievement",
+      "prompt": "an iridescent prismatic commemorative achievement medallion embossed with a crossed-swords challenge crest over a pickaxe striking a small cyan diamond, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach321",
+      "category": "achievement",
+      "prompt": "a weathered bronze commemorative achievement medallion embossed with a crossed-swords challenge crest over a tax percent-sign with an upward arrow, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach322",
+      "category": "achievement",
+      "prompt": "a polished silver commemorative achievement medallion embossed with a crossed-swords challenge crest over a tax percent-sign with an upward arrow, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach323",
+      "category": "achievement",
+      "prompt": "an iridescent prismatic commemorative achievement medallion embossed with a crossed-swords challenge crest over a tax percent-sign with an upward arrow, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach324",
+      "category": "achievement",
+      "prompt": "a weathered bronze commemorative achievement medallion embossed with a crossed-swords challenge crest over struck-through speed chevrons and a struck-through multiplication 'x', a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach325",
+      "category": "achievement",
+      "prompt": "a polished silver commemorative achievement medallion embossed with a crossed-swords challenge crest over struck-through speed chevrons and a struck-through multiplication 'x', a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach326",
+      "category": "achievement",
+      "prompt": "an iridescent prismatic commemorative achievement medallion embossed with a crossed-swords challenge crest over struck-through speed chevrons and a struck-through multiplication 'x', a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach327",
+      "category": "achievement",
+      "prompt": "a weathered bronze commemorative achievement medallion embossed with a crossed-swords challenge crest over a price tag with two steep upward arrows, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach328",
+      "category": "achievement",
+      "prompt": "a polished silver commemorative achievement medallion embossed with a crossed-swords challenge crest over a price tag with two steep upward arrows, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach329",
+      "category": "achievement",
+      "prompt": "an iridescent prismatic commemorative achievement medallion embossed with a crossed-swords challenge crest over a price tag with two steep upward arrows, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach330",
+      "category": "achievement",
+      "prompt": "a weathered bronze commemorative achievement medallion embossed with a crossed-swords challenge crest over a struck-through glowing rune glyph, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach331",
+      "category": "achievement",
+      "prompt": "a polished silver commemorative achievement medallion embossed with a crossed-swords challenge crest over a struck-through glowing rune glyph, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach332",
+      "category": "achievement",
+      "prompt": "an iridescent prismatic commemorative achievement medallion embossed with a crossed-swords challenge crest over a struck-through glowing rune glyph, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach333",
+      "category": "achievement",
+      "prompt": "a weathered bronze commemorative achievement medallion embossed with a menacing horned skull challenge crest \u2014 a sadistic trial, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach334",
+      "category": "achievement",
+      "prompt": "a polished silver commemorative achievement medallion embossed with a menacing horned skull challenge crest \u2014 a sadistic trial, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach335",
+      "category": "achievement",
+      "prompt": "an iridescent prismatic commemorative achievement medallion embossed with a menacing horned skull challenge crest \u2014 a sadistic trial, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach336",
+      "category": "achievement",
+      "prompt": "a weathered bronze commemorative achievement medallion embossed with forward speed chevrons \u2014 an accelerator, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach337",
+      "category": "achievement",
+      "prompt": "a polished silver commemorative achievement medallion embossed with forward speed chevrons \u2014 an accelerator, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach338",
+      "category": "achievement",
+      "prompt": "an iridescent prismatic commemorative achievement medallion embossed with forward speed chevrons \u2014 an accelerator, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach339",
+      "category": "achievement",
+      "prompt": "a weathered bronze commemorative achievement medallion embossed with a bold multiplication 'x' symbol, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach340",
+      "category": "achievement",
+      "prompt": "a polished silver commemorative achievement medallion embossed with a bold multiplication 'x' symbol, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach341",
+      "category": "achievement",
+      "prompt": "an iridescent prismatic commemorative achievement medallion embossed with a bold multiplication 'x' symbol, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach342",
+      "category": "achievement",
+      "prompt": "a weathered bronze commemorative achievement medallion embossed with a bursting accelerator-boost chevron, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach343",
+      "category": "achievement",
+      "prompt": "a polished silver commemorative achievement medallion embossed with a bursting accelerator-boost chevron, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach344",
+      "category": "achievement",
+      "prompt": "an iridescent prismatic commemorative achievement medallion embossed with a bursting accelerator-boost chevron, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach345",
+      "category": "achievement",
+      "prompt": "a weathered bronze commemorative achievement medallion embossed with a glowing golden galactic breadcrumb morsel \u2014 a cosmic crumb, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach346",
+      "category": "achievement",
+      "prompt": "a polished silver commemorative achievement medallion embossed with a glowing golden galactic breadcrumb morsel \u2014 a cosmic crumb, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach347",
+      "category": "achievement",
+      "prompt": "an iridescent prismatic commemorative achievement medallion embossed with a glowing golden galactic breadcrumb morsel \u2014 a cosmic crumb, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach348",
+      "category": "achievement",
+      "prompt": "a weathered bronze commemorative achievement medallion embossed with a stylized ant beside a champion's ELO medal, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach349",
+      "category": "achievement",
+      "prompt": "a polished silver commemorative achievement medallion embossed with a stylized ant beside a champion's ELO medal, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach350",
+      "category": "achievement",
+      "prompt": "an iridescent prismatic commemorative achievement medallion embossed with a stylized ant beside a champion's ELO medal, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach351",
+      "category": "achievement",
+      "prompt": "a weathered bronze commemorative achievement medallion embossed with an upward ascension burst of radiant rising rays, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach352",
+      "category": "achievement",
+      "prompt": "a weathered bronze commemorative achievement medallion embossed with an upward ascension burst of radiant rising rays, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach353",
+      "category": "achievement",
+      "prompt": "a polished silver commemorative achievement medallion embossed with an upward ascension burst of radiant rising rays, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach354",
+      "category": "achievement",
+      "prompt": "a gleaming gold commemorative achievement medallion embossed with an upward ascension burst of radiant rising rays, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach355",
+      "category": "achievement",
+      "prompt": "a gleaming gold commemorative achievement medallion embossed with an upward ascension burst of radiant rising rays, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach356",
+      "category": "achievement",
+      "prompt": "an iridescent prismatic commemorative achievement medallion embossed with an upward ascension burst of radiant rising rays, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach357",
+      "category": "achievement",
+      "prompt": "a weathered bronze commemorative achievement medallion embossed with a glowing mathematical constant symbol pi, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach358",
+      "category": "achievement",
+      "prompt": "a weathered bronze commemorative achievement medallion embossed with a glowing mathematical constant symbol pi, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach359",
+      "category": "achievement",
+      "prompt": "a polished silver commemorative achievement medallion embossed with a glowing mathematical constant symbol pi, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach360",
+      "category": "achievement",
+      "prompt": "a gleaming gold commemorative achievement medallion embossed with a glowing mathematical constant symbol pi, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach361",
+      "category": "achievement",
+      "prompt": "a gleaming gold commemorative achievement medallion embossed with a glowing mathematical constant symbol pi, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach362",
+      "category": "achievement",
+      "prompt": "an iridescent prismatic commemorative achievement medallion embossed with a glowing mathematical constant symbol pi, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach363",
+      "category": "achievement",
+      "prompt": "a weathered bronze commemorative achievement medallion embossed with a crossed-swords challenge crest over a struck-through ant, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach364",
+      "category": "achievement",
+      "prompt": "a polished silver commemorative achievement medallion embossed with a crossed-swords challenge crest over a struck-through ant, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach365",
+      "category": "achievement",
+      "prompt": "a polished silver commemorative achievement medallion embossed with a crossed-swords challenge crest over a struck-through ant, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach366",
+      "category": "achievement",
+      "prompt": "a gleaming gold commemorative achievement medallion embossed with a crossed-swords challenge crest over a struck-through ant, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach367",
+      "category": "achievement",
+      "prompt": "an iridescent prismatic commemorative achievement medallion embossed with a crossed-swords challenge crest over a struck-through ant, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach368",
+      "category": "achievement",
+      "prompt": "a weathered bronze commemorative achievement medallion embossed with a crossed-swords challenge crest over a struck-through reincarnation particle swirl, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach369",
+      "category": "achievement",
+      "prompt": "a polished silver commemorative achievement medallion embossed with a crossed-swords challenge crest over a struck-through reincarnation particle swirl, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach370",
+      "category": "achievement",
+      "prompt": "a polished silver commemorative achievement medallion embossed with a crossed-swords challenge crest over a struck-through reincarnation particle swirl, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach371",
+      "category": "achievement",
+      "prompt": "a gleaming gold commemorative achievement medallion embossed with a crossed-swords challenge crest over a struck-through reincarnation particle swirl, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach372",
+      "category": "achievement",
+      "prompt": "an iridescent prismatic commemorative achievement medallion embossed with a crossed-swords challenge crest over a struck-through reincarnation particle swirl, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach373",
+      "category": "achievement",
+      "prompt": "a weathered bronze commemorative achievement medallion embossed with a crossed-swords challenge crest over a tax percent-sign with three steep upward arrows, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach374",
+      "category": "achievement",
+      "prompt": "a polished silver commemorative achievement medallion embossed with a crossed-swords challenge crest over a tax percent-sign with three steep upward arrows, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach375",
+      "category": "achievement",
+      "prompt": "a polished silver commemorative achievement medallion embossed with a crossed-swords challenge crest over a tax percent-sign with three steep upward arrows, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach376",
+      "category": "achievement",
+      "prompt": "a gleaming gold commemorative achievement medallion embossed with a crossed-swords challenge crest over a tax percent-sign with three steep upward arrows, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach377",
+      "category": "achievement",
+      "prompt": "an iridescent prismatic commemorative achievement medallion embossed with a crossed-swords challenge crest over a tax percent-sign with three steep upward arrows, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach378",
+      "category": "achievement",
+      "prompt": "a weathered bronze commemorative achievement medallion embossed with a crossed-swords challenge crest over a struck-through research light-bulb, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach379",
+      "category": "achievement",
+      "prompt": "a polished silver commemorative achievement medallion embossed with a crossed-swords challenge crest over a struck-through research light-bulb, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach380",
+      "category": "achievement",
+      "prompt": "a polished silver commemorative achievement medallion embossed with a crossed-swords challenge crest over a struck-through research light-bulb, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach381",
+      "category": "achievement",
+      "prompt": "a gleaming gold commemorative achievement medallion embossed with a crossed-swords challenge crest over a struck-through research light-bulb, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach382",
+      "category": "achievement",
+      "prompt": "an iridescent prismatic commemorative achievement medallion embossed with a crossed-swords challenge crest over a struck-through research light-bulb, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach383",
+      "category": "achievement",
+      "prompt": "a weathered bronze commemorative achievement medallion embossed with a radiant blessing halo over a blue speed rune, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach384",
+      "category": "achievement",
+      "prompt": "a weathered bronze commemorative achievement medallion embossed with a radiant blessing halo over a blue speed rune, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach385",
+      "category": "achievement",
+      "prompt": "a polished silver commemorative achievement medallion embossed with a radiant blessing halo over a blue speed rune, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach386",
+      "category": "achievement",
+      "prompt": "a polished silver commemorative achievement medallion embossed with a radiant blessing halo over a blue speed rune, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach387",
+      "category": "achievement",
+      "prompt": "a gleaming gold commemorative achievement medallion embossed with a radiant blessing halo over a blue speed rune, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach388",
+      "category": "achievement",
+      "prompt": "a gleaming gold commemorative achievement medallion embossed with a radiant blessing halo over a blue speed rune, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach389",
+      "category": "achievement",
+      "prompt": "an iridescent prismatic commemorative achievement medallion embossed with a radiant blessing halo over a blue speed rune, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach390",
+      "category": "achievement",
+      "prompt": "a weathered bronze commemorative achievement medallion embossed with an ethereal spirit wisp swirling around a blue speed rune, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach391",
+      "category": "achievement",
+      "prompt": "a weathered bronze commemorative achievement medallion embossed with an ethereal spirit wisp swirling around a blue speed rune, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach392",
+      "category": "achievement",
+      "prompt": "a polished silver commemorative achievement medallion embossed with an ethereal spirit wisp swirling around a blue speed rune, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach393",
+      "category": "achievement",
+      "prompt": "a polished silver commemorative achievement medallion embossed with an ethereal spirit wisp swirling around a blue speed rune, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach394",
+      "category": "achievement",
+      "prompt": "a gleaming gold commemorative achievement medallion embossed with an ethereal spirit wisp swirling around a blue speed rune, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach395",
+      "category": "achievement",
+      "prompt": "a gleaming gold commemorative achievement medallion embossed with an ethereal spirit wisp swirling around a blue speed rune, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach396",
+      "category": "achievement",
+      "prompt": "an iridescent prismatic commemorative achievement medallion embossed with an ethereal spirit wisp swirling around a blue speed rune, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach397",
+      "category": "achievement",
+      "prompt": "a weathered bronze commemorative achievement medallion embossed with a glowing blue speed rune glyph, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach398",
+      "category": "achievement",
+      "prompt": "a polished silver commemorative achievement medallion embossed with a glowing blue speed rune glyph, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach399",
+      "category": "achievement",
+      "prompt": "a gleaming gold commemorative achievement medallion embossed with a glowing blue speed rune glyph, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach400",
+      "category": "achievement",
+      "prompt": "an iridescent prismatic commemorative achievement medallion embossed with a glowing blue speed rune glyph, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach401",
+      "category": "achievement",
+      "prompt": "a weathered bronze commemorative achievement medallion embossed with a glowing blue speed rune glyph, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach402",
+      "category": "achievement",
+      "prompt": "a weathered bronze commemorative achievement medallion embossed with a glowing blue speed rune glyph, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach403",
+      "category": "achievement",
+      "prompt": "a weathered bronze commemorative achievement medallion embossed with a glowing blue speed rune glyph, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach404",
+      "category": "achievement",
+      "prompt": "a polished silver commemorative achievement medallion embossed with a glowing blue speed rune glyph, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach405",
+      "category": "achievement",
+      "prompt": "a polished silver commemorative achievement medallion embossed with a glowing blue speed rune glyph, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach406",
+      "category": "achievement",
+      "prompt": "a polished silver commemorative achievement medallion embossed with a glowing blue speed rune glyph, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach407",
+      "category": "achievement",
+      "prompt": "a gleaming gold commemorative achievement medallion embossed with a glowing blue speed rune glyph, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach408",
+      "category": "achievement",
+      "prompt": "a gleaming gold commemorative achievement medallion embossed with a glowing blue speed rune glyph, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach409",
+      "category": "achievement",
+      "prompt": "a gleaming gold commemorative achievement medallion embossed with a glowing blue speed rune glyph, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach410",
+      "category": "achievement",
+      "prompt": "a gleaming gold commemorative achievement medallion embossed with a glowing blue speed rune glyph, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach411",
+      "category": "achievement",
+      "prompt": "an iridescent prismatic commemorative achievement medallion embossed with a glowing blue speed rune glyph, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach412",
+      "category": "achievement",
+      "prompt": "a weathered bronze commemorative achievement medallion embossed with a blue speed rune glyph haloed with bonus free-level sparkles, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach413",
+      "category": "achievement",
+      "prompt": "a weathered bronze commemorative achievement medallion embossed with a blue speed rune glyph haloed with bonus free-level sparkles, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach414",
+      "category": "achievement",
+      "prompt": "a weathered bronze commemorative achievement medallion embossed with a blue speed rune glyph haloed with bonus free-level sparkles, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach415",
+      "category": "achievement",
+      "prompt": "a weathered bronze commemorative achievement medallion embossed with a blue speed rune glyph haloed with bonus free-level sparkles, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach416",
+      "category": "achievement",
+      "prompt": "a polished silver commemorative achievement medallion embossed with a blue speed rune glyph haloed with bonus free-level sparkles, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach417",
+      "category": "achievement",
+      "prompt": "a polished silver commemorative achievement medallion embossed with a blue speed rune glyph haloed with bonus free-level sparkles, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach418",
+      "category": "achievement",
+      "prompt": "a polished silver commemorative achievement medallion embossed with a blue speed rune glyph haloed with bonus free-level sparkles, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach419",
+      "category": "achievement",
+      "prompt": "a polished silver commemorative achievement medallion embossed with a blue speed rune glyph haloed with bonus free-level sparkles, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach420",
+      "category": "achievement",
+      "prompt": "a polished silver commemorative achievement medallion embossed with a blue speed rune glyph haloed with bonus free-level sparkles, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach421",
+      "category": "achievement",
+      "prompt": "a gleaming gold commemorative achievement medallion embossed with a blue speed rune glyph haloed with bonus free-level sparkles, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach422",
+      "category": "achievement",
+      "prompt": "a gleaming gold commemorative achievement medallion embossed with a blue speed rune glyph haloed with bonus free-level sparkles, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach423",
+      "category": "achievement",
+      "prompt": "a gleaming gold commemorative achievement medallion embossed with a blue speed rune glyph haloed with bonus free-level sparkles, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach424",
+      "category": "achievement",
+      "prompt": "a gleaming gold commemorative achievement medallion embossed with a blue speed rune glyph haloed with bonus free-level sparkles, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach425",
+      "category": "achievement",
+      "prompt": "an iridescent prismatic commemorative achievement medallion embossed with a blue speed rune glyph haloed with bonus free-level sparkles, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach426",
+      "category": "achievement",
+      "prompt": "an iridescent prismatic commemorative achievement medallion embossed with a blue speed rune glyph haloed with bonus free-level sparkles, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach427",
+      "category": "achievement",
+      "prompt": "a weathered bronze commemorative achievement medallion embossed with a glowing engraved campaign token coin, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach428",
+      "category": "achievement",
+      "prompt": "a weathered bronze commemorative achievement medallion embossed with a glowing engraved campaign token coin, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach429",
+      "category": "achievement",
+      "prompt": "a weathered bronze commemorative achievement medallion embossed with a glowing engraved campaign token coin, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach430",
+      "category": "achievement",
+      "prompt": "a polished silver commemorative achievement medallion embossed with a glowing engraved campaign token coin, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach431",
+      "category": "achievement",
+      "prompt": "a polished silver commemorative achievement medallion embossed with a glowing engraved campaign token coin, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach432",
+      "category": "achievement",
+      "prompt": "a polished silver commemorative achievement medallion embossed with a glowing engraved campaign token coin, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach433",
+      "category": "achievement",
+      "prompt": "a gleaming gold commemorative achievement medallion embossed with a glowing engraved campaign token coin, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach434",
+      "category": "achievement",
+      "prompt": "a gleaming gold commemorative achievement medallion embossed with a glowing engraved campaign token coin, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach435",
+      "category": "achievement",
+      "prompt": "a gleaming gold commemorative achievement medallion embossed with a glowing engraved campaign token coin, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach436",
+      "category": "achievement",
+      "prompt": "an iridescent prismatic commemorative achievement medallion embossed with a glowing engraved campaign token coin, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach437",
+      "category": "achievement",
+      "prompt": "a weathered bronze commemorative achievement medallion embossed with a cut cyan diamond, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach438",
+      "category": "achievement",
+      "prompt": "a weathered bronze commemorative achievement medallion embossed with a cut cyan diamond, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach439",
+      "category": "achievement",
+      "prompt": "a weathered bronze commemorative achievement medallion embossed with a cut cyan diamond, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach440",
+      "category": "achievement",
+      "prompt": "a weathered bronze commemorative achievement medallion embossed with a cut cyan diamond, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach441",
+      "category": "achievement",
+      "prompt": "a polished silver commemorative achievement medallion embossed with a cut cyan diamond, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach442",
+      "category": "achievement",
+      "prompt": "a polished silver commemorative achievement medallion embossed with a cut cyan diamond, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach443",
+      "category": "achievement",
+      "prompt": "a polished silver commemorative achievement medallion embossed with a cut cyan diamond, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach444",
+      "category": "achievement",
+      "prompt": "a polished silver commemorative achievement medallion embossed with a cut cyan diamond, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach445",
+      "category": "achievement",
+      "prompt": "a gleaming gold commemorative achievement medallion embossed with a cut cyan diamond, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach446",
+      "category": "achievement",
+      "prompt": "a gleaming gold commemorative achievement medallion embossed with a cut cyan diamond, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach447",
+      "category": "achievement",
+      "prompt": "a gleaming gold commemorative achievement medallion embossed with a cut cyan diamond, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach448",
+      "category": "achievement",
+      "prompt": "a gleaming gold commemorative achievement medallion embossed with a cut cyan diamond, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach449",
+      "category": "achievement",
+      "prompt": "an iridescent prismatic commemorative achievement medallion embossed with a cut cyan diamond, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach450",
+      "category": "achievement",
+      "prompt": "an iridescent prismatic commemorative achievement medallion embossed with a cut cyan diamond, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach451",
+      "category": "achievement",
+      "prompt": "a gleaming gold commemorative achievement medallion embossed with a cut cyan diamond, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach452",
+      "category": "achievement",
+      "prompt": "a weathered bronze commemorative achievement medallion embossed with a lavender four-point mythos star, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach453",
+      "category": "achievement",
+      "prompt": "a weathered bronze commemorative achievement medallion embossed with a lavender four-point mythos star, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach454",
+      "category": "achievement",
+      "prompt": "a weathered bronze commemorative achievement medallion embossed with a lavender four-point mythos star, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach455",
+      "category": "achievement",
+      "prompt": "a weathered bronze commemorative achievement medallion embossed with a lavender four-point mythos star, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach456",
+      "category": "achievement",
+      "prompt": "a polished silver commemorative achievement medallion embossed with a lavender four-point mythos star, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach457",
+      "category": "achievement",
+      "prompt": "a polished silver commemorative achievement medallion embossed with a lavender four-point mythos star, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach458",
+      "category": "achievement",
+      "prompt": "a polished silver commemorative achievement medallion embossed with a lavender four-point mythos star, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach459",
+      "category": "achievement",
+      "prompt": "a polished silver commemorative achievement medallion embossed with a lavender four-point mythos star, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach460",
+      "category": "achievement",
+      "prompt": "a polished silver commemorative achievement medallion embossed with a lavender four-point mythos star, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach461",
+      "category": "achievement",
+      "prompt": "a gleaming gold commemorative achievement medallion embossed with a lavender four-point mythos star, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach462",
+      "category": "achievement",
+      "prompt": "a gleaming gold commemorative achievement medallion embossed with a lavender four-point mythos star, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach463",
+      "category": "achievement",
+      "prompt": "a gleaming gold commemorative achievement medallion embossed with a lavender four-point mythos star, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach464",
+      "category": "achievement",
+      "prompt": "a gleaming gold commemorative achievement medallion embossed with a lavender four-point mythos star, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach465",
+      "category": "achievement",
+      "prompt": "an iridescent prismatic commemorative achievement medallion embossed with a lavender four-point mythos star, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach466",
+      "category": "achievement",
+      "prompt": "an iridescent prismatic commemorative achievement medallion embossed with a lavender four-point mythos star, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach467",
+      "category": "achievement",
+      "prompt": "a weathered bronze commemorative achievement medallion embossed with a warm-orange glowing particle mote, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach468",
+      "category": "achievement",
+      "prompt": "a weathered bronze commemorative achievement medallion embossed with a warm-orange glowing particle mote, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach469",
+      "category": "achievement",
+      "prompt": "a weathered bronze commemorative achievement medallion embossed with a warm-orange glowing particle mote, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach470",
+      "category": "achievement",
+      "prompt": "a weathered bronze commemorative achievement medallion embossed with a warm-orange glowing particle mote, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach471",
+      "category": "achievement",
+      "prompt": "a polished silver commemorative achievement medallion embossed with a warm-orange glowing particle mote, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach472",
+      "category": "achievement",
+      "prompt": "a polished silver commemorative achievement medallion embossed with a warm-orange glowing particle mote, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach473",
+      "category": "achievement",
+      "prompt": "a polished silver commemorative achievement medallion embossed with a warm-orange glowing particle mote, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach474",
+      "category": "achievement",
+      "prompt": "a polished silver commemorative achievement medallion embossed with a warm-orange glowing particle mote, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach475",
+      "category": "achievement",
+      "prompt": "a polished silver commemorative achievement medallion embossed with a warm-orange glowing particle mote, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach476",
+      "category": "achievement",
+      "prompt": "a gleaming gold commemorative achievement medallion embossed with a warm-orange glowing particle mote, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach477",
+      "category": "achievement",
+      "prompt": "a gleaming gold commemorative achievement medallion embossed with a warm-orange glowing particle mote, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach478",
+      "category": "achievement",
+      "prompt": "a gleaming gold commemorative achievement medallion embossed with a warm-orange glowing particle mote, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach479",
+      "category": "achievement",
+      "prompt": "a gleaming gold commemorative achievement medallion embossed with a warm-orange glowing particle mote, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach480",
+      "category": "achievement",
+      "prompt": "an iridescent prismatic commemorative achievement medallion embossed with a warm-orange glowing particle mote, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach481",
+      "category": "achievement",
+      "prompt": "an iridescent prismatic commemorative achievement medallion embossed with a warm-orange glowing particle mote, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach482",
+      "category": "achievement",
+      "prompt": "a weathered bronze commemorative achievement medallion embossed with a stylized ant on a sacrificial altar with a reward sparkle, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach483",
+      "category": "achievement",
+      "prompt": "a weathered bronze commemorative achievement medallion embossed with a stylized ant on a sacrificial altar with a reward sparkle, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach484",
+      "category": "achievement",
+      "prompt": "a weathered bronze commemorative achievement medallion embossed with a stylized ant on a sacrificial altar with a reward sparkle, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach485",
+      "category": "achievement",
+      "prompt": "a polished silver commemorative achievement medallion embossed with a stylized ant on a sacrificial altar with a reward sparkle, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach486",
+      "category": "achievement",
+      "prompt": "a polished silver commemorative achievement medallion embossed with a stylized ant on a sacrificial altar with a reward sparkle, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach487",
+      "category": "achievement",
+      "prompt": "a polished silver commemorative achievement medallion embossed with a stylized ant on a sacrificial altar with a reward sparkle, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach488",
+      "category": "achievement",
+      "prompt": "a polished silver commemorative achievement medallion embossed with a stylized ant on a sacrificial altar with a reward sparkle, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach489",
+      "category": "achievement",
+      "prompt": "a gleaming gold commemorative achievement medallion embossed with a stylized ant on a sacrificial altar with a reward sparkle, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach490",
+      "category": "achievement",
+      "prompt": "a gleaming gold commemorative achievement medallion embossed with a stylized ant on a sacrificial altar with a reward sparkle, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach491",
+      "category": "achievement",
+      "prompt": "a gleaming gold commemorative achievement medallion embossed with a stylized ant on a sacrificial altar with a reward sparkle, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach492",
+      "category": "achievement",
+      "prompt": "a gleaming gold commemorative achievement medallion embossed with a stylized ant on a sacrificial altar with a reward sparkle, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach493",
+      "category": "achievement",
+      "prompt": "an iridescent prismatic commemorative achievement medallion embossed with a stylized ant on a sacrificial altar with a reward sparkle, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach494",
+      "category": "achievement",
+      "prompt": "an iridescent prismatic commemorative achievement medallion embossed with a stylized ant on a sacrificial altar with a reward sparkle, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach495",
+      "category": "achievement",
+      "prompt": "a weathered bronze commemorative achievement medallion embossed with a glowing promo-code ticket stamped with a plus sign, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach496",
+      "category": "achievement",
+      "prompt": "a weathered bronze commemorative achievement medallion embossed with a glowing promo-code ticket stamped with a plus sign, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach497",
+      "category": "achievement",
+      "prompt": "a polished silver commemorative achievement medallion embossed with a glowing promo-code ticket stamped with a plus sign, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach498",
+      "category": "achievement",
+      "prompt": "a gleaming gold commemorative achievement medallion embossed with a glowing promo-code ticket stamped with a plus sign, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach499",
+      "category": "achievement",
+      "prompt": "a gleaming gold commemorative achievement medallion embossed with a glowing promo-code ticket stamped with a plus sign, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach500",
+      "category": "achievement",
+      "prompt": "an iridescent prismatic commemorative achievement medallion embossed with a glowing promo-code ticket stamped with a plus sign, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach501",
+      "category": "achievement",
+      "prompt": "a weathered bronze commemorative achievement medallion embossed with a glowing promo-code ticket stamped with a plus sign, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach502",
+      "category": "achievement",
+      "prompt": "a weathered bronze commemorative achievement medallion embossed with a glowing promo-code ticket stamped with a plus sign, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach503",
+      "category": "achievement",
+      "prompt": "a polished silver commemorative achievement medallion embossed with a glowing promo-code ticket stamped with a plus sign, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach504",
+      "category": "achievement",
+      "prompt": "a polished silver commemorative achievement medallion embossed with a glowing promo-code ticket stamped with a plus sign, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach505",
+      "category": "achievement",
+      "prompt": "a polished silver commemorative achievement medallion embossed with a glowing promo-code ticket stamped with a plus sign, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach506",
+      "category": "achievement",
+      "prompt": "a gleaming gold commemorative achievement medallion embossed with a glowing promo-code ticket stamped with a plus sign, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach507",
+      "category": "achievement",
+      "prompt": "a gleaming gold commemorative achievement medallion embossed with a glowing promo-code ticket stamped with a plus sign, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach508",
+      "category": "achievement",
+      "prompt": "a gleaming gold commemorative achievement medallion embossed with a glowing promo-code ticket stamped with a plus sign, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "ach509",
+      "category": "achievement",
+      "prompt": "an iridescent prismatic commemorative achievement medallion embossed with a glowing promo-code ticket stamped with a plus sign, a slim ribbon at the base, soft pastel-goth palette."
+    },
+    {
+      "id": "coin1",
+      "category": "building",
+      "prompt": "a hard-hatted worker laborer with a pickaxe, warm gold tones."
+    },
+    {
+      "id": "coin2",
+      "category": "building",
+      "prompt": "a briefcase overflowing with gold coins \u2014 an investment, warm gold tones."
+    },
+    {
+      "id": "coin3",
+      "category": "building",
+      "prompt": "a coin printing press machine stamping gold coins, warm gold tones."
+    },
+    {
+      "id": "coin4",
+      "category": "building",
+      "prompt": "a coin-minting stamp press striking gold coins, warm gold tones."
+    },
+    {
+      "id": "coin5",
+      "category": "building",
+      "prompt": "an alchemist's flask transmuting liquid into gold, warm gold tones."
+    },
+    {
+      "id": "diamond1",
+      "category": "building",
+      "prompt": "an industrial refinery tower with pipes, cyan-diamond tones."
+    },
+    {
+      "id": "diamond2",
+      "category": "building",
+      "prompt": "a coal power plant with smokestacks, cyan-diamond tones."
+    },
+    {
+      "id": "diamond3",
+      "category": "building",
+      "prompt": "a coal mining drilling rig, cyan-diamond tones."
+    },
+    {
+      "id": "diamond4",
+      "category": "building",
+      "prompt": "a pickaxe striking a large cyan diamond, cyan tones."
+    },
+    {
+      "id": "diamond5",
+      "category": "building",
+      "prompt": "an ornate mysterious Pandora's box glowing cyan."
+    },
+    {
+      "id": "mythos1",
+      "category": "building",
+      "prompt": "an ornate arcane augment rune sigil, lavender mythos tones."
+    },
+    {
+      "id": "mythos2",
+      "category": "building",
+      "prompt": "a glowing enchantment scroll with a sigil, lavender mythos tones."
+    },
+    {
+      "id": "mythos3",
+      "category": "building",
+      "prompt": "a wizard's pointed star-speckled hat, lavender mythos tones."
+    },
+    {
+      "id": "mythos4",
+      "category": "building",
+      "prompt": "a glowing oracle's all-seeing eye orb, lavender mythos tones."
+    },
+    {
+      "id": "mythos5",
+      "category": "building",
+      "prompt": "a grandmaster's crowned staff, lavender mythos tones."
+    },
+    {
+      "id": "accelerator",
+      "category": "building",
+      "prompt": "a glowing speedometer with forward speed chevrons, gold-and-cyan tones."
+    },
+    {
+      "id": "multiplier",
+      "category": "building",
+      "prompt": "a bold ornate multiplication 'x' emblem, gold tones."
+    },
+    {
+      "id": "acceleratorboost",
+      "category": "building",
+      "prompt": "a bursting rocket-boost chevron with energy sparks, cyan tones."
+    }
+  ]
+}

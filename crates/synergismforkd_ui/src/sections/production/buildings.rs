@@ -21,6 +21,41 @@ use crate::detail::{use_detail, BuildingDetail, DetailBody, DetailTarget, ResetK
 use crate::format::format_value;
 use crate::i18n::{t, t_args};
 
+/// Painted producer icons (see `tools/icongen/`), one per building, shown on
+/// each producer card's title row. Files live in `assets/pictures/building/`.
+fn coin_building_icon(index: u8) -> Option<Asset> {
+    Some(match index {
+        1 => asset!("/assets/pictures/building/coin1.png"),
+        2 => asset!("/assets/pictures/building/coin2.png"),
+        3 => asset!("/assets/pictures/building/coin3.png"),
+        4 => asset!("/assets/pictures/building/coin4.png"),
+        5 => asset!("/assets/pictures/building/coin5.png"),
+        _ => return None,
+    })
+}
+
+fn diamond_building_icon(index: u8) -> Option<Asset> {
+    Some(match index {
+        1 => asset!("/assets/pictures/building/diamond1.png"),
+        2 => asset!("/assets/pictures/building/diamond2.png"),
+        3 => asset!("/assets/pictures/building/diamond3.png"),
+        4 => asset!("/assets/pictures/building/diamond4.png"),
+        5 => asset!("/assets/pictures/building/diamond5.png"),
+        _ => return None,
+    })
+}
+
+fn mythos_building_icon(index: u8) -> Option<Asset> {
+    Some(match index {
+        1 => asset!("/assets/pictures/building/mythos1.png"),
+        2 => asset!("/assets/pictures/building/mythos2.png"),
+        3 => asset!("/assets/pictures/building/mythos3.png"),
+        4 => asset!("/assets/pictures/building/mythos4.png"),
+        5 => asset!("/assets/pictures/building/mythos5.png"),
+        _ => return None,
+    })
+}
+
 #[component]
 pub fn Buildings() -> Element {
     let show_diamond = use_slice(|s| s.reset_counters.prestige_unlocked);
@@ -221,6 +256,7 @@ fn CoinProducerCard(index: u8) -> Element {
     };
     // Per-second output + % of total production live in the bottom panel now.
     let target = DetailTarget::Building(BuildingDetail::CoinProducer(index));
+    let icon = coin_building_icon(index);
     let accent = Resource::Coins.css_color();
 
     rsx! {
@@ -230,7 +266,12 @@ fn CoinProducerCard(index: u8) -> Element {
             tabindex: "0",
             onmouseenter: move |_| detail.set(target),
             onfocus: move |_| detail.set(target),
-            div { class: "sf-card-title", {t(name_key)} }
+            div { class: "sf-card-title",
+                if let Some(src) = icon {
+                    img { class: "sf-building-icon", src, alt: "", draggable: "false" }
+                }
+                span { {t(name_key)} }
+            }
             OwnedRow { owned: owned(), generated: generated() }
             CostRow { cost: cost(), resource: Resource::Coins }
             div { class: "sf-card-actions",
@@ -385,6 +426,7 @@ fn DiamondProducerCard(index: u8) -> Element {
         bridge.dispatch(action);
     };
     let target = DetailTarget::Building(BuildingDetail::Diamond(index));
+    let icon = diamond_building_icon(index);
     let accent = Resource::Diamonds.css_color();
 
     rsx! {
@@ -394,7 +436,12 @@ fn DiamondProducerCard(index: u8) -> Element {
             tabindex: "0",
             onmouseenter: move |_| detail.set(target),
             onfocus: move |_| detail.set(target),
-            div { class: "sf-card-title", {t(name_key)} }
+            div { class: "sf-card-title",
+                if let Some(src) = icon {
+                    img { class: "sf-building-icon", src, alt: "", draggable: "false" }
+                }
+                span { {t(name_key)} }
+            }
             OwnedRow { owned: owned(), generated: generated() }
             CostRow { cost: cost(), resource: Resource::Diamonds }
             div { class: "sf-card-actions",
@@ -450,6 +497,7 @@ fn MythosProducerCard(index: u8) -> Element {
         bridge.dispatch(action);
     };
     let target = DetailTarget::Building(BuildingDetail::Mythos(index));
+    let icon = mythos_building_icon(index);
     let accent = Resource::Mythos.css_color();
 
     rsx! {
@@ -459,7 +507,12 @@ fn MythosProducerCard(index: u8) -> Element {
             tabindex: "0",
             onmouseenter: move |_| detail.set(target),
             onfocus: move |_| detail.set(target),
-            div { class: "sf-card-title", {t(name_key)} }
+            div { class: "sf-card-title",
+                if let Some(src) = icon {
+                    img { class: "sf-building-icon", src, alt: "", draggable: "false" }
+                }
+                span { {t(name_key)} }
+            }
             OwnedRow { owned: owned(), generated: generated() }
             CostRow { cost: cost(), resource: Resource::Mythos }
             div { class: "sf-card-actions",
@@ -516,7 +569,10 @@ fn AcceleratorCard() -> Element {
             tabindex: "0",
             onmouseenter: move |_| detail.set(target),
             onfocus: move |_| detail.set(target),
-            div { class: "sf-card-title", {t("buildings.accelerators")} }
+            div { class: "sf-card-title",
+                img { class: "sf-building-icon", src: asset!("/assets/pictures/building/accelerator.png"), alt: "", draggable: "false" }
+                span { {t("buildings.accelerators")} }
+            }
             OwnedRow {
                 owned: owned(),
                 generated: Decimal::from_finite(generated),
@@ -555,7 +611,10 @@ fn MultiplierCard() -> Element {
             tabindex: "0",
             onmouseenter: move |_| detail.set(target),
             onfocus: move |_| detail.set(target),
-            div { class: "sf-card-title", {t("buildings.multipliers")} }
+            div { class: "sf-card-title",
+                img { class: "sf-building-icon", src: asset!("/assets/pictures/building/multiplier.png"), alt: "", draggable: "false" }
+                span { {t("buildings.multipliers")} }
+            }
             OwnedRow {
                 owned: owned(),
                 generated: Decimal::from_finite(generated),
@@ -596,7 +655,10 @@ fn AcceleratorBoostCard() -> Element {
             tabindex: "0",
             onmouseenter: move |_| detail.set(target),
             onfocus: move |_| detail.set(target),
-            div { class: "sf-card-title", {t("buildings.accelerator_boost")} }
+            div { class: "sf-card-title",
+                img { class: "sf-building-icon", src: asset!("/assets/pictures/building/acceleratorboost.png"), alt: "", draggable: "false" }
+                span { {t("buildings.accelerator_boost")} }
+            }
             OwnedRow {
                 owned: owned(),
                 generated: Decimal::from_finite(generated),
@@ -908,6 +970,9 @@ pub fn CrystalDetailBody(i: u8) -> Element {
     rsx! {
         DetailBody {
             title: t_args("crystals.short", &[("n", &i.to_string())]),
+            // No painted crystal-upgrade art yet — show the Crystals cost icon
+            // so the card has a marker (matches the building detail cards).
+            marker: Some(rsx! { ResourceIcon { resource: Resource::Crystals } }),
             description: Some(name),
             formula: if has_formula { Some(formula.to_string()) } else { None },
             accent: Some(Resource::Crystals.css_color()),
